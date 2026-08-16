@@ -279,10 +279,12 @@ export const outreachRouter = router({
     .input(
       z.object({
         runId: z.string().min(1).max(64),
+        startupId: z.string().uuid().optional(),
         startupUrl: z.string().url(),
         startupSummary: z.string().max(2000).optional(),
         investors: z.array(
           z.object({
+            investorId: z.string().uuid().optional(),
             name: z.string(),
             firm: z.string(),
             sector: z.string(),
@@ -293,7 +295,7 @@ export const outreachRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const { runId, startupUrl, startupSummary, investors } = input;
+      const { runId, startupId, startupUrl, startupSummary, investors } = input;
 
       // Get existing emails to avoid duplicates
       const existing = await getOutreachEmailsByRunId(ctx.user.id, runId);
@@ -317,6 +319,8 @@ export const outreachRouter = router({
         const email = await createOutreachEmail({
           userId: ctx.user.id,
           runId,
+          startupId,
+          investorId: inv.investorId,
           investorName: inv.name,
           investorFirm: inv.firm,
           toEmail: inv.email,
@@ -437,6 +441,8 @@ export const outreachRouter = router({
       await recordOutcomeBestEffort({
         userId: ctx.user.id,
         runId: input.runId,
+        startupId: email.startupId,
+        investorId: email.investorId,
         eventType: "outreach_sent",
         source: "resend",
         verified: true,
@@ -479,6 +485,8 @@ export const outreachRouter = router({
       const row = await createMeetingProposal({
         userId: ctx.user.id,
         runId: input.runId,
+        startupId: email.startupId,
+        investorId: email.investorId,
         outreachEmailId: email.id,
         investorName: email.investorName,
         investorFirm: email.investorFirm,
@@ -488,6 +496,8 @@ export const outreachRouter = router({
         await recordOutcomeBestEffort({
           userId: ctx.user.id,
           runId: input.runId,
+          startupId: email.startupId,
+          investorId: email.investorId,
           eventType: "meeting_proposed",
           source: "pythia",
           verified: true,
@@ -566,6 +576,8 @@ export const outreachRouter = router({
       await recordOutcomeBestEffort({
         userId: ctx.user.id,
         runId: m.runId,
+        startupId: m.startupId,
+        investorId: m.investorId,
         eventType: "meeting_confirmed",
         source: "founder_action",
         verified: false,
@@ -587,6 +599,8 @@ export const outreachRouter = router({
       await recordOutcomeBestEffort({
         userId: ctx.user.id,
         runId: m.runId,
+        startupId: m.startupId,
+        investorId: m.investorId,
         eventType: "meeting_declined",
         source: "founder_action",
         verified: false,
@@ -605,6 +619,7 @@ export const outreachRouter = router({
   recordFundraisingEvidence: protectedProcedure
     .input(z.object({
       runId: z.string().min(1).max(64),
+      outreachEmailId: z.number().int().positive(),
       eventType: z.enum(["diligence_started", "term_sheet_received", "capital_committed"]),
       idempotencyKey: z.string().min(8).max(120),
       evidenceUrl: z.string().url().max(1000).optional(),
@@ -620,9 +635,18 @@ export const outreachRouter = router({
       }
     }))
     .mutation(async ({ input, ctx }) => {
+      const emails = await getOutreachEmailsByRunId(ctx.user.id, input.runId);
+      const email = emails.find((row) => row.id === input.outreachEmailId);
+      if (!email) throw new TRPCError({ code: "NOT_FOUND", message: "Outreach target not found" });
+      if (!email.startupId || !email.investorId) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This outreach target predates canonical investor identity. Regenerate the outreach draft from current matches." });
+      }
       const result = await recordFundraisingOutcome({
         userId: ctx.user.id,
         runId: input.runId,
+        startupId: email.startupId,
+        investorId: email.investorId,
+        outreachEmailId: email.id,
         eventType: input.eventType,
         source: "founder_action",
         verified: false,

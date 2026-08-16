@@ -939,7 +939,7 @@ export const appRouter = router({
         const { invokeLLM } = await import("./_core/llm");
 
         let enrichedMatches: Array<{
-          id: number; name: string; firm: string; sector: string[];
+          id: number; investorUuid: string | null; name: string; firm: string; sector: string[];
           stage: string; checkSize: string; geo: string;
           signalScore: number; recentActivity: string;
           matchScore: number; reason: string; godScore?: number | null;
@@ -989,7 +989,7 @@ export const appRouter = router({
             .map((m) => {
               const inv = investorMap.get(m.investorId)!;
               return {
-                id: inv.id, name: inv.name, firm: inv.firm,
+                id: inv.id, investorUuid: null, name: inv.name, firm: inv.firm,
                 sector: [inv.sector, inv.sector2].filter(Boolean) as string[],
                 stage: inv.stage ?? "Series A/B",
                 checkSize: inv.checkSize ?? "$5–20M",
@@ -1041,7 +1041,7 @@ export const appRouter = router({
           summary = narrative.summary;
 
           enrichedMatches = bridgedMatches.slice(0, 6).map(({ rm, pythh }) => ({
-            id: pythh.id, name: pythh.name, firm: pythh.firm,
+            id: pythh.id, investorUuid: rm.investorUuid, name: pythh.name, firm: pythh.firm,
             sector: rm.sectors.length > 0 ? rm.sectors : [pythh.sector, pythh.sector2].filter(Boolean) as string[],
             stage: rm.stage ?? pythh.stage ?? "Series A/B",
             checkSize: rm.checkSize ?? pythh.checkSize ?? "$5–20M",
@@ -1058,6 +1058,7 @@ export const appRouter = router({
         await createPipelineRun({
           userId: ctx.user.id,
           runId,
+          startupId,
           startupUrl: input.url,
           summary,
           matches: enrichedMatches,
@@ -1065,6 +1066,7 @@ export const appRouter = router({
 
         return {
           runId,
+          startupId,
           summary,
           matches: enrichedMatches,
           godScore,

@@ -627,15 +627,24 @@ describe("outreach fundraising outcomes", () => {
     const caller = makeCaller(AUTHED_USER);
     await expect(caller.outreach.recordFundraisingEvidence({
       runId: "run-1",
+      outreachEmailId: 10,
       eventType: "diligence_started",
       idempotencyKey: "evidence-123",
     })).rejects.toThrow();
   });
 
   it("records committed capital with an amount as pending verification", async () => {
+    vi.mocked(getOutreachEmailsByRunId).mockResolvedValue([{
+      id: 10,
+      startupId: "11111111-1111-4111-8111-111111111111",
+      investorId: "22222222-2222-4222-8222-222222222222",
+      investorName: "Sarah Guo",
+      investorFirm: "Conviction",
+    } as any]);
     const caller = makeCaller(AUTHED_USER);
     await expect(caller.outreach.recordFundraisingEvidence({
       runId: "run-1",
+      outreachEmailId: 10,
       eventType: "capital_committed",
       idempotencyKey: "capital-1234",
       evidenceUrl: "https://example.com/signed-document",
@@ -643,6 +652,9 @@ describe("outreach fundraising outcomes", () => {
       investorFirm: "Conviction",
     })).resolves.toMatchObject({ ok: true, verificationStatus: "pending_review" });
     expect(recordFundraisingOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      startupId: "11111111-1111-4111-8111-111111111111",
+      investorId: "22222222-2222-4222-8222-222222222222",
+      outreachEmailId: 10,
       eventType: "capital_committed",
       verified: false,
       metadata: expect.objectContaining({ amount_usd: 750000, verification_status: "pending_review" }),

@@ -138,7 +138,7 @@ async function handleReceived(event, client) {
 
   let query = client
     .from('pythh_outreach_emails')
-    .select('id, user_id, run_id, investor_name, investor_firm, resend_message_id');
+    .select('id, user_id, run_id, startup_id, investor_id, investor_name, investor_firm, resend_message_id');
   query = outreachEmailId
     ? query.eq('id', outreachEmailId)
     : query.eq('resend_message_id', normalizedReference || '__missing_reference__');
@@ -154,6 +154,8 @@ async function handleReceived(event, client) {
   const { error: outcomeError } = await client.from('pythh_fundraising_outcomes').upsert({
     user_id: email.user_id,
     run_id: email.run_id,
+    startup_id: email.startup_id,
+    investor_id: email.investor_id,
     outreach_email_id: email.id,
     event_type: 'reply_received',
     source: 'resend',
@@ -220,7 +222,7 @@ router.post('/calendar/webhook', express.json(), async (req, res) => {
   try {
     const { data: meeting, error } = await client
       .from('pythh_meetings')
-      .select('id, user_id, run_id, outreach_email_id, investor_name, investor_firm')
+      .select('id, user_id, run_id, startup_id, investor_id, outreach_email_id, investor_name, investor_firm')
       .eq('id', meetingId)
       .maybeSingle();
     if (error) throw error;
@@ -234,6 +236,8 @@ router.post('/calendar/webhook', express.json(), async (req, res) => {
     const { error: outcomeError } = await client.from('pythh_fundraising_outcomes').upsert({
       user_id: meeting.user_id,
       run_id: meeting.run_id,
+      startup_id: meeting.startup_id,
+      investor_id: meeting.investor_id,
       outreach_email_id: meeting.outreach_email_id,
       meeting_id: meeting.id,
       event_type: 'meeting_confirmed',
