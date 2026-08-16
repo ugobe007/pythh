@@ -199,14 +199,20 @@ export const fundraisingOutcomes = pgTable(
 
 export type FundraisingOutcome = typeof fundraisingOutcomes.$inferSelect;
 
-export const fundraisingEvidenceReviews = pgTable("pythh_fundraising_evidence_reviews", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  outcomeId: integer("outcome_id").notNull().references(() => fundraisingOutcomes.id, { onDelete: "cascade" }),
-  reviewerUserId: integer("reviewer_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
-  decision: varchar("decision", { length: 16 }).notNull(),
-  reviewNote: text("review_note"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-});
+export const fundraisingEvidenceReviews = pgTable(
+  "pythh_fundraising_evidence_reviews",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    outcomeId: integer("outcome_id").notNull().references(() => fundraisingOutcomes.id, { onDelete: "cascade" }),
+    reviewerUserId: integer("reviewer_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    decision: varchar("decision", { length: 16 }).notNull(),
+    reviewNote: text("review_note"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    outcomeIdUnique: uniqueIndex("uq_pythh_fundraising_evidence_review").on(table.outcomeId),
+  }),
+);
 
 export const founderProfiles = pgTable("pythh_founder_profiles", {
   userId: integer("user_id")
