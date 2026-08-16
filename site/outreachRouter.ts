@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { outreachProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, outreachProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import PDFDocument from "pdfkit";
@@ -27,7 +27,9 @@ import {
   getPitchDeckById,
   getPitchDeckByRunId,
   listMeetingsForOutreachEmail,
+  listPendingFundraisingEvidence,
   recordFundraisingOutcome,
+  reviewFundraisingEvidence,
   updateMeetingStatus,
   updateOutreachEmailStatus,
   updatePitchDeckSlides,
@@ -615,6 +617,18 @@ export const outreachRouter = router({
   fundraisingMetrics: protectedProcedure
     .input(z.object({ runId: z.string().min(1).max(64) }))
     .query(async ({ input, ctx }) => getFundraisingOutcomeMetrics(ctx.user.id, input.runId)),
+
+  pendingFundraisingEvidence: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).default({ limit: 50 }))
+    .query(async ({ input }) => listPendingFundraisingEvidence(input.limit)),
+
+  reviewFundraisingEvidence: adminProcedure
+    .input(z.object({ outcomeId: z.number().int().positive(), decision: z.enum(["verified", "rejected"]), reviewNote: z.string().trim().min(8).max(2000).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await reviewFundraisingEvidence({ outcomeId: input.outcomeId, reviewerUserId: ctx.user.id, decision: input.decision, reviewNote: input.reviewNote });
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Reviewable fundraising evidence not found" });
+      return { ok: true as const, ...result };
+    }),
 
   recordFundraisingEvidence: protectedProcedure
     .input(z.object({

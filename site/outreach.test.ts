@@ -46,6 +46,8 @@ vi.mock("./db", async (importOriginal) => {
     listMeetingsForOutreachEmail: vi.fn().mockResolvedValue([]),
     updateMeetingStatus: vi.fn(),
     recordFundraisingOutcome: vi.fn().mockResolvedValue({ id: 1, duplicate: false }),
+    listPendingFundraisingEvidence: vi.fn().mockResolvedValue([]),
+    reviewFundraisingEvidence: vi.fn().mockResolvedValue({ duplicate: false, decision: "verified" }),
     getFundraisingOutcomeMetrics: vi.fn().mockResolvedValue({
       outreachSent: 0,
       repliesReceived: 0,
@@ -75,6 +77,8 @@ import {
   updateMeetingStatus,
   getFundraisingOutcomeMetrics,
   recordFundraisingOutcome,
+  listPendingFundraisingEvidence,
+  reviewFundraisingEvidence,
 } from "./db";
 import { appRouter } from "./routers";
 import { getSubscriptionByUserId } from "./db";
@@ -659,6 +663,24 @@ describe("outreach fundraising outcomes", () => {
       verified: false,
       metadata: expect.objectContaining({ amount_usd: 750000, verification_status: "pending_review" }),
     }));
+  });
+
+  it("forbids non-admin evidence review", async () => {
+    const caller = makeCaller(AUTHED_USER);
+    await expect(caller.outreach.reviewFundraisingEvidence({ outcomeId: 10, decision: "verified", reviewNote: "Evidence matches the signed document." })).rejects.toThrow("Admin only");
+  });
+
+  it("allows an admin to verify evidence with an audit note", async () => {
+    const caller = makeCaller({ ...AUTHED_USER, role: "admin" } as any);
+    await expect(caller.outreach.reviewFundraisingEvidence({ outcomeId: 10, decision: "verified", reviewNote: "Evidence matches the signed document." })).resolves.toMatchObject({ ok: true, decision: "verified" });
+    expect(reviewFundraisingEvidence).toHaveBeenCalledWith({ outcomeId: 10, reviewerUserId: 1, decision: "verified", reviewNote: "Evidence matches the signed document." });
+  });
+
+  it("allows admins to list pending evidence", async () => {
+    vi.mocked(listPendingFundraisingEvidence).mockResolvedValue([{ id: 10 }] as any);
+    const caller = makeCaller({ ...AUTHED_USER, role: "admin" } as any);
+    await expect(caller.outreach.pendingFundraisingEvidence({ limit: 25 })).resolves.toEqual([{ id: 10 }]);
+    expect(listPendingFundraisingEvidence).toHaveBeenCalledWith(25);
   });
 });
 
