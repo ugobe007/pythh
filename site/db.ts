@@ -1,9 +1,10 @@
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, or, SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, or, sql, SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
   founderProfiles,
   fundraisingOutcomes,
+  fundraisingEvidenceReviews,
   InsertSubscription,
   InsertUser,
   investors,
@@ -818,6 +819,34 @@ export async function getFundraisingOutcomeMetrics(userId: number, runId: string
     termSheetsReceived: counts.get("term_sheet_received") ?? 0,
     capitalCommitted: counts.get("capital_committed") ?? 0,
   };
+}
+
+export async function listPendingFundraisingEvidence(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(fundraisingOutcomes)
+    .where(and(
+      eq(fundraisingOutcomes.verified, 0),
+      sql`${fundraisingOutcomes.eventType} in ('diligence_started','term_sheet_received','capital_committed')`,
+      sql`${fundraisingOutcomes.metadata}->>'verification_status' = 'pending_review'`,
+    ))
+    .orderBy(asc(fundraisingOutcomes.occurredAt)).limit(limit);
+}
+
+export async function reviewFundraisingEvidence(opts: { outcomeId: number; reviewerUserId: number; decision: "verified" | "rejected"; reviewNote?: string }) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return db.transaction(async (tx) => {
+    const [outcome] = await tx.select().from(fundraisingOutcomes).where(eq(fundraisingOutcomes.id, opts.outcomeId)).limit(1);
+    if (!outcome || !["diligence_started", "term_sheet_received", "capital_committed"].includes(outcome.eventType)) return undefined;
+    const [review] = await tx.insert(fundraisingEvidenceReviews).values({ outcomeId: outcome.id, reviewerUserId: opts.reviewerUserId, decision: opts.decision, reviewNote: opts.reviewNote ?? null }).onConflictDoNothing({ target: fundraisingEvidenceReviews.outcomeId }).returning({ id: fundraisingEvidenceReviews.id });
+    if (!review) return { duplicate: true, decision: (outcome.metadata?.verification_status as string | undefined) ?? "reviewed" };
+    await tx.update(fundraisingOutcomes).set({
+      verified: opts.decision === "verified" ? 1 : 0,
+      metadata: { ...outcome.metadata, verification_status: opts.decision, review_note: opts.reviewNote ?? null, reviewer_user_id: opts.reviewerUserId },
+    }).where(eq(fundraisingOutcomes.id, outcome.id));
+    return { duplicate: false, decision: opts.decision };
+  });
 }
 
 // ─── Admin aggregates ───────────────────────────────────────────────────────

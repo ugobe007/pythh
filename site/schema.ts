@@ -2,7 +2,7 @@
  * Drizzle schema — Postgres (Supabase). Tables use `pythh_*` prefix + snake_case columns.
  * Apply: supabase/migrations/*_pythh_drizzle_postgres_tables.sql
  */
-import { bigint, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigint, bigserial, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
 export const users = pgTable("pythh_users", {
   id: serial("id").primaryKey(),
@@ -198,6 +198,15 @@ export const fundraisingOutcomes = pgTable(
 );
 
 export type FundraisingOutcome = typeof fundraisingOutcomes.$inferSelect;
+
+export const fundraisingEvidenceReviews = pgTable("pythh_fundraising_evidence_reviews", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  outcomeId: integer("outcome_id").notNull().references(() => fundraisingOutcomes.id, { onDelete: "cascade" }),
+  reviewerUserId: integer("reviewer_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  decision: varchar("decision", { length: 16 }).notNull(),
+  reviewNote: text("review_note"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+});
 
 export const founderProfiles = pgTable("pythh_founder_profiles", {
   userId: integer("user_id")
