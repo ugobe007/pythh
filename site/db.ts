@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, or, SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, or, sql, SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
@@ -795,11 +795,28 @@ export async function getFundraisingOutcomeMetrics(userId: number, runId: string
     .where(and(eq(fundraisingOutcomes.userId, userId), eq(fundraisingOutcomes.runId, runId)))
     .groupBy(fundraisingOutcomes.eventType);
   const counts = new Map(rows.map((row) => [row.eventType, Number(row.n)]));
+  
+  let meetingsConfirmedCount = counts.get("meeting_confirmed") ?? 0;
+  if (meetingsConfirmedCount > 0) {
+    const distinctMeetings = await db
+      .selectDistinct({ meetingId: fundraisingOutcomes.meetingId })
+      .from(fundraisingOutcomes)
+      .where(
+        and(
+          eq(fundraisingOutcomes.userId, userId),
+          eq(fundraisingOutcomes.runId, runId),
+          eq(fundraisingOutcomes.eventType, "meeting_confirmed"),
+          sql`${fundraisingOutcomes.meetingId} IS NOT NULL`
+        )
+      );
+    meetingsConfirmedCount = distinctMeetings.length;
+  }
+  
   return {
     outreachSent: counts.get("outreach_sent") ?? 0,
     repliesReceived: counts.get("reply_received") ?? 0,
     meetingsProposed: counts.get("meeting_proposed") ?? 0,
-    meetingsConfirmed: counts.get("meeting_confirmed") ?? 0,
+    meetingsConfirmed: meetingsConfirmedCount,
     diligenceStarted: counts.get("diligence_started") ?? 0,
     termSheetsReceived: counts.get("term_sheet_received") ?? 0,
     capitalCommitted: counts.get("capital_committed") ?? 0,
