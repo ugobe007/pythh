@@ -182,6 +182,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const logger = require('./logger');
 const { getSupabaseClient, paginateStartupUploads } = require('./lib/supabaseClient');
+const { scheduleShadowImpression } = require('./lib/capitalGraphShadow');
 const { isCleanStartupNameForFeed, isCleanInvestorNameForFeed } = require('./lib/feedNameGuards');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
@@ -2495,7 +2496,9 @@ app.get('/api/matches', rateLimitMatches((req) => req.user?.id || null), async (
       });
       res.set('X-Cache', 'HIT');
       res.set('X-Request-ID', requestId);
-      return res.json({ ...cached, cached: true });
+      res.json({ ...cached, cached: true });
+      scheduleShadowImpression({ supabase: getSupabaseClient(), startupId, matches: cached.data || [], requestId, endpoint: '/api/matches', cacheStatus: 'HIT' });
+      return;
     }
     
     const supabase = getSupabaseClient();
@@ -2762,7 +2765,10 @@ app.get('/api/matches', rateLimitMatches((req) => req.user?.id || null), async (
       duration_ms: Date.now() - startTime,
     });
     
+    // The response is flushed before sampled candidate scoring. Shadow capture
+    // cannot change the score, order, or availability of live matches.
     res.json(response);
+    scheduleShadowImpression({ supabase, startupId, matches: maskedMatches, requestId, endpoint: '/api/matches', cacheStatus: 'MISS' });
     
   } catch (error) {
     safeLog('error', 'matches.error', {
