@@ -166,6 +166,7 @@
     "dq:scheduler:daemon": "node scripts/cron/dq-report-scheduler.js --daemon",
     "ml:export-match-sample": "node scripts/export-match-ml-sample.js",
     "ml:train-match-feedback": "node scripts/train-match-feedback-baseline.js --from-db",
+    "test:historical-validation": "node --test tests/historical-match-validation.test.mjs",
     "ml:backfill-match-snapshot": "node scripts/backfill-match-feature-snapshot.js",
     "ml:match:scheduler": "node scripts/cron/ml-match-maintenance-scheduler.js",
     "ml:match:scheduler:daemon": "node scripts/cron/ml-match-maintenance-scheduler.js --daemon",
