@@ -19,9 +19,15 @@ function parseSearchJson(value){
   const text=String(value||'').trim();
   const fenced=text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate=(fenced||text).trim();
-  try{return JSON.parse(candidate);}catch{}
+  try{
+    const parsed=JSON.parse(candidate);
+    if(parsed&&typeof parsed==='object'&&'events' in parsed)return parsed;
+  }catch{}
   const start=candidate.indexOf('{'),end=candidate.lastIndexOf('}');
-  if(start>=0&&end>start)return JSON.parse(candidate.slice(start,end+1));
+  if(start>=0&&end>start){
+    const parsed=JSON.parse(candidate.slice(start,end+1));
+    if(parsed&&typeof parsed==='object'&&'events' in parsed)return parsed;
+  }
   throw new Error(`Search response contained no parseable JSON: ${candidate.slice(0,160)}`);
 }
 async function directSourceUrl(value){
