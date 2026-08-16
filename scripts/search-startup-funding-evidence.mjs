@@ -15,6 +15,15 @@ const db=createClient(url,serviceKey,{auth:{persistSession:false}});
 const model=process.env.GEMINI_SEARCH_MODEL||'gemini-2.5-flash';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+function parseSearchJson(value){
+  const text=String(value||'').trim();
+  const fenced=text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const candidate=(fenced||text).trim();
+  try{return JSON.parse(candidate);}catch{}
+  const start=candidate.indexOf('{'),end=candidate.lastIndexOf('}');
+  if(start>=0&&end>start)return JSON.parse(candidate.slice(start,end+1));
+  throw new Error(`Search response contained no parseable JSON: ${candidate.slice(0,160)}`);
+}
 async function directSourceUrl(value){
   try{
     const parsed=new URL(value);
@@ -41,8 +50,8 @@ for(const job of jobs||[]){
     const prompt=`Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website||'website unknown'}) announced after ${job.earliest_match_at}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
     const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],tools:[{google_search:{}}]}),signal:AbortSignal.timeout(45000)});
     const json=await res.json();if(!res.ok)throw new Error(`Gemini ${res.status}: ${JSON.stringify(json.error||json).slice(0,240)}`);
-    const text=(json.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').replace(/^```json\s*|\s*```$/g,'').trim();
-    const parsed=JSON.parse(text);const events=Array.isArray(parsed.events)?parsed.events:[];
+    const text=(json.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
+    const parsed=parseSearchJson(text);const events=Array.isArray(parsed.events)?parsed.events:[];
     const seenSources=new Set();
     for(const event of events){
       if(!event.source_url||!event.event_date||!event.investor_name)continue;
