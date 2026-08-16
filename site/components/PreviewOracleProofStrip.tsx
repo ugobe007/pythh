@@ -1,5 +1,5 @@
 /**
- * Oracle fund proof strip — verified funded picks on match preview.
+ * Matching-engine proof — portfolio GOD outcomes + timestamped match graph.
  */
 
 import { useEffect, useState } from 'react';
@@ -9,8 +9,11 @@ import { apiUrl } from '@/lib/apiConfig';
 
 type OracleProof = {
   headline?: string;
+  engine_line?: string;
   verified_funded_picks?: number;
   verified_funded_rate_pct?: number | null;
+  match_count?: number;
+  validated_investment_pairs?: number;
   featured_pick?: {
     name?: string;
     entry_god_score?: number;
@@ -37,6 +40,7 @@ export default function PreviewOracleProofStrip() {
   if (!proof?.headline) return null;
 
   const featured = proof.featured_pick;
+  const validated = proof.validated_investment_pairs ?? 0;
 
   return (
     <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
@@ -44,9 +48,13 @@ export default function PreviewOracleProofStrip() {
         <Trophy className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div className="min-w-0">
           <p className="text-xs font-medium text-zinc-200">{proof.headline}</p>
-          {proof.verified_funded_rate_pct != null && proof.verified_funded_picks > 0 && (
+          {proof.engine_line && (
+            <p className="text-[11px] text-zinc-500 mt-0.5">{proof.engine_line}</p>
+          )}
+          {proof.verified_funded_rate_pct != null && (proof.verified_funded_picks ?? 0) > 0 && (
             <p className="text-[11px] text-zinc-500 mt-0.5">
-              {proof.verified_funded_rate_pct}% verified funded rate · public Oracle scoreboard
+              {proof.verified_funded_rate_pct}% verified funded rate on the public scoreboard
+              {validated > 0 ? ` · ${validated.toLocaleString()} predicted matches later confirmed as investments` : ''}
             </p>
           )}
           {featured?.name && featured.entry_god_score != null && (
@@ -61,7 +69,7 @@ export default function PreviewOracleProofStrip() {
         href="/portfolio"
         className="text-[11px] font-semibold text-amber-400/90 hover:text-amber-300 whitespace-nowrap shrink-0"
       >
-        View Oracle fund →
+        View portfolio proof →
       </Link>
     </div>
   );
