@@ -85,6 +85,26 @@ async function main() {
     else pass("public-config returns Supabase anon credentials");
   }
 
+  // 7) Social providers: never advertise LinkedIn with an invalid client_id
+  const providersRes = await fetch(`${ORIGIN}/api/auth/oauth-providers`);
+  if (!providersRes.ok) fail(`oauth-providers HTTP ${providersRes.status}`);
+  else {
+    const { providers } = await providersRes.json();
+    if (!providers?.google?.ready) fail("google OAuth is not ready");
+    else pass("google OAuth ready");
+    if (!providers?.github?.ready) fail("github OAuth is not ready");
+    else pass("github OAuth ready");
+    if (providers?.linkedin_oidc?.enabled && !providers.linkedin_oidc.ready) {
+      fail(
+        `linkedin OAuth enabled with ${providers.linkedin_oidc.reason || "invalid client_id"}`,
+      );
+    } else if (providers?.linkedin_oidc?.ready) {
+      pass("linkedin OIDC ready");
+    } else {
+      pass("linkedin OIDC not enabled (hidden until a valid client_id is configured)");
+    }
+  }
+
   if (failures.length) {
     console.error(`\n${failures.length} smoke test(s) failed.`);
     process.exit(1);

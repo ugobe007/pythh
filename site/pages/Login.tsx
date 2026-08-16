@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { Github, Loader2 } from "lucide-react";
-import { supabase, hasValidSupabaseCredentials, bootstrapSupabase } from "@/lib/supabase";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import FounderSocialAuth from "@/components/FounderSocialAuth";
+import { rewriteOAuthClientIdError } from "@/lib/oauthProviders";
 import {
-  buildSupabaseOAuthRedirectUrl,
   clearStaleOAuthKeys,
   isOAuthHandoffActive,
-  markOAuthHandoff,
 } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
@@ -19,7 +18,7 @@ function getPostLoginPath(): string {
 }
 
 /**
- * /login — Google / GitHub via Supabase OAuth, with optional email fallback.
+ * /login — Google / GitHub / LinkedIn via Supabase OAuth, with optional email fallback.
  */
 export default function Login() {
   const [, navigate] = useLocation();
@@ -28,13 +27,7 @@ export default function Login() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<"google" | "github" | null>(null);
-  const [oauthReady, setOauthReady] = useState(() => hasValidSupabaseCredentials());
-
-  useEffect(() => {
-    if (oauthReady) return;
-    void bootstrapSupabase().then((ok) => setOauthReady(ok));
-  }, [oauthReady]);
+  const [socialLoading, setSocialLoading] = useState(false);
 
   useEffect(() => {
     clearStaleOAuthKeys();
@@ -48,7 +41,8 @@ export default function Login() {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("oauth_error");
     if (err) {
-      setError(decodeURIComponent(err));
+      const decoded = decodeURIComponent(err);
+      setError(rewriteOAuthClientIdError(decoded) || decoded);
       window.history.replaceState({}, "", "/login");
     }
     const hash = window.location.hash || "";
@@ -89,33 +83,6 @@ export default function Login() {
     },
   });
 
-  const handleSocialLogin = async (provider: "google" | "github") => {
-    const ready = oauthReady || (await bootstrapSupabase());
-    if (!ready || !supabase) {
-      setError("OAuth sign-in is not configured. Use email sign-in or contact support.");
-      return;
-    }
-    setSocialLoading(provider);
-    setError(null);
-    clearStaleOAuthKeys();
-    try {
-      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: buildSupabaseOAuthRedirectUrl(getPostLoginPath()),
-          skipBrowserRedirect: true,
-        },
-      });
-      if (oauthErr) throw oauthErr;
-      if (!data?.url) throw new Error("OAuth redirect URL missing");
-      markOAuthHandoff();
-      window.location.href = data.url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);
-      setSocialLoading(null);
-    }
-  };
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -123,8 +90,6 @@ export default function Login() {
     if (!trimmed) { setError("Email is required."); return; }
     loginMutation.mutate({ email: trimmed, name: name.trim() || undefined });
   }
-
-  const oauthDisabled = !oauthReady || !!socialLoading;
 
   return (
     <div
@@ -171,42 +136,15 @@ export default function Login() {
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => handleSocialLogin("google")}
-                disabled={oauthDisabled}
-                className="w-full flex items-center justify-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-opacity border disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ color: "oklch(0.88 0.005 264)", backgroundColor: "oklch(0.10 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
-              >
-                {socialLoading === "google" ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>
-                    <path fill="#EA4335" d="M5.27 9.75A6.46 6.46 0 0 1 12 5.5c1.7 0 3.14.63 4.28 1.65l3.18-3.18C17.4 2.09 14.89 1 12 1 7.7 1 4.05 3.5 2.25 7.1l3.02 2.65z" />
-                    <path fill="#34A853" d="M16.04 18.01A7.4 7.4 0 0 1 12 19.5a6.46 6.46 0 0 1-6.73-4.75L2.25 17.4C4.05 21 7.7 23.5 12 23.5c2.7 0 5.2-.89 7.17-2.53l-3.13-2.96z" />
-                    <path fill="#4A90E2" d="M19.17 20.97C21.45 18.93 23 15.7 23 12.23c0-.79-.07-1.53-.2-2.23H12v4.5h6.18c-.3 1.45-1.1 2.64-2.27 3.41l3.26 2.06z" />
-                    <path fill="#FBBC05" d="M5.27 14.75A6.53 6.53 0 0 1 5.27 9.75L2.25 7.1a10.5 10.5 0 0 0 0 10.3l3.02-2.65z" />
-                  </svg>
-                )}
-                Continue with Google
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSocialLogin("github")}
-                disabled={oauthDisabled}
-                className="w-full flex items-center justify-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-opacity border disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ color: "oklch(0.88 0.005 264)", backgroundColor: "oklch(0.10 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
-              >
-                {socialLoading === "github" ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Github size={18} />
-                )}
-                Continue with GitHub
-              </button>
-            </div>
+            <FounderSocialAuth
+              returnPath={getPostLoginPath()}
+              disabled={loginMutation.isPending}
+              onError={setError}
+              onStart={() => {
+                setError(null);
+                setSocialLoading(true);
+              }}
+            />
 
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px" style={{ backgroundColor: "oklch(0.22 0.01 264)" }} />
@@ -230,7 +168,7 @@ export default function Login() {
                     border: "1px solid oklch(0.22 0.01 264)",
                     color: "oklch(0.92 0.005 264)",
                   }}
-                  disabled={loginMutation.isPending || !!socialLoading}
+                  disabled={loginMutation.isPending || socialLoading}
                 />
               </div>
 
@@ -250,7 +188,7 @@ export default function Login() {
                     border: "1px solid oklch(0.22 0.01 264)",
                     color: "oklch(0.92 0.005 264)",
                   }}
-                  disabled={loginMutation.isPending || !!socialLoading}
+                  disabled={loginMutation.isPending || socialLoading}
                 />
               </div>
 
@@ -262,12 +200,12 @@ export default function Login() {
 
               <button
                 type="submit"
-                disabled={loginMutation.isPending || !email.trim() || !!socialLoading}
+                disabled={loginMutation.isPending || !email.trim() || socialLoading}
                 className="w-full rounded-lg py-2.5 text-sm font-semibold transition-opacity"
                 style={{
                   backgroundColor: "oklch(0.696 0.17 162.48)",
                   color: "oklch(0.08 0.01 264)",
-                  opacity: loginMutation.isPending || !email.trim() || !!socialLoading ? 0.5 : 1,
+                  opacity: loginMutation.isPending || !email.trim() || socialLoading ? 0.5 : 1,
                 }}
               >
                 {loginMutation.isPending ? "Signing in…" : "Sign in with email"}

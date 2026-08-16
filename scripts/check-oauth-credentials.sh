@@ -43,6 +43,25 @@ SYNC="$(curl -s -o /tmp/sync-out.json -w '%{http_code}' -X POST "${ORIGIN}/api/a
   -d '{"access_token":""}')"
 if [[ "$SYNC" == "400" ]]; then ok "sync-supabase rejects empty token (400)"; else bad "sync-supabase unexpected status $SYNC"; fi
 
+PROVIDERS="$(curl -s -o /tmp/oauth-providers.json -w '%{http_code}' "${ORIGIN}/api/auth/oauth-providers")"
+if [[ "$PROVIDERS" == "200" ]]; then
+  ok "oauth-providers returns 200"
+  if python3 - <<'PY'
+import json
+p=json.load(open("/tmp/oauth-providers.json")).get("providers") or {}
+li=p.get("linkedin_oidc") or {}
+if li.get("enabled") and not li.get("ready"):
+    raise SystemExit(1)
+PY
+  then
+    ok "linkedin is hidden unless client_id is valid"
+  else
+    bad "linkedin enabled with invalid client_id"
+  fi
+else
+  bad "oauth-providers unexpected status $PROVIDERS"
+fi
+
 echo ""
 echo "=== Prod frontend OAuth assets ==="
 HTML="$(curl -fsS "$ORIGIN/" 2>/dev/null || true)"
