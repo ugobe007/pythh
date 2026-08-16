@@ -85,6 +85,7 @@ BEGIN
       WHERE sim.startup_id=r.startup_id AND sim.investor_id=r.investor_id AND sim.created_at<r.occurred_at
       ORDER BY sim.created_at DESC LIMIT 1
     ) m ON true
+    ORDER BY r.occurred_at DESC
     LIMIT greatest(p_limit,0)
   )
   SELECT match_id,startup_id,investor_id,'investment',occurred_at,source_url,
