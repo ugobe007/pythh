@@ -394,6 +394,9 @@ async function main() {
         source_title: event.source_title,
         source_published_at: event.source_published_at,
         occurred_at: event.occurred_at || event.source_published_at,
+        subject: event.subject,
+        object: event.object,
+        entities: event.entities,
       });
     }
 
@@ -476,6 +479,9 @@ async function main() {
             source_title: ev.source_title,
             source_published_at: ev.source_published_at,
             occurred_at: ev.occurred_at || ev.source_published_at,
+            subject: ev.subject,
+            object: ev.object,
+            entities: ev.entities,
           });
         }
         break; // one match per startup is enough for inference
@@ -660,6 +666,18 @@ async function main() {
           funding_amount: fundingAmount,
           funding_round: roundVal,
           outcome_date: outcomeDate || null,
+          features_at_time: {
+            event_id: ev.event_id || null,
+            source_url: ev.source_url || null,
+            source_title: ev.source_title || null,
+            source_published_at: ev.source_published_at || null,
+            subject: ev.subject || null,
+            object: ev.object || null,
+            entities: ev.entities || [],
+            lead_investor: inferred.lead_investor || null,
+            amount_raw: ev.amounts || null,
+            stage: roundVal,
+          },
         });
         if (fundingBatch.length >= BULK_INSERT_SIZE) {
           const { error: foErr } = await supabase.from('funding_outcomes').insert(fundingBatch);
