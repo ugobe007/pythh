@@ -155,19 +155,20 @@ DECLARE
   v_name bigint := 0;
   v_queued bigint := 0;
 BEGIN
+  DROP TABLE IF EXISTS _resolution_targets;
   CREATE TEMP TABLE _resolution_targets ON COMMIT DROP AS
     SELECT id FROM public.investor_investments
     WHERE startup_id IS NULL ORDER BY id LIMIT greatest(p_limit, 0);
 
   WITH startup_domains AS (
-    SELECT split_part(lower(regexp_replace(regexp_replace(website, '^https?://', ''), '^www\.', '')), '/', 1) AS key,
+    SELECT split_part(regexp_replace(regexp_replace(lower(website), '^https?://', ''), '^www\.', ''), '/', 1) AS key,
            (array_agg(id))[1] AS startup_id
     FROM public.startup_uploads WHERE nullif(btrim(website), '') IS NOT NULL
     GROUP BY 1 HAVING count(*) = 1
   ), candidates AS (
     SELECT ii.id, sd.startup_id
     FROM public.investor_investments ii JOIN _resolution_targets t USING (id)
-    JOIN startup_domains sd ON sd.key = split_part(lower(regexp_replace(regexp_replace(ii.company_url, '^https?://', ''), '^www\.', '')), '/', 1)
+    JOIN startup_domains sd ON sd.key = split_part(regexp_replace(regexp_replace(lower(ii.company_url), '^https?://', ''), '^www\.', ''), '/', 1)
     WHERE nullif(btrim(ii.company_url), '') IS NOT NULL
   )
   UPDATE public.investor_investments ii
@@ -177,14 +178,14 @@ BEGIN
   GET DIAGNOSTICS v_domain = ROW_COUNT;
 
   WITH startup_names AS (
-    SELECT lower(regexp_replace(name, '[^a-z0-9]+', '', 'g')) AS key,
+    SELECT regexp_replace(lower(name), '[^a-z0-9]+', '', 'g') AS key,
            (array_agg(id))[1] AS startup_id
     FROM public.startup_uploads WHERE nullif(btrim(name), '') IS NOT NULL
     GROUP BY 1 HAVING count(*) = 1
   ), candidates AS (
     SELECT ii.id, sn.startup_id
     FROM public.investor_investments ii JOIN _resolution_targets t USING (id)
-    JOIN startup_names sn ON sn.key = lower(regexp_replace(ii.company_name, '[^a-z0-9]+', '', 'g'))
+    JOIN startup_names sn ON sn.key = regexp_replace(lower(ii.company_name), '[^a-z0-9]+', '', 'g')
     WHERE ii.startup_id IS NULL AND nullif(btrim(ii.company_name), '') IS NOT NULL
   )
   UPDATE public.investor_investments ii
