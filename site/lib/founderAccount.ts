@@ -74,6 +74,25 @@ export async function createFounderAccount(
   }
 }
 
+/** Persist the startup selected during signup so the account survives a new browser/device. */
+export async function persistFounderStartup(opts: {
+  startupId: string;
+  companyUrl?: string | null;
+  companyName?: string | null;
+}): Promise<boolean> {
+  if (!opts.startupId) return false;
+  try {
+    await trpcVanilla.profile.upsert.mutate({
+      startupId: opts.startupId,
+      companyUrl: opts.companyUrl?.trim() || undefined,
+      companyName: opts.companyName?.trim() || undefined,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type InstantResultsPayload = {
   startup_id?: string;
   startup?: Record<string, unknown> | null;

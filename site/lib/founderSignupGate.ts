@@ -8,7 +8,7 @@ import { getUtmParams } from '@/lib/funnelAttribution';
 
 import { pinActiveStartup } from '@/lib/activeStartupContext';
 
-export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle_gap';
+export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle_gap' | 'outreach';
 
 const POST_SIGNUP_PATH_KEY = 'pythia_post_signup_path';
 const GATE_PENDING_KEY = 'pythia_founder_gate_pending';
@@ -73,23 +73,48 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   export: 'export and track your match list',
   delta: 'see which investors moved toward you',
   oracle_gap: 'close your top GOD gap and unlock more investors',
+  outreach: 'open your investor outreach drafts',
 };
+
+export type WorkflowReturnTo = 'matches' | 'outreach' | 'improvements';
+
+function sessionStartupUrl(explicit?: string | null): string | null {
+  const fromArg = explicit?.trim();
+  if (fromArg) return fromArg.startsWith('http') ? fromArg : `https://${fromArg}`;
+  if (typeof sessionStorage === 'undefined') return null;
+  return sessionStorage.getItem('pythia_url');
+}
+
+/** Canonical match-list route — never /activate. */
+export function matchesPathForUrl(url?: string | null): string {
+  const normalized = sessionStartupUrl(url);
+  if (!normalized) return '/matches';
+  return `/matches?url=${encodeURIComponent(normalized)}`;
+}
+
+export function outreachPath(startupId: string): string {
+  return `/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
+}
+
+export function improvementsPath(startupId: string, returnTo: WorkflowReturnTo = 'matches'): string {
+  return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1&return_to=${returnTo}`;
+}
 
 /** Where founders land after preview-gate signup — outreach first, readiness optional. */
 export function normalizePreviewGateAction(action: FounderGatedAction | null): FounderGatedAction {
-  if (action === 'oracle_gap' || action === 'delta') return 'save';
   return action ?? 'save';
 }
 
 export function postSignupPathForAction(
   action: FounderGatedAction | null,
   startupId: string,
+  options?: { url?: string | null },
 ): string {
   if (!startupId) return '/account';
   if (action === 'oracle_gap') {
-    return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1`;
+    return improvementsPath(startupId, 'matches');
   }
-  return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&tab=round`;
+  return outreachPath(startupId);
 }
 
 export function clearFounderGatePending() {
@@ -222,13 +247,13 @@ export async function trackFounderGateCompleted(
   const gatedAction = ctx.gatedAction ?? (sessionStorage.getItem(GATED_ACTION_KEY) as FounderGatedAction | null);
   const startupId = ctx.startupId ?? sessionStorage.getItem('pythia_startup_id');
 
-  if (startupId && gatedAction) {
+  if (startupId) {
+    const resolved = normalizePreviewGateAction(gatedAction);
     sessionStorage.setItem(
       POST_SIGNUP_PATH_KEY,
-      postSignupPathForAction(normalizePreviewGateAction(gatedAction), startupId),
+      postSignupPathForAction(resolved, startupId, { url: ctx.url }),
     );
-  } else if (startupId) {
-    sessionStorage.setItem(POST_SIGNUP_PATH_KEY, postSignupPathForAction('save', startupId));
+    pinActiveStartup(startupId, ctx.url || undefined);
   }
 
   trackFunnelEvent('lookup_signup_completed', {
@@ -266,7 +291,6 @@ export async function trackFounderGateCompleted(
   }
 
   sessionStorage.removeItem(GATED_ACTION_KEY);
-  sessionStorage.removeItem('pythia_startup_id');
   sessionStorage.removeItem(GATED_INVESTOR_KEY);
 }
 

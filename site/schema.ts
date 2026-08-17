@@ -214,6 +214,7 @@ export const founderProfiles = pgTable("pythh_founder_profiles", {
     .references(() => users.id, { onDelete: "cascade" }),
   companyName: varchar("company_name", { length: 256 }),
   companyUrl: varchar("company_url", { length: 512 }),
+  startupId: uuid("startup_id"),
   stage: varchar("stage", { length: 64 }),
   sector: varchar("sector", { length: 128 }),
   askAmount: varchar("ask_amount", { length: 64 }),

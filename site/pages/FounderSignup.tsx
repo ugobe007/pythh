@@ -22,7 +22,7 @@ import {
   type FounderGatedAction,
 } from '@/lib/founderSignupGate';
 import { isOAuthHandoffActive } from '@/lib/supabaseOAuth';
-import { sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
+import { persistFounderStartup, sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
 import { trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 
@@ -96,6 +96,9 @@ export default function FounderSignup() {
         startup_id: startupId || undefined,
         url: url || undefined,
       });
+      if (startupId) {
+        await persistFounderStartup({ startupId, companyUrl: url });
+      }
 
       // The explicit pre-match funnel always wins over a saved startup action.
       // URL analysis may already have created a startupId, but that must not
@@ -122,14 +125,15 @@ export default function FounderSignup() {
             source: 'founder_signup_gate_oauth',
           });
         }
-        const post = postSignupPathForAction(resolvedAction, startupId);
-        navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
+        const post =
+          consumePostSignupPath() ?? postSignupPathForAction(resolvedAction, startupId, { url });
+        navigate(post);
         return;
       }
 
       const post = consumePostSignupPath();
       if (post) {
-        navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
+        navigate(post);
         return;
       }
       if (startupId) {
@@ -193,6 +197,10 @@ export default function FounderSignup() {
         startup_id: startupId || undefined,
         url: url || undefined,
       });
+
+      if (startupId) {
+        await persistFounderStartup({ startupId, companyUrl: url });
+      }
 
       const { action: consumedAction } = fromMatchGate
         ? { action: null }
@@ -263,7 +271,7 @@ export default function FounderSignup() {
 
       const postPath = consumePostSignupPath();
       if (postPath) {
-        navigate(postPath.includes('?') ? `${postPath}&welcome=1` : `${postPath}?welcome=1`);
+        navigate(postPath);
         return;
       }
       if (startupId) {
