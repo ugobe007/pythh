@@ -219,7 +219,7 @@ interface Props {
 
 export default function InstantMatchPreview({ url }: Props) {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -435,7 +435,7 @@ export default function InstantMatchPreview({ url }: Props) {
             investor_mix: investorMix,
           });
           markFirstPreviewSeen();
-          if (!isAuthenticated) {
+          if (!authLoading && !isAuthenticated) {
             recordAnonymousPreview(url);
           }
           if (data.startup?.id) {
