@@ -41,7 +41,7 @@ type ThesisSpotlight = {
 
 export default function FindInvestors() {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [spotlight, setSpotlight] = useState<ThesisSpotlight | null>(null);
@@ -84,7 +84,7 @@ export default function FindInvestors() {
       return;
     }
     setError(false);
-    if (!isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+    if (!loading && !isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
       sessionStorage.setItem('pythia_url', normalized);
       navigate(buildLoginRedirectForSearch(normalized));
       return;

@@ -435,7 +435,9 @@ export default function InstantMatchPreview({ url }: Props) {
             investor_mix: investorMix,
           });
           markFirstPreviewSeen();
-          recordAnonymousPreview(url);
+          if (!isAuthenticated) {
+            recordAnonymousPreview(url);
+          }
           if (data.startup?.id) {
             pinActiveStartup(data.startup.id, url, data.startup.name ?? null);
           }
