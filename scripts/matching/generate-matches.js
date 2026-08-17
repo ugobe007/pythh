@@ -11,12 +11,26 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { normalizeEntityName } = require('../../server/lib/fundingEvidenceLedger.js');
+const { buildInvestorHistoricalFeatures, scoreHistoricalFit } = require('../../server/lib/investorHistoricalFeatures.js');
 require('dotenv').config();
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
+
+function normalizeStartupStage(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const stage = String(value || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+  if (!stage) return 2;
+  if (stage.includes('pre seed') || stage.includes('preseed') || stage.includes('angel')) return 1;
+  if (stage === 'seed' || stage.includes('seed stage')) return 2;
+  if (stage.includes('series a')) return 3;
+  if (stage.includes('series b')) return 4;
+  if (stage.includes('series c') || stage.includes('growth') || stage.includes('late')) return 5;
+  return 2;
+}
 
   // Enhanced matching algorithm using GOD scores
 function calculateMatch(startup, investor) {
@@ -39,9 +53,35 @@ function calculateMatch(startup, investor) {
     score += 5;
     reasons.push('Quality startup bonus (+5)');
   }
+  const startupQualityPoints = score;
+
+  // A documented prior relationship is a strong, causal candidate-generation
+  // signal for follow-on participation. It must come from the startup record,
+  // not from the outcome event being evaluated.
+  const recordedInvestors = [
+    ...(Array.isArray(startup.extracted_data?.investors) ? startup.extracted_data.investors : []),
+    ...(Array.isArray(startup.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
+    ...(Array.isArray(startup.backed_by) ? startup.backed_by : []),
+  ].map(normalizeEntityName).filter(Boolean);
+  const investorIdentityKeys = [investor.firm, investor.name].map(normalizeEntityName).filter(Boolean);
+  const featureCutoff = startup.feature_cutoff_at ? new Date(startup.feature_cutoff_at) : null;
+  const relationshipObservedAt = startup.extracted_data?.scraped_at
+    ? new Date(startup.extracted_data.scraped_at)
+    : null;
+  const relationshipWasObservable = !featureCutoff
+    || (relationshipObservedAt && relationshipObservedAt < featureCutoff);
+  if (relationshipWasObservable && investorIdentityKeys.some(key => recordedInvestors.includes(key))) {
+    score += 20;
+    reasons.push('Documented prior investor relationship (+20)');
+  }
+  const historicalFit = scoreHistoricalFit(startup, investor.historical_features, featureCutoff || new Date());
+  if (historicalFit.points > 0) {
+    score += historicalFit.points;
+    reasons.push(...historicalFit.reasons.map(reason => `${reason} (+history)`));
+  }
   
   // Stage fit (15 points) - REDUCED from 20 to make room for GOD score
-  const startupStage = startup.stage || 2; // Default to seed (stage 2)
+  const startupStage = normalizeStartupStage(startup.stage);
   // Handle both array and string formats for investor stages
   let investorStages = '';
   if (Array.isArray(investor.stage)) {
@@ -207,7 +247,7 @@ function calculateMatch(startup, investor) {
     }
   } else {
     // Fallback: Use stage to estimate check size
-    const stage = startup.stage || 2;
+    const stage = normalizeStartupStage(startup.stage);
     const estimatedRaise = stage === 1 ? 500000 : stage === 2 ? 2000000 : stage === 3 ? 5000000 : 10000000;
     
     if (investorCheckMin && investorCheckMax) {
@@ -247,7 +287,10 @@ function calculateMatch(startup, investor) {
   }
   
   // Portfolio Fit Analysis (5-10 points) - NEW Phase 2
-  if (investor.portfolio_companies && Array.isArray(investor.portfolio_companies) && investor.portfolio_companies.length > 0) {
+  const portfolioObservedAt = investor.portfolio_observed_at ? new Date(investor.portfolio_observed_at) : null;
+  const portfolioWasObservable = !featureCutoff
+    || (portfolioObservedAt && portfolioObservedAt < featureCutoff);
+  if (portfolioWasObservable && investor.portfolio_companies && Array.isArray(investor.portfolio_companies) && investor.portfolio_companies.length > 0) {
     const portfolio = investor.portfolio_companies.map(c => c.toString().toLowerCase());
     const startupName = (startup.name || '').toLowerCase();
     const startupDesc = (startup.description || '').toLowerCase();
@@ -296,7 +339,7 @@ function calculateMatch(startup, investor) {
         reasons.push(`Portfolio gap: New opportunity (+2)`);
       }
     }
-  } else if (investor.notable_investments && Array.isArray(investor.notable_investments) && investor.notable_investments.length > 0) {
+  } else if (portfolioWasObservable && investor.notable_investments && Array.isArray(investor.notable_investments) && investor.notable_investments.length > 0) {
     // Use notable_investments as fallback
     const notable = investor.notable_investments.map(c => c.toString().toLowerCase());
     const startupSectorsText = Array.isArray(startup.sectors) 
@@ -378,15 +421,97 @@ function calculateMatch(startup, investor) {
     reasons.push(`Growing team (+1)`);
   }
   
-  const confidence = score >= 70 ? 'high' : score >= 50 ? 'medium' : 'low';
+  // GOD measures whether the startup deserves attention; it is constant for every
+  // investor and therefore must not dominate investor ordering. Normalize the
+  // investor-specific fit points separately to avoid hundreds of 100-point ties.
+  const investorFitPoints = Math.max(0, score - startupQualityPoints);
+  const investorFitPercent = Math.min(100, (investorFitPoints / 65) * 100);
+  const calibratedScore = Math.round(((godScore * 0.25) + (investorFitPercent * 0.75)) * 10) / 10;
+  const confidence = calibratedScore >= 70 ? 'high' : calibratedScore >= 50 ? 'medium' : 'low';
   
   return {
-    score: Math.min(score, 100),
+    score: calibratedScore,
+    investor_fit_score: Math.round(investorFitPercent * 10) / 10,
+    legacy_raw_score: score,
+    startup_quality_score: godScore,
     confidence,
     reason: reasons.join('; ') || 'Basic compatibility match',
     stage_fit: score >= 15,
     sector_fit: sectorMatches > 0
   };
+}
+
+function fallbackFirmKey(investor) {
+  const parenthetical = String(investor.name || '').match(/\(([^)]+)\)\s*$/)?.[1];
+  const label = String(investor.firm || parenthetical || investor.name || investor.id || '')
+    .trim().replace(/^at\s+/i, '');
+  return `label:${normalizeEntityName(label)}`;
+}
+
+function selectTopInvestorCandidates(scored, membershipByInvestor = new Map(), limit = 50) {
+  const ranked = [...scored].sort((a, b) =>
+    b.match.score - a.match.score || String(a.investor.id).localeCompare(String(b.investor.id))
+  );
+  const seenOrganizations = new Set();
+  const selected = [];
+  for (const item of ranked) {
+    const organizationId = membershipByInvestor.get(item.investor.id);
+    const firmKey = organizationId ? `organization:${organizationId}` : fallbackFirmKey(item.investor);
+    if (!firmKey || seenOrganizations.has(firmKey)) continue;
+    seenOrganizations.add(firmKey);
+    selected.push(item);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
+async function fetchAllInvestors(client, selectColumns, pageSize = 1000) {
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client.from('investors')
+      .select(selectColumns)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
+async function fetchAllRows(client, table, selectColumns, configure = query => query, pageSize = 1000) {
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const query = configure(client.from(table).select(selectColumns)).range(offset, offset + pageSize - 1);
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
+async function loadVerifiedHistoricalFeatures(client, membershipByInvestor, cutoffAt = new Date()) {
+  const events = await fetchAllRows(client, 'funding_evidence_events',
+    'id,startup_id,canonical_round_key,round_type,announced_at,occurred_at,verification_status',
+    query => query.in('verification_status', ['corroborated', 'verified']).lt('announced_at', new Date(cutoffAt).toISOString()));
+  if (!events.length) return new Map();
+  const eventIds = events.map(row => row.id);
+  const participants = [];
+  for (let offset = 0; offset < eventIds.length; offset += 200) {
+    const { data, error } = await client.from('funding_evidence_participants')
+      .select('funding_event_id,investor_id,investor_organization_id,participant_role,participation_relation')
+      .in('funding_event_id', eventIds.slice(offset, offset + 200));
+    if (error) throw error;
+    participants.push(...(data || []));
+  }
+  const startupIds = [...new Set(events.map(row => row.startup_id).filter(Boolean))];
+  const startups = [];
+  for (let offset = 0; offset < startupIds.length; offset += 200) {
+    const { data, error } = await client.from('startup_uploads').select('id,sectors,stage').in('id', startupIds.slice(offset, offset + 200));
+    if (error) throw error;
+    startups.push(...(data || []));
+  }
+  return buildInvestorHistoricalFeatures({ events, participants, startups, membershipByInvestor, cutoffAt });
 }
 
 async function generateMatches() {
@@ -411,17 +536,54 @@ async function generateMatches() {
   }
   
   // Get all investors with relevant fields for matching
-  const { data: investors, error: investorsError } = await supabase
-    .from('investors')
-    .select('id, name, sectors, stage, check_size_min, check_size_max, geography_focus, investor_score, investor_tier, last_investment_date, investment_pace_per_year, leads_rounds, follows_rounds, portfolio_companies, notable_investments, investment_thesis');
-  
-  if (investorsError) {
+  let investors;
+  try {
+    investors = await fetchAllInvestors(supabase, 'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, investor_score, investor_tier, last_investment_date, investment_pace_per_year, leads_rounds, follows_rounds, portfolio_companies, notable_investments, investment_thesis');
+  } catch (investorsError) {
     console.error('❌ Error fetching investors:', investorsError);
     return;
   }
   
   console.log(`📊 Found ${startups.length} startups and ${investors.length} investors`);
   console.log('🔄 Calculating matches...\n');
+
+  const membershipByInvestor = new Map();
+  for (let offset = 0; offset < investors.length; offset += 200) {
+    const ids = investors.slice(offset, offset + 200).map(row => row.id);
+    const { data: memberships, error: membershipError } = await supabase
+      .from('investor_organization_memberships')
+      .select('investor_id,organization_id')
+      .in('investor_id', ids);
+    if (membershipError) {
+      console.warn(`⚠️ Organization membership lookup failed; using firm labels: ${membershipError.message}`);
+      break;
+    }
+    for (const row of memberships || []) membershipByInvestor.set(row.investor_id, row.organization_id);
+  }
+  const { data: organizationAliases, error: aliasError } = await supabase
+    .from('investor_organization_aliases').select('organization_id,normalized_alias');
+  if (aliasError) {
+    console.warn(`⚠️ Organization alias lookup failed; using reviewed memberships only: ${aliasError.message}`);
+  } else {
+    const organizationByAlias = new Map((organizationAliases || []).map(row => [row.normalized_alias, row.organization_id]));
+    for (const investor of investors) {
+      if (membershipByInvestor.has(investor.id)) continue;
+      const organizationId = [investor.firm, investor.name]
+        .map(normalizeEntityName).filter(Boolean)
+        .map(value => organizationByAlias.get(value)).find(Boolean);
+      if (organizationId) membershipByInvestor.set(investor.id, organizationId);
+    }
+  }
+  let historicalFeatures = new Map();
+  try {
+    historicalFeatures = await loadVerifiedHistoricalFeatures(supabase, membershipByInvestor, new Date());
+  } catch (historyError) {
+    console.warn(`⚠️ Verified funding history unavailable; continuing without it: ${historyError.message}`);
+  }
+  for (const investor of investors) {
+    const organizationId = membershipByInvestor.get(investor.id);
+    investor.historical_features = historicalFeatures.get(organizationId ? `organization:${organizationId}` : `investor:${investor.id}`) || null;
+  }
   
   const matches = [];
   let highConfidence = 0;
@@ -433,8 +595,6 @@ async function generateMatches() {
   const startupsWithMatches = new Set();
   
   for (const startup of startups) {
-    let startupMatchCount = 0;
-    
     // Dynamic threshold based on startup quality - NEW
     const godScore = startup.total_god_score || 50;
     let minMatchScore = 15; // Default
@@ -448,12 +608,13 @@ async function generateMatches() {
       minMatchScore = 10; // Lower startups can have lower threshold
     }
     
-    for (const investor of investors) {
-      const match = calculateMatch(startup, investor);
-      
-      // Dynamic threshold based on startup quality
-      // Generate up to 50 matches per startup for ML training
-      if (match.score > minMatchScore && startupMatchCount < 50) {
+    const scoredCandidates = investors.map(investor => ({
+      investor,
+      match: calculateMatch(startup, investor),
+    })).filter(item => item.match.score > minMatchScore);
+    const selectedCandidates = selectTopInvestorCandidates(scoredCandidates, membershipByInvestor, 50);
+
+    for (const { investor, match } of selectedCandidates) {
         matches.push({
           startup_id: startup.id,
           investor_id: investor.id,
@@ -467,9 +628,7 @@ async function generateMatches() {
         else if (match.confidence === 'medium') mediumConfidence++;
         else lowConfidence++;
         
-        startupMatchCount++;
         startupsWithMatches.add(startup.id);
-      }
     }
     processedStartups++;
     
@@ -561,4 +720,6 @@ async function generateMatches() {
 }
 
 // Run the matching
-generateMatches().catch(console.error);
+if (require.main === module) generateMatches().catch(console.error);
+
+module.exports = { calculateMatch, normalizeStartupStage, fallbackFirmKey, selectTopInvestorCandidates, fetchAllInvestors, loadVerifiedHistoricalFeatures };

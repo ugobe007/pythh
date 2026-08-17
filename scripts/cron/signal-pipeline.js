@@ -14,7 +14,11 @@
  *                          extracted_data from news context. Skips entity_gate=junk
  *                          only (aligned with ENRICHMENT_STAGES.md RSS guidance).
  *
- *   3. Promote fields      promote-extracted-fields.js --apply
+ *   3. Funding evidence    sync-funding-evidence-ledger.mjs --apply
+ *                          Resolves funding participants and evaluates prior
+ *                          recommendation sets in a shadow-only ledger.
+ *
+ *   4. Promote fields      promote-extracted-fields.js --apply
  *                          Moves stranded JSONB values (customer_count,
  *                          funding_amount, growth_rate, arr) to canonical
  *                          root columns so the scoring pipeline can read them.
@@ -112,31 +116,72 @@ async function main() {
     if (!scoreOnly) {
       section('2️⃣ ', 'Enrich from RSS news → web_signals, press_tier, extracted_data');
       await run('node', ['scripts/enrich-from-rss-news.js', '--all', '--gate-exclude-junk'], 'enrich-from-rss-news');
+
+      if (process.env.FUNDING_EVIDENCE_RESOLVER_ENABLED === 'true') {
+        section('3A ', 'Resolve funding entities → canonical startups + investor firms');
+        const resolverProvider = process.env.FUNDING_EVIDENCE_RESOLVER_PROVIDER || 'openai';
+        await run('node', ['scripts/event-resolver.js', '--apply', '--funding-only', '--provider', resolverProvider, '--hours', '96', '--limit', '100'], 'funding-event-resolver',
+          { fatal: false });
+      }
+
+      section('3B ', 'Funding evidence → participants + historical match evaluation');
+      await run('node', ['scripts/sync-funding-evidence-ledger.mjs', '--apply'], 'funding-evidence-ledger',
+        { fatal: false });
+
+      if (process.env.FUNDING_COHORT_MONITOR_ENABLED !== 'false') {
+        section('3C ', 'Monitor prospective top-five cohort → targeted funding evidence');
+        await run('node', ['scripts/monitor-funding-prediction-cohort.mjs', '--apply'], 'funding-cohort-monitor',
+          { fatal: false });
+
+        section('3D ', 'Repair deterministic funding fields and quarantine unsafe labels');
+        await run('node', ['scripts/repair-funding-ledger-derived-fields.mjs', '--apply'], 'funding-ledger-repair',
+          { fatal: false });
+
+        section('3E ', 'Verify trusted sources or corroborate independent reports');
+        await run('node', ['scripts/corroborate-funding-evidence-rounds.mjs', '--apply'], 'funding-round-corroboration',
+          { fatal: false });
+
+        section('3F ', 'Recover verified funding participants and canonical organizations');
+        await run('node', ['scripts/enrich-funding-ledger-participants.mjs', '--apply'], 'funding-participant-enrichment',
+          { fatal: false });
+
+        section('3G ', 'Repair funding participation ontology and quarantine ambiguous evidence');
+        await run('node', ['scripts/scrub-funding-participant-chronology.mjs', '--apply'], 'funding-participant-chronology-scrub',
+          { fatal: false });
+
+        section('3H ', 'Link verified funding events through matching source provenance');
+        await run('node', ['scripts/resolve-funding-startup-coverage.mjs', '--apply'], 'funding-startup-coverage',
+          { fatal: false });
+
+        section('3I ', 'Resolve proven participants to exact existing investor profiles');
+        await run('node', ['scripts/resolve-funding-investor-coverage.mjs', '--apply'], 'funding-investor-coverage',
+          { fatal: false });
+      }
     }
 
     // ── 3. Promote extracted fields → canonical root columns ──────────────────
     if (!scoreOnly) {
-      section('3️⃣ ', 'Promote JSONB fields → canonical columns (customer_count, arr_usd, etc.)');
+      section('4️⃣ ', 'Promote JSONB fields → canonical columns (customer_count, arr_usd, etc.)');
       await run('node', ['scripts/promote-extracted-fields.js', '--apply'], 'promote-extracted-fields');
     }
 
     // ── 4. Data integrity check — catch & null corrupted values ───────────────
-    section('4️⃣ ', 'Data integrity check + auto-fix (bounds validation)');
+    section('5️⃣ ', 'Data integrity check + auto-fix (bounds validation)');
     await run('node', ['scripts/data-integrity-check.js', '--fix'], 'data-integrity-check',
       { fatal: false }); // non-fatal: issues logged but pipeline continues
 
     // ── 5. Quality gate — reject empty / junk RSS entries ────────────────────
     if (!scoreOnly) {
-      section('5️⃣ ', 'Quality gate → reject junk entries (score≤40, no website, thin text)');
+      section('6️⃣ ', 'Quality gate → reject junk entries (score≤40, no website, thin text)');
       await run('node', ['scripts/quality-gate.js', '--execute'], 'quality-gate');
     }
 
     // ── 6. Sync signal scores → startup_signal_scores ────────────────────────
-    section('6️⃣ ', 'Sync signal scores → startup_signal_scores (feeds signals_bonus)');
+    section('7️⃣ ', 'Sync signal scores → startup_signal_scores (feeds signals_bonus)');
     await run('node', ['scripts/sync-signal-scores.js', '--apply'], 'sync-signal-scores');
 
     // ── 7. Recalculate GOD scores ─────────────────────────────────────────────
-    section('7️⃣ ', 'Recalculate GOD scores (all bonus layers — only writes changed rows)');
+    section('8️⃣ ', 'Recalculate GOD scores (all bonus layers — only writes changed rows)');
     await run('npx', ['tsx', 'scripts/recalculate-scores.ts'], 'recalculate-scores');
 
   } catch (err) {
