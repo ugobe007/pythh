@@ -126,6 +126,45 @@ function isPromotionSafeStartupName(value) {
   return true;
 }
 
+function isPredictionGradeStartupIdentity(row = {}) {
+  const name = String(row.name || '').trim();
+  if (!isPromotionSafeStartupName(name) || row.source_type !== 'url') return false;
+  if (/\b(?:vc|venture capital|ventures?|capital partners?|investment management|fund)\b$/i.test(name)) return false;
+
+  const identityUrl = row.company_domain || row.website;
+  if (!identityUrl) return false;
+  let hostname = '';
+  try {
+    hostname = new URL(/^https?:\/\//i.test(identityUrl) ? identityUrl : `https://${identityUrl}`).hostname
+      .toLowerCase().replace(/^www\./, '');
+  } catch {
+    return false;
+  }
+  if (/\b(?:techcrunch|ventureburn|businessinsider|finsmes|globenewswire|saastr|medium|substack|youtube)\./i.test(hostname)) return false;
+  const domainKey = hostname.split('.')[0].replace(/[^a-z0-9]/g, '');
+  const nameKey = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (domainKey.length < 4 || nameKey.length < 4 || (!domainKey.includes(nameKey) && !nameKey.includes(domainKey))) return false;
+
+  const description = String(row.description || '').replace(/\s+/g, ' ').trim();
+  if (!description) return false;
+  if (/\b(?:nasdaq|nyse|publicly traded|stock exchange|ticker symbol|full-year \d{4} outlook|record (?:second-|third-|fourth-)?quarter(?:ly)? (?:results|revenue))\b/i.test(description)) return false;
+  if (/\b(?:definitive agreement to acquire|has acquired|was acquired|acquisition of|to buy)\b/i.test(description)) return false;
+  if (/\b(?:permanent capital company|private equity firm|investment firm|asset manager)\b/i.test(description)) return false;
+  const ventureFundingEvidence = /\b(?:funding round|pre[- ]seed funding|seed (?:funding|round)|series [a-f] (?:funding|financing|round)|venture (?:funding|financing|round)|equity (?:funding|financing|round))\b/i.test(description)
+    || /\brais(?:ed|ing)\s+[$€£]\s?\d/i.test(description)
+    || /\b(?:closed|secured)\b.{0,50}\b(?:funding|financing|round)\b/i.test(description);
+  if (!ventureFundingEvidence) return false;
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const personRole = new RegExp(`\\b${escapedName}\\s+(?:is|was)\\s+(?:the\\s+|an?\\s+)?(?:owner|founder|co-founder|ceo|president|partner)\\b`, 'i');
+  if (personRole.test(description)) return false;
+  const optionalCompanySuffix = '(?:\\s+(?:health|technologies|technology|labs|ai|group|systems|security|bio))?';
+  const companyAction = new RegExp(`(?:^|[.!?]\\s+)${escapedName}${optionalCompanySuffix}\\s+(?:announced|has raised|secured|closed|raised\\s+(?:[$€£]|\\d|an?\\s+(?:seed|series|funding|financing)))`, 'i');
+  const companyAppositive = new RegExp(`\\b${escapedName}${optionalCompanySuffix}\\s*,\\s*(?:a|an|the)\\s+(?:company|startup|platform|business|provider|developer|maker|network|pharmacy|fintech|biotech|healthtech|insurtech|marketplace)\\b(?!['’]s)`, 'i');
+  const personFullName = new RegExp(`\\b[A-Z][a-z]{2,20}\\s+${escapedName}\\b`);
+  if (personFullName.test(description) && !companyAppositive.test(description)) return false;
+  return companyAction.test(description) || companyAppositive.test(description);
+}
+
 function startupNameCandidates(event, inferredName) {
   const title = String(event.source_title || '');
   const base = [
@@ -287,6 +326,7 @@ module.exports = {
   resolveCanonicalEntity,
   isPlausibleStartupName,
   isPromotionSafeStartupName,
+  isPredictionGradeStartupIdentity,
   startupNameCandidates,
   participantNamesFromEvent,
   classifyFundingEvidence,

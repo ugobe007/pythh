@@ -129,39 +129,43 @@ async function main() {
         { fatal: false });
 
       if (process.env.FUNDING_COHORT_MONITOR_ENABLED !== 'false') {
-        section('3C ', 'Freeze new, non-duplicated top-five predictions for prospective proof');
+        section('3C ', 'Backfill full-universe firm candidates for prospective proof');
+        await run('node', ['scripts/backfill-funding-proof-candidates.mjs', '--apply', '--limit=25'], 'funding-proof-candidate-backfill',
+          { fatal: false });
+
+        section('3D ', 'Freeze new, non-duplicated top-five predictions for prospective proof');
         await run('node', ['scripts/snapshot-funding-prediction-cohort.mjs', '--apply', '--new-only', '--limit=25'], 'funding-cohort-snapshot',
           { fatal: false });
 
-        section('3D ', 'Monitor prospective top-five cohort → targeted funding evidence');
+        section('3E ', 'Monitor prospective top-five cohort → targeted funding evidence');
         await run('node', ['scripts/monitor-funding-prediction-cohort.mjs', '--apply'], 'funding-cohort-monitor',
           { fatal: false });
 
-        section('3E ', 'Repair deterministic funding fields and quarantine unsafe labels');
+        section('3F ', 'Repair deterministic funding fields and quarantine unsafe labels');
         await run('node', ['scripts/repair-funding-ledger-derived-fields.mjs', '--apply'], 'funding-ledger-repair',
           { fatal: false });
 
-        section('3F ', 'Verify trusted sources or corroborate independent reports');
+        section('3G ', 'Verify trusted sources or corroborate independent reports');
         await run('node', ['scripts/corroborate-funding-evidence-rounds.mjs', '--apply'], 'funding-round-corroboration',
           { fatal: false });
 
-        section('3G ', 'Recover verified funding participants and canonical organizations');
+        section('3H ', 'Recover verified funding participants and canonical organizations');
         await run('node', ['scripts/enrich-funding-ledger-participants.mjs', '--apply'], 'funding-participant-enrichment',
           { fatal: false });
 
-        section('3H ', 'Repair funding participation ontology and quarantine ambiguous evidence');
+        section('3I ', 'Repair funding participation ontology and quarantine ambiguous evidence');
         await run('node', ['scripts/scrub-funding-participant-chronology.mjs', '--apply'], 'funding-participant-chronology-scrub',
           { fatal: false });
 
-        section('3I ', 'Link verified funding events through matching source provenance');
+        section('3J ', 'Link verified funding events through matching source provenance');
         await run('node', ['scripts/resolve-funding-startup-coverage.mjs', '--apply'], 'funding-startup-coverage',
           { fatal: false });
 
-        section('3J ', 'Resolve proven participants to exact existing investor profiles');
+        section('3K ', 'Resolve proven participants to exact existing investor profiles');
         await run('node', ['scripts/resolve-funding-investor-coverage.mjs', '--apply'], 'funding-investor-coverage',
           { fatal: false });
 
-        section('3K ', 'Report leakage-safe funding prediction claim readiness');
+        section('3L ', 'Report leakage-safe funding prediction claim readiness');
         await run('node', ['scripts/report-funding-prediction-claim-readiness.mjs'], 'funding-claim-readiness',
           { fatal: false });
       }

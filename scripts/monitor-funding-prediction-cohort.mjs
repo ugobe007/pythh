@@ -72,12 +72,11 @@ async function main() {
   }
   const candidateTargets = [...targetsById.values()].filter(row => row.startupName);
   const { data: startupIdentities, error: identityError } = await db.from('startup_uploads')
-    .select('id,source_type,website,company_domain').in('id', candidateTargets.map(row => row.startupId));
+    .select('id,name,description,source_type,website,company_domain').in('id', candidateTargets.map(row => row.startupId));
   if (identityError) throw identityError;
-  const directUrlStartupIds = new Set((startupIdentities || []).filter(row =>
-    row.source_type === 'url' && Boolean(row.website || row.company_domain)
-  ).map(row => row.id));
-  const targets = candidateTargets.filter(row => directUrlStartupIds.has(row.startupId)).slice(0, limit);
+  const predictionGradeStartupIds = new Set((startupIdentities || [])
+    .filter(ledger.isPredictionGradeStartupIdentity).map(row => row.id));
+  const targets = candidateTargets.filter(row => predictionGradeStartupIds.has(row.startupId)).slice(0, limit);
   const { data: investors, error: investorError } = await db.from('investors').select('id,name,firm').limit(10000);
   if (investorError) throw investorError;
   const candidates = [];

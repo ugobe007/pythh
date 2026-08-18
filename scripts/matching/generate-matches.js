@@ -465,9 +465,9 @@ function selectTopInvestorCandidates(scored, membershipByInvestor = new Map(), l
   const selected = [];
   for (const item of ranked) {
     const organizationId = membershipByInvestor.get(item.investor.id);
-    const firmKey = organizationId ? `organization:${organizationId}` : fallbackFirmKey(item.investor);
-    if (!firmKey || seenOrganizations.has(firmKey)) continue;
-    seenOrganizations.add(firmKey);
+    const firmKeys = [organizationId ? `organization:${organizationId}` : null, fallbackFirmKey(item.investor)].filter(Boolean);
+    if (!firmKeys.length || firmKeys.some(key => seenOrganizations.has(key))) continue;
+    firmKeys.forEach(key => seenOrganizations.add(key));
     selected.push(item);
     if (selected.length >= limit) break;
   }

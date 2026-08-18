@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
+const { isPredictionGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
 
 const HORIZONS = [30, 90, 180, 365];
 const DAY_MS = 86_400_000;
@@ -31,6 +32,16 @@ async function all(table, select) {
     if (error) throw error;
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
+  }
+  return rows;
+}
+
+async function rowsByIds(table, select, ids) {
+  const rows = [];
+  for (let offset = 0; offset < ids.length; offset += 200) {
+    const { data, error } = await db.from(table).select(select).in('id', ids.slice(offset, offset + 200));
+    if (error) throw error;
+    rows.push(...(data || []));
   }
   return rows;
 }
@@ -200,24 +211,48 @@ function summarize(rows, horizon) {
   };
 }
 
+function hasFiveDistinctInvestorFirms(set, investorById, organizationByInvestor) {
+  if (set.predictions.length !== 5) return false;
+  const seen = new Set();
+  for (const prediction of set.predictions) {
+    const investor = investorById.get(prediction.investor_id);
+    if (!investor) return false;
+    const keys = [
+      organizationByInvestor.get(prediction.investor_id) ? `organization:${organizationByInvestor.get(prediction.investor_id)}` : null,
+      `label:${normalizeEntityName(investor.firm || investor.name)}`,
+    ].filter(key => key && key !== 'label:');
+    if (!keys.length || keys.some(key => seen.has(key))) return false;
+    keys.forEach(key => seen.add(key));
+  }
+  return true;
+}
+
 async function main() {
-  const [snapshots, impressions, events, participants, memberships, startups] = await Promise.all([
+  const [snapshots, impressions, events, participants, memberships] = await Promise.all([
     all('funding_prediction_snapshots', 'id,cohort_key,startup_id,investor_id,rank_position,model_version,predicted_at,prediction_kind'),
     all('ranking_impressions', 'id,session_id,startup_id,investor_id,rank_position,model_version,score,shown_at'),
     all('funding_evidence_events', 'id,startup_id,canonical_round_key,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,metadata'),
     all('funding_evidence_participants', 'id,funding_event_id,investor_id,investor_organization_id,investor_name_raw,participant_role,participation_relation,resolution_status'),
     all('investor_organization_memberships', 'investor_id,organization_id'),
-    all('startup_uploads', 'id,name,source_type,website,company_domain'),
+  ]);
+  const allPredictionSets = buildPredictionSets(snapshots, impressions);
+  const predictedStartupIds = [...new Set(allPredictionSets.map(row => row.startup_id))];
+  const predictedInvestorIds = [...new Set(allPredictionSets.flatMap(row => row.predictions.map(prediction => prediction.investor_id)))];
+  const [startups, investors] = await Promise.all([
+    rowsByIds('startup_uploads', 'id,name,description,source_type,website,company_domain', predictedStartupIds),
+    rowsByIds('investors', 'id,name,firm', predictedInvestorIds),
   ]);
   const startupById = new Map(startups.map(row => [row.id, row]));
-  const allPredictionSets = buildPredictionSets(snapshots, impressions);
-  const predictionSets = allPredictionSets.filter(set => {
+  const investorById = new Map(investors.map(row => [row.id, row]));
+  const organizationByInvestor = new Map(memberships.map(row => [row.investor_id, row.organization_id]));
+  const identityQualifiedSets = allPredictionSets.filter(set => {
     const startup = startupById.get(set.startup_id);
-    return startup?.source_type === 'url' && Boolean(startup.website || startup.company_domain);
+    return isPredictionGradeStartupIdentity(startup);
   });
+  const predictionSets = identityQualifiedSets.filter(set =>
+    hasFiveDistinctInvestorFirms(set, investorById, organizationByInvestor));
   const participantsByEvent = groupBy(participants, row => row.funding_event_id);
   const eventsByStartup = groupBy(events.filter(row => row.startup_id), row => row.startup_id);
-  const organizationByInvestor = new Map(memberships.map(row => [row.investor_id, row.organization_id]));
   const rows = predictionSets.flatMap(set => HORIZONS.map(horizon => evaluateSetAtHorizon(
     set, horizon, eventsByStartup.get(set.startup_id) || [], participantsByEvent, organizationByInvestor,
   )));
@@ -247,7 +282,8 @@ async function main() {
       prospective_snapshot_rows: snapshots.length,
       served_impression_rows: impressions.length,
       complete_prediction_sets: predictionSets.length,
-      excluded_prediction_sets_without_direct_url_identity: allPredictionSets.length - predictionSets.length,
+      excluded_prediction_sets_without_prediction_grade_identity: allPredictionSets.length - identityQualifiedSets.length,
+      excluded_prediction_sets_with_duplicate_or_unresolved_firms: identityQualifiedSets.length - predictionSets.length,
       funding_events: events.length,
       funding_participants: participants.length,
     },

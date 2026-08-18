@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity } = require('../server/lib/investorHistoricalFeatures.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 
-const { normalizeEntityName, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
+const { normalizeEntityName, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPredictionGradeStartupIdentity, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
 
 test('normalizes common investor firm suffixes for deterministic resolution', () => {
   assert.equal(normalizeEntityName('Acme Ventures, LLC'), 'acme llc');
@@ -65,6 +65,68 @@ test('resolves canonical startups conservatively and exposes collisions', () => 
   assert.equal(resolveCanonicalStartup(rows, 'Passion Froot').matchKind, 'exact_alias');
   assert.equal(resolveCanonicalStartup(rows, 'Enigma').status, 'ambiguous');
   assert.equal(resolveCanonicalStartup(rows, 'Insurance startup reportedly').status, 'unresolved');
+});
+
+test('prediction-grade startup identity requires a coherent first-party domain and company description', () => {
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Cheiron', source_type: 'url', website: 'https://cheiron.com',
+    description: 'Cheiron has raised $8 million to develop its operating system.',
+  }), true);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'QuickFlips', source_type: 'url', company_domain: 'quickflips.app',
+    description: 'QuickFlips, a platform for collectors, has paid customers over $5 million.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Kanurra', source_type: 'url', company_domain: 'kanurra.com',
+    description: 'Kanurra, a pharmacy benefit platform, is raising $6.35 million to build its product.',
+  }), true);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Trind VC', source_type: 'url', website: 'https://trindvc.com',
+    description: 'Trind VC led the round in Ringy.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Start Firing', source_type: 'url', website: 'https://saastr.com/start-firing',
+    description: 'Our agents are about to start firing vendors.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Ashton', source_type: 'url', website: 'https://ashton.com',
+    description: 'Caleb Ashton is the owner and founder of QuickFlips.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'AvePoint', source_type: 'url', website: 'https://avepoint.com',
+    description: 'AvePoint announced record ARR after its Nasdaq listing.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'First Advantage', source_type: 'url', website: 'https://firstadvantage.com',
+    description: 'First Advantage raised its full-year 2026 outlook after record second-quarter results.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Apollo', source_type: 'url', website: 'https://apollo.io', description: 'Apollo offers B2B solutions.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Gray', source_type: 'url', website: 'https://gray.com',
+    description: 'Ropes & Gray announced that a new partner joined the firm.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'HCLTech', source_type: 'url', website: 'https://hcltech.com',
+    description: 'HCLTech announced it signed a definitive agreement to acquire Finergic.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'NextSlide', source_type: 'url', website: 'https://nextslide.ai',
+    description: 'OpenAI has acquired NextSlide, a startup that develops presentations.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Ulrich', source_type: 'url', website: 'https://ulrich.ai',
+    description: "Greg Ulrich, the company's chief AI officer, discussed payment fraud.",
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Imagion Biosystems', source_type: 'url', website: 'https://imagionbiosystems.com',
+    description: 'Imagion Biosystems announced firm commitments for a capital raise after FDA clearance.',
+  }), false);
+  assert.equal(isPredictionGradeStartupIdentity({
+    name: 'Orange Juice', source_type: 'url', website: 'https://orangejuice.com',
+    description: 'Orange Juice raised $40 million to launch a permanent capital company.',
+  }), false);
 });
 
 test('reverses directional investment headlines into investor and funded company', () => {
@@ -280,11 +342,15 @@ test('prospective snapshots freeze approved top-five sets without changing live 
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /process\.argv\.includes\('--new-only'\)/);
   assert.match(script, /previouslySnapshotted/);
-  assert.match(script, /isPromotionSafeStartupName/);
+  assert.match(script, /isPredictionGradeStartupIdentity/);
   assert.match(script, /row\.is_individual !== true/);
   assert.match(script, /offset \+= 20/);
   assert.match(script, /snapshots\.length >= limit \* 5/);
-  assert.match(script, /row\.source_type === 'url'/);
+  assert.match(script, /description,total_god_score/);
+  assert.match(script, /fetchAllSnapshotStartupIds/);
+  assert.match(script, /\.eq\('source_type', 'url'\)/);
+  assert.match(script, /--scan-limit=/);
+  assert.match(script, /--scan-offset=/);
 });
 
 test('prospective evaluator uses startup-level any-of-five hits and separates pending horizons', () => {
@@ -323,17 +389,22 @@ test('claim-readiness report prevents temporal leakage and separates accuracy de
   assert.match(script, /indeterminate_funded_startups/);
   assert.match(script, /firstByStartup/);
   assert.match(script, /canonical_round_key/);
-  assert.match(script, /excluded_prediction_sets_without_direct_url_identity/);
+  assert.match(script, /excluded_prediction_sets_without_prediction_grade_identity/);
+  assert.match(script, /isPredictionGradeStartupIdentity/);
+  assert.match(script, /rowsByIds/);
+  assert.match(script, /hasFiveDistinctInvestorFirms/);
+  assert.match(script, /excluded_prediction_sets_with_duplicate_or_unresolved_firms/);
 });
 
 test('prospective cohort monitor is free-search-first and cannot backdate evidence', () => {
   const monitor = readFileSync(new URL('../scripts/monitor-funding-prediction-cohort.mjs', import.meta.url), 'utf8');
   assert.match(monitor, /searchStartupNews/);
   assert.match(monitor, /inference_engine_free_news_search/);
+  assert.match(monitor, /isPredictionGradeStartupIdentity/);
   assert.match(monitor, /publishedAt > new Date\(predictedAt\)/);
   assert.match(monitor, /all_active_365_day_cohorts/);
   assert.match(monitor, /cohortKeys: new Set/);
-  assert.match(monitor, /directUrlStartupIds/);
+  assert.match(monitor, /predictionGradeStartupIds/);
   assert.match(monitor, /verification_status: 'observed'/);
   assert.match(monitor, /extractKnownInvestorMentions/);
   assert.doesNotMatch(monitor, /OpenAI|Anthropic/);
@@ -387,6 +458,7 @@ test('candidate generation paginates the full investor universe before ranking a
   assert.match(batchMatcher, /selectTopInvestorCandidates\(scoredCandidates, membershipByInvestor, 50\)/);
   assert.match(batchMatcher, /b\.match\.score - a\.match\.score/);
   assert.match(batchMatcher, /organization:\$\{organizationId\}/);
+  assert.match(batchMatcher, /firmKeys\.some/);
   assert.match(batchMatcher, /replace\(\/\^at\\s\+\/i, ''\)/);
   assert.match(batchMatcher, /Documented prior investor relationship \(\+20\)/);
   assert.match(batchMatcher, /investorFitPercent/);
@@ -507,4 +579,31 @@ test('event resolver supports Anthropic with deterministic inference hints', () 
   assert.match(runner, /FUNDING_ONLY \? \['FUNDING', 'INVESTMENT'\]/);
   assert.match(runner, /INFERENCE_FIRST = !has\('--llm-all'\)/);
   assert.match(runner, /paid_fallback/);
+});
+
+test('funding proof candidate backfill is bounded, firm-only, leakage-safe, and dry-run by default', () => {
+  const script = readFileSync(new URL('../scripts/backfill-funding-proof-candidates.mjs', import.meta.url), 'utf8');
+  assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /Math\.min\(Math\.max\(Number\(limitArg/);
+  assert.match(script, /fetchAllInvestors/);
+  assert.match(script, /isPredictionGradeStartupIdentity/);
+  assert.match(script, /\.eq\('source_type', 'url'\)/);
+  assert.match(script, /snapshottedStartupIds\.has/);
+  assert.match(script, /row\.is_individual !== true/);
+  assert.match(script, /angel\|individual\|person\|founder/);
+  assert.match(script, /feature_cutoff_at: cutoffIso/);
+  assert.match(script, /full_universe_firm_only_no_outcome_labels/);
+  assert.match(script, /\.upsert\(/);
+  assert.doesNotMatch(script, /funding_prediction_evaluations/);
+  assert.doesNotMatch(script, /funding_prediction_misses/);
+  assert.doesNotMatch(script, /\.delete\(/);
+});
+
+test('signal pipeline backfills firm candidates before freezing predictions', () => {
+  const pipeline = readFileSync(new URL('../scripts/cron/signal-pipeline.js', import.meta.url), 'utf8');
+  const backfillAt = pipeline.indexOf('backfill-funding-proof-candidates.mjs');
+  const snapshotAt = pipeline.indexOf('snapshot-funding-prediction-cohort.mjs');
+  assert.ok(backfillAt >= 0);
+  assert.ok(snapshotAt > backfillAt);
+  assert.match(pipeline, /backfill-funding-proof-candidates\.mjs', '--apply', '--limit=25/);
 });

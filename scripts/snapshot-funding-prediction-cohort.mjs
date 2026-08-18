@@ -5,13 +5,17 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { isGarbageInvestorName, isHardJunkInvestorName } = require('../lib/investorNameHeuristics.js');
-const { isPlausibleInvestorEntityName, isPromotionSafeStartupName } = require('../server/lib/fundingEvidenceLedger.js');
+const { isPlausibleInvestorEntityName, isPredictionGradeStartupIdentity } = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
 const newOnly = process.argv.includes('--new-only');
 const limitArg = process.argv.find(arg => arg.startsWith('--limit='));
+const scanArg = process.argv.find(arg => arg.startsWith('--scan-limit='));
+const offsetArg = process.argv.find(arg => arg.startsWith('--scan-offset='));
 const cohortArg = process.argv.find(arg => arg.startsWith('--cohort-key='));
 const limit = Math.min(Math.max(Number(limitArg?.split('=')[1] || 25), 1), 250);
+const scanLimit = Math.min(Math.max(Number(scanArg?.split('=')[1] || 5000), limit), 25000);
+const scanOffset = Math.min(Math.max(Number(offsetArg?.split('=')[1] || 0), 0), 100000);
 const cohortKey = cohortArg?.slice('--cohort-key='.length) || `god-desc-${new Date().toISOString().slice(0, 10)}`;
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -53,25 +57,45 @@ async function fetchMemberships(ids) {
   return rows;
 }
 
+async function fetchAllSnapshotStartupIds() {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db.from('funding_prediction_snapshots')
+      .select('startup_id').range(offset, offset + 999);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return new Set(rows.map(row => row.startup_id));
+}
+
+async function fetchStartupCandidates() {
+  const rows = [];
+  const desired = newOnly ? scanLimit : limit;
+  for (let offset = 0; offset < desired; offset += 1000) {
+    const lower = scanOffset + offset;
+    const upper = scanOffset + Math.min(offset + 999, desired - 1);
+    const { data, error } = await db.from('startup_uploads')
+      .select('id,name,description,total_god_score,status,entity_gate,source_type,website,company_domain')
+      .eq('status', 'approved').eq('source_type', 'url').not('total_god_score', 'is', null)
+      .order('total_god_score', { ascending: false }).range(lower, upper);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < upper - lower + 1) break;
+  }
+  return rows;
+}
+
 async function main() {
   const predictedAt = new Date().toISOString();
   let previouslySnapshotted = new Set();
   if (newOnly) {
-    const { data, error } = await db.from('funding_prediction_snapshots').select('startup_id');
-    if (error) throw error;
-    previouslySnapshotted = new Set((data || []).map(row => row.startup_id));
+    previouslySnapshotted = await fetchAllSnapshotStartupIds();
   }
-  const scanLimit = newOnly ? 1000 : limit;
-  const { data: startupCandidates, error: startupError } = await db.from('startup_uploads')
-    .select('id,name,total_god_score,status,entity_gate,source_type,website,company_domain')
-    .eq('status', 'approved').not('total_god_score', 'is', null)
-    .order('total_god_score', { ascending: false }).limit(scanLimit);
-  if (startupError) throw startupError;
+  const startupCandidates = await fetchStartupCandidates();
   const eligibleStartups = (startupCandidates || []).filter(row =>
     row.entity_gate !== 'junk'
-    && row.source_type === 'url'
-    && Boolean(row.website || row.company_domain)
-    && isPromotionSafeStartupName(row.name)
+    && isPredictionGradeStartupIdentity(row)
     && (!newOnly || !previouslySnapshotted.has(row.id))
   );
   const startups = newOnly ? eligibleStartups : eligibleStartups.slice(0, limit);
@@ -102,9 +126,12 @@ async function main() {
     const unique = (grouped.get(startup.id) || []).filter(match => {
       const investor = investorById.get(match.investor_id) || {};
       if (!isEligibleInvestor(investor)) return false;
-      const firmKey = organizationByInvestor.get(match.investor_id) || canonicalFirm(investor);
-      if (!firmKey || seenFirms.has(firmKey)) return false;
-      seenFirms.add(firmKey);
+      const firmKeys = [
+        organizationByInvestor.get(match.investor_id) ? `organization:${organizationByInvestor.get(match.investor_id)}` : null,
+        `label:${canonicalFirm(investor)}`,
+      ].filter(key => key && key !== 'label:');
+      if (!firmKeys.length || firmKeys.some(key => seenFirms.has(key))) return false;
+      firmKeys.forEach(key => seenFirms.add(key));
       return true;
     }).slice(0, 5);
     if (unique.length !== 5) continue;
@@ -135,7 +162,7 @@ async function main() {
   }
   const completedStartupIds = new Set(snapshots.map(row => row.startup_id));
   const incomplete = (startups || []).filter(row => !completedStartupIds.has(row.id)).map(row => row.name);
-  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', selection: newOnly ? 'never_previously_snapshotted_direct_url_startups' : 'top_god_score_direct_url_startups', cohort_key: cohortKey, predicted_at: predictedAt, startups_scanned: startups?.length || 0, snapshots: snapshots.length, complete_top_five_sets: completedStartupIds.size, incomplete_startups_count: incomplete.length, incomplete_startups_preview: incomplete.slice(0, 50), preview: snapshots.slice(0, 15).map(row => ({ startup: startupById.get(row.startup_id)?.name, investor: row.context.investor_name, rank: row.rank_position, god_score: row.god_score_at_prediction, match_score: row.match_score_at_prediction, model_version: row.model_version })) }, null, 2));
+  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', selection: newOnly ? 'never_previously_snapshotted_prediction_grade_startups' : 'top_god_score_prediction_grade_startups', cohort_key: cohortKey, predicted_at: predictedAt, startup_scan_limit: scanLimit, startup_scan_offset: scanOffset, startups_scanned: startups?.length || 0, snapshots: snapshots.length, complete_top_five_sets: completedStartupIds.size, incomplete_startups_count: incomplete.length, incomplete_startups_preview: incomplete.slice(0, 50), preview: snapshots.slice(0, 15).map(row => ({ startup: startupById.get(row.startup_id)?.name, investor: row.context.investor_name, rank: row.rank_position, god_score: row.god_score_at_prediction, match_score: row.match_score_at_prediction, model_version: row.model_version })) }, null, 2));
 }
 
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

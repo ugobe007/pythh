@@ -116,6 +116,8 @@
     "funding:evidence:apply": "node scripts/sync-funding-evidence-ledger.mjs --apply",
     "funding:monitor": "node scripts/monitor-funding-prediction-cohort.mjs",
     "funding:monitor:apply": "node scripts/monitor-funding-prediction-cohort.mjs --apply",
+    "funding:backfill:candidates": "node scripts/backfill-funding-proof-candidates.mjs",
+    "funding:backfill:candidates:apply": "node scripts/backfill-funding-proof-candidates.mjs --apply",
     "funding:audit": "node scripts/audit-funding-ledger-quality.mjs",
     "funding:audit:candidates": "node scripts/shadow-audit-funding-candidate-ranks.mjs",
     "funding:audit:candidates:summary": "node scripts/shadow-audit-funding-candidate-ranks.mjs --summary",
