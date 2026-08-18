@@ -33,3 +33,15 @@ test('homepage reveal animations fail open instead of leaving blank sections', (
   assert.match(home, /const failOpen = window\.setTimeout\(\(\) => setIsVisible\(true\), 800\)/);
   assert.match(home, /window\.clearTimeout\(failOpen\)/);
 });
+
+test('wizard smoke gate follows the current optional improvement entry point', () => {
+  const probe = read('../scripts/lib/wizardUnlockProbe.mjs');
+  const spec = read('../tests/wizard-unlock-funnel.spec.ts');
+  for (const source of [probe, spec]) {
+    assert.match(source, /Improve my outreach plan\|Improve matches\|Optional: improve readiness score/);
+    assert.match(source, /Add what Pythh could not find/);
+    assert.match(source, /Save data & rerun match engine/);
+    assert.match(source, /Your investor shortlist is ready/);
+    assert.match(source, /Continue with email/);
+  }
+});
