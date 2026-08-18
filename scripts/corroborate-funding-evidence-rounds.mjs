@@ -47,12 +47,28 @@ async function main() {
     if (domains.length < 2 && trusted.length === 0) continue;
     eligible.push({ canonicalRoundKey, domains, trusted, events });
   }
+  const updates = [];
+  let alreadyCurrent = 0;
+  for (const group of eligible) {
+    const evidenceEventIds = group.events.map(row => row.id).sort();
+    for (const event of group.events) {
+      const trust = assessFundingSource(event);
+      const desiredStatus = trust.trusted ? 'verified' : 'corroborated';
+      const previousIds = [...(event.metadata?.corroboration?.evidence_event_ids || [])].sort();
+      const sameEvidence = previousIds.length === evidenceEventIds.length
+        && previousIds.every((id, index) => id === evidenceEventIds[index]);
+      if (event.verification_status === desiredStatus && sameEvidence) {
+        alreadyCurrent++;
+        continue;
+      }
+      updates.push({ group, event, trust, desiredStatus, evidenceEventIds });
+    }
+  }
   if (apply) {
-    for (const group of eligible) {
-      for (const event of group.events) {
-        const trust = assessFundingSource(event);
+    for (let offset = 0; offset < updates.length; offset += 12) {
+      await Promise.all(updates.slice(offset, offset + 12).map(async ({ group, event, trust, desiredStatus, evidenceEventIds }) => {
         const { error } = await db.from('funding_evidence_events').update({
-          verification_status: trust.trusted ? 'verified' : 'corroborated',
+          verification_status: desiredStatus,
           metadata: {
             ...(event.metadata || {}),
             corroboration: {
@@ -60,14 +76,14 @@ async function main() {
               trusted_source_tier: trust.trusted ? trust.tier : null,
               canonical_round_key: group.canonicalRoundKey,
               source_domains: group.domains,
-              evidence_event_ids: group.events.map(row => row.id),
+              evidence_event_ids: evidenceEventIds,
               corroborated_at: new Date().toISOString(),
             },
           },
           updated_at: new Date().toISOString(),
         }).eq('id', event.id);
         if (error) throw error;
-      }
+      }));
     }
   }
   console.log(JSON.stringify({
@@ -75,6 +91,8 @@ async function main() {
     events_scanned: rows.length,
     corroborated_rounds: eligible.length,
     events_promoted: eligible.reduce((sum, group) => sum + group.events.length, 0),
+    events_already_current: alreadyCurrent,
+    events_updated: apply ? updates.length : 0,
     preview: eligible.slice(0, 20).map(group => ({
       startup: group.events[0].startup_name_raw,
       round: group.events[0].round_type,

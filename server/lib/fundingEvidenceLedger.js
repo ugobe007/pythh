@@ -68,7 +68,8 @@ function isPlausibleInvestorEntityName(value) {
   const raw = String(value || '').trim();
   const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   return raw.length >= 3 && raw.length <= 100 && !GENERIC_INVESTOR_NAMES.has(normalized)
-    && !/\b(?:funding round|financing round|led by|participation from)\b/i.test(raw);
+    && raw.split(/\s+/).length <= 8
+    && !/\b(?:funding round|financing round|led by|participation from|reports?|in-person service economy|into ai|in japan)\b/i.test(raw);
 }
 
 function normalizeRoundType(value) {
@@ -123,6 +124,8 @@ function isPromotionSafeStartupName(value) {
   const name = String(value || '').trim();
   if (!isPlausibleStartupName(name)) return false;
   if (/\b(?:startup|company|firm|founder|staffers?)\b/i.test(name)) return false;
+  if (/^(?:ex-|former\s+).{2,60}\b(?:researchers?|duo|executives?|engineers?|leaders?|staff)\b/i.test(name)) return false;
+  if (/\b(?:co-founded by|creative lead)\b/i.test(name)) return false;
   if (/\b(?:reportedly|said to)\b|\bbacked\b|\b[a-z]+-based\b/i.test(name)) return false;
   if (/^(?:exclusive|sources?|breaking|stat\+|morning minute|new unicorn|female-founded)\s*[:!-]?/i.test(name)) return false;
   if (/^(?:edtech|fintech|healthtech|biotech|climatetech|proptech|defen[cs]e tech|ai)\s+(?:platform|startup|company)$/i.test(name)) return false;
@@ -246,13 +249,17 @@ function classifyFundingEvidence(event) {
   if (/\b(?:orders?|contract|recognitions?|award winner|certificat(?:e|ion)|political betting|ceasefire|capital rules? raise cost)\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
-  if (/\b(?:raises? the stakes|boiler room|hidden fees?|sec claims?|token sale|preferred stock offering)\b/i.test(text)
+  if (/\b(?:raises? the stakes|boiler room|hidden fees?|sec claims?|token sale|initial coin offering|ico|preferred stock offering)\b/i.test(text)
+    || /\bwhich (?:has|had) raised\b.{0,160}\b(?:releases?|launches?|announces?|unveils?)\b/i.test(text)
+    || /^inside\b.{0,160}\bhas raised\b/i.test(text)
     || /\brais(?:es|ed)\b.{0,50}\b(?:safety|security|ethical|legal) concerns?\b/i.test(text)
     || /\bsecures?\b.{0,40}\blicen[cs]e\b/i.test(text)
     || /\binvest(?:s|ed)?\b.{0,70}\b(?:in|into)\b.{0,70}\b(?:operations?|factor(?:y|ies)|facilit(?:y|ies)|plant|fulfillment hub|data centers?|subsidiar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
   if (/^(?:(?:exclusive|sources?|breaking|stat\+|morning minute)\s*:\s*)?(?:[a-z0-9-]+\s+){0,4}(?:giants|companies|startups|firms)\s+(?:just\s+)?rais(?:e|es|ed|ing)\b/i.test(text)
+    || /^(?:[a-z0-9.&+-]+(?:\s+[a-z0-9.&+-]+){0,3},\s+){1,3}(?:and\s+)?[a-z0-9.&+-]+(?:\s+[a-z0-9.&+-]+){0,3}\s+rais(?:e|es|ed|ing)\b/i.test(text)
+    || /^[a-z0-9.&+-]+(?:\s+[a-z0-9.&+-]+){0,3}\s+and\s+[a-z0-9.&+-]+(?:\s+[a-z0-9.&+-]+){0,3}\s+rais(?:e|es|ed|ing)\b/i.test(text)
     || /\b(?:a\s+)?(?:founder|son|daughter)\b.{0,80}\brais(?:e|es|ed|ing)\b/i.test(text)
     || /\bfunding goes to\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
@@ -260,7 +267,7 @@ function classifyFundingEvidence(event) {
   if (/\b(?:raises?|raised|raising|increases?|increased)\b.{0,50}\b(?:prices?|rates?|fees?|wages?|salar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
-  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|may invest|could invest|could secure|to invest|expected to raise|is raising|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise)\b/i.test(text)
+  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|may invest|could invest|could secure|to invest|expected to raise|is raising|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise|seeks? (?:funding|financing|investment))\b/i.test(text)
     || /\btarget(?:s|ed|ing)?\b.{0,80}\b(?:raise|funding|valuation)\b/i.test(text)) {
     return { eligible: false, reason: 'unconfirmed_transaction', financingType: 'unknown' };
   }
@@ -273,6 +280,7 @@ function classifyFundingEvidence(event) {
     || /\b(?:raises?|raised|closes?|closed)\b.{0,90}\b(?:new|inaugural|venture|credit|secondaries|buyout|growth)\s+(?:fund|investment vehicle)\b/i.test(text)
     || /\b(?:raises?|raised|closes?|closed)\b.{0,90}\b(?:early[ -]stage|late[ -]stage)\s+fund\b/i.test(text)
     || /\b(?:raises?|raised)\b.{0,50}\bfor\b.{0,60}\bfund\b/i.test(text)
+    || /\braises?\s+[$€£¥₹]\s?[\d.,]+\s*[mkb]?\s+(?:[a-z0-9-]+\s+){0,3}fund\s+for\b/i.test(text)
     || /\b(?:investment vehicle|credit secondaries|related strategies)\b/i.test(text)) {
     return { eligible: false, reason: 'outside_venture_outcome_scope', financingType: 'unknown' };
   }
@@ -291,6 +299,13 @@ function classifyFundingEvidence(event) {
 
 function startupNameFromFundingEvent(event) {
   const title = String(event.source_title || '').replace(/^(?:exclusive|sources?|breaking|stat\+|morning minute)\s*:\s*/i, '');
+  const beforeAction = title.match(/\bstartup\s+(.{2,80}?)\s+(?:(?:has|have|had)\s+(?:now\s+)?)?(?:raises?|raised|secures?|secured|closes?|closed)\b/i);
+  const explicitlyNamedStartup = (beforeAction?.index ?? 999) < 70
+    ? beforeAction?.[1]?.replace(/[,;:]$/, '').trim()
+    : title.match(/\bstartup\s+([A-Z][A-Za-z0-9.&+-]*(?:\s+[A-Z][A-Za-z0-9.&+-]*){0,3})(?=\s*[,;])/i)?.[1]?.trim()
+      || title.match(/\bstartup\s+([A-Za-z][A-Za-z0-9.&+-]*(?:\s+[A-Za-z][A-Za-z0-9.&+-]*){0,3})\s*$/)?.[1]?.trim();
+  const cleanedExplicitStartup = cleanStartupHeadlineLabel(explicitlyNamedStartup);
+  if (cleanedExplicitStartup && !/\b(?:that|which|co-founded|founded|behind|targeting|just|raises?|raised)\b/i.test(cleanedExplicitStartup)) return cleanedExplicitStartup;
   const directionalMatch = title.match(/^(.{2,100}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+(.+?)(?:\s+as\b|\s+to\b|\s+at\b|[,;]|$)/i);
   const directional = directionalMatch && !/\b(?:raises?|raised|secures?|secured|closes?|closed)\b/i.test(directionalMatch[1])
     ? directionalMatch[2]?.trim() : null;

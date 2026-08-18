@@ -8,6 +8,7 @@ const { extractFunding } = require('../lib/inference-extractor.js');
 const { canonicalRoundKey, classifyFundingEvidence, isPromotionSafeStartupName, normalizeStartupName, startupNameFromFundingEvent } = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
+const fullPreview = process.argv.includes('--full-preview');
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 if (!url || !key) throw new Error('SUPABASE_URL and service-role key are required');
@@ -47,15 +48,45 @@ async function main() {
     const headlineStartup = startupNameFromFundingEvent({ source_title: row.source_title });
     const directionalMismatch = directionalTitle && headlineStartup && canonicalStartup
       && normalizeStartupName(headlineStartup) !== normalizeStartupName(canonicalStartup.name);
-    if (!classification.eligible) {
+    const sourceTitle = String(row.source_title || '');
+    const explicitBeforeAction = sourceTitle
+      .match(/\b(?:startup|company)\s+(.{2,80}?)\s+(?:(?:has|have|had)\s+(?:now\s+)?)?(?:raises?|raised|secures?|secured|closes?|closed)\b/i);
+    const explicitBeforeComma = sourceTitle
+      .match(/\b(?:startup|company)\s+([A-Z][A-Za-z0-9.&+-]*(?:\s+[A-Z][A-Za-z0-9.&+-]*){0,3})(?=\s*[,;])/i);
+    const explicitAtEnd = sourceTitle
+      .match(/\b(?:startup|company)\s+([A-Za-z][A-Za-z0-9.&+-]*(?:\s+[A-Za-z][A-Za-z0-9.&+-]*){0,3})\s*$/);
+    const explicitHeadlineCandidate = (explicitBeforeAction?.index ?? 999) < 60
+      ? explicitBeforeAction?.[1]?.trim()
+      : (explicitBeforeComma?.index ?? 999) < 65 ? explicitBeforeComma?.[1]?.trim()
+        : explicitAtEnd?.[1]?.trim() || null;
+    const explicitlyNamedHeadlineStartup = explicitHeadlineCandidate
+      && !/[,;:]|\b(?:that|which|rebrands?|co-founded|founded|uses?|builds?|emerges?|targeting|behind|weekly|news|just|has|have|had|now|for|to|with|by)\b/i.test(explicitHeadlineCandidate)
+      ? explicitHeadlineCandidate.replace(/[,;:]$/, '').trim() : null;
+    const headlineMismatch = explicitlyNamedHeadlineStartup && canonicalStartup
+      && isPromotionSafeStartupName(explicitlyNamedHeadlineStartup)
+      && normalizeStartupName(explicitlyNamedHeadlineStartup) !== normalizeStartupName(canonicalStartup.name);
+    const escapedCanonicalName = String(canonicalStartup?.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const descriptiveAffiliationMislink = canonicalStartup && escapedCanonicalName
+      && new RegExp(`^(?:ex-|former\\s+)${escapedCanonicalName}\\b|\\bco-founded by\\b.{0,60}\\b${escapedCanonicalName}\\b`, 'i').test(sourceTitle);
+    const previousRepairReasons = row.metadata?.derived_field_repair?.reasons || [];
+    const wasClassifierQuarantined = previousRepairReasons.some(reason => String(reason).startsWith('non_funding_evidence_rejected:'));
+    if (classification.eligible && row.verification_status === 'rejected' && wasClassifierQuarantined) {
+      const method = row.metadata?.corroboration?.method;
+      patch.verification_status = method === 'trusted_single_source' ? 'verified'
+        : method === 'independent_sources' ? 'corroborated' : 'observed';
+      reasons.push('classifier_quarantine_recovered');
+    } else if (!classification.eligible) {
       let rejectedChanged = false;
       if (row.startup_id) { patch.startup_id = null; rejectedChanged = true; }
       if (row.verification_status !== 'rejected') { patch.verification_status = 'rejected'; rejectedChanged = true; }
       if (rejectedChanged) reasons.push(`non_funding_evidence_rejected:${classification.reason}`);
-    } else if (directionalMismatch || (canonicalStartup && !isPromotionSafeStartupName(canonicalStartup.name))) {
+    } else if (directionalMismatch || headlineMismatch || descriptiveAffiliationMislink || (canonicalStartup && !isPromotionSafeStartupName(canonicalStartup.name))) {
       patch.startup_id = null;
-      if (isPromotionSafeStartupName(headlineStartup)) patch.startup_name_raw = headlineStartup;
-      reasons.push(directionalMismatch ? 'directional_startup_mislink' : 'unsafe_canonical_startup_unlinked');
+      const correctedHeadlineStartup = headlineMismatch ? explicitlyNamedHeadlineStartup : headlineStartup;
+      patch.startup_name_raw = isPromotionSafeStartupName(correctedHeadlineStartup) ? correctedHeadlineStartup : 'Unresolved funding target';
+      reasons.push(directionalMismatch ? 'directional_startup_mislink'
+        : headlineMismatch ? 'headline_startup_mislink'
+          : descriptiveAffiliationMislink ? 'descriptive_affiliation_mislink' : 'unsafe_canonical_startup_unlinked');
     } else if (canonicalStartup && !isPromotionSafeStartupName(row.startup_name_raw)) {
       patch.startup_name_raw = canonicalStartup.name;
       reasons.push('startup_label_replaced_from_canonical');
@@ -78,7 +109,16 @@ async function main() {
       reasons.push(`unsafe_status_downgrade:${classification.eligible ? 'descriptive_startup_label' : classification.reason}`);
     }
     if (!reasons.length) continue;
-    patch.metadata = { ...(row.metadata || {}), derived_field_repair: { version: 'v1', reasons, repaired_at: new Date().toISOString() } };
+    patch.metadata = {
+      ...(row.metadata || {}),
+      derived_field_repair: {
+        version: 'v1', reasons, repaired_at: new Date().toISOString(),
+        quarantine_previous: row.metadata?.derived_field_repair?.quarantine_previous || {
+          startup_id: row.startup_id,
+          verification_status: row.verification_status,
+        },
+      },
+    };
     patch.updated_at = new Date().toISOString();
     changes.push({ row, patch, reasons });
   }
@@ -90,7 +130,7 @@ async function main() {
   }
   const reasonCounts = {};
   for (const change of changes) for (const reason of change.reasons) reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
-  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', events_scanned: rows.length, events_changed: changes.length, reason_counts: reasonCounts, preview: changes.slice(0, 30).map(change => ({ startup: change.row.startup_name_raw, status: change.row.verification_status, reasons: change.reasons, title: change.row.source_title, patch: change.patch })) }, null, 2));
+  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', events_scanned: rows.length, events_changed: changes.length, reason_counts: reasonCounts, preview: changes.slice(0, fullPreview ? changes.length : 30).map(change => ({ startup: change.row.startup_name_raw, status: change.row.verification_status, reasons: change.reasons, title: change.row.source_title, patch: change.patch })) }, null, 2));
 }
 
 main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });

@@ -11,6 +11,7 @@ const { extractKnownInvestorMentions, extractExplicitParticipantMentions } = req
 const { isPlausibleInvestorEntityName, normalizeEntityName, resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
+const retryFailed = process.argv.includes('--retry-failed');
 const limitArg = process.argv.find(arg => arg.startsWith('--limit='));
 const limit = Math.min(Math.max(Number(limitArg?.split('=')[1] || 100), 1), 500);
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -61,8 +62,13 @@ async function fetchExcerpt(sourceUrl) {
 }
 
 async function main() {
+  let eventQuery = db.from('funding_evidence_events')
+    .select('id,startup_name_raw,source_url,source_title,verification_status,metadata')
+    .in('verification_status', ['verified', 'corroborated'])
+    .order('announced_at', { ascending: false });
+  if (!retryFailed) eventQuery = eventQuery.is('metadata->>participant_enrichment_version', null);
   const [{ data: events, error: eventError }, { data: investors, error: investorError }, { data: memberships, error: membershipError }] = await Promise.all([
-    db.from('funding_evidence_events').select('id,startup_name_raw,source_url,source_title,verification_status,metadata').in('verification_status', ['verified', 'corroborated']).order('announced_at', { ascending: false }).limit(limit),
+    eventQuery.limit(limit),
     db.from('investors').select('id,name,firm').limit(10000),
     db.from('investor_organization_memberships').select('investor_id,organization_id,resolution_confidence').limit(20000),
   ]);
@@ -102,19 +108,18 @@ async function main() {
       mentions.push({ ...rawMention, investor: resolution.row || null, resolution });
     }
     if (apply) {
-      if (excerpt) {
-        const { error } = await db.from('funding_evidence_events').update({
-          metadata: {
-            ...(event.metadata || {}),
-            funding_evidence_excerpt: excerpt,
-            funding_evidence_excerpt_source: fetchStatus,
-            participant_list_complete: event.metadata?.participant_list_complete === true,
-            participant_enrichment_version: 'v1',
-          },
-          updated_at: new Date().toISOString(),
-        }).eq('id', event.id);
-        if (error) throw error;
-      }
+      const { error } = await db.from('funding_evidence_events').update({
+        metadata: {
+          ...(event.metadata || {}),
+          ...(excerpt ? { funding_evidence_excerpt: excerpt } : {}),
+          funding_evidence_excerpt_source: fetchStatus,
+          participant_list_complete: event.metadata?.participant_list_complete === true,
+          participant_enrichment_version: 'v2',
+          participant_enrichment_attempted_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', event.id);
+      if (error) throw error;
       for (const mention of mentions) {
         const membership = mention.investor ? membershipByInvestor.get(mention.investor.id) : null;
         const resolution = mention.resolution || { status: 'resolved', confidence: 1 };
@@ -137,7 +142,7 @@ async function main() {
     }
     results.push({ event_id: event.id, startup: event.startup_name_raw, source_status: fetchStatus, mentions: mentions.map(row => ({ investor: row.investorNameRaw, role: row.role, relation: row.relation })) });
   }
-  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', events_scanned: events?.length || 0, sources_available: results.filter(row => !row.source_status.startsWith('unavailable:')).length, events_with_proven_participants: results.filter(row => row.mentions.length).length, proven_participants: results.reduce((sum, row) => sum + row.mentions.length, 0), participants_written: participantsWritten, results }, null, 2));
+  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', selection: retryFailed ? 'retry_latest' : 'never_processed', events_scanned: events?.length || 0, sources_available: results.filter(row => !row.source_status.startsWith('unavailable:')).length, events_with_proven_participants: results.filter(row => row.mentions.length).length, proven_participants: results.reduce((sum, row) => sum + row.mentions.length, 0), participants_written: participantsWritten, results }, null, 2));
 }
 
 main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });

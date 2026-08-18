@@ -33,6 +33,9 @@ test('rejects generic funding stages masquerading as canonical investors', () =>
   assert.equal(isPlausibleInvestorEntityName('Investing'), false);
   assert.equal(isPlausibleInvestorEntityName('Sound Ventures'), true);
   assert.equal(isPlausibleInvestorEntityName('a16z'), true);
+  assert.equal(isPlausibleInvestorEntityName('EU-Startups reports'), false);
+  assert.equal(isPlausibleInvestorEntityName('Wellness Into AI In-Person Service Economy'), false);
+  assert.equal(isPlausibleInvestorEntityName('Z Venture Capital in Japan'), false);
 });
 
 test('builds stable candidate round keys without collapsing distinct months or amounts', () => {
@@ -54,6 +57,7 @@ test('normalizes startup aliases without stripping meaningful investor-like word
   assert.equal(isPromotionSafeStartupName('Four former DOGE staffers'), false);
   assert.equal(isPromotionSafeStartupName('Lazada founder'), false);
   assert.equal(isPromotionSafeStartupName('Corgi reportedly'), false);
+  assert.equal(isPromotionSafeStartupName('Ex-DeepMind researchers'), false);
   assert.equal(isPromotionSafeStartupName('Sources'), false);
   assert.equal(isPromotionSafeStartupName('STAT+'), false);
   assert.equal(isPromotionSafeStartupName('World Foundation'), true);
@@ -154,6 +158,8 @@ test('strips article descriptors from funded-company identities', () => {
   assert.equal(startupNameFromFundingEvent({ source_title: 'Citadel Securities invests $400M in Crypto.com at a $20B valuation' }), 'Crypto.com');
   assert.equal(startupNameFromFundingEvent({ source_title: 'STAT+: Cadence raises $100 million for regulated AI care' }), 'Cadence');
   assert.equal(startupNameFromFundingEvent({ source_title: 'Sources: APEC, a derivatives exchange, raised $30M' }), 'APEC');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Ex-DeepMind researchers raise $50m for AI science startup Inherent' }), 'Inherent');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Tether invests $50M in sleep technology startup Eight Sleep' }), 'Eight Sleep');
   assert.deepEqual(startupNameCandidates({ source_title: 'Diplo invests in Seattle startup Copper', subject: 'Diplo' }, 'Diplo'), ['Copper']);
 });
 
@@ -220,9 +226,16 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Fiuu secures JCB payment license in three markets' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Ola Electric Secures BIS Certification For Its LFP Cell' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Four AI giants just raised $188 billion' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Companion Labs, nailinit, and Wholeleaf Raise Early-Stage Funding' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Intrinsic Foundries and LocalHost Raise Early-Stage Funding' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'A founder who went from pressure washing just raised $40 million' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Senator Smith\'s son just raised $30 million for a trading venue' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'AI provider Baseten reportedly raising $1.5B' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Kalshi seeks funding at a $40B valuation' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Tezos raised $232 million in an ICO' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Krea, which has raised $83M, releases its new image model' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Ex-Pritzker execs raise $50M SNAK fund for B2B marketplaces' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Inside Physical Intelligence, a startup that has raised $1B' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: '85% of funding goes to the US. AVP and Earlybird raised €500M' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'SandboxAQ Secures $500 Million CHIPS Award' }).financingType, 'grant');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wispr could secure $260M funding at $2B valuation' }).reason, 'unconfirmed_transaction');
@@ -357,6 +370,7 @@ test('scheduled scraper pipeline feeds the evidence ledger non-fatally', () => {
 
 test('historical backfill is resumable and locked to a stable source watermark', () => {
   const sql = readFileSync(new URL('../supabase/migrations/20260818161000_funding_history_backfill_checkpoint.sql', import.meta.url), 'utf8');
+  const indexSql = readFileSync(new URL('../supabase/migrations/20260818183000_startup_events_funding_backfill_index.sql', import.meta.url), 'utf8');
   const script = readFileSync(new URL('../scripts/backfill-funding-evidence-history.mjs', import.meta.url), 'utf8');
   assert.match(sql, /source_max_created_at timestamptz/);
   assert.match(sql, /REVOKE ALL .* FROM anon, authenticated/);
@@ -364,6 +378,14 @@ test('historical backfill is resumable and locked to a stable source watermark',
   assert.match(script, /--before=\$\{sourceMaxCreatedAt\}/);
   assert.match(script, /checkpoint_after/);
   assert.match(script, /scanned < limit/);
+  assert.match(script, /checkpoint_conflict/);
+  assert.match(script, /\.eq\('next_offset'/);
+  assert.match(script, /summarizeBatch/);
+  assert.match(indexSql, /startup_events \(created_at DESC, id DESC\)/);
+  assert.match(indexSql, /WHERE event_type IN \('FUNDING', 'INVESTMENT'\)/);
+  const applyIndex = readFileSync(new URL('../scripts/apply-funding-backfill-index.mjs', import.meta.url), 'utf8');
+  assert.match(applyIndex, /exec_sql_modify/);
+  assert.match(applyIndex, /idx_startup_events_funding_backfill_order/);
 });
 
 test('article evidence backfill is bounded, SSRF-aware, and dry-run by default', () => {
@@ -502,9 +524,14 @@ test('ledger quality audit measures formal evaluability without mutating evidenc
 test('derived-field repair unlinks directional and unsafe startup identities reversibly', () => {
   const script = readFileSync(new URL('../scripts/repair-funding-ledger-derived-fields.mjs', import.meta.url), 'utf8');
   assert.match(script, /directional_startup_mislink/);
+  assert.match(script, /descriptive_affiliation_mislink/);
+  assert.match(script, /headline_startup_mislink/);
   assert.match(script, /unsafe_canonical_startup_unlinked/);
   assert.match(script, /non_funding_evidence_rejected/);
   assert.match(script, /patch\.verification_status = 'rejected'/);
+  assert.match(script, /classifier_quarantine_recovered/);
+  assert.match(script, /quarantine_previous/);
+  assert.match(script, /--full-preview/);
   assert.match(script, /startup_label_replaced_from_canonical/);
   assert.match(script, /patch\.startup_id = null/);
 });
@@ -519,6 +546,9 @@ test('verified participant enrichment is bounded, source-grounded, and preserves
   assert.match(script, /focusedEvidenceExcerpt/);
   assert.match(script, /slice\(0, 4500\)/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /process\.argv\.includes\('--retry-failed'\)/);
+  assert.match(script, /metadata->>participant_enrichment_version/);
+  assert.match(script, /participant_enrichment_attempted_at/);
   const scrub = readFileSync(new URL('../scripts/scrub-funding-participant-chronology.mjs', import.meta.url), 'utf8');
   assert.match(scrub, /oversized_article_tail_extraction/);
   assert.match(scrub, /implausible_investor_entity/);
@@ -654,6 +684,8 @@ test('corroboration requires two independent sources or one reviewed trusted sou
   assert.match(script, /domains\.length < 2/);
   assert.match(script, /trusted\.length === 0/);
   assert.match(script, /trusted_single_source/);
+  assert.match(script, /alreadyCurrent/);
+  assert.match(script, /Promise\.all\(updates\.slice/);
   assert.match(script, /canonical_round_key/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
 });

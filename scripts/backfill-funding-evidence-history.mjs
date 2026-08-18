@@ -35,6 +35,21 @@ function runSync(offset, sourceMaxCreatedAt) {
   });
 }
 
+function summarizeBatch(result) {
+  return {
+    mode: result.mode,
+    event_offset: result.event_offset,
+    source_max_created_at: result.source_max_created_at,
+    events_scanned: Number(result.events_scanned || 0),
+    evidence_eligible: Number(result.evidence_eligible || 0),
+    skipped: result.skipped || {},
+    coverage: result.coverage || {},
+    events_written: Number(result.events_written || 0),
+    evaluation_rows: Number(result.evaluation_rows || 0),
+    miss_rows: Number(result.miss_rows || 0),
+  };
+}
+
 async function main() {
   const { data: checkpoint, error } = await db.from('funding_evidence_backfill_checkpoints')
     .select('pipeline_key,source_max_created_at,next_offset,events_scanned,events_written,completed,last_run_at')
@@ -54,30 +69,44 @@ async function main() {
     sourceMaxCreatedAt = newest?.created_at || new Date().toISOString();
   }
   const result = await runSync(Number(state.next_offset || 0), sourceMaxCreatedAt);
+  const batch = summarizeBatch(result);
   const scanned = Number(result.events_scanned || 0);
   const written = Number(result.events_written || 0);
   const nextOffset = Number(state.next_offset || 0) + scanned;
   const completed = scanned < limit;
   if (apply) {
     const now = new Date().toISOString();
-    const { error: writeError } = await db.from('funding_evidence_backfill_checkpoints').upsert({
-      pipeline_key: pipelineKey,
+    const { data: advanced, error: writeError } = await db.from('funding_evidence_backfill_checkpoints').update({
       source_max_created_at: sourceMaxCreatedAt,
       next_offset: nextOffset,
       events_scanned: Number(state.events_scanned || 0) + scanned,
       events_written: Number(state.events_written || 0) + written,
       completed,
-      last_result: result,
+      last_result: batch,
       last_run_at: now,
       updated_at: now,
-    }, { onConflict: 'pipeline_key' });
+    }).eq('pipeline_key', pipelineKey)
+      .eq('next_offset', Number(state.next_offset || 0))
+      .eq('completed', false)
+      .select('next_offset');
     if (writeError) throw writeError;
+    if (!advanced?.length) {
+      const { data: current } = await db.from('funding_evidence_backfill_checkpoints')
+        .select('next_offset,completed,last_run_at').eq('pipeline_key', pipelineKey).maybeSingle();
+      console.log(JSON.stringify({
+        mode: 'apply', pipeline_key: pipelineKey, status: 'checkpoint_conflict',
+        message: 'Another worker advanced the cursor; evidence upserts remain idempotent.',
+        attempted_checkpoint_before: Number(state.next_offset || 0), current_checkpoint: current,
+        batch,
+      }, null, 2));
+      return;
+    }
   }
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run', pipeline_key: pipelineKey,
     checkpoint_before: Number(state.next_offset || 0), checkpoint_after: nextOffset,
     source_max_created_at: sourceMaxCreatedAt,
-    completed, batch: result,
+    completed, batch,
   }, null, 2));
 }
 
