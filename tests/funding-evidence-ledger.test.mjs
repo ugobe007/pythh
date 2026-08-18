@@ -372,6 +372,32 @@ test('funding-outcome investor enrichment is source-gated, additive, and dry-run
   assert.doesNotMatch(script, /update\.investment_thesis/);
 });
 
+test('funding outcome organization repair is exact, conflict-aware, and dry-run by default', () => {
+  const script = readFileSync(new URL('../scripts/repair-funding-outcome-organization-links.mjs', import.meta.url), 'utf8');
+  assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /profileMatchesOrganization/);
+  assert.match(script, /conflicting existing organization membership/);
+  assert.match(script, /exact non-individual firm profile/);
+  assert.match(script, /organization_resolution/);
+  assert.match(script, /funding-outcome-organization-repair-v1/);
+});
+
+test('reviewed individual repair is identity-only and preserves the historical miss', () => {
+  const script = readFileSync(new URL('../scripts/resolve-reviewed-individual-funding-investors.mjs', import.meta.url), 'utf8');
+  const audit = readFileSync(new URL('../scripts/shadow-audit-funding-candidate-ranks.mjs', import.meta.url), 'utf8');
+  const profileAudit = readFileSync(new URL('../scripts/audit-funding-investor-profile-fragmentation.mjs', import.meta.url), 'utf8');
+  assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /matching_attributes_inferred: false/);
+  assert.match(script, /historical_candidate_profile_preserved_as_missing: true/);
+  assert.match(script, /sectors: \[\]/);
+  assert.match(script, /check_size_min: null/);
+  assert.match(script, /investment_thesis: null/);
+  assert.doesNotMatch(script, /investor_organization_memberships/);
+  assert.match(audit, /historically_missing_candidate_profile/);
+  assert.match(audit, /profileExistedAtCutoff/);
+  assert.match(profileAudit, /!row\.investor_organization_id && !row\.investor_id/);
+});
+
 test('historical investor features exclude events at or after the prediction cutoff', () => {
   const events = [
     { id: 'before', canonical_round_key: 'round-1', startup_id: 's1', round_type: 'Seed', announced_at: '2025-01-01', verification_status: 'verified' },

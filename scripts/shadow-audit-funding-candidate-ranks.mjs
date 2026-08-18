@@ -5,12 +5,13 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { calculateMatch, selectTopInvestorCandidates, fetchAllInvestors, loadVerifiedHistoricalFeatures } = require('./matching/generate-matches.js');
+const { profileExistedAtCutoff, classifyHistoricalCandidate } = require('../server/lib/historicalCandidateUniverse.js');
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 if (!url || !key) throw new Error('SUPABASE_URL and service-role key are required');
 const db = createClient(url, key, { auth: { persistSession: false } });
 
-const investorColumns = 'id,name,firm,url,sectors,stage,check_size_min,check_size_max,geography_focus,investor_score,investor_tier,last_investment_date,investment_pace_per_year,leads_rounds,follows_rounds,portfolio_companies,notable_investments,investment_thesis';
+const investorColumns = 'id,name,firm,url,sectors,stage,check_size_min,check_size_max,geography_focus,investor_score,investor_tier,last_investment_date,investment_pace_per_year,leads_rounds,follows_rounds,portfolio_companies,notable_investments,investment_thesis,created_at';
 
 function thresholdFor(startup) {
   const score = startup.total_god_score || 50;
@@ -89,15 +90,16 @@ async function main() {
     const startup = startupById.get(event.startup_id);
     if (!startup) continue;
     const cutoffStartup = { ...startup, feature_cutoff_at: event.occurred_at || event.announced_at };
+    const historicalInvestors = investors.filter(investor => profileExistedAtCutoff(investor, cutoffStartup.feature_cutoff_at));
     const historicalFeatures = await loadVerifiedHistoricalFeatures(db, membershipByInvestor, cutoffStartup.feature_cutoff_at);
     for (const investor of investors) {
       const organizationId = membershipByInvestor.get(investor.id);
       investor.historical_features = historicalFeatures.get(organizationId ? `organization:${organizationId}` : `investor:${investor.id}`) || null;
     }
     const threshold = thresholdFor(cutoffStartup);
-    const qualified = investors.map(investor => ({ investor, match: calculateMatch(cutoffStartup, investor) }))
+    const qualified = historicalInvestors.map(investor => ({ investor, match: calculateMatch(cutoffStartup, investor) }))
       .filter(item => item.match.score > threshold);
-    const firmRanked = selectTopInvestorCandidates(qualified, membershipByInvestor, investors.length);
+    const firmRanked = selectTopInvestorCandidates(qualified, membershipByInvestor, historicalInvestors.length);
     const rankByInvestor = new Map(firmRanked.map((item, index) => [item.investor.id, index + 1]));
     const rankByOrganization = new Map();
     firmRanked.forEach((item, index) => {
@@ -113,7 +115,12 @@ async function main() {
         || null;
       const organizationMembers = membersByOrganization.get(targetOrganizationId) || [];
       const exactLabelProfiles = investorsByNormalizedLabel.get(normalizedRaw) || [];
-      const candidateIds = [...new Set([participant.investor_id, ...organizationMembers, ...exactLabelProfiles].filter(Boolean))];
+      const candidateSet = classifyHistoricalCandidate(
+        [participant.investor_id, ...organizationMembers, ...exactLabelProfiles],
+        investorById,
+        cutoffStartup.feature_cutoff_at,
+      );
+      const candidateIds = candidateSet.historical;
       const ranks = candidateIds.map(id => rankByInvestor.get(id)).filter(Boolean);
       const organizationRank = targetOrganizationId ? rankByOrganization.get(targetOrganizationId) : null;
       const bestRank = organizationRank || (ranks.length ? Math.min(...ranks) : null);
@@ -125,8 +132,11 @@ async function main() {
         canonical_organization: organizationById.get(targetOrganizationId)?.canonical_name || null,
         identity_resolution: participant.investor_organization_id
           ? 'canonical_organization'
+          : participant.investor_id ? 'resolved_individual_profile'
           : targetOrganizationId ? 'reviewed_alias' : exactLabelProfiles.length ? 'exact_profile_label' : 'unresolved',
-        candidate_profiles: candidateIds.length,
+        candidate_profiles_current: candidateSet.current.length,
+        candidate_profiles_at_cutoff: candidateIds.length,
+        profiles_repaired_after_cutoff: candidateSet.repaired_after_cutoff.length,
         corrected_firm_rank: bestRank,
         in_top_50: bestRank !== null && bestRank <= 50,
         in_top_5: bestRank !== null && bestRank <= 5,
@@ -136,13 +146,16 @@ async function main() {
           ? Math.round((topFiveCutoff - firmRanked[bestMember.rank - 1].match.score) * 10) / 10
           : null,
         representative_reasons: bestMember ? firmRanked[bestMember.rank - 1]?.match.reason.split('; ') : [],
-        diagnosis: candidateIds.length === 0 ? 'missing_candidate_profile' : bestRank === null ? 'below_qualification_threshold' : bestRank <= 50 ? 'candidate_recovered' : 'ranked_below_top_50',
+        diagnosis: candidateIds.length === 0
+          ? (candidateSet.current.length ? 'historically_missing_candidate_profile' : 'missing_candidate_profile')
+          : bestRank === null ? 'below_qualification_threshold' : bestRank <= 50 ? 'candidate_recovered' : 'ranked_below_top_50',
       };
     });
     reports.push({
       startup: startup.name,
       god_score: startup.total_god_score,
-      investors_scored: investors.length,
+      investors_scored: historicalInvestors.length,
+      current_investor_profiles: investors.length,
       qualified_investors: qualified.length,
       unique_firms_ranked: firmRanked.length,
       top_five_cutoff: topFiveCutoff,

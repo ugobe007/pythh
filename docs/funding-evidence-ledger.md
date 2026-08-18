@@ -81,6 +81,18 @@ announcement does not prove that PYTHH caused an investment.
   writes, resolves actual investors through canonical organizations and
   reviewed aliases, excludes unknown relationships, and reports rank and
   score gaps. Retrospective output is diagnostic rather than formal accuracy.
+- `npm run funding:audit:investor-profiles` measures whether reviewed member
+  profiles for each proven investment organization contain complementary facts.
+  Its structural merge candidates are audit signals only: membership review
+  does not validate check sizes, stages, theses, or sectors. It never writes.
+- `npm run funding:repair:organization-links` previews missing organization
+  links for proven participants. The `:apply` variant accepts only exact reviewed
+  aliases plus resolved profiles, or creates a firm organization when the proven
+  participant exactly matches a non-individual firm row. Conflicts are withheld.
+- `npm run funding:resolve:reviewed-individuals` previews identity-only repairs
+  backed by first-party person and funding evidence. The `:apply` variant does
+  not infer sectors, stages, check sizes, theses, or firm memberships. Candidate
+  audits exclude profiles created after each event cutoff, preserving past misses.
 - `npm run funding:coverage:startups` previews provenance-backed startup links;
   the `:apply` variant writes only those safe links.
 - `npm run funding:coverage:investors` ranks missing investor identities by
