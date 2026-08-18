@@ -93,7 +93,13 @@ announcement does not prove that PYTHH caused an investment.
 - `npm run enrich:investors:safe` previews sparse-investor enrichment. Only
   articles that name the target investor in an investment context are used;
   ordinary funding-round amounts cannot become check sizes, and third-party
-  prose cannot become a first-party investment thesis.
+  prose cannot become a first-party investment thesis. A claim must have one
+  reviewed reputable source or two independent unreviewed publishers before
+  it is eligible to change matching inputs.
+- `npm run funding:enrich:investors` targets only resolved investors who are
+  proven participants in audited, verified rounds. The `:apply` variant fills
+  missing structured fields without overwriting existing claims and stores the
+  exact source set and proposed values back on the participant evidence row.
 
 ## Required next evidence upgrades
 

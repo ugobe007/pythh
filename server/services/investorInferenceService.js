@@ -25,6 +25,7 @@ const { extractOntologyFromNewsText } = require('../../lib/ontologyNewsInference
 const { getResolved: getInferenceConfig } = require('../../lib/inferencePipelineConfig');
 const { detectSignals } = require('./signalDetector');
 const { normalizeEntityName, participantNamesFromEvent, startupNameFromFundingEvent, isPlausibleStartupName } = require('../lib/fundingEvidenceLedger');
+const { assessFundingSource, normalizedPublisher } = require('../lib/fundingSourceTrust');
 
 const parser = new Parser({
   timeout: 20000,
@@ -83,6 +84,33 @@ function articleMentionsInvestorInvestment(article, investor) {
   const normalizedText = normalizeEntityName(text);
   if (!investorIdentityKeys(investor).some(key => normalizedText.includes(key))) return false;
   return /\b(invest(?:s|ed|ing|ment)?|back(?:s|ed|ing)?|lead(?:s|ing)?|led|co[- ]?lead|participat(?:es|ed|ing)|portfolio|venture|fund)\b/i.test(text);
+}
+
+function sourcePublisherFromArticle(article) {
+  if (article?.publisher) return String(article.publisher).trim();
+  const suffix = String(article?.title || '').match(/\s+-\s+([^–—-]{2,80})$/)?.[1];
+  return suffix ? suffix.trim() : '';
+}
+
+function assessInvestorArticleSource(article) {
+  const publisher = sourcePublisherFromArticle(article);
+  const assessment = assessFundingSource({ source_url: article?.link, source_publisher: publisher });
+  return {
+    ...assessment,
+    publisher: publisher || null,
+    source_identity: assessment.trusted
+      ? assessment.identity
+      : publisher ? `publisher:${normalizedPublisher(publisher)}` : assessment.identity,
+  };
+}
+
+function eligibleInvestorEvidenceArticles(articles, investor) {
+  const relevant = articles.filter(article => articleMentionsInvestorInvestment(article, investor))
+    .map(article => ({ ...article, source_assessment: assessInvestorArticleSource(article) }));
+  const trusted = relevant.filter(article => article.source_assessment.trusted);
+  if (trusted.length) return trusted;
+  const independentSources = new Set(relevant.map(article => article.source_assessment.source_identity).filter(Boolean));
+  return independentSources.size >= 2 ? relevant : [];
 }
 
 function extractExplicitCheckSizeRange(text) {
@@ -177,7 +205,7 @@ async function searchInvestorNews(investorName, firm) {
  * Returns { enrichedData, enrichmentCount }
  */
 function extractInvestorDataFromArticles(articles, currentInvestor) {
-  const relevantArticles = articles.filter(article => articleMentionsInvestorInvestment(article, currentInvestor));
+  const relevantArticles = eligibleInvestorEvidenceArticles(articles, currentInvestor);
   const allText = relevantArticles.map(a => `${a.title} ${a.content}`).join(' ').toLowerCase();
   const enrichedData = {};
   let enrichmentCount = 0;
@@ -286,7 +314,15 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
   return {
     enrichedData,
     enrichmentCount,
-    evidence: relevantArticles.map(article => ({ title: article.title || '', link: article.link || '', pubDate: article.pubDate || '' })),
+    evidence: relevantArticles.map(article => ({
+      title: article.title || '',
+      link: article.link || '',
+      pubDate: article.pubDate || '',
+      publisher: article.source_assessment.publisher,
+      trusted: article.source_assessment.trusted,
+      trust_tier: article.source_assessment.tier,
+      source_identity: article.source_assessment.source_identity,
+    })),
   };
 }
 
@@ -320,7 +356,7 @@ const RECENT_DEAL_PATTERN = /(?:lead(?:s|ing)?|invests?(?:ing)?|backs?|funded?|a
  * - last_investment_date: most recent investment date parsed from news
  */
 function buildOracleSignals(investor, articles) {
-  const relevantArticles = articles.filter(article => articleMentionsInvestorInvestment(article, investor));
+  const relevantArticles = eligibleInvestorEvidenceArticles(articles, investor);
   const allText = relevantArticles.map(a => `${a.title} ${a.content}`).join(' ');
   const allTextLower = allText.toLowerCase();
   const signals = [];
@@ -490,6 +526,8 @@ module.exports = {
   extractInvestorDataFromArticles,
   buildOracleSignals,
   articleMentionsInvestorInvestment,
+  assessInvestorArticleSource,
+  eligibleInvestorEvidenceArticles,
   extractExplicitCheckSizeRange,
   extractPortfolioCompanies,
   dedupeAndRankArticles,

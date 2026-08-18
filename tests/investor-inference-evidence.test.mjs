@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
   articleMentionsInvestorInvestment,
+  eligibleInvestorEvidenceArticles,
   extractExplicitCheckSizeRange,
   extractInvestorDataFromArticles,
   extractPortfolioCompanies,
@@ -24,6 +25,21 @@ test('extracts only explicit check or ticket sizes, never ordinary round amounts
     evidence: 'check sizes range from $500K to $2M',
   });
   assert.equal(extractExplicitCheckSizeRange('Acme led Nova’s $30M Series B round.'), null);
+});
+
+test('accepts one reviewed source or two independent unreviewed publishers', () => {
+  const investor = { name: 'Acme Ventures', firm: 'Acme Ventures' };
+  const trusted = [{ title: 'Acme Ventures invests in Nova - Reuters', link: 'https://news.google.com/article/1' }];
+  assert.equal(eligibleInvestorEvidenceArticles(trusted, investor).length, 1);
+
+  const oneUnreviewed = [{ title: 'Acme Ventures invests in Nova - Local Tech', link: 'https://news.google.com/article/2' }];
+  assert.equal(eligibleInvestorEvidenceArticles(oneUnreviewed, investor).length, 0);
+
+  const corroborated = [
+    ...oneUnreviewed,
+    { title: 'Acme Ventures backs Nova - Venture Daily', link: 'https://news.google.com/article/3' },
+  ];
+  assert.equal(eligibleInvestorEvidenceArticles(corroborated, investor).length, 2);
 });
 
 test('portfolio extraction requires the target investor to be an explicit participant', () => {

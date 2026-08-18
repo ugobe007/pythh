@@ -361,6 +361,17 @@ test('candidate generation paginates the full investor universe before ranking a
   assert.match(worker, /toLowerCase\(\)\.trim\(\)/);
 });
 
+test('funding-outcome investor enrichment is source-gated, additive, and dry-run by default', () => {
+  const script = readFileSync(new URL('../scripts/enrich-funding-outcome-investors.js', import.meta.url), 'utf8');
+  assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /participant_role !== 'unknown'/);
+  assert.match(script, /resolution_status === 'resolved'/);
+  assert.match(script, /safeProfileUpdate/);
+  assert.match(script, /investor_profile_enrichment/);
+  assert.match(script, /eligible_sources: evidence/);
+  assert.doesNotMatch(script, /update\.investment_thesis/);
+});
+
 test('historical investor features exclude events at or after the prediction cutoff', () => {
   const events = [
     { id: 'before', canonical_round_key: 'round-1', startup_id: 's1', round_type: 'Seed', announced_at: '2025-01-01', verification_status: 'verified' },

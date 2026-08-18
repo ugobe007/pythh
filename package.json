@@ -126,6 +126,8 @@
     "funding:repair": "node scripts/repair-funding-ledger-derived-fields.mjs",
     "funding:participants": "node scripts/enrich-funding-ledger-participants.mjs",
     "funding:participants:scrub": "node scripts/scrub-funding-participant-chronology.mjs",
+    "funding:enrich:investors": "node scripts/enrich-funding-outcome-investors.js",
+    "funding:enrich:investors:apply": "node scripts/enrich-funding-outcome-investors.js --apply",
     "enrich:investors:safe": "node scripts/enrich-sparse-investors.js --dry-run",
     "startup:tighten": "node scripts/cron/startup-data-tightening.js",
     "compute:exit-propensity": "npx tsx scripts/compute-exit-propensity.ts",
