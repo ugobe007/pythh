@@ -3,7 +3,13 @@
 const { normalizeEntityName } = require('./fundingEvidenceLedger.js');
 
 function normalizeStage(value) {
-  return String(value || '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = String(value || '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (normalized === '1') return 'pre seed';
+  if (normalized === '2') return 'seed';
+  if (normalized === '3') return 'series a';
+  if (normalized === '4') return 'series b';
+  if (normalized === '5') return 'series c';
+  return normalized;
 }
 
 function scoreRecentActivity(lastInvestmentAt, asOf = new Date()) {

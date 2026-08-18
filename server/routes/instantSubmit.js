@@ -32,6 +32,7 @@ const {
   calculateSectorMatchScore,
   SECTOR_SYNONYMS,
 } = require('../lib/sectorTaxonomy');
+const { stageLabel } = require('../lib/stageTaxonomy');
 const { calculateCompleteness } = require('../services/dataCompletenessService');
 const { recomputeStartupSignalScoresFromPythh } = require('../lib/recomputeStartupSignalScoresFromPythh');
 const {
@@ -514,10 +515,6 @@ const PIPELINE_CONFIG = {
   MIN_INVESTOR_SCORE: parseFloat(process.env.MIN_INVESTOR_SCORE || '30'),  // 0-100 GOD scale (was 5.0 on 0-10)
 };
 
-const STAGE_MAP = {
-  0: 'Pre-Seed', 1: 'Seed', 2: 'Series A', 3: 'Series B', 4: 'Series C', 5: 'Growth'
-};
-
 function normToken(s) {
   if (s == null) return null;
   return String(s).toLowerCase().trim().replace(/\s+/g, ' ');
@@ -530,7 +527,7 @@ function normTokenList(arr) {
 
 function normalizeStartupForScoring(s) {
   const sectors = normTokenList(s.sectors);
-  const stage = (typeof s.stage === 'number') ? STAGE_MAP[s.stage] : s.stage;
+  const stage = stageLabel(s.stage);
   const stageNorm = normToken(stage);
   const godScore = Number.isFinite(Number(s.total_god_score)) ? Number(s.total_god_score) : null;
   return { id: s.id, name: s.name, sectors, stage: stageNorm, godScore };
@@ -540,7 +537,7 @@ function normalizeInvestorForScoring(i) {
   const sectors = normTokenList(i.sectors);
   const stagesRaw = Array.isArray(i.stage) ? i.stage : (i.stage ? [i.stage] : []);
   const stages = stagesRaw
-    .map(x => (typeof x === 'number' ? STAGE_MAP[x] : x))
+    .map(stageLabel)
     .map(normToken)
     .filter(Boolean);
   return {

@@ -1,7 +1,5 @@
 'use strict';
 
-const PDFDocument = require('pdfkit');
-
 async function fetchBuffer(url) {
   if (!url) return null;
   const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
@@ -132,6 +130,9 @@ function renderPdfPages(doc, edition, W, EMERALD, GOLD, DARK, MUTED, WHITE, imgB
  * Branded PDF — cover, artwork page, PYTHIA artist statement, legend.
  */
 async function buildArtEditionPdf(edition) {
+  // PDFKit/fontkit is large and irrelevant to ordinary API and homepage
+  // traffic. Load it only for an explicit PDF export.
+  const PDFDocument = require('pdfkit');
   let imgBuf = null;
   if (edition.raster_url) {
     try {

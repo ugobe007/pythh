@@ -19,16 +19,22 @@ const { enrichSocialScore } = require("../services/newsSignalService");
 
 // Scraping for discovery: scrape + update only. Do not call processUrlSubmission here — it INSERTs
 // with scraped display names (e.g. "Stripe") and hits startup_uploads_name_unique when dedupe misses.
-let scrapeAndScoreStartup;
-let updateStartupWithScrapedData;
-try {
-  const scraping = require("../services/urlScrapingService.ts");
-  scrapeAndScoreStartup = scraping.scrapeAndScoreStartup;
-  updateStartupWithScrapedData = scraping.updateStartupWithScrapedData;
-} catch (e) {
-  console.warn("[discoverySubmit] urlScrapingService.ts not available:", e?.message || e);
-  scrapeAndScoreStartup = null;
-  updateStartupWithScrapedData = null;
+let discoveryScrapingTools;
+let discoveryScrapingLoadAttempted = false;
+function getDiscoveryScrapingTools() {
+  if (discoveryScrapingLoadAttempted) return discoveryScrapingTools;
+  discoveryScrapingLoadAttempted = true;
+  try {
+    const scraping = require("../services/urlScrapingService.ts");
+    discoveryScrapingTools = {
+      scrapeAndScoreStartup: scraping.scrapeAndScoreStartup,
+      updateStartupWithScrapedData: scraping.updateStartupWithScrapedData,
+    };
+  } catch (e) {
+    console.warn("[discoverySubmit] urlScrapingService.ts not available:", e?.message || e);
+    discoveryScrapingTools = null;
+  }
+  return discoveryScrapingTools;
 }
 
 /** Canonical https URL for scrapers */
@@ -201,11 +207,12 @@ router.post("/submit", async (req, res) => {
     }
 
     // ── Enrich existing row OR create via shared scrape→DB path (instantSubmit parity) ──
-    if (startupId && scrapeAndScoreStartup && updateStartupWithScrapedData) {
+    const discoveryScraping = getDiscoveryScrapingTools();
+    if (startupId && discoveryScraping) {
       try {
-        const { data, dataTier } = await scrapeAndScoreStartup(fullUrl);
+        const { data, dataTier } = await discoveryScraping.scrapeAndScoreStartup(fullUrl);
         if (data) {
-          const ok = await updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
+          const ok = await discoveryScraping.updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
           if (!ok) {
             console.warn(`[discoverySubmit] scrape/update existing startup ${startupId}: update returned false`);
           }
@@ -312,11 +319,12 @@ router.post("/submit", async (req, res) => {
         }
         if (!startupId) startupId = startupUpload?.id;
         // Best-effort: fill profile on the new row (omitName — display name stays disc-* until curated)
-        if (scrapeAndScoreStartup && updateStartupWithScrapedData) {
+        const fallbackScraping = getDiscoveryScrapingTools();
+        if (fallbackScraping) {
           try {
-            const { data, dataTier } = await scrapeAndScoreStartup(fullUrl);
+            const { data, dataTier } = await fallbackScraping.scrapeAndScoreStartup(fullUrl);
             if (data) {
-              await updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
+              await fallbackScraping.updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
             }
           } catch (e) {
             console.warn("[discoverySubmit] fallback row scrape/update:", e?.message || e);

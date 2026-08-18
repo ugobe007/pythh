@@ -257,12 +257,23 @@ function useIntersectionObserver(threshold = 0.1) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return;
+    }
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setIsVisible(true); observer.disconnect(); } },
       { threshold }
     );
     if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
+    // Animation is progressive enhancement. Browser throttling, restored tabs,
+    // screenshot stitching, and WebKit observer bugs must never leave homepage
+    // sections permanently transparent.
+    const failOpen = window.setTimeout(() => setIsVisible(true), 800);
+    return () => {
+      window.clearTimeout(failOpen);
+      observer.disconnect();
+    };
   }, [threshold]);
   return { ref, isVisible };
 }

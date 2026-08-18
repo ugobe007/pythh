@@ -26,6 +26,25 @@ function label(investor) {
   return String(investor?.firm || investor?.name || '').trim();
 }
 
+function averageComponents(items) {
+  const totals = new Map();
+  for (const item of items) {
+    for (const [key, value] of Object.entries(item.match.investor_fit_components || {})) {
+      totals.set(key, (totals.get(key) || 0) + Number(value || 0));
+    }
+  }
+  return Object.fromEntries([...totals].map(([key, total]) => [key, Math.round((total / Math.max(1, items.length)) * 10) / 10]));
+}
+
+function componentGaps(actual = {}, benchmark = {}) {
+  return Object.keys(benchmark).map(component => ({
+    component,
+    actual_points: Number(actual[component] || 0),
+    top_five_average_points: benchmark[component],
+    raw_point_gap: Math.round((benchmark[component] - Number(actual[component] || 0)) * 10) / 10,
+  })).filter(row => row.raw_point_gap > 0).sort((a, b) => b.raw_point_gap - a.raw_point_gap);
+}
+
 async function fetchAll(table, select) {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
@@ -107,6 +126,7 @@ async function main() {
       if (organizationId && !rankByOrganization.has(organizationId)) rankByOrganization.set(organizationId, index + 1);
     });
     const topFiveCutoff = firmRanked[4]?.match.score ?? null;
+    const topFiveComponentAverage = averageComponents(firmRanked.slice(0, 5));
     const actual = (participantsByEvent.get(event.id) || []).map(participant => {
       const normalizedRaw = normalizeEntityName(participant.investor_name_raw);
       const targetOrganizationId = participant.investor_organization_id
@@ -126,6 +146,7 @@ async function main() {
       const bestRank = organizationRank || (ranks.length ? Math.min(...ranks) : null);
       const bestMember = candidateIds.map(id => ({ id, rank: rankByInvestor.get(id), investor: investorById.get(id) }))
         .filter(row => row.rank).sort((a, b) => a.rank - b.rank)[0];
+      const representativeMatch = bestMember ? firmRanked[bestMember.rank - 1]?.match : null;
       return {
         investor: participant.investor_name_raw,
         role: participant.participant_role,
@@ -141,11 +162,15 @@ async function main() {
         in_top_50: bestRank !== null && bestRank <= 50,
         in_top_5: bestRank !== null && bestRank <= 5,
         representative_profile: bestMember ? label(bestMember.investor) : null,
-        representative_score: bestMember ? firmRanked[bestMember.rank - 1]?.match.score : null,
+        representative_score: representativeMatch?.score ?? null,
         score_gap_to_top_five: bestMember && topFiveCutoff !== null
-          ? Math.round((topFiveCutoff - firmRanked[bestMember.rank - 1].match.score) * 10) / 10
+          ? Math.round((topFiveCutoff - representativeMatch.score) * 10) / 10
           : null,
-        representative_reasons: bestMember ? firmRanked[bestMember.rank - 1]?.match.reason.split('; ') : [],
+        representative_fit_components: representativeMatch?.investor_fit_components || null,
+        component_gaps_to_top_five_average: representativeMatch
+          ? componentGaps(representativeMatch.investor_fit_components, topFiveComponentAverage)
+          : [],
+        representative_reasons: representativeMatch ? representativeMatch.reason.split('; ') : [],
         diagnosis: candidateIds.length === 0
           ? (candidateSet.current.length ? 'historically_missing_candidate_profile' : 'missing_candidate_profile')
           : bestRank === null ? 'below_qualification_threshold' : bestRank <= 50 ? 'candidate_recovered' : 'ranked_below_top_50',
@@ -159,11 +184,47 @@ async function main() {
       qualified_investors: qualified.length,
       unique_firms_ranked: firmRanked.length,
       top_five_cutoff: topFiveCutoff,
-      corrected_top_five: firmRanked.slice(0, 5).map((item, index) => ({ rank: index + 1, investor: label(item.investor), score: item.match.score })),
+      top_five_average_fit_components: topFiveComponentAverage,
+      corrected_top_five: firmRanked.slice(0, 5).map((item, index) => ({
+        rank: index + 1,
+        investor: label(item.investor),
+        score: item.match.score,
+        fit_components: item.match.investor_fit_components,
+      })),
       actual_investors: actual,
     });
   }
-  console.log(JSON.stringify({ mode: 'shadow-read-only', generated_at: new Date().toISOString(), reports }, null, 2));
+  const outcomes = reports.flatMap(report => report.actual_investors);
+  const historicalCandidates = outcomes.filter(row => row.candidate_profiles_at_cutoff > 0);
+  const currentCandidates = outcomes.filter(row => row.candidate_profiles_current > 0);
+  const historicalRanks = historicalCandidates.map(row => row.corrected_firm_rank).filter(Number.isFinite).sort((a, b) => a - b);
+  const summary = {
+    audited_events: reports.length,
+    proven_investor_outcomes: outcomes.length,
+    historically_eligible_outcomes: historicalCandidates.length,
+    historical_candidate_coverage_rate: outcomes.length ? historicalCandidates.length / outcomes.length : null,
+    current_candidate_coverage_rate: outcomes.length ? currentCandidates.length / outcomes.length : null,
+    top_5_hits: historicalCandidates.filter(row => row.in_top_5).length,
+    top_5_recall_all_outcomes: outcomes.length
+      ? historicalCandidates.filter(row => row.in_top_5).length / outcomes.length : null,
+    top_5_hit_rate_given_candidate: historicalCandidates.length
+      ? historicalCandidates.filter(row => row.in_top_5).length / historicalCandidates.length : null,
+    top_50_hits: historicalCandidates.filter(row => row.in_top_50).length,
+    top_50_hit_rate_given_candidate: historicalCandidates.length
+      ? historicalCandidates.filter(row => row.in_top_50).length / historicalCandidates.length : null,
+    mean_reciprocal_rank_given_candidate: historicalRanks.length
+      ? historicalRanks.reduce((sum, rank) => sum + (1 / rank), 0) / historicalRanks.length : null,
+    median_rank_given_candidate: historicalRanks.length
+      ? historicalRanks.length % 2
+        ? historicalRanks[Math.floor(historicalRanks.length / 2)]
+        : (historicalRanks[(historicalRanks.length / 2) - 1] + historicalRanks[historicalRanks.length / 2]) / 2
+      : null,
+    historically_missing_candidate_profiles: outcomes.filter(row => row.diagnosis === 'historically_missing_candidate_profile').length,
+    ranked_below_top_50: outcomes.filter(row => row.diagnosis === 'ranked_below_top_50').length,
+  };
+  const result = { mode: 'shadow-read-only', generated_at: new Date().toISOString(), summary };
+  if (!process.argv.includes('--summary')) result.reports = reports;
+  console.log(JSON.stringify(result, null, 2));
 }
 
 main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });

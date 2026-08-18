@@ -13,6 +13,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { normalizeEntityName } = require('../../server/lib/fundingEvidenceLedger.js');
 const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity } = require('../../server/lib/investorHistoricalFeatures.js');
+const { normalizeSectors, expandRelatedSectors } = require('../../server/lib/sectorTaxonomy.js');
 require('dotenv').config();
 
 const supabase = createClient(
@@ -30,6 +31,32 @@ function normalizeStartupStage(value) {
   if (stage.includes('series b')) return 4;
   if (stage.includes('series c') || stage.includes('growth') || stage.includes('late')) return 5;
   return 2;
+}
+
+function sectorValues(value) {
+  if (Array.isArray(value)) return value;
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function calculateSectorFit(startupSectors, investorSectors, investmentThesis = '') {
+  const startupCanonical = normalizeSectors(sectorValues(startupSectors));
+  const investorCanonical = normalizeSectors(
+    sectorValues(investorSectors).length ? sectorValues(investorSectors) : [investmentThesis],
+  );
+  if (!startupCanonical.length || !investorCanonical.length) {
+    return { points: 0, direct_matches: [], related_matches: [] };
+  }
+
+  const directMatches = startupCanonical.filter(sector => investorCanonical.includes(sector));
+  const expandedStartup = expandRelatedSectors(startupCanonical);
+  const relatedMatches = investorCanonical.filter(sector =>
+    !directMatches.includes(sector) && expandedStartup.includes(sector),
+  );
+  return {
+    points: Math.min(20, directMatches.length * 7 + relatedMatches.length * 3),
+    direct_matches: directMatches,
+    related_matches: relatedMatches,
+  };
 }
 
   // Enhanced matching algorithm using GOD scores
@@ -54,6 +81,8 @@ function calculateMatch(startup, investor) {
     reasons.push('Quality startup bonus (+5)');
   }
   const startupQualityPoints = score;
+  const investorFitComponents = {};
+  let componentStart = score;
 
   // A documented prior relationship is a strong, causal candidate-generation
   // signal for follow-on participation. It must come from the startup record,
@@ -79,6 +108,8 @@ function calculateMatch(startup, investor) {
     score += historicalFit.points;
     reasons.push(...historicalFit.reasons.map(reason => `${reason} (+history)`));
   }
+  investorFitComponents.relationship_history = score - componentStart;
+  componentStart = score;
   
   // Stage fit (15 points) - REDUCED from 20 to make room for GOD score
   const startupStage = normalizeStartupStage(startup.stage);
@@ -90,68 +121,35 @@ function calculateMatch(startup, investor) {
     investorStages = (investor.stage || '').toString().toLowerCase();
   }
   
+  let stageFitPoints = 0;
   if (startupStage === 1 && investorStages.includes('pre')) {
-    score += 15;
+    stageFitPoints = 15;
     reasons.push('Stage fit: Pre-seed');
   } else if (startupStage === 2 && investorStages.includes('seed')) {
-    score += 15;
+    stageFitPoints = 15;
     reasons.push('Stage fit: Seed');
   } else if (startupStage >= 3 && investorStages.includes('series')) {
-    score += 15;
+    stageFitPoints = 15;
     reasons.push('Stage fit: Series');
   } else if (investorStages.includes('early')) {
-    score += 10;
+    stageFitPoints = 10;
     reasons.push('Stage fit: Early stage');
   } else if (investorStages.includes('any') || investorStages.includes('all')) {
-    score += 8; // Partial credit for flexible investors
+    stageFitPoints = 8; // Partial credit for flexible investors
     reasons.push('Stage fit: Flexible investor');
   }
+  score += stageFitPoints;
+  investorFitComponents.stage = score - componentStart;
+  componentStart = score;
   
-  // Sector fit (20 points) - IMPROVED matching logic
-  const startupSectors = Array.isArray(startup.sectors) 
-    ? startup.sectors.map(s => s.toLowerCase().trim())
-    : (startup.sectors || '').toString().split(',').map(s => s.trim().toLowerCase());
-  
-  const investorSectors = Array.isArray(investor.sectors)
-    ? investor.sectors.map(s => s.toLowerCase().trim())
-    : (investor.sectors || investor.investment_thesis || '').toString().toLowerCase();
-  
-  let sectorMatches = 0;
-  if (Array.isArray(startupSectors) && startupSectors.length > 0) {
-    startupSectors.forEach(sector => {
-      // More flexible matching - check if sector is mentioned anywhere
-      if (Array.isArray(investorSectors)) {
-        if (investorSectors.some(invS => invS.toLowerCase().includes(sector) || sector.includes(invS.toLowerCase()))) {
-          sectorMatches++;
-          reasons.push(`Sector match: ${sector}`);
-        }
-      } else if (investorSectors.includes(sector) || investorSectors.includes(sector.replace(/\s+/g, ''))) {
-        sectorMatches++;
-        reasons.push(`Sector match: ${sector}`);
-      }
-    });
-  } else {
-    // Fallback to keyword matching with more keywords
-    const commonKeywords = ['ai', 'ml', 'machine learning', 'fintech', 'saas', 'healthcare', 'health', 'climate', 'crypto', 'blockchain', 'b2b', 'enterprise', 'edtech', 'proptech', 'biotech', 'medtech', 'cybersecurity', 'security', 'devtools', 'developer tools'];
-    
-    // Build startup text from description and sectors (handle both array and string)
-    let startupSectorsText = '';
-    if (Array.isArray(startup.sectors)) {
-      startupSectorsText = startup.sectors.join(' ').toLowerCase();
-    } else if (startup.sectors) {
-      startupSectorsText = startup.sectors.toString().toLowerCase();
-    }
-    const startupText = ((startup.description || '').toLowerCase() + ' ' + startupSectorsText).trim();
-    
-    commonKeywords.forEach(keyword => {
-      if (startupText.includes(keyword) && investorSectors.includes(keyword)) {
-        sectorMatches++;
-        reasons.push(`Sector match: ${keyword}`);
-      }
-    });
-  }
-  
-  score += Math.min(sectorMatches * 7, 20); // 7 points per match, max 20
+  // Canonical sector fit avoids substring false positives (for example AI ↔ Retail)
+  // while preserving lower-weight adjacency such as Developer Tools ↔ AI/ML.
+  const sectorFit = calculateSectorFit(startup.sectors, investor.sectors, investor.investment_thesis);
+  score += sectorFit.points;
+  reasons.push(...sectorFit.direct_matches.map(sector => `Sector match: ${sector.toLowerCase()}`));
+  reasons.push(...sectorFit.related_matches.map(sector => `Related sector fit: ${sector.toLowerCase()} (+3)`));
+  investorFitComponents.sector = score - componentStart;
+  componentStart = score;
   
   // Geography fit (5 points) - REDUCED from 10
   if (startup.location) {
@@ -175,6 +173,8 @@ function calculateMatch(startup, investor) {
       reasons.push('Geography match');
     }
   }
+  investorFitComponents.geography = score - componentStart;
+  componentStart = score;
   
   // Investor quality bonus (5 points) - NEW
   const investorScore = investor.investor_score || investor.quality_score || 5;
@@ -185,6 +185,8 @@ function calculateMatch(startup, investor) {
     score += 3;
     reasons.push('Quality investor bonus');
   }
+  investorFitComponents.investor_quality = score - componentStart;
+  componentStart = score;
   
   // Check Size Fit (5-10 points) - NEW
   const startupRaiseAmount = startup.raise_amount || startup.extracted_data?.raise_amount;
@@ -257,6 +259,8 @@ function calculateMatch(startup, investor) {
       }
     }
   }
+  investorFitComponents.check_size = score - componentStart;
+  componentStart = score;
   
   // Investment Activity/Recency (3-5 points) - NEW
   if (investor.last_investment_date) {
@@ -274,12 +278,16 @@ function calculateMatch(startup, investor) {
     score += 1;
     reasons.push('Active investor (+1)');
   }
+  investorFitComponents.activity = score - componentStart;
+  componentStart = score;
   
   // Lead investor bonus
   if (investor.leads_rounds === true) {
     score += 2;
     reasons.push('Lead investor (+2)');
   }
+  investorFitComponents.leadership = score - componentStart;
+  componentStart = score;
   
   // Portfolio Fit Analysis (5-10 points) - NEW Phase 2
   const portfolioObservedAt = investor.portfolio_observed_at ? new Date(investor.portfolio_observed_at) : null;
@@ -356,6 +364,8 @@ function calculateMatch(startup, investor) {
       reasons.push(`Portfolio fit: Notable investments (+5)`);
     }
   }
+  investorFitComponents.portfolio = score - componentStart;
+  componentStart = score;
   
   // Investor Tier-Based Matching (5 points) - NEW Phase 2
   const investorTier = investor.investor_tier || 'emerging';
@@ -369,6 +379,8 @@ function calculateMatch(startup, investor) {
     // Emerging investors see all startups (no penalty, but no bonus either)
     // This helps emerging investors get deal flow
   }
+  investorFitComponents.tier = score - componentStart;
+  componentStart = score;
   
   // Traction Metrics Bonus (5-10 points) - NEW Phase 2
   const growthRate = startup.growth_rate_monthly || startup.extracted_data?.growth_rate_monthly || 0;
@@ -415,6 +427,7 @@ function calculateMatch(startup, investor) {
     score += 1;
     reasons.push(`Growing team (+1)`);
   }
+  investorFitComponents.traction = score - componentStart;
   
   // GOD measures whether the startup deserves attention; it is constant for every
   // investor and therefore must not dominate investor ordering. Normalize the
@@ -429,10 +442,11 @@ function calculateMatch(startup, investor) {
     investor_fit_score: Math.round(investorFitPercent * 10) / 10,
     legacy_raw_score: score,
     startup_quality_score: godScore,
+    investor_fit_components: investorFitComponents,
     confidence,
     reason: reasons.join('; ') || 'Basic compatibility match',
-    stage_fit: score >= 15,
-    sector_fit: sectorMatches > 0
+    stage_fit: stageFitPoints > 0,
+    sector_fit: sectorFit.points > 0
   };
 }
 
@@ -717,4 +731,4 @@ async function generateMatches() {
 // Run the matching
 if (require.main === module) generateMatches().catch(console.error);
 
-module.exports = { calculateMatch, normalizeStartupStage, fallbackFirmKey, selectTopInvestorCandidates, fetchAllInvestors, loadVerifiedHistoricalFeatures };
+module.exports = { calculateMatch, calculateSectorFit, normalizeStartupStage, fallbackFirmKey, selectTopInvestorCandidates, fetchAllInvestors, loadVerifiedHistoricalFeatures };
