@@ -6,6 +6,18 @@ function normalizeStage(value) {
   return String(value || '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function scoreRecentActivity(lastInvestmentAt, asOf = new Date()) {
+  if (!lastInvestmentAt) return { points: 0, reason: null };
+  const observedAt = new Date(lastInvestmentAt);
+  const cutoff = new Date(asOf);
+  if (!Number.isFinite(observedAt.getTime()) || !Number.isFinite(cutoff.getTime())) {
+    return { points: 0, reason: null };
+  }
+  const ageDays = (cutoff.getTime() - observedAt.getTime()) / 86_400_000;
+  if (ageDays < 0 || ageDays > 183) return { points: 0, reason: null };
+  return { points: 3, reason: 'Recent investment activity (+3)' };
+}
+
 function buildInvestorHistoricalFeatures({ events = [], participants = [], startups = [], membershipByInvestor = new Map(), cutoffAt = new Date() }) {
   const cutoff = new Date(cutoffAt);
   const startupById = new Map(startups.map(row => [row.id, row]));
@@ -82,4 +94,4 @@ function scoreHistoricalFit(startup, feature, asOf = new Date()) {
   return { points: Math.min(20, points), reasons };
 }
 
-module.exports = { normalizeStage, buildInvestorHistoricalFeatures, scoreHistoricalFit };
+module.exports = { normalizeStage, buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity };

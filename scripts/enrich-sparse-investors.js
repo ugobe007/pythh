@@ -115,10 +115,6 @@ async function runOneChunk(opts) {
         update.geography_focus = enrichedData.geography_focus;
         console.log(`  Geography: ${enrichedData.geography_focus.join(', ')}`);
       }
-      if (enrichedData.inferred_bio && !investor.bio && !investor.investment_thesis) {
-        update.investment_thesis = `[Inferred from news] ${enrichedData.inferred_bio}`;
-        console.log('  Inferred thesis from news');
-      }
       update.last_enrichment_date = new Date().toISOString();
 
       if (Object.keys(update).length <= 1) {

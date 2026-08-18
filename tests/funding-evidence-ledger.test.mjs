@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import ledger from '../server/lib/fundingEvidenceLedger.js';
 
 const require = createRequire(import.meta.url);
-const { buildInvestorHistoricalFeatures, scoreHistoricalFit } = require('../server/lib/investorHistoricalFeatures.js');
+const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity } = require('../server/lib/investorHistoricalFeatures.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 
 const { normalizeEntityName, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
@@ -385,6 +385,13 @@ test('historical investor features exclude events at or after the prediction cut
   assert.deepEqual(feature.evidence_event_ids, ['before']);
   assert.equal(feature.sectors.saas, 1);
   assert.ok(scoreHistoricalFit({ sectors: ['SaaS'], stage: 'Seed' }, feature, '2025-06-01').points > 0);
+});
+
+test('recent investor activity is evaluated relative to the prediction cutoff without future leakage', () => {
+  assert.equal(scoreRecentActivity('2025-05-01', '2025-06-01').points, 3);
+  assert.equal(scoreRecentActivity('2024-01-01', '2025-06-01').points, 0);
+  assert.equal(scoreRecentActivity('2025-07-01', '2025-06-01').points, 0);
+  assert.equal(scoreRecentActivity('not-a-date', '2025-06-01').points, 0);
 });
 
 test('corroboration requires two independent sources or one reviewed trusted source', () => {

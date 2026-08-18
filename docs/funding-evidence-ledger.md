@@ -77,6 +77,10 @@ announcement does not prove that PYTHH caused an investment.
 ## Coverage and quality commands
 
 - `npm run funding:audit` measures evidence quality and formal evaluability.
+- `npm run funding:audit:candidates` re-scores the audited cohort without
+  writes, resolves actual investors through canonical organizations and
+  reviewed aliases, excludes unknown relationships, and reports rank and
+  score gaps. Retrospective output is diagnostic rather than formal accuracy.
 - `npm run funding:coverage:startups` previews provenance-backed startup links;
   the `:apply` variant writes only those safe links.
 - `npm run funding:coverage:investors` ranks missing investor identities by
@@ -86,6 +90,10 @@ announcement does not prove that PYTHH caused an investment.
 - `node scripts/scrub-funding-participant-chronology.mjs` previews ontology
   repairs for historical-round leakage, ambiguous “backed by” evidence,
   mixed lead/joined clauses, and directional-headline subject drift.
+- `npm run enrich:investors:safe` previews sparse-investor enrichment. Only
+  articles that name the target investor in an investment context are used;
+  ordinary funding-round amounts cannot become check sizes, and third-party
+  prose cannot become a first-party investment thesis.
 
 ## Required next evidence upgrades
 

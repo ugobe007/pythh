@@ -12,7 +12,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { normalizeEntityName } = require('../../server/lib/fundingEvidenceLedger.js');
-const { buildInvestorHistoricalFeatures, scoreHistoricalFit } = require('../../server/lib/investorHistoricalFeatures.js');
+const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity } = require('../../server/lib/investorHistoricalFeatures.js');
 require('dotenv').config();
 
 const supabase = createClient(
@@ -260,14 +260,9 @@ function calculateMatch(startup, investor) {
   
   // Investment Activity/Recency (3-5 points) - NEW
   if (investor.last_investment_date) {
-    const lastInvestment = new Date(investor.last_investment_date);
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    
-    if (lastInvestment > sixMonthsAgo) {
-      score += 3;
-      reasons.push('Recent investment activity (+3)');
-    }
+    const activity = scoreRecentActivity(investor.last_investment_date, featureCutoff || new Date());
+    score += activity.points;
+    if (activity.reason) reasons.push(activity.reason);
   }
   
   // Investment pace bonus

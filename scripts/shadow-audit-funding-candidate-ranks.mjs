@@ -45,7 +45,7 @@ async function main() {
   const eventIds = (events || []).map(row => row.id);
   const [{ data: startups, error: startupError }, { data: participants, error: participantError }, investors, memberships, organizations, aliases] = await Promise.all([
     db.from('startup_uploads').select('id,name,description,sectors,stage,total_god_score,location,raise_amount,mrr,arr,growth_rate_monthly,customer_count,team_size,extracted_data').in('id', startupIds),
-    db.from('funding_evidence_participants').select('id,funding_event_id,investor_id,investor_organization_id,investor_name_raw,participant_role').in('funding_event_id', eventIds),
+    db.from('funding_evidence_participants').select('id,funding_event_id,investor_id,investor_organization_id,investor_name_raw,participant_role,participation_relation,resolution_status').in('funding_event_id', eventIds),
     fetchAllInvestors(db, investorColumns),
     fetchAll('investor_organization_memberships', 'investor_id,organization_id'),
     fetchAll('investor_organizations', 'id,canonical_name'),
@@ -66,10 +66,23 @@ async function main() {
     if (organizationId) membershipByInvestor.set(investor.id, organizationId);
   }
   const membersByOrganization = new Map();
-  for (const row of memberships) membersByOrganization.set(row.organization_id, [...(membersByOrganization.get(row.organization_id) || []), row.investor_id]);
+  for (const [investorId, organizationId] of membershipByInvestor) {
+    membersByOrganization.set(organizationId, [...(membersByOrganization.get(organizationId) || []), investorId]);
+  }
+  const investorsByNormalizedLabel = new Map();
+  for (const investor of investors) {
+    for (const value of [investor.firm, investor.name]) {
+      const normalized = normalizeEntityName(value);
+      if (!normalized) continue;
+      investorsByNormalizedLabel.set(normalized, [...(investorsByNormalizedLabel.get(normalized) || []), investor.id]);
+    }
+  }
   const organizationById = new Map(organizations.map(row => [row.id, row]));
   const participantsByEvent = new Map();
-  for (const row of participants || []) participantsByEvent.set(row.funding_event_id, [...(participantsByEvent.get(row.funding_event_id) || []), row]);
+  for (const row of participants || []) {
+    if (!row.participation_relation || row.participant_role === 'unknown') continue;
+    participantsByEvent.set(row.funding_event_id, [...(participantsByEvent.get(row.funding_event_id) || []), row]);
+  }
 
   const reports = [];
   for (const event of events || []) {
@@ -91,24 +104,38 @@ async function main() {
       const organizationId = membershipByInvestor.get(item.investor.id);
       if (organizationId && !rankByOrganization.has(organizationId)) rankByOrganization.set(organizationId, index + 1);
     });
+    const topFiveCutoff = firmRanked[4]?.match.score ?? null;
     const actual = (participantsByEvent.get(event.id) || []).map(participant => {
-      const organizationMembers = membersByOrganization.get(participant.investor_organization_id) || [];
-      const candidateIds = [...new Set([participant.investor_id, ...organizationMembers].filter(Boolean))];
+      const normalizedRaw = normalizeEntityName(participant.investor_name_raw);
+      const targetOrganizationId = participant.investor_organization_id
+        || organizationByAlias.get(normalizedRaw)
+        || (participant.investor_id ? membershipByInvestor.get(participant.investor_id) : null)
+        || null;
+      const organizationMembers = membersByOrganization.get(targetOrganizationId) || [];
+      const exactLabelProfiles = investorsByNormalizedLabel.get(normalizedRaw) || [];
+      const candidateIds = [...new Set([participant.investor_id, ...organizationMembers, ...exactLabelProfiles].filter(Boolean))];
       const ranks = candidateIds.map(id => rankByInvestor.get(id)).filter(Boolean);
-      const organizationRank = participant.investor_organization_id ? rankByOrganization.get(participant.investor_organization_id) : null;
+      const organizationRank = targetOrganizationId ? rankByOrganization.get(targetOrganizationId) : null;
       const bestRank = organizationRank || (ranks.length ? Math.min(...ranks) : null);
       const bestMember = candidateIds.map(id => ({ id, rank: rankByInvestor.get(id), investor: investorById.get(id) }))
         .filter(row => row.rank).sort((a, b) => a.rank - b.rank)[0];
       return {
         investor: participant.investor_name_raw,
         role: participant.participant_role,
-        canonical_organization: organizationById.get(participant.investor_organization_id)?.canonical_name || null,
+        canonical_organization: organizationById.get(targetOrganizationId)?.canonical_name || null,
+        identity_resolution: participant.investor_organization_id
+          ? 'canonical_organization'
+          : targetOrganizationId ? 'reviewed_alias' : exactLabelProfiles.length ? 'exact_profile_label' : 'unresolved',
         candidate_profiles: candidateIds.length,
         corrected_firm_rank: bestRank,
         in_top_50: bestRank !== null && bestRank <= 50,
         in_top_5: bestRank !== null && bestRank <= 5,
         representative_profile: bestMember ? label(bestMember.investor) : null,
         representative_score: bestMember ? firmRanked[bestMember.rank - 1]?.match.score : null,
+        score_gap_to_top_five: bestMember && topFiveCutoff !== null
+          ? Math.round((topFiveCutoff - firmRanked[bestMember.rank - 1].match.score) * 10) / 10
+          : null,
+        representative_reasons: bestMember ? firmRanked[bestMember.rank - 1]?.match.reason.split('; ') : [],
         diagnosis: candidateIds.length === 0 ? 'missing_candidate_profile' : bestRank === null ? 'below_qualification_threshold' : bestRank <= 50 ? 'candidate_recovered' : 'ranked_below_top_50',
       };
     });
@@ -118,6 +145,7 @@ async function main() {
       investors_scored: investors.length,
       qualified_investors: qualified.length,
       unique_firms_ranked: firmRanked.length,
+      top_five_cutoff: topFiveCutoff,
       corrected_top_five: firmRanked.slice(0, 5).map((item, index) => ({ rank: index + 1, investor: label(item.investor), score: item.match.score })),
       actual_investors: actual,
     });
