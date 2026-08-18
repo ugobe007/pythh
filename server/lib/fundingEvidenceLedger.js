@@ -124,14 +124,15 @@ function isPromotionSafeStartupName(value) {
   if (!isPlausibleStartupName(name)) return false;
   if (/\b(?:startup|company|firm|founder|staffers?)\b/i.test(name)) return false;
   if (/\b(?:reportedly|said to)\b|\bbacked\b|\b[a-z]+-based\b/i.test(name)) return false;
-  if (/^(?:exclusive|new unicorn|female-founded)\s*[:!-]?/i.test(name)) return false;
+  if (/^(?:exclusive|sources?|breaking|stat\+|morning minute|new unicorn|female-founded)\s*[:!-]?/i.test(name)) return false;
   if (/^(?:edtech|fintech|healthtech|biotech|climatetech|proptech|defen[cs]e tech|ai)\s+(?:platform|startup|company)$/i.test(name)) return false;
   return true;
 }
 
 function cleanStartupHeadlineLabel(value) {
   let name = String(value || '').trim();
-  name = name.replace(/^(?:exclusive\s*:|new unicorn\s*!?)\s*/i, '');
+  name = name.replace(/^(?:(?:exclusive|sources?|breaking|stat\+|morning minute)\s*:|new unicorn\s*!?)\s*/i, '');
+  name = name.replace(/^([A-Z][A-Za-z0-9.&+ -]{1,80}),\s+(?:an?|the)\s+.+$/i, '$1');
   name = name.replace(/^.{2,80}?-backed\s+/i, '');
   name = name.replace(/^(?:female-founded\s+)?(?:edtech|fintech|healthtech|medtech|biotech|climatetech|proptech|insurtech|defen[cs]e tech|vibe coding)\s+/i, '');
   const describedCompany = name.match(/^(?:\S+\s+){0,6}(?:startup|company|firm|maker|provider|developer)\s+(.+)$/i);
@@ -242,7 +243,7 @@ function classifyFundingEvidence(event) {
   if (!['FUNDING', 'INVESTMENT'].includes(event.event_type)) return { eligible: false, reason: 'not_funding', financingType: 'unknown' };
   if (extraction.decision === 'REJECT' || extraction.graph_safe === false) return { eligible: false, reason: 'parser_not_graph_safe', financingType: 'unknown' };
   if (Number(event.frame_confidence || 0) < 0.6) return { eligible: false, reason: 'low_confidence', financingType: 'unknown' };
-  if (/\b(?:orders?|contract|recognitions?|award winner|political betting|ceasefire|capital rules? raise cost)\b/i.test(text)) {
+  if (/\b(?:orders?|contract|recognitions?|award winner|certificat(?:e|ion)|political betting|ceasefire|capital rules? raise cost)\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
   if (/\b(?:raises? the stakes|boiler room|hidden fees?|sec claims?|token sale|preferred stock offering)\b/i.test(text)
@@ -251,10 +252,15 @@ function classifyFundingEvidence(event) {
     || /\binvest(?:s|ed)?\b.{0,70}\b(?:in|into)\b.{0,70}\b(?:operations?|factor(?:y|ies)|facilit(?:y|ies)|plant|fulfillment hub|data centers?|subsidiar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
+  if (/^(?:(?:exclusive|sources?|breaking|stat\+|morning minute)\s*:\s*)?(?:[a-z0-9-]+\s+){0,4}(?:giants|companies|startups|firms)\s+(?:just\s+)?rais(?:e|es|ed|ing)\b/i.test(text)
+    || /\b(?:a\s+)?(?:founder|son|daughter)\b.{0,80}\brais(?:e|es|ed|ing)\b/i.test(text)
+    || /\bfunding goes to\b/i.test(text)) {
+    return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
+  }
   if (/\b(?:raises?|raised|raising|increases?|increased)\b.{0,50}\b(?:prices?|rates?|fees?|wages?|salar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
-  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|may invest|could invest|could secure|to invest|expected to raise|is raising|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise)\b/i.test(text)
+  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|may invest|could invest|could secure|to invest|expected to raise|is raising|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise)\b/i.test(text)
     || /\btarget(?:s|ed|ing)?\b.{0,80}\b(?:raise|funding|valuation)\b/i.test(text)) {
     return { eligible: false, reason: 'unconfirmed_transaction', financingType: 'unknown' };
   }
@@ -278,13 +284,13 @@ function classifyFundingEvidence(event) {
   }
   const hasDebt = /\b(?:debt|loan|credit facility|debt facility|borrowing|notes?|bond)\b/i.test(text);
   const hasEquity = /\b(?:seed|series [a-h]|venture round|equity|funding round|led by|participation from)\b/i.test(text);
-  const hasGrant = /\b(?:grant|sbir|sttr)\b/i.test(text);
+  const hasGrant = /\b(?:grant|sbir|sttr|chips award|government award)\b/i.test(text);
   const financingType = hasDebt && hasEquity ? 'mixed' : hasDebt ? 'debt' : hasGrant ? 'grant' : 'equity';
   return { eligible: true, reason: null, financingType };
 }
 
 function startupNameFromFundingEvent(event) {
-  const title = String(event.source_title || '');
+  const title = String(event.source_title || '').replace(/^(?:exclusive|sources?|breaking|stat\+|morning minute)\s*:\s*/i, '');
   const directionalMatch = title.match(/^(.{2,100}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+(.+?)(?:\s+as\b|\s+to\b|\s+at\b|[,;]|$)/i);
   const directional = directionalMatch && !/\b(?:raises?|raised|secures?|secured|closes?|closed)\b/i.test(directionalMatch[1])
     ? directionalMatch[2]?.trim() : null;

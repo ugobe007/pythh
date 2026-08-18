@@ -54,6 +54,8 @@ test('normalizes startup aliases without stripping meaningful investor-like word
   assert.equal(isPromotionSafeStartupName('Four former DOGE staffers'), false);
   assert.equal(isPromotionSafeStartupName('Lazada founder'), false);
   assert.equal(isPromotionSafeStartupName('Corgi reportedly'), false);
+  assert.equal(isPromotionSafeStartupName('Sources'), false);
+  assert.equal(isPromotionSafeStartupName('STAT+'), false);
   assert.equal(isPromotionSafeStartupName('World Foundation'), true);
   assert.equal(isPlausibleStartupName('This startup used to raise $10 million'), false);
 });
@@ -150,6 +152,8 @@ test('strips article descriptors from funded-company identities', () => {
   assert.equal(startupNameFromFundingEvent({ source_title: 'Kinderhook invests in aerospace components maker American Aero' }), 'American Aero');
   assert.equal(startupNameFromFundingEvent({ source_title: 'Lumin Digital raises $115M to further invest in product innovation' }), 'Lumin Digital');
   assert.equal(startupNameFromFundingEvent({ source_title: 'Citadel Securities invests $400M in Crypto.com at a $20B valuation' }), 'Crypto.com');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'STAT+: Cadence raises $100 million for regulated AI care' }), 'Cadence');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Sources: APEC, a derivatives exchange, raised $30M' }), 'APEC');
   assert.deepEqual(startupNameCandidates({ source_title: 'Diplo invests in Seattle startup Copper', subject: 'Diplo' }, 'Diplo'), ['Copper']);
 });
 
@@ -214,6 +218,13 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Maersk invests $100M in Boston fulfillment hub' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Bitget secures license for New Zealand expansion' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Fiuu secures JCB payment license in three markets' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Ola Electric Secures BIS Certification For Its LFP Cell' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Four AI giants just raised $188 billion' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'A founder who went from pressure washing just raised $40 million' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Senator Smith\'s son just raised $30 million for a trading venue' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'AI provider Baseten reportedly raising $1.5B' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: '85% of funding goes to the US. AVP and Earlybird raised €500M' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'SandboxAQ Secures $500 Million CHIPS Award' }).financingType, 'grant');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wispr could secure $260M funding at $2B valuation' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Uforce targeting a $4B valuation in new raise, sources say' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Paradigm raises $1.2 billion fund as crypto VC pushes into AI' }).reason, 'outside_venture_outcome_scope');
@@ -492,6 +503,8 @@ test('derived-field repair unlinks directional and unsafe startup identities rev
   const script = readFileSync(new URL('../scripts/repair-funding-ledger-derived-fields.mjs', import.meta.url), 'utf8');
   assert.match(script, /directional_startup_mislink/);
   assert.match(script, /unsafe_canonical_startup_unlinked/);
+  assert.match(script, /non_funding_evidence_rejected/);
+  assert.match(script, /patch\.verification_status = 'rejected'/);
   assert.match(script, /startup_label_replaced_from_canonical/);
   assert.match(script, /patch\.startup_id = null/);
 });

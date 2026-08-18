@@ -47,7 +47,12 @@ async function main() {
     const headlineStartup = startupNameFromFundingEvent({ source_title: row.source_title });
     const directionalMismatch = directionalTitle && headlineStartup && canonicalStartup
       && normalizeStartupName(headlineStartup) !== normalizeStartupName(canonicalStartup.name);
-    if (directionalMismatch || (canonicalStartup && !isPromotionSafeStartupName(canonicalStartup.name))) {
+    if (!classification.eligible) {
+      let rejectedChanged = false;
+      if (row.startup_id) { patch.startup_id = null; rejectedChanged = true; }
+      if (row.verification_status !== 'rejected') { patch.verification_status = 'rejected'; rejectedChanged = true; }
+      if (rejectedChanged) reasons.push(`non_funding_evidence_rejected:${classification.reason}`);
+    } else if (directionalMismatch || (canonicalStartup && !isPromotionSafeStartupName(canonicalStartup.name))) {
       patch.startup_id = null;
       if (isPromotionSafeStartupName(headlineStartup)) patch.startup_name_raw = headlineStartup;
       reasons.push(directionalMismatch ? 'directional_startup_mislink' : 'unsafe_canonical_startup_unlinked');
@@ -68,7 +73,7 @@ async function main() {
       if (row.canonical_round_key !== roundKey) { patch.canonical_round_key = roundKey; reasons.push('round_key_rebuilt'); }
     }
     const repairedStartupName = patch.startup_name_raw || row.startup_name_raw;
-    if ((!classification.eligible || !isPromotionSafeStartupName(repairedStartupName) || Object.hasOwn(patch, 'startup_id')) && ['verified', 'corroborated'].includes(row.verification_status)) {
+    if (classification.eligible && (!isPromotionSafeStartupName(repairedStartupName) || Object.hasOwn(patch, 'startup_id')) && ['verified', 'corroborated'].includes(row.verification_status)) {
       patch.verification_status = 'observed';
       reasons.push(`unsafe_status_downgrade:${classification.eligible ? 'descriptive_startup_label' : classification.reason}`);
     }
