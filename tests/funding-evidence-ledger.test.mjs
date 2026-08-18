@@ -278,6 +278,13 @@ test('prospective snapshots freeze approved top-five sets without changing live 
   assert.match(script, /isEligibleInvestor/);
   assert.match(script, /isGarbageInvestorName/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /process\.argv\.includes\('--new-only'\)/);
+  assert.match(script, /previouslySnapshotted/);
+  assert.match(script, /isPromotionSafeStartupName/);
+  assert.match(script, /row\.is_individual !== true/);
+  assert.match(script, /offset \+= 20/);
+  assert.match(script, /snapshots\.length >= limit \* 5/);
+  assert.match(script, /row\.source_type === 'url'/);
 });
 
 test('prospective evaluator uses startup-level any-of-five hits and separates pending horizons', () => {
@@ -292,11 +299,41 @@ test('prospective evaluator uses startup-level any-of-five hits and separates pe
   assert.match(script, /participation_relation && row\.participant_role !== 'unknown'/);
 });
 
+test('funding prediction claim gate uses Wilson confidence and audited startup-level outcomes', () => {
+  const claim = require('../server/lib/fundingPredictionClaim.js');
+  const empty = claim.buildClaimReadiness();
+  assert.equal(empty.claim_ready, false);
+  assert.ok(empty.blockers.includes('no_audited_outcomes'));
+  const weakSample = claim.buildClaimReadiness({ confirmedHits: 20, confirmedMisses: 0, minimumAuditedOutcomes: 100 });
+  assert.equal(weakSample.claim_ready, false);
+  assert.ok(weakSample.blockers.some(blocker => blocker.startsWith('needs_')));
+  const defensible = claim.buildClaimReadiness({ confirmedHits: 100, confirmedMisses: 0, minimumAuditedOutcomes: 100 });
+  assert.equal(defensible.claim_ready, true);
+  assert.ok(defensible.confidence_95.lower >= 0.85);
+});
+
+test('claim-readiness report prevents temporal leakage and separates accuracy definitions', () => {
+  const script = readFileSync(new URL('../scripts/report-funding-prediction-claim-readiness.mjs', import.meta.url), 'utf8');
+  assert.match(script, /discoveredAt >= predictedAt/);
+  assert.match(script, /at > predictedAt && at <= horizonEnd/);
+  assert.match(script, /participant_list_complete === true/);
+  assert.match(script, /per_investor_precision_at_5/);
+  assert.match(script, /actual_investor_recall_at_5/);
+  assert.match(script, /confirmed_hit_startups/);
+  assert.match(script, /indeterminate_funded_startups/);
+  assert.match(script, /firstByStartup/);
+  assert.match(script, /canonical_round_key/);
+  assert.match(script, /excluded_prediction_sets_without_direct_url_identity/);
+});
+
 test('prospective cohort monitor is free-search-first and cannot backdate evidence', () => {
   const monitor = readFileSync(new URL('../scripts/monitor-funding-prediction-cohort.mjs', import.meta.url), 'utf8');
   assert.match(monitor, /searchStartupNews/);
   assert.match(monitor, /inference_engine_free_news_search/);
   assert.match(monitor, /publishedAt > new Date\(predictedAt\)/);
+  assert.match(monitor, /all_active_365_day_cohorts/);
+  assert.match(monitor, /cohortKeys: new Set/);
+  assert.match(monitor, /directUrlStartupIds/);
   assert.match(monitor, /verification_status: 'observed'/);
   assert.match(monitor, /extractKnownInvestorMentions/);
   assert.doesNotMatch(monitor, /OpenAI|Anthropic/);
@@ -314,7 +351,7 @@ test('verified participant enrichment is bounded, source-grounded, and preserves
   const script = readFileSync(new URL('../scripts/enrich-funding-ledger-participants.mjs', import.meta.url), 'utf8');
   assert.match(script, /verification_status', \['verified', 'corroborated'\]/);
   assert.match(script, /extractKnownInvestorMentions/);
-  assert.match(script, /participant_list_complete: false/);
+  assert.match(script, /participant_list_complete: event\.metadata\?\.participant_list_complete === true/);
   assert.match(script, /isPrivateIp/);
   assert.match(script, /redirect: 'error'/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);

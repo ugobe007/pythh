@@ -73,6 +73,9 @@ test('rejects scraper concat and program tags (user examples)', () => {
 
 test('rejects headline / role prefixes', () => {
   assert.strictEqual(isGarbageInvestorName('Data Scientist Jane Smith'), true);
+  assert.strictEqual(isGarbageInvestorName('Bio Robert Nelsen (Archventure)'), true);
+  assert.strictEqual(isGarbageInvestorName('Launches New Fund'), true);
+  assert.strictEqual(isGarbageInvestorName('Sam Altman Personal'), true);
 });
 
 test('rejects NFX blog scraper fragments', () => {

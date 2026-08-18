@@ -46,31 +46,38 @@ function eligibleArticle(article, startupName, predictedAt) {
     && ledger.normalizeStartupName(title).includes(ledger.normalizeStartupName(startupName));
 }
 
-async function latestCohortKey() {
-  if (cohortKey) return cohortKey;
-  const { data, error } = await db.from('funding_prediction_snapshots')
-    .select('cohort_key,predicted_at').order('predicted_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error;
-  if (!data?.cohort_key) throw new Error('No prospective funding prediction cohort exists');
-  return data.cohort_key;
-}
-
 async function main() {
-  const selectedCohort = await latestCohortKey();
-  const { data: snapshots, error } = await db.from('funding_prediction_snapshots')
-    .select('startup_id,predicted_at,context').eq('cohort_key', selectedCohort)
-    .order('rank_position').limit(5000);
+  const activeCutoff = new Date(Date.now() - 365 * 86_400_000).toISOString();
+  let snapshotQuery = db.from('funding_prediction_snapshots')
+    .select('cohort_key,startup_id,predicted_at,context')
+    .gte('predicted_at', activeCutoff).order('predicted_at').limit(5000);
+  if (cohortKey) snapshotQuery = snapshotQuery.eq('cohort_key', cohortKey);
+  const { data: snapshots, error } = await snapshotQuery;
   if (error) throw error;
+  if (!snapshots?.length) throw new Error('No active prospective funding prediction cohort exists');
 
   const targetsById = new Map();
-  for (const row of snapshots || []) {
-    if (!targetsById.has(row.startup_id)) targetsById.set(row.startup_id, {
+  for (const row of snapshots) {
+    const existing = targetsById.get(row.startup_id);
+    if (!existing) targetsById.set(row.startup_id, {
       startupId: row.startup_id,
       startupName: row.context?.startup_name,
       predictedAt: row.predicted_at,
+      cohortKeys: new Set([row.cohort_key]),
     });
+    else {
+      existing.cohortKeys.add(row.cohort_key);
+      if (new Date(row.predicted_at) < new Date(existing.predictedAt)) existing.predictedAt = row.predicted_at;
+    }
   }
-  const targets = [...targetsById.values()].filter(row => row.startupName).slice(0, limit);
+  const candidateTargets = [...targetsById.values()].filter(row => row.startupName);
+  const { data: startupIdentities, error: identityError } = await db.from('startup_uploads')
+    .select('id,source_type,website,company_domain').in('id', candidateTargets.map(row => row.startupId));
+  if (identityError) throw identityError;
+  const directUrlStartupIds = new Set((startupIdentities || []).filter(row =>
+    row.source_type === 'url' && Boolean(row.website || row.company_domain)
+  ).map(row => row.id));
+  const targets = candidateTargets.filter(row => directUrlStartupIds.has(row.startupId)).slice(0, limit);
   const { data: investors, error: investorError } = await db.from('investors').select('id,name,firm').limit(10000);
   if (investorError) throw investorError;
   const candidates = [];
@@ -102,7 +109,7 @@ async function main() {
           evidence_confidence: 0.7,
           verification_status: 'observed',
           extraction_version: 'prospective-cohort-monitor-v1',
-          metadata: { cohort_key: selectedCohort, predicted_at: target.predictedAt, discovery_method: 'inference_engine_free_news_search', participant_list_complete: false },
+          metadata: { cohort_keys: [...target.cohortKeys], predicted_at: target.predictedAt, discovery_method: 'inference_engine_free_news_search', participant_list_complete: false },
           updated_at: new Date().toISOString(),
         });
       }
@@ -145,7 +152,7 @@ async function main() {
     }
   }
   console.log(JSON.stringify({
-    mode: apply ? 'apply' : 'dry-run', cohort_key: selectedCohort,
+    mode: apply ? 'apply' : 'dry-run', cohort_scope: cohortKey || 'all_active_365_day_cohorts',
     targets_monitored: targets.length, candidates_found: unique.length,
     failures, preview: unique.slice(0, 20).map(row => ({ startup: row.startup_name_raw, title: row.source_title, amount_usd: row.amount_usd, published_at: row.announced_at, publisher: row.source_publisher })),
   }, null, 2));

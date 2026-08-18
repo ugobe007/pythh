@@ -119,6 +119,7 @@
     "funding:audit": "node scripts/audit-funding-ledger-quality.mjs",
     "funding:audit:candidates": "node scripts/shadow-audit-funding-candidate-ranks.mjs",
     "funding:audit:candidates:summary": "node scripts/shadow-audit-funding-candidate-ranks.mjs --summary",
+    "funding:claim-readiness": "node scripts/report-funding-prediction-claim-readiness.mjs",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",
     "funding:repair:organization-links": "node scripts/repair-funding-outcome-organization-links.mjs",
     "funding:repair:organization-links:apply": "node scripts/repair-funding-outcome-organization-links.mjs --apply",

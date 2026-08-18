@@ -97,7 +97,13 @@ async function main() {
     if (apply) {
       if (excerpt) {
         const { error } = await db.from('funding_evidence_events').update({
-          metadata: { ...(event.metadata || {}), funding_evidence_excerpt: excerpt, funding_evidence_excerpt_source: fetchStatus, participant_list_complete: false, participant_enrichment_version: 'v1' },
+          metadata: {
+            ...(event.metadata || {}),
+            funding_evidence_excerpt: excerpt,
+            funding_evidence_excerpt_source: fetchStatus,
+            participant_list_complete: event.metadata?.participant_list_complete === true,
+            participant_enrichment_version: 'v1',
+          },
           updated_at: new Date().toISOString(),
         }).eq('id', event.id);
         if (error) throw error;

@@ -1,0 +1,259 @@
+#!/usr/bin/env node
+import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
+const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
+
+const HORIZONS = [30, 90, 180, 365];
+const DAY_MS = 86_400_000;
+const targetArg = process.argv.find(arg => arg.startsWith('--target='));
+const minimumArg = process.argv.find(arg => arg.startsWith('--minimum='));
+const asOfArg = process.argv.find(arg => arg.startsWith('--as-of='));
+const targetRate = Number(targetArg?.split('=')[1] || 0.85);
+const minimumAuditedOutcomes = Number(minimumArg?.split('=')[1] || 100);
+const asOf = new Date(asOfArg?.slice('--as-of='.length) || Date.now());
+if (!Number.isFinite(targetRate) || targetRate <= 0 || targetRate > 1) throw new Error('--target must be between 0 and 1');
+if (!Number.isInteger(minimumAuditedOutcomes) || minimumAuditedOutcomes < 1) throw new Error('--minimum must be a positive integer');
+if (Number.isNaN(asOf.getTime())) throw new Error('--as-of must be a valid date');
+
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+if (!url || !key) throw new Error('SUPABASE_URL and service-role key are required');
+const db = createClient(url, key, { auth: { persistSession: false } });
+
+async function all(table, select) {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db.from(table).select(select).range(offset, offset + 999);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows;
+}
+
+function groupBy(rows, keyFor) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    const key = keyFor(row);
+    grouped.set(key, [...(grouped.get(key) || []), row]);
+  }
+  return grouped;
+}
+
+function exactTopFive(rows, timestampField) {
+  const byRank = new Map();
+  for (const row of [...rows].sort((a, b) => new Date(a[timestampField]) - new Date(b[timestampField]))) {
+    if (Number(row.rank_position) >= 1 && Number(row.rank_position) <= 5 && !byRank.has(Number(row.rank_position))) {
+      byRank.set(Number(row.rank_position), row);
+    }
+  }
+  const ordered = [...byRank.entries()].sort((a, b) => a[0] - b[0]).map(([, row]) => row);
+  if (ordered.length !== 5 || new Set(ordered.map(row => row.investor_id)).size !== 5) return null;
+  return ordered;
+}
+
+function buildPredictionSets(snapshots, impressions) {
+  const sets = [];
+  const snapshotGroups = groupBy(snapshots, row => `${row.cohort_key}\u0000${row.startup_id}`);
+  for (const [key, rows] of snapshotGroups) {
+    const predictions = exactTopFive(rows, 'predicted_at');
+    if (!predictions) continue;
+    sets.push({
+      set_key: `snapshot:${key}`,
+      provenance: 'prospective_snapshot',
+      cohort_key: predictions[0].cohort_key,
+      startup_id: predictions[0].startup_id,
+      model_version: [...new Set(predictions.map(row => row.model_version))].sort().join('+'),
+      predicted_at: predictions.map(row => row.predicted_at).sort().at(-1),
+      predictions,
+    });
+  }
+  const impressionGroups = groupBy(impressions, row => `${row.session_id}\u0000${row.startup_id}\u0000${row.model_version}`);
+  for (const [key, rows] of impressionGroups) {
+    const predictions = exactTopFive(rows, 'shown_at');
+    if (!predictions) continue;
+    const times = predictions.map(row => new Date(row.shown_at).getTime());
+    if (Math.max(...times) - Math.min(...times) > 10 * 60_000) continue;
+    sets.push({
+      set_key: `impression:${key}`,
+      provenance: 'served_impression',
+      cohort_key: `served:${predictions[0].session_id}`,
+      startup_id: predictions[0].startup_id,
+      model_version: predictions[0].model_version,
+      predicted_at: new Date(Math.max(...times)).toISOString(),
+      predictions,
+    });
+  }
+  const firstByStartup = new Map();
+  for (const set of sets.sort((a, b) => new Date(a.predicted_at) - new Date(b.predicted_at))) {
+    if (!firstByStartup.has(set.startup_id)) firstByStartup.set(set.startup_id, set);
+  }
+  return [...firstByStartup.values()];
+}
+
+function trustedOutcome(event) {
+  if (event.verification_status === 'rejected') return false;
+  if (['verified', 'corroborated'].includes(event.verification_status)) return true;
+  return event.verification_status === 'observed' && assessFundingSource(event).trusted;
+}
+
+function eventTime(event) {
+  return new Date(event.occurred_at || event.announced_at);
+}
+
+function participantKey(row) {
+  return row.investor_organization_id ? `organization:${row.investor_organization_id}`
+    : row.investor_id ? `investor:${row.investor_id}` : null;
+}
+
+function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organizationByInvestor) {
+  const predictedAt = new Date(set.predicted_at);
+  const horizonEnd = new Date(predictedAt.getTime() + horizon * DAY_MS);
+  const mature = asOf >= horizonEnd;
+  const predictedKeys = new Set(set.predictions.flatMap(row => {
+    const organizationId = organizationByInvestor.get(row.investor_id);
+    return [`investor:${row.investor_id}`, organizationId ? `organization:${organizationId}` : null].filter(Boolean);
+  }));
+  const eligibleEvents = events.filter(event => {
+    const at = eventTime(event);
+    const discoveredAt = new Date(event.discovered_at || event.created_at);
+    return trustedOutcome(event) && at > predictedAt && at <= horizonEnd && at <= asOf
+      && discoveredAt >= predictedAt;
+  });
+  const sourceOutcomes = eligibleEvents.map(event => {
+    const participants = (participantsByEvent.get(event.id) || []).filter(row =>
+      row.participation_relation && row.participant_role !== 'unknown' && participantKey(row));
+    const hitParticipants = participants.filter(row => predictedKeys.has(participantKey(row)));
+    return {
+      event,
+      participants,
+      hitParticipants,
+      participant_list_complete: event.metadata?.participant_list_complete === true,
+    };
+  });
+  const roundGroups = groupBy(sourceOutcomes, row => row.event.canonical_round_key || `event:${row.event.id}`);
+  const eventOutcomes = [...roundGroups.values()].map(sources => {
+    const participants = [...new Map(sources.flatMap(row => row.participants).map(row => [participantKey(row), row])).values()];
+    const hitParticipants = participants.filter(row => predictedKeys.has(participantKey(row)));
+    return {
+      event_ids: sources.map(row => row.event.id),
+      participants,
+      hitParticipants,
+      participant_list_complete: sources.some(row => row.participant_list_complete),
+    };
+  });
+  const funded = eventOutcomes.length > 0;
+  const confirmedHit = eventOutcomes.some(row => row.hitParticipants.length > 0);
+  const auditableMiss = funded && !confirmedHit && eventOutcomes.every(row => row.participant_list_complete && row.participants.length > 0);
+  const indeterminate = funded && !confirmedHit && !auditableMiss;
+  const audited = confirmedHit || auditableMiss;
+  const distinctActualKeys = new Set(eventOutcomes.flatMap(row => row.participants.map(participantKey)).filter(Boolean));
+  const distinctHitKeys = new Set(eventOutcomes.flatMap(row => row.hitParticipants.map(participantKey)).filter(Boolean));
+  return {
+    ...set,
+    horizon_days: horizon,
+    mature,
+    funded,
+    audited,
+    confirmed_hit: confirmedHit,
+    confirmed_miss: auditableMiss,
+    indeterminate,
+    funding_event_ids: eventOutcomes.flatMap(row => row.event_ids),
+    actual_investor_count: distinctActualKeys.size,
+    predicted_investor_hits: distinctHitKeys.size,
+    all_participant_lists_complete: funded && eventOutcomes.every(row => row.participant_list_complete),
+  };
+}
+
+function summarize(rows, horizon) {
+  const scoped = rows.filter(row => row.horizon_days === horizon);
+  const funded = scoped.filter(row => row.funded);
+  const audited = funded.filter(row => row.audited);
+  const complete = audited.filter(row => row.all_participant_lists_complete);
+  const confirmedHits = audited.filter(row => row.confirmed_hit).length;
+  const confirmedMisses = audited.filter(row => row.confirmed_miss).length;
+  const readiness = buildClaimReadiness({
+    confirmedHits,
+    confirmedMisses,
+    indeterminate: funded.filter(row => row.indeterminate).length,
+    targetRate,
+    minimumAuditedOutcomes,
+  });
+  const investorHits = complete.reduce((sum, row) => sum + row.predicted_investor_hits, 0);
+  const actualInvestors = complete.reduce((sum, row) => sum + row.actual_investor_count, 0);
+  return {
+    horizon_days: horizon,
+    prediction_sets: scoped.length,
+    mature_prediction_sets: scoped.filter(row => row.mature).length,
+    pending_prediction_sets: scoped.filter(row => !row.mature).length,
+    funded_startups_observed: funded.length,
+    confirmed_hit_startups: confirmedHits,
+    confirmed_miss_startups: confirmedMisses,
+    indeterminate_funded_startups: funded.filter(row => row.indeterminate).length,
+    per_investor_precision_at_5: complete.length ? investorHits / (complete.length * 5) : null,
+    actual_investor_recall_at_5: actualInvestors ? investorHits / actualInvestors : null,
+    claim_readiness: readiness,
+  };
+}
+
+async function main() {
+  const [snapshots, impressions, events, participants, memberships, startups] = await Promise.all([
+    all('funding_prediction_snapshots', 'id,cohort_key,startup_id,investor_id,rank_position,model_version,predicted_at,prediction_kind'),
+    all('ranking_impressions', 'id,session_id,startup_id,investor_id,rank_position,model_version,score,shown_at'),
+    all('funding_evidence_events', 'id,startup_id,canonical_round_key,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,metadata'),
+    all('funding_evidence_participants', 'id,funding_event_id,investor_id,investor_organization_id,investor_name_raw,participant_role,participation_relation,resolution_status'),
+    all('investor_organization_memberships', 'investor_id,organization_id'),
+    all('startup_uploads', 'id,name,source_type,website,company_domain'),
+  ]);
+  const startupById = new Map(startups.map(row => [row.id, row]));
+  const allPredictionSets = buildPredictionSets(snapshots, impressions);
+  const predictionSets = allPredictionSets.filter(set => {
+    const startup = startupById.get(set.startup_id);
+    return startup?.source_type === 'url' && Boolean(startup.website || startup.company_domain);
+  });
+  const participantsByEvent = groupBy(participants, row => row.funding_event_id);
+  const eventsByStartup = groupBy(events.filter(row => row.startup_id), row => row.startup_id);
+  const organizationByInvestor = new Map(memberships.map(row => [row.investor_id, row.organization_id]));
+  const rows = predictionSets.flatMap(set => HORIZONS.map(horizon => evaluateSetAtHorizon(
+    set, horizon, eventsByStartup.get(set.startup_id) || [], participantsByEvent, organizationByInvestor,
+  )));
+  const confirmedOutcomes = rows.filter(row => row.funded).map(row => ({
+    cohort_key: row.cohort_key,
+    provenance: row.provenance,
+    startup_id: row.startup_id,
+    startup_name: startupById.get(row.startup_id)?.name || null,
+    model_version: row.model_version,
+    predicted_at: row.predicted_at,
+    horizon_days: row.horizon_days,
+    result: row.confirmed_hit ? 'confirmed_hit' : row.confirmed_miss ? 'confirmed_miss' : 'indeterminate',
+    funding_event_ids: row.funding_event_ids,
+    predicted_investor_hits: row.predicted_investor_hits,
+  }));
+  console.log(JSON.stringify({
+    generated_at: new Date().toISOString(),
+    as_of: asOf.toISOString(),
+    policy: {
+      target_rate: targetRate,
+      minimum_audited_outcomes: minimumAuditedOutcomes,
+      temporal_rule: 'Funding event and evidence discovery must occur after the immutable prediction timestamp.',
+      evidence_rule: 'One reputable source can prove a hit. A miss requires a complete or explicitly audited participant list.',
+      anti_inflation_rule: 'Metrics are startup-level Hit@5; per-investor precision and actual-investor recall are reported separately.',
+    },
+    inventory: {
+      prospective_snapshot_rows: snapshots.length,
+      served_impression_rows: impressions.length,
+      complete_prediction_sets: predictionSets.length,
+      excluded_prediction_sets_without_direct_url_identity: allPredictionSets.length - predictionSets.length,
+      funding_events: events.length,
+      funding_participants: participants.length,
+    },
+    metrics: HORIZONS.map(horizon => summarize(rows, horizon)),
+    confirmed_outcomes: confirmedOutcomes,
+  }, null, 2));
+}
+
+main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
