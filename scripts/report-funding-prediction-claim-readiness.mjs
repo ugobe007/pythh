@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
-const { isPredictionGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
+const { classifyFundingEvidence, isPredictionGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
 
 const HORIZONS = [30, 90, 180, 365];
 const DAY_MS = 86_400_000;
@@ -107,6 +107,12 @@ function buildPredictionSets(snapshots, impressions) {
 }
 
 function trustedOutcome(event) {
+  if (!classifyFundingEvidence({
+    event_type: 'FUNDING',
+    source_title: event.source_title,
+    frame_confidence: 1,
+    extraction_meta: { decision: 'ACCEPT', graph_safe: true },
+  }).eligible) return false;
   if (event.verification_status === 'rejected') return false;
   if (['verified', 'corroborated'].includes(event.verification_status)) return true;
   return event.verification_status === 'observed' && assessFundingSource(event).trusted;
@@ -231,7 +237,7 @@ async function main() {
   const [snapshots, impressions, events, participants, memberships] = await Promise.all([
     all('funding_prediction_snapshots', 'id,cohort_key,startup_id,investor_id,rank_position,model_version,predicted_at,prediction_kind'),
     all('ranking_impressions', 'id,session_id,startup_id,investor_id,rank_position,model_version,score,shown_at'),
-    all('funding_evidence_events', 'id,startup_id,canonical_round_key,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,metadata'),
+    all('funding_evidence_events', 'id,startup_id,canonical_round_key,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,source_title,metadata'),
     all('funding_evidence_participants', 'id,funding_event_id,investor_id,investor_organization_id,investor_name_raw,participant_role,participation_relation,resolution_status'),
     all('investor_organization_memberships', 'investor_id,organization_id'),
   ]);

@@ -6,6 +6,7 @@ const GENERIC_INVESTOR_NAMES = new Set([
   'seed', 'pre seed', 'series a', 'series b', 'series c', 'series d', 'venture',
   'ventures', 'capital', 'fund', 'investor', 'investors', 'angel', 'angels',
   'syndicate', 'investment', 'investing', 'backing', 'undisclosed', 'confidential', 'unknown',
+  'plug', 'play', 'australia', 'netherlands',
 ]);
 
 function normalizeEntityName(value) {
@@ -121,9 +122,23 @@ function isPlausibleStartupName(value) {
 function isPromotionSafeStartupName(value) {
   const name = String(value || '').trim();
   if (!isPlausibleStartupName(name)) return false;
-  if (/\b(?:startup|company)\b/i.test(name)) return false;
+  if (/\b(?:startup|company|firm|founder|staffers?)\b/i.test(name)) return false;
+  if (/\b(?:reportedly|said to)\b|\bbacked\b|\b[a-z]+-based\b/i.test(name)) return false;
+  if (/^(?:exclusive|new unicorn|female-founded)\s*[:!-]?/i.test(name)) return false;
   if (/^(?:edtech|fintech|healthtech|biotech|climatetech|proptech|defen[cs]e tech|ai)\s+(?:platform|startup|company)$/i.test(name)) return false;
   return true;
+}
+
+function cleanStartupHeadlineLabel(value) {
+  let name = String(value || '').trim();
+  name = name.replace(/^(?:exclusive\s*:|new unicorn\s*!?)\s*/i, '');
+  name = name.replace(/^.{2,80}?-backed\s+/i, '');
+  name = name.replace(/^(?:female-founded\s+)?(?:edtech|fintech|healthtech|medtech|biotech|climatetech|proptech|insurtech|defen[cs]e tech|vibe coding)\s+/i, '');
+  const describedCompany = name.match(/^(?:\S+\s+){0,6}(?:startup|company|firm|maker|provider|developer)\s+(.+)$/i);
+  if (describedCompany) name = describedCompany[1];
+  name = name.replace(/^[\p{L}.-]+(?:['’]s|-based)\s+/iu, '');
+  name = name.replace(/\s+reportedly$/i, '');
+  return name.trim();
 }
 
 function isPredictionGradeStartupIdentity(row = {}) {
@@ -167,15 +182,17 @@ function isPredictionGradeStartupIdentity(row = {}) {
 
 function startupNameCandidates(event, inferredName) {
   const title = String(event.source_title || '');
+  const directionalTarget = startupNameFromFundingEvent(event);
+  if (/\binvest(?:s|ed)?\b.{0,40}\bin\b/i.test(title) && directionalTarget) return [directionalTarget].filter(isPromotionSafeStartupName);
   const base = [
-    startupNameFromFundingEvent(event),
+    directionalTarget,
     inferredName,
     event.subject,
     ...(Array.isArray(event.entities) ? event.entities.filter(e => e?.role === 'SUBJECT').map(e => e.name) : []),
   ];
   const stripped = base.flatMap(name => {
     if (!name) return [];
-    const cleaned = String(name).replace(/^(?:[A-Z][A-Za-z0-9.& -]+-backed|defen[cs]e tech|vibe coding startup|[A-Z][A-Za-z]+(?:['’]s))\s+/i, '').trim();
+    const cleaned = cleanStartupHeadlineLabel(name);
     return cleaned !== name ? [cleaned, name] : [name];
   });
   const seen = new Set();
@@ -205,7 +222,7 @@ function participantNamesFromEvent(event) {
   const resolver = event.semantic_context?.resolver || event.extraction_meta?.resolver || {};
   const resolved = [resolver.lead_investor, ...(resolver.investors || [])];
   const inferred = event.inferred_funding || {};
-  const directionalPrefix = String(event.source_title || '').match(/^(.{2,160}?)\s+invests?\s+in\s+/i)?.[1] || '';
+  const directionalPrefix = String(event.source_title || '').match(/^(.{2,160}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+/i)?.[1] || '';
   const directionalInvestor = directionalPrefix.split(/\bas\b/i).at(-1)?.replace(/^.*[;:]/, '').trim();
   const backedInvestor = String(event.source_title || '').match(/^([A-Z][A-Za-z0-9.& -]{1,80})-backed\s+/)?.[1];
   const direct = [
@@ -228,10 +245,17 @@ function classifyFundingEvidence(event) {
   if (/\b(?:orders?|contract|recognitions?|award winner|political betting|ceasefire|capital rules? raise cost)\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
+  if (/\b(?:raises? the stakes|boiler room|hidden fees?|sec claims?|token sale|preferred stock offering)\b/i.test(text)
+    || /\brais(?:es|ed)\b.{0,50}\b(?:safety|security|ethical|legal) concerns?\b/i.test(text)
+    || /\bsecures?\b.{0,40}\blicen[cs]e\b/i.test(text)
+    || /\binvest(?:s|ed)?\b.{0,70}\b(?:in|into)\b.{0,70}\b(?:operations?|factor(?:y|ies)|facilit(?:y|ies)|plant|fulfillment hub|data centers?|subsidiar(?:y|ies))\b/i.test(text)) {
+    return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
+  }
   if (/\b(?:raises?|raised|raising|increases?|increased)\b.{0,50}\b(?:prices?|rates?|fees?|wages?|salar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
-  if (/\b(?:in talks|said to|reportedly considering|reportedly seeking|may invest|could invest|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise|targets? (?:a )?raise)\b/i.test(text)) {
+  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|may invest|could invest|could secure|to invest|expected to raise|is raising|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise)\b/i.test(text)
+    || /\btarget(?:s|ed|ing)?\b.{0,80}\b(?:raise|funding|valuation)\b/i.test(text)) {
     return { eligible: false, reason: 'unconfirmed_transaction', financingType: 'unknown' };
   }
   if (/\b(?:raises?|raised|increases?|increased|boosts?)\b.{0,45}\b(?:guidance|forecast|outlook|target|dividend|stake|ownership)\b/i.test(text)
@@ -239,16 +263,20 @@ function classifyFundingEvidence(event) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
   if (/\b(?:qip|qualified institutional placement|fund\s+[ivxlcdm]+|fund final close|final close|ipo|pre-ipo)\b/i.test(text)
+    || /\braises?\b.{0,40}\b(?:million|billion)\s+fund\b/i.test(text)
     || /\b(?:raises?|raised|closes?|closed)\b.{0,90}\b(?:new|inaugural|venture|credit|secondaries|buyout|growth)\s+(?:fund|investment vehicle)\b/i.test(text)
     || /\b(?:raises?|raised|closes?|closed)\b.{0,90}\b(?:early[ -]stage|late[ -]stage)\s+fund\b/i.test(text)
     || /\b(?:raises?|raised)\b.{0,50}\bfor\b.{0,60}\bfund\b/i.test(text)
     || /\b(?:investment vehicle|credit secondaries|related strategies)\b/i.test(text)) {
     return { eligible: false, reason: 'outside_venture_outcome_scope', financingType: 'unknown' };
   }
-  if (!/\b(?:raises?|raised|secures?|secured|closes?|closed|announces?|funding|financing|investment|invests?|backed)\b/i.test(text)) {
+  const hasFundingAction = /\b(?:raises?|raised|secures?|secured|closes?|closed|funding|financing|investment|backed)\b/i.test(text)
+    || /\binvest(?:s|ed)?\b.{0,40}\bin\b/i.test(text)
+    || /\bannounces?\b.{0,80}\b(?:funding|financing|investment|series [a-h]|round|raise)\b/i.test(text);
+  if (!hasFundingAction) {
     return { eligible: false, reason: 'missing_financing_action', financingType: 'unknown' };
   }
-  const hasDebt = /\b(?:debt|loan|credit facility|debt facility|borrowing|notes offering|bond)\b/i.test(text);
+  const hasDebt = /\b(?:debt|loan|credit facility|debt facility|borrowing|notes?|bond)\b/i.test(text);
   const hasEquity = /\b(?:seed|series [a-h]|venture round|equity|funding round|led by|participation from)\b/i.test(text);
   const hasGrant = /\b(?:grant|sbir|sttr)\b/i.test(text);
   const financingType = hasDebt && hasEquity ? 'mixed' : hasDebt ? 'debt' : hasGrant ? 'grant' : 'equity';
@@ -257,10 +285,12 @@ function classifyFundingEvidence(event) {
 
 function startupNameFromFundingEvent(event) {
   const title = String(event.source_title || '');
-  const directional = title.match(/^.{2,100}?\s+invests?\s+in\s+(.+?)(?:\s+as\b|\s+to\b|[,;]|$)/i)?.[1]?.trim();
-  if (directional) return directional;
-  const raises = title.match(/^(.+?)\s+(?:raises?|raised|closes?|closed)\b/i)?.[1]?.trim();
-  if (raises && !/^(?:rs|usd|eur|gbp|rmb)$/i.test(raises)) return raises;
+  const directionalMatch = title.match(/^(.{2,100}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+(.+?)(?:\s+as\b|\s+to\b|\s+at\b|[,;]|$)/i);
+  const directional = directionalMatch && !/\b(?:raises?|raised|secures?|secured|closes?|closed)\b/i.test(directionalMatch[1])
+    ? directionalMatch[2]?.trim() : null;
+  if (directional) return cleanStartupHeadlineLabel(directional);
+  const raises = title.match(/^(.+?)\s+(?:raises?|raised|secures?|secured|closes?|closed)\b/i)?.[1]?.trim();
+  if (raises && !/^(?:rs|usd|eur|gbp|rmb)$/i.test(raises)) return cleanStartupHeadlineLabel(raises);
   const entities = Array.isArray(event.entities) ? event.entities : [];
   const subject = entities.find(entity => entity?.role === 'SUBJECT')?.name || event.subject || null;
   return /^(?:rs|usd|eur|gbp|rmb)$/i.test(String(subject || '')) ? null : subject;

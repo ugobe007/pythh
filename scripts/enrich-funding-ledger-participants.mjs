@@ -39,7 +39,14 @@ function excerptFromHtml(html) {
   $('script,style,noscript,nav,footer,header,aside,form').remove();
   const root = $('article').length ? $('article') : $('main').length ? $('main') : $('body');
   return root.find('p').map((_, el) => $(el).text().replace(/\s+/g, ' ').trim()).get()
-    .filter(text => text.length >= 40).join(' ').slice(0, 8000);
+    .filter(text => text.length >= 40).join('\n').slice(0, 8000);
+}
+
+function focusedEvidenceExcerpt(excerpt) {
+  // Investor evidence normally appears near the opening funding description.
+  // Excluding page tails prevents related-story and newsletter deal lists from
+  // being attributed to the startup in the current article.
+  return String(excerpt || '').slice(0, 4500);
 }
 
 async function fetchExcerpt(sourceUrl) {
@@ -73,7 +80,7 @@ async function main() {
       try { excerpt = await fetchExcerpt(event.source_url); fetchStatus = 'fetched'; }
       catch (error) { fetchStatus = `unavailable:${error.message}`; }
     }
-    const evidenceText = `${event.source_title || ''}. ${excerpt}`.trim().slice(0, 9000);
+    const evidenceText = `${event.source_title || ''}. ${focusedEvidenceExcerpt(excerpt)}`.trim().slice(0, 5500);
     const seenParticipants = new Set();
     const knownMentions = extractKnownInvestorMentions(evidenceText, investors || [])
       .filter(mention => mention.relation && mention.role !== 'unknown' && isPlausibleInvestorEntityName(mention.investorNameRaw))

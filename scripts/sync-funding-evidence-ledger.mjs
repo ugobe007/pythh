@@ -6,13 +6,18 @@ import ledger from '../server/lib/fundingEvidenceLedger.js';
 
 const require = createRequire(import.meta.url);
 const { extractFunding, extractCompanyNameFromHeadline } = require('../lib/inference-extractor.js');
-const { classifyParticipationPhrase, extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
-const { HORIZONS, normalizeEntityName, normalizeStartupName, isPlausibleStartupName, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, eventTimestamp, evaluateRecommendationSet, canonicalRoundKey, resolveCanonicalEntity } = ledger;
+const { classifyNamedInvestorParticipation, extractExplicitParticipantMentions } = require('../server/lib/fundingParticipationOntology.js');
+const { HORIZONS, normalizeEntityName, normalizeStartupName, isPromotionSafeStartupName, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, eventTimestamp, evaluateRecommendationSet, canonicalRoundKey } = ledger;
 const apply = process.argv.includes('--apply');
 const limitArg = process.argv.find(arg => arg.startsWith('--limit='));
+const offsetArg = process.argv.find(arg => arg.startsWith('--offset='));
 const lookbackArg = process.argv.find(arg => arg.startsWith('--lookback-days='));
-const limit = Math.min(Number(limitArg?.split('=')[1] || 250), 10000);
+const beforeArg = process.argv.find(arg => arg.startsWith('--before='));
+const limit = Math.min(Math.max(Number(limitArg?.split('=')[1] || 250), 1), 10000);
+const offset = Math.min(Math.max(Number(offsetArg?.split('=')[1] || 0), 0), 1_000_000);
 const lookbackDays = Math.min(Number(lookbackArg?.split('=')[1] || 30), 3650);
+const before = beforeArg?.slice('--before='.length) || null;
+if (before && Number.isNaN(Date.parse(before))) throw new Error('--before must be an ISO-8601 timestamp');
 const resolvedOnly = process.argv.includes('--resolved-only');
 const equityOnly = process.argv.includes('--equity-only');
 const eventIdsArg = process.argv.find(arg => arg.startsWith('--event-ids='));
@@ -69,18 +74,43 @@ async function fetchFundingEvents(since) {
   const rows = [];
   const pageSize = 1000;
   while (rows.length < limit) {
-    const start = rows.length;
-    const end = Math.min(start + pageSize, limit) - 1;
+    const pageStart = rows.length;
+    const start = offset + pageStart;
+    const end = offset + Math.min(pageStart + pageSize, limit) - 1;
     const requested = end - start + 1;
-    const { data, error } = await db.from('startup_events')
+    let query = db.from('startup_events')
       .select('id,event_id,event_type,subject,entities,amounts,round,occurred_at,source_url,source_title,source_publisher,source_published_at,frame_confidence,semantic_context,extraction_meta,created_at')
       .in('event_type', ['FUNDING', 'INVESTMENT'])
       .gte('created_at', since)
       .order('created_at', { ascending: false })
-      .range(start, end);
+      .order('id', { ascending: false });
+    if (before) query = query.lte('created_at', before);
+    const { data, error } = await query.range(start, end);
     if (error) throw new Error(`startup events query: ${error.message}`);
     rows.push(...(data || []));
     if (!data?.length || data.length < requested) break;
+  }
+  return rows;
+}
+
+async function fetchAllRows(table, select, configure = query => query) {
+  const pageSize = 1000;
+  const { count, error: countError } = await configure(
+    db.from(table).select('*', { count: 'exact', head: true }),
+  );
+  if (countError) throw new Error(`${table} count: ${countError.message}`);
+  if (!count) return [];
+  const offsets = [];
+  for (let pageOffset = 0; pageOffset < count; pageOffset += pageSize) offsets.push(pageOffset);
+  const rows = [];
+  for (let batchOffset = 0; batchOffset < offsets.length; batchOffset += 10) {
+    const pages = await Promise.all(offsets.slice(batchOffset, batchOffset + 10).map(async pageOffset => {
+      const { data, error } = await configure(db.from(table).select(select).order('id'))
+        .range(pageOffset, pageOffset + pageSize - 1);
+      if (error) throw new Error(`${table} query: ${error.message}`);
+      return data || [];
+    }));
+    rows.push(...pages.flat());
   }
   return rows;
 }
@@ -94,7 +124,7 @@ function resolveFirstUnique(index, names, normalize = normalizeEntityName) {
   return { row: null, status: 'not_in_universe', confidence: 0, matchedName: null };
 }
 
-async function upsertEvent(event, startup, startupNameRaw, participantNames, financingType, participantListComplete, inferredFunding = {}) {
+async function upsertEvent(event, startup, startupNameRaw, participantNames, financingType, participantListComplete, inferredFunding = {}, existing = null) {
   const announcedAt = event.source_published_at || event.created_at || eventTimestamp(event);
   const occurredAt = event.occurred_at || null;
   const inferredAmount = Number(inferredFunding.funding_amount);
@@ -117,9 +147,13 @@ async function upsertEvent(event, startup, startupNameRaw, participantNames, fin
     source_publisher: event.source_publisher,
     source_title: event.source_title,
     evidence_confidence: Math.max(0, Math.min(1, Number(event.frame_confidence || 0))),
-    verification_status: 'observed',
+    verification_status: existing?.verification_status || 'observed',
     extraction_version: extractionVersion,
-    metadata: { participant_names_extracted: participantNames.length, participant_list_complete: participantListComplete },
+    metadata: {
+      ...(existing?.metadata || {}),
+      participant_names_extracted: participantNames.length,
+      participant_list_complete: participantListComplete || existing?.metadata?.participant_list_complete === true,
+    },
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await db.from('funding_evidence_events')
@@ -197,13 +231,17 @@ async function evaluateEvent(fundingEventId, startupId, eventAt, participants) {
 
 async function main() {
   const since = new Date(Date.now() - lookbackDays * 86_400_000).toISOString();
-  const [events, { data: startups }, { data: investors }] = await Promise.all([
+  const [events, startups, investors, existingEvidenceEvents] = await Promise.all([
     fetchFundingEvents(since),
-    db.from('startup_uploads').select('id,name,discovery_event_id,entity_gate,lead_investor,extracted_data').limit(50000),
-    db.from('investors').select('id,name,firm').limit(10000),
+    fetchAllRows('startup_uploads', 'id,name,status,source_type,discovery_event_id,entity_gate,lead_investor,extracted_data'),
+    fetchAllRows('investors', 'id,name,firm'),
+    fetchAllRows('funding_evidence_events', 'id,source_event_key,verification_status,metadata'),
   ]);
-  const canonicalStartups = (startups || []).filter(row => isPlausibleStartupName(row.name));
-  const canonicalInvestors = (investors || [])
+  const canonicalStartups = startups.filter(row => row.status === 'approved'
+    && row.entity_gate !== 'junk'
+    && normalizeStartupName(row.name).length >= 3
+    && isPromotionSafeStartupName(row.name));
+  const canonicalInvestors = investors
     .filter(row => isPlausibleInvestorEntityName(row.name) || isPlausibleInvestorEntityName(row.firm))
     .map(row => ({
       ...row,
@@ -215,6 +253,7 @@ async function main() {
     .filter(row => row.discovery_event_id && row.entity_gate !== 'junk')
     .map(row => [String(row.discovery_event_id), row]));
   const investorIndex = buildNameIndex(canonicalInvestors);
+  const existingEvidenceByKey = new Map(existingEvidenceEvents.map(row => [row.source_event_key, row]));
   const preview = [];
   const resolvedPreview = [];
   let written = 0, evaluations = 0, misses = 0, eligible = 0;
@@ -237,13 +276,14 @@ async function main() {
     eligible++;
     const inferredCompanyName = extractCompanyNameFromHeadline(event.source_title || '');
     const startupCandidates = startupNameCandidates(event, inferredCompanyName);
-    const preferredStartupName = startupCandidates[0] || startupName;
+    const proposedStartupName = startupCandidates[0] || startupName;
     const linkedCandidate = startupByEvent.get(String(event.id));
     const linkedStartup = linkedCandidate && startupCandidates.some(name => normalizeStartupName(linkedCandidate.name) === normalizeStartupName(name))
       ? linkedCandidate : null;
     const startupResolution = linkedStartup
       ? { row: linkedStartup, status: 'resolved', confidence: 1 }
       : resolveFirstUnique(startupIndex, startupCandidates, normalizeStartupName);
+    const preferredStartupName = startupResolution.row?.name || proposedStartupName;
     const resolverEvidence = linkedStartup?.extracted_data?.resolver || {};
     const evidenceEvent = {
       ...event,
@@ -255,15 +295,18 @@ async function main() {
     const evidenceText = event.semantic_context?.funding_evidence_excerpt || event.source_title || '';
     // A firm appearing somewhere in a long article is not evidence that it joined
     // this round. Only retain mentions whose local clause proves participation.
-    const knownMentions = extractKnownInvestorMentions(evidenceText, canonicalInvestors)
+    const explicitMentions = extractExplicitParticipantMentions(evidenceText)
       .filter(mention => mention.relation && mention.role !== 'unknown');
-    const mentionByNormalizedName = new Map(knownMentions.map(mention => [normalizeEntityName(mention.investorNameRaw), mention]));
-    const names = [...new Set([...participantNamesFromEvent(evidenceEvent), ...knownMentions.map(mention => mention.investorNameRaw)])];
+    const candidateMentions = participantNamesFromEvent(evidenceEvent).map(name => ({
+      investorNameRaw: name,
+      ...classifyNamedInvestorParticipation(evidenceText, name),
+    })).filter(mention => mention.relation && mention.role !== 'unknown');
+    const mentionByNormalizedName = new Map([...candidateMentions, ...explicitMentions]
+      .map(mention => [normalizeEntityName(mention.investorNameRaw), mention]));
+    const names = [...new Set([...mentionByNormalizedName.values()].map(mention => mention.investorNameRaw))];
     const resolvedParticipants = names.map(name => {
       const mention = mentionByNormalizedName.get(normalizeEntityName(name));
-      return { name, mention, ...(mention
-        ? { row: mention.investor, status: 'resolved', confidence: 1, matchKind: 'source_exact' }
-        : resolveCanonicalEntity(canonicalInvestors, name)) };
+      return { name, mention, ...resolveFirstUnique(investorIndex, [name]) };
     });
     if (startupResolution.status === 'resolved') startupsResolved++;
     if (resolvedParticipants.length) eventsWithParticipants++;
@@ -283,14 +326,14 @@ async function main() {
     if (!apply) continue;
     if (resolvedOnly && startupResolution.status !== 'resolved') continue;
 
-    const participantListComplete = resolverEvidence.participant_list_complete === true;
-    const fundingEventId = await upsertEvent(event, startupResolution.row, preferredStartupName, names, classification.financingType, participantListComplete, evidenceEvent.inferred_funding);
+    const existingEvidence = existingEvidenceByKey.get(`startup_event:${event.event_id}`);
+    const participantListComplete = resolverEvidence.participant_list_complete === true
+      || existingEvidence?.metadata?.participant_list_complete === true;
+    const fundingEventId = await upsertEvent(event, startupResolution.row, preferredStartupName, names, classification.financingType, participantListComplete, evidenceEvent.inferred_funding, existingEvidence);
     const participants = [];
     for (const participant of resolvedParticipants) {
-      const explicitLead = normalizeEntityName(participant.name) === normalizeEntityName(resolverEvidence.lead_investor || linkedStartup?.lead_investor);
-      const phraseClassification = participant.mention || classifyParticipationPhrase(event.source_title || '');
-      const role = explicitLead ? 'lead' : phraseClassification.role;
-      const relation = explicitLead ? 'LED_ROUND' : phraseClassification.relation;
+      const role = participant.mention.role;
+      const relation = participant.mention.relation;
       const { data, error } = await db.from('funding_evidence_participants').upsert({
         funding_event_id: fundingEventId,
         investor_name_raw: participant.name,
@@ -316,6 +359,8 @@ async function main() {
 
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run',
+    event_offset: offset,
+    source_max_created_at: before,
     events_scanned: events?.length || 0,
     evidence_eligible: eligible,
     skipped,

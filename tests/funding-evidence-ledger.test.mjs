@@ -7,6 +7,7 @@ import ledger from '../server/lib/fundingEvidenceLedger.js';
 const require = createRequire(import.meta.url);
 const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity } = require('../server/lib/investorHistoricalFeatures.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
+const { classifyNamedInvestorParticipation, extractExplicitParticipantMentions } = require('../server/lib/fundingParticipationOntology.js');
 
 const { normalizeEntityName, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPredictionGradeStartupIdentity, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
 
@@ -43,12 +44,16 @@ test('builds stable candidate round keys without collapsing distinct months or a
 
 test('normalizes startup aliases without stripping meaningful investor-like words', () => {
   assert.equal(normalizeStartupName('Acme Capital, Inc.'), 'acme capital');
-  assert.deepEqual(startupNameCandidates({ source_title: 'Defense tech Hadrian raises $100M', subject: 'Hadrian' }, 'Hadrian'), ['Hadrian', 'Defense tech Hadrian']);
+  assert.deepEqual(startupNameCandidates({ source_title: 'Defense tech Hadrian raises $100M', subject: 'Hadrian' }, 'Hadrian'), ['Hadrian']);
   assert.equal(isPlausibleStartupName('Gradient Labs'), true);
   assert.equal(isPlausibleStartupName('New Study'), false);
   assert.equal(isPlausibleStartupName('Startup'), false);
   assert.equal(isPromotionSafeStartupName('Edtech platform'), false);
   assert.equal(isPromotionSafeStartupName('Sam Altman’s biometric startup World'), false);
+  assert.equal(isPromotionSafeStartupName('Sam Altman-backed World Network'), false);
+  assert.equal(isPromotionSafeStartupName('Four former DOGE staffers'), false);
+  assert.equal(isPromotionSafeStartupName('Lazada founder'), false);
+  assert.equal(isPromotionSafeStartupName('Corgi reportedly'), false);
   assert.equal(isPromotionSafeStartupName('World Foundation'), true);
   assert.equal(isPlausibleStartupName('This startup used to raise $10 million'), false);
 });
@@ -136,6 +141,18 @@ test('reverses directional investment headlines into investor and funded company
   assert.deepEqual(participantNamesFromEvent(event), ['HongShan']);
 });
 
+test('strips article descriptors from funded-company identities', () => {
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Diplo invests in Seattle startup Copper' }), 'Copper');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Sam Altman-backed World Network raises $52.5M' }), 'World Network');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'New Unicorn! Humanoid secures $133M' }), 'Humanoid');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Zürich-based Immitra Bio raises €2.58M' }), 'Immitra Bio');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Insurance startup Corgi reportedly raised more money' }), 'Corgi');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Kinderhook invests in aerospace components maker American Aero' }), 'American Aero');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Lumin Digital raises $115M to further invest in product innovation' }), 'Lumin Digital');
+  assert.equal(startupNameFromFundingEvent({ source_title: 'Citadel Securities invests $400M in Crypto.com at a $20B valuation' }), 'Crypto.com');
+  assert.deepEqual(startupNameCandidates({ source_title: 'Diplo invests in Seattle startup Copper', subject: 'Diplo' }, 'Diplo'), ['Copper']);
+});
+
 test('uses the immediate investor subject in directional headlines', () => {
   const event = { source_title: 'Two female-led UK FinTechs join forces as Cashflows invests in Blackpool’s Tap & Go' };
   assert.deepEqual(participantNamesFromEvent(event), ['Cashflows']);
@@ -155,6 +172,21 @@ test('extracts and deduplicates funding participants from scraper evidence', () 
     semantic_context: { resolver: { lead_investor: 'Acme Ventures', investors: ['Beta Capital'] } },
   });
   assert.deepEqual(names, ['Acme Ventures', 'Beta Capital']);
+});
+
+test('keeps ampersands inside firm names and rejects location-like participants', () => {
+  const mentions = extractExplicitParticipantMentions('The round was led by Plug & Play, with participation from Netherlands and Australia.');
+  assert.deepEqual(mentions.map(row => row.investorNameRaw), ['Plug & Play']);
+});
+
+test('extracts only locally proven participants from funding-from headlines', () => {
+  const mentions = extractExplicitParticipantMentions('Level99 secures an additional $50 million from Act III Holdings, bringing its growth equity commitment to $100 million.');
+  assert.deepEqual(mentions.map(row => [row.investorNameRaw, row.relation]), [['Act III Holdings', 'INVESTED_IN']]);
+  assert.deepEqual(extractExplicitParticipantMentions('Street Group secures Hg investment at a valuation of $250 million.')
+    .map(row => [row.investorNameRaw, row.relation]), [['Hg', 'INVESTED_IN']]);
+  assert.equal(classifyNamedInvestorParticipation('Level99 secures $50 million from Act III Holdings.', 'Act III Holdings').relation, 'INVESTED_IN');
+  assert.deepEqual(extractExplicitParticipantMentions('Helsing raises $1.8B from Dragoneer and Lightspeed to scale defence.')
+    .map(row => row.investorNameRaw), ['Dragoneer', 'Lightspeed']);
 });
 
 test('rejects unsafe or non-financing scraper classifications and separates debt', () => {
@@ -177,6 +209,22 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme seeks to raise $20M next year' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme raises its stake in Beta Corp' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme acquisition backed by $20M financing' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Boiler room raised $74M while reaping hidden fees, SEC claims' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'MongoDB invests €74M into Irish operations' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Maersk invests $100M in Boston fulfillment hub' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Bitget secures license for New Zealand expansion' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Fiuu secures JCB payment license in three markets' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wispr could secure $260M funding at $2B valuation' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Uforce targeting a $4B valuation in new raise, sources say' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Paradigm raises $1.2 billion fund as crypto VC pushes into AI' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Blue Origin is expected to raise private capital' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Crusoe is in active talks to raise $3B' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wisk Aero manager raised safety concerns' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'We gamble, invest, and cling to what we own' }).reason, 'missing_financing_action');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Citadel Securities invests $400M in Crypto.com' }).eligible, true);
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Citadel Securities to invest $400M in Crypto.com' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Evernorth announces AI specialty pharmacy program' }).reason, 'missing_financing_action');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Phoenix announces secured notes with 7% interest' }).financingType, 'debt');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme secures a $20M debt facility' }).financingType, 'debt');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme raises a $20M Series A led by Example Ventures' }).financingType, 'equity');
   assert.equal(classifyFundingEvidence({ ...base, extraction_meta: { graph_safe: false } }).eligible, false);
@@ -269,10 +317,17 @@ test('sync withholds evaluation for partial participant lists and supports resol
   assert.match(sync, /\.range\(start, end\)/);
   assert.match(sync, /resolved_preview: resolvedPreview/);
   assert.match(sync, /--event-ids=/);
-  assert.match(sync, /classifyParticipationPhrase/);
-  assert.match(sync, /extractKnownInvestorMentions/);
+  assert.match(sync, /--offset=/);
+  assert.match(sync, /--before=/);
+  assert.match(sync, /\.lte\('created_at', before\)/);
+  assert.match(sync, /async function fetchAllRows/);
+  assert.match(sync, /classifyNamedInvestorParticipation/);
+  assert.match(sync, /extractExplicitParticipantMentions/);
   assert.match(sync, /filter\(mention => mention\.relation && mention\.role !== 'unknown'\)/);
   assert.match(sync, /funding_evidence_excerpt/);
+  assert.match(sync, /existing\?\.verification_status \|\| 'observed'/);
+  assert.match(sync, /\.\.\.\(existing\?\.metadata \|\| \{\}\)/);
+  assert.match(sync, /existingEvidenceByKey/);
 });
 
 test('scheduled scraper pipeline feeds the evidence ledger non-fatally', () => {
@@ -285,6 +340,19 @@ test('scheduled scraper pipeline feeds the evidence ledger non-fatally', () => {
   assert.match(pipeline, /scrub-funding-participant-chronology\.mjs/);
   assert.match(pipeline, /resolve-funding-startup-coverage\.mjs/);
   assert.match(pipeline, /resolve-funding-investor-coverage\.mjs/);
+  assert.match(pipeline, /backfill-funding-evidence-history\.mjs/);
+  assert.match(pipeline, /reconcile-historical-funding-matches\.mjs/);
+});
+
+test('historical backfill is resumable and locked to a stable source watermark', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/20260818161000_funding_history_backfill_checkpoint.sql', import.meta.url), 'utf8');
+  const script = readFileSync(new URL('../scripts/backfill-funding-evidence-history.mjs', import.meta.url), 'utf8');
+  assert.match(sql, /source_max_created_at timestamptz/);
+  assert.match(sql, /REVOKE ALL .* FROM anon, authenticated/);
+  assert.match(script, /source_max_created_at/);
+  assert.match(script, /--before=\$\{sourceMaxCreatedAt\}/);
+  assert.match(script, /checkpoint_after/);
+  assert.match(script, /scanned < limit/);
 });
 
 test('article evidence backfill is bounded, SSRF-aware, and dry-run by default', () => {
@@ -389,6 +457,8 @@ test('claim-readiness report prevents temporal leakage and separates accuracy de
   assert.match(script, /indeterminate_funded_startups/);
   assert.match(script, /firstByStartup/);
   assert.match(script, /canonical_round_key/);
+  assert.match(script, /classifyFundingEvidence/);
+  assert.match(script, /source_title/);
   assert.match(script, /excluded_prediction_sets_without_prediction_grade_identity/);
   assert.match(script, /isPredictionGradeStartupIdentity/);
   assert.match(script, /rowsByIds/);
@@ -418,6 +488,14 @@ test('ledger quality audit measures formal evaluability without mutating evidenc
   assert.doesNotMatch(audit, /\.update\(|\.delete\(|\.upsert\(/);
 });
 
+test('derived-field repair unlinks directional and unsafe startup identities reversibly', () => {
+  const script = readFileSync(new URL('../scripts/repair-funding-ledger-derived-fields.mjs', import.meta.url), 'utf8');
+  assert.match(script, /directional_startup_mislink/);
+  assert.match(script, /unsafe_canonical_startup_unlinked/);
+  assert.match(script, /startup_label_replaced_from_canonical/);
+  assert.match(script, /patch\.startup_id = null/);
+});
+
 test('verified participant enrichment is bounded, source-grounded, and preserves incomplete lists', () => {
   const script = readFileSync(new URL('../scripts/enrich-funding-ledger-participants.mjs', import.meta.url), 'utf8');
   assert.match(script, /verification_status', \['verified', 'corroborated'\]/);
@@ -425,7 +503,13 @@ test('verified participant enrichment is bounded, source-grounded, and preserves
   assert.match(script, /participant_list_complete: event\.metadata\?\.participant_list_complete === true/);
   assert.match(script, /isPrivateIp/);
   assert.match(script, /redirect: 'error'/);
+  assert.match(script, /focusedEvidenceExcerpt/);
+  assert.match(script, /slice\(0, 4500\)/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  const scrub = readFileSync(new URL('../scripts/scrub-funding-participant-chronology.mjs', import.meta.url), 'utf8');
+  assert.match(scrub, /oversized_article_tail_extraction/);
+  assert.match(scrub, /implausible_investor_entity/);
+  assert.match(scrub, /directional_subject_duplicate/);
 });
 
 test('audited event importer preserves explicit roles, evidence phrases, and incomplete lists', () => {
@@ -448,6 +532,18 @@ test('delta analysis separates identity, candidate-generation, ranking, and temp
   assert.match(script, /partial_top_five_pre_event/);
   assert.match(script, /comparison_is_formal: false/);
   assert.match(script, /canonical_profile/);
+});
+
+test('historical reconciliation uses only pre-event matches and never claims prospective accuracy', () => {
+  const script = readFileSync(new URL('../scripts/reconcile-historical-funding-matches.mjs', import.meta.url), 'utf8');
+  assert.match(script, /new Date\(row\.created_at\) < cutoff/);
+  assert.match(script, /post_event_match_not_prediction/);
+  assert.match(script, /ranked_outside_top_five/);
+  assert.match(script, /candidate_generation_miss/);
+  assert.match(script, /Legacy scores may have been updated later/);
+  assert.match(script, /participant_list_complete \? 'auditable_miss_at_5'/);
+  assert.match(script, /firmLevelParticipant/);
+  assert.doesNotMatch(script, /\.update\(|\.delete\(|\.upsert\(/);
 });
 
 test('candidate generation paginates the full investor universe before ranking and firm deduplication', () => {

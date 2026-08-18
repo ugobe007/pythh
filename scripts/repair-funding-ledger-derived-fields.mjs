@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { extractFunding } = require('../lib/inference-extractor.js');
-const { canonicalRoundKey, classifyFundingEvidence, isPromotionSafeStartupName } = require('../server/lib/fundingEvidenceLedger.js');
+const { canonicalRoundKey, classifyFundingEvidence, isPromotionSafeStartupName, normalizeStartupName, startupNameFromFundingEvent } = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -23,6 +23,14 @@ async function main() {
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
+  const startupIds = [...new Set(rows.map(row => row.startup_id).filter(Boolean))];
+  const startups = [];
+  for (let offset = 0; offset < startupIds.length; offset += 200) {
+    const { data, error } = await db.from('startup_uploads').select('id,name').in('id', startupIds.slice(offset, offset + 200));
+    if (error) throw error;
+    startups.push(...(data || []));
+  }
+  const startupById = new Map(startups.map(row => [row.id, row]));
   const changes = [];
   for (const row of rows) {
     const inferred = extractFunding(row.source_title || '') || {};
@@ -30,16 +38,37 @@ async function main() {
     const amount = row.amount_usd || inferredAmount;
     const inferredRound = inferred.funding_round || inferred.funding_stage || null;
     const round = row.round_type || inferredRound;
-    const roundKey = canonicalRoundKey({ startupId: row.startup_id, startupName: row.startup_name_raw, roundType: round, amountUsd: amount, announcedAt: row.announced_at });
     const classification = classifyFundingEvidence({ event_type: 'FUNDING', source_title: row.source_title, frame_confidence: 1, extraction_meta: { decision: 'ACCEPT', graph_safe: true } });
     const patch = {};
     const reasons = [];
+    const canonicalStartup = startupById.get(row.startup_id);
+    const directionalPrefix = String(row.source_title || '').match(/^(.{2,100}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+/i)?.[1] || '';
+    const directionalTitle = Boolean(directionalPrefix) && !/\b(?:raises?|raised|secures?|secured|closes?|closed)\b/i.test(directionalPrefix);
+    const headlineStartup = startupNameFromFundingEvent({ source_title: row.source_title });
+    const directionalMismatch = directionalTitle && headlineStartup && canonicalStartup
+      && normalizeStartupName(headlineStartup) !== normalizeStartupName(canonicalStartup.name);
+    if (directionalMismatch || (canonicalStartup && !isPromotionSafeStartupName(canonicalStartup.name))) {
+      patch.startup_id = null;
+      if (isPromotionSafeStartupName(headlineStartup)) patch.startup_name_raw = headlineStartup;
+      reasons.push(directionalMismatch ? 'directional_startup_mislink' : 'unsafe_canonical_startup_unlinked');
+    } else if (canonicalStartup && !isPromotionSafeStartupName(row.startup_name_raw)) {
+      patch.startup_name_raw = canonicalStartup.name;
+      reasons.push('startup_label_replaced_from_canonical');
+    }
+    const roundKey = canonicalRoundKey({
+      startupId: Object.hasOwn(patch, 'startup_id') ? patch.startup_id : row.startup_id,
+      startupName: patch.startup_name_raw || row.startup_name_raw,
+      roundType: round,
+      amountUsd: amount,
+      announcedAt: row.announced_at,
+    });
     if (classification.eligible) {
       if (!row.amount_usd && inferredAmount) { patch.amount_usd = inferredAmount; reasons.push('amount_from_headline'); }
       if (!row.round_type && inferredRound) { patch.round_type = inferredRound; reasons.push('round_from_headline'); }
       if (row.canonical_round_key !== roundKey) { patch.canonical_round_key = roundKey; reasons.push('round_key_rebuilt'); }
     }
-    if ((!classification.eligible || !isPromotionSafeStartupName(row.startup_name_raw)) && ['verified', 'corroborated'].includes(row.verification_status)) {
+    const repairedStartupName = patch.startup_name_raw || row.startup_name_raw;
+    if ((!classification.eligible || !isPromotionSafeStartupName(repairedStartupName) || Object.hasOwn(patch, 'startup_id')) && ['verified', 'corroborated'].includes(row.verification_status)) {
       patch.verification_status = 'observed';
       reasons.push(`unsafe_status_downgrade:${classification.eligible ? 'descriptive_startup_label' : classification.reason}`);
     }

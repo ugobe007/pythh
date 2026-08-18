@@ -85,6 +85,7 @@ function extractKnownInvestorMentions(text, investors) {
 function cleanExplicitEntity(value) {
   return String(value || '')
     .replace(/^(?:existing|new|strategic|institutional)\s+investors?\s*/i, '')
+    .replace(/^(?:us giant|japanese financial conglomerate|africa-focused pre-seed fund)\s+/i, '')
     .replace(/\s*\([^)]{1,80}\)\s*$/, '')
     .replace(/^[\s,:-]+|[\s,:-]+$/g, '')
     .trim();
@@ -95,14 +96,16 @@ function plausibleExplicitEntity(value) {
   const words = name.split(/\s+/).filter(Boolean);
   return name.length >= 2 && name.length <= 80 && words.length <= 7
     && /[A-Z0-9]/.test(name[0] || '')
+    && !/^(?:by|for|from|of)\b/i.test(name)
+    && !/^(?:australia|netherlands|united states|united kingdom|europe|asia)$/i.test(name)
     && !/^(?:inc|incorporated|llc|ltd|plc|corp|corporation|ceo|cfo|coo|cto)$/i.test(name)
     && !/^(?:ceo|cfo|coo|cto|founder|co-founder|chairman|president)\b/i.test(name)
     && !/[$€£¥₹]|\b(?:round|funding|financing|company|startup|investor|investors|undisclosed|investment was|the round)\b/i.test(name)
-    && !/\b(?:raised|raises|led|joined|participated|announced|bringing|supporting|expanding|founded|created|started|built)\b/i.test(name);
+    && !/\b(?:raised|raises|led|joined|participated|announced|bringing|supporting|expanding|founded|created|started|built|execs?|executives?)\b/i.test(name);
 }
 
 function splitExplicitEntities(clause) {
-  return String(clause || '').split(/\s*,\s*|\s+and\s+|\s*&\s*/i)
+  return String(clause || '').split(/\s*,\s*|\s+and\s+/i)
     .map(cleanExplicitEntity).filter(plausibleExplicitEntity);
 }
 
@@ -110,11 +113,13 @@ function extractExplicitParticipantMentions(text) {
   const normalizedText = String(text || '').replace(/\b(Inc|Ltd|Corp|LLC)\./g, '$1');
   const sentences = normalizedText.split(/(?<=[.!?])\s+|\n+/).map(value => value.trim()).filter(Boolean);
   const rules = [
-    { role: 'co_lead', relation: 'CO_LED_ROUND', pattern: /(?:co[- ]led|jointly led)\s+by\s+(.+?)(?=,\s+(?:is|was|has|will|aims|plans|the company)\b|\bwith participation\b|\bparticipation from\b|\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
-    { role: 'lead', relation: 'LED_ROUND', pattern: /\bled\s+by\s+(.+?)(?=,\s+(?:is|was|has|will|aims|plans|the company)\b|\band\s+(?:was\s+)?co[- ]led\s+by\b|\bjoined by\b|\bwith participation\b|\bparticipation from\b|\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
+    { role: 'co_lead', relation: 'CO_LED_ROUND', pattern: /(?:co[- ]led|jointly led)\s+by\s+(.+?)(?=,\s+(?:is|was|has|will|aims|plans|the company)\b|\bwith participation\b|\bparticipation from\b|\b(?:founded|created|started|built) by\b|\bbringing\b|\bfor\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
+    { role: 'lead', relation: 'LED_ROUND', pattern: /\bled\s+by\s+(.+?)(?=,\s+(?:is|was|has|will|aims|plans|the company)\b|\band\s+(?:was\s+)?co[- ]led\s+by\b|\bjoined by\b|\bwith participation\b|\bparticipation from\b|\b(?:founded|created|started|built) by\b|\bbringing\b|\bfor\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
     { role: 'participant', relation: 'PARTICIPATED_IN_ROUND', pattern: /\bjoined by\s+(.+?)(?=\bwith participation\b|\bparticipation from\b|\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
     { role: 'participant', relation: 'PARTICIPATED_IN_ROUND', pattern: /(?:with participation from|participation from)\s+(.+?)(?=\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|\bto (?:support|expand|accelerate|build)\b|[.;]|$)/ig },
     { role: 'syndicate_member', relation: 'PARTICIPATED_IN_SYNDICATE', pattern: /(?:syndicate (?:included|includes)|participated in the syndicate[:,]?)\s+(.+?)(?=\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
+    { role: 'participant', relation: 'INVESTED_IN', pattern: /\b(?:raises?|raised|secures?|secured)\b.{0,80}?\bfrom\s+(.+?)(?=\bbringing\b|\b(?:as|to)\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
+    { role: 'participant', relation: 'INVESTED_IN', pattern: /\bsecures?\s+(.+?)\s+investment\b(?=\s+(?:at|to|for|as)\b|[.;]|$)/ig },
   ];
   const found = [];
   const seen = new Set();
@@ -156,6 +161,14 @@ function deriveCoInvestmentEdges(participants, roundId) {
 }
 
 function classifyNamedInvestorParticipation(text, investorName) {
+  const normalizedTarget = cleanExplicitEntity(investorName).toLowerCase();
+  const directional = String(text || '').match(/^(.{2,160}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+/i)?.[1]?.trim();
+  if (directional && cleanExplicitEntity(directional).toLowerCase() === normalizedTarget) {
+    return { role: 'participant', relation: 'INVESTED_IN', evidencePhrase: String(text || '').slice(0, 1000) };
+  }
+  const explicit = extractExplicitParticipantMentions(text)
+    .find(row => cleanExplicitEntity(row.investorNameRaw).toLowerCase() === normalizedTarget);
+  if (explicit) return { role: explicit.role, relation: explicit.relation, evidencePhrase: explicit.evidencePhrase };
   const mention = extractKnownInvestorMentions(text, [{ id: '__target__', name: investorName, firm: investorName }])[0];
   return mention
     ? { role: mention.role, relation: mention.relation, evidencePhrase: mention.evidencePhrase }

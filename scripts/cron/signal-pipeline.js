@@ -128,6 +128,12 @@ async function main() {
       await run('node', ['scripts/sync-funding-evidence-ledger.mjs', '--apply'], 'funding-evidence-ledger',
         { fatal: false });
 
+      if (process.env.FUNDING_HISTORY_BACKFILL_ENABLED !== 'false') {
+        section('3B2', 'Promote the next resumable historical funding-evidence batch');
+        await run('node', ['scripts/backfill-funding-evidence-history.mjs', '--apply', '--limit=1000'], 'funding-history-backfill',
+          { fatal: false });
+      }
+
       if (process.env.FUNDING_COHORT_MONITOR_ENABLED !== 'false') {
         section('3C ', 'Backfill full-universe firm candidates for prospective proof');
         await run('node', ['scripts/backfill-funding-proof-candidates.mjs', '--apply', '--limit=25'], 'funding-proof-candidate-backfill',
@@ -165,7 +171,11 @@ async function main() {
         await run('node', ['scripts/resolve-funding-investor-coverage.mjs', '--apply'], 'funding-investor-coverage',
           { fatal: false });
 
-        section('3L ', 'Report leakage-safe funding prediction claim readiness');
+        section('3L ', 'Reconcile verified historical rounds against pre-event top-five matches');
+        await run('node', ['scripts/reconcile-historical-funding-matches.mjs', '--summary'], 'funding-historical-reconciliation',
+          { fatal: false });
+
+        section('3M ', 'Report leakage-safe funding prediction claim readiness');
         await run('node', ['scripts/report-funding-prediction-claim-readiness.mjs'], 'funding-claim-readiness',
           { fatal: false });
       }

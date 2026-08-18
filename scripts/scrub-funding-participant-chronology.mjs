@@ -21,37 +21,58 @@ async function main() {
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
+  const participantCountByEvent = new Map();
+  const participantByEventAndRawName = new Map();
+  for (const row of rows) {
+    participantCountByEvent.set(row.funding_event_id, (participantCountByEvent.get(row.funding_event_id) || 0) + 1);
+    participantByEventAndRawName.set(`${row.funding_event_id}\0${row.investor_name_raw}`, row);
+  }
   const contaminated = rows.map(row => {
     const local = classifyNamedInvestorParticipation(row.evidence_phrase, row.investor_name_raw);
-    const directionalPrefix = String(row.evidence_phrase || '').match(/^(.{2,160}?)\s+invests?\s+in\s+/i)?.[1] || '';
+    const directionalPrefix = String(row.evidence_phrase || '').match(/^(.{2,160}?)\s+invest(?:s|ed)?\b.{0,40}?\s+in\s+/i)?.[1] || '';
     const directionalName = directionalPrefix.split(/\bas\b/i).at(-1)?.replace(/^.*[;:]/, '').trim();
-    const directionalSubjectDrift = row.investor_name_raw.includes(' as ')
+    const directionalSubjectDrift = row.participation_relation === 'INVESTED_IN'
       && isPlausibleInvestorEntityName(directionalName)
       && normalizeEntityName(directionalName) !== normalizeEntityName(row.investor_name_raw);
     const historical = ['lead', 'co_lead'].includes(row.participant_role) && isHistoricalRoundReference(row.evidence_phrase);
     const ambiguousBacking = Boolean(row.participation_relation) && !local.relation && /\bbacked by\b/i.test(row.evidence_phrase || '');
     const relationMismatch = Boolean(row.participation_relation && local.relation && row.participation_relation !== local.relation);
-    if (!directionalSubjectDrift && !historical && !ambiguousBacking && !relationMismatch) return null;
+    const unsupportedRelation = Boolean(row.participation_relation && !local.relation
+      && row.evidence?.extraction_version === 'funding-evidence-v1');
+    const implausibleEntity = !isPlausibleInvestorEntityName(row.investor_name_raw);
+    const oversizedExtraction = row.evidence?.extraction_version === 'funding-participant-enrichment-v1'
+      && participantCountByEvent.get(row.funding_event_id) > 15;
+    if (!directionalSubjectDrift && !historical && !ambiguousBacking && !relationMismatch && !unsupportedRelation && !implausibleEntity && !oversizedExtraction) return null;
     return {
       ...row,
       repaired_name: directionalSubjectDrift ? directionalName : row.investor_name_raw,
-      repaired_role: historical || ambiguousBacking ? 'unknown' : directionalSubjectDrift ? 'participant' : local.role,
-      repaired_relation: historical || ambiguousBacking ? null : directionalSubjectDrift ? 'INVESTED_IN' : local.relation,
-      clear_identity: directionalSubjectDrift,
-      exclusion_reason: directionalSubjectDrift ? 'directional_subject_prefix' : historical ? 'historical_round_reference' : ambiguousBacking ? 'ambiguous_backing_language' : 'local_clause_relation_mismatch',
+      repaired_role: historical || ambiguousBacking || unsupportedRelation || implausibleEntity || oversizedExtraction ? 'unknown' : directionalSubjectDrift ? 'participant' : local.role,
+      repaired_relation: historical || ambiguousBacking || unsupportedRelation || implausibleEntity || oversizedExtraction ? null : directionalSubjectDrift ? 'INVESTED_IN' : local.relation,
+      clear_identity: directionalSubjectDrift || implausibleEntity,
+      exclusion_reason: directionalSubjectDrift ? 'directional_subject_prefix'
+        : historical ? 'historical_round_reference'
+          : ambiguousBacking ? 'ambiguous_backing_language'
+            : unsupportedRelation ? 'unsupported_local_relation'
+            : implausibleEntity ? 'implausible_investor_entity'
+              : oversizedExtraction ? 'oversized_article_tail_extraction'
+                : 'local_clause_relation_mismatch',
     };
   }).filter(Boolean);
   if (apply) {
     for (const row of contaminated) {
+      const collision = row.repaired_name !== row.investor_name_raw
+        ? participantByEventAndRawName.get(`${row.funding_event_id}\0${row.repaired_name}`)
+        : null;
+      const collisionQuarantine = collision && collision.id !== row.id;
       const update = {
-        investor_name_raw: row.repaired_name,
-        participant_role: row.repaired_role,
-        participation_relation: row.repaired_relation,
-        resolution_confidence: row.repaired_relation ? row.resolution_confidence : 0,
-        evidence: { ...(row.evidence || {}), ontology_repaired: true, ontology_repair_reason: row.exclusion_reason, ontology_scrub_version: 'v2' },
+        investor_name_raw: collisionQuarantine ? row.investor_name_raw : row.repaired_name,
+        participant_role: collisionQuarantine ? 'unknown' : row.repaired_role,
+        participation_relation: collisionQuarantine ? null : row.repaired_relation,
+        resolution_confidence: !collisionQuarantine && row.repaired_relation ? row.resolution_confidence : 0,
+        evidence: { ...(row.evidence || {}), ontology_repaired: true, ontology_repair_reason: collisionQuarantine ? 'directional_subject_duplicate' : row.exclusion_reason, ontology_scrub_version: 'v2' },
         updated_at: new Date().toISOString(),
       };
-      if (row.clear_identity) Object.assign(update, {
+      if (row.clear_identity || collisionQuarantine) Object.assign(update, {
         investor_id: null,
         investor_organization_id: null,
         resolution_status: 'not_in_universe',
