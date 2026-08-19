@@ -6,6 +6,9 @@
  * Optional: --provider=gemini when GEMINI_API_KEY is available.
  */
 import 'dotenv/config';
+import dns from 'node:dns/promises';
+import net from 'node:net';
+import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
@@ -17,6 +20,7 @@ const ledger = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
 const seed = process.argv.includes('--seed');
+const requeueEmpty = process.argv.includes('--requeue-empty');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 10));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
 const providerArg = process.argv.find((a) => a.startsWith('--provider='))?.split('=')[1];
@@ -71,17 +75,46 @@ function cleanHeadline(title) {
   return String(title || '').replace(/\s+-\s+[^-]{2,80}$/, '').trim();
 }
 
-function eligibleArticle(article, startupName, earliestMatchAt) {
+function startupMentionedInText(text, startupName, website) {
+  const haystack = ledger.normalizeStartupName(text.replace(/['']s\b/g, ''));
+  const normalizedName = ledger.normalizeStartupName(startupName);
+  if (normalizedName.length >= 3) {
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(normalizedName)}(\\s|$)`, 'i');
+    if (pattern.test(haystack)) return true;
+  }
+  const firstToken = normalizedName.split(' ').filter(Boolean)[0];
+  if (firstToken && firstToken.length >= 4) {
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(firstToken)}(\\s|$)`, 'i');
+    if (pattern.test(haystack)) return true;
+  }
+  if (website) {
+    try {
+      const host = new URL(website).hostname.replace(/^www\./, '');
+      const brand = host.split('.')[0].replace(/[^a-z0-9]/g, '');
+      if (brand.length >= 4) {
+        const pattern = new RegExp(`(^|\\s)${escapeRegExp(brand)}(\\s|$)`, 'i');
+        if (pattern.test(haystack)) return true;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
+
+function eligibleArticle(article, startupName, earliestMatchAt, website) {
   const title = cleanHeadline(article.title);
+  const snippet = String(article.content || '');
+  const combined = `${title}\n${snippet}`;
   const publishedAt = new Date(article.pubDate || 0);
   const cutoff = new Date(earliestMatchAt);
   return (
     title
-    && FUNDING_WORDS.test(title)
-    && !RUMOR_WORDS.test(title)
+    && FUNDING_WORDS.test(combined)
+    && !RUMOR_WORDS.test(combined)
     && Number.isFinite(publishedAt.getTime())
     && publishedAt > cutoff
-    && ledger.normalizeStartupName(title).includes(ledger.normalizeStartupName(startupName))
+    && startupMentionedInText(combined, startupName, website)
   );
 }
 
@@ -92,6 +125,137 @@ function uniqueInvestors(rows) {
     if (inv?.id && !byId.has(inv.id)) byId.set(inv.id, inv);
   }
   return [...byId.values()];
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function investorLabels(investor) {
+  const labels = new Set();
+  for (const raw of [investor.name, investor.firm].filter(Boolean)) {
+    const label = String(raw).trim();
+    if (label.length >= 4) labels.add(label);
+    const paren = label.match(/\(([^)]+)\)/);
+    if (paren?.[1] && paren[1].trim().length >= 4) labels.add(paren[1].trim());
+  }
+  return [...labels].sort((a, b) => b.length - a.length);
+}
+
+/** Fallback when headline parsers miss: any matched investor name/firm appears in text. */
+function findMatchedInvestorsInText(text, matchedInvestors) {
+  const haystack = String(text || '');
+  if (!haystack.trim()) return [];
+  const found = [];
+  const seen = new Set();
+  for (const investor of matchedInvestors) {
+    for (const label of investorLabels(investor)) {
+      const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(label)}(?=$|[^a-z0-9])`, 'i');
+      if (!pattern.test(haystack)) continue;
+      const key = investor.id;
+      if (seen.has(key)) break;
+      seen.add(key);
+      found.push({
+        investor,
+        investorNameRaw: label,
+        role: 'participant',
+        relation: 'INVESTED_IN',
+        evidencePhrase: haystack.slice(0, 1000),
+      });
+      break;
+    }
+  }
+  return found;
+}
+
+function mergeMentions(structured, fallback) {
+  const byId = new Map();
+  for (const row of [...structured, ...fallback]) {
+    if (!row?.investor?.id) continue;
+    if (!byId.has(row.investor.id)) byId.set(row.investor.id, row);
+  }
+  return [...byId.values()];
+}
+
+function isPrivateIp(address) {
+  if (net.isIPv4(address)) {
+    const [a, b] = address.split('.').map(Number);
+    return (
+      a === 10
+      || a === 127
+      || a === 0
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+    );
+  }
+  if (net.isIPv6(address)) {
+    if (address === '::1' || address.startsWith('fc') || address.startsWith('fd') || address.startsWith('fe80:')) return true;
+    if (address.startsWith('::ffff:')) {
+      const ipv4 = address.slice(7);
+      return net.isIPv4(ipv4) && isPrivateIp(ipv4);
+    }
+  }
+  return false;
+}
+
+async function safeSourceUrl(value) {
+  const parsed = new URL(value);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol');
+  const addresses = await dns.lookup(parsed.hostname, { all: true });
+  if (!addresses.length || addresses.some((item) => isPrivateIp(item.address))) {
+    throw new Error('private or unresolved source host');
+  }
+  return parsed;
+}
+
+function articleExcerpt(html) {
+  const $ = cheerio.load(html);
+  $('script,style,noscript,nav,footer,header,aside,form').remove();
+  const roots = $('article').length ? $('article') : $('main').length ? $('main') : $('body');
+  return roots
+    .find('p')
+    .map((_, element) => $(element).text().replace(/\s+/g, ' ').trim())
+    .get()
+    .filter((text) => text.length >= 40)
+    .join(' ')
+    .slice(0, 8000);
+}
+
+async function fetchArticleText(sourceUrl) {
+  const parsed = await safeSourceUrl(sourceUrl);
+  const response = await fetch(parsed, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(12_000),
+    headers: { 'user-agent': 'PythhFundingEvidence/1.0 (+https://pythh.ai)' },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const contentType = response.headers.get('content-type') || '';
+  if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) throw new Error('source is not HTML');
+  const html = (await response.text()).slice(0, 2_000_000);
+  const excerpt = articleExcerpt(html);
+  if (excerpt.length < 80) throw new Error('no usable article text');
+  return excerpt;
+}
+
+async function resolveMentions(bodyText, matchedInvestors, sourceUrl) {
+  let text = bodyText;
+  let mentions = mergeMentions(
+    extractKnownInvestorMentions(text, matchedInvestors),
+    findMatchedInvestorsInText(text, matchedInvestors),
+  );
+  if (mentions.length || !sourceUrl) return mentions;
+  try {
+    const pageText = await fetchArticleText(sourceUrl);
+    text = `${text}\n${pageText}`;
+    mentions = mergeMentions(
+      extractKnownInvestorMentions(text, matchedInvestors),
+      findMatchedInvestorsInText(text, matchedInvestors),
+    );
+  } catch {
+    /* RSS-only fallback */
+  }
+  return mentions;
 }
 
 async function loadMatchedInvestors(startupId) {
@@ -146,28 +310,43 @@ async function processInferenceJob(startup, job) {
   const matchedInvestors = await loadMatchedInvestors(startup.id);
   if (!matchedInvestors.length) return { events: 0, pairs: 0 };
 
-  const articles = await searchStartupNews(
-    startup.name,
-    startup.website,
-    8,
-    'funding OR raises OR investment',
-    { lite: true },
-  );
+  const articleSets = [
+    await searchStartupNews(startup.name, startup.website, 8, 'funding OR raises OR investment', { lite: true }),
+  ];
+  if (startup.website) {
+    try {
+      const domain = new URL(startup.website).hostname.replace(/^www\./, '');
+      articleSets.push(
+        await searchStartupNews(startup.name, startup.website, 6, `"${domain}" funding OR series`, { lite: true }),
+      );
+    } catch {
+      /* ignore bad website */
+    }
+  }
+  for (const investor of matchedInvestors.slice(0, 3)) {
+    const label = String(investor.firm || investor.name || '').trim();
+    if (label.length < 4) continue;
+    articleSets.push(
+      await searchStartupNews(startup.name, startup.website, 4, `"${label}"`, { lite: true }),
+    );
+  }
+  const articles = [...new Map(articleSets.flat().map((a) => [a.link || a.title, a])).values()];
 
   const seen = new Set();
   let events = 0;
   let pairs = 0;
 
   for (const article of articles) {
-    if (!eligibleArticle(article, startup.name, job.earliest_match_at)) continue;
+    if (!eligibleArticle(article, startup.name, job.earliest_match_at, startup.website)) continue;
     const headline = cleanHeadline(article.title);
     const sourceUrl = article.link;
     if (!sourceUrl) continue;
 
     const publishedAt = new Date(article.pubDate);
     const eventAt = publishedAt.toISOString();
-    const inferred = extractFunding(headline) || {};
-    const mentions = extractKnownInvestorMentions(headline, matchedInvestors);
+    const bodyText = [headline, article.content].filter(Boolean).join('\n');
+    const inferred = extractFunding(bodyText) || {};
+    const mentions = await resolveMentions(bodyText, matchedInvestors, sourceUrl);
     const leadName = inferred.lead_investor;
     if (leadName) {
       const leadInvestor = matchedInvestors.find(
@@ -324,6 +503,17 @@ if (seed) {
   const { data, error } = await db.rpc('seed_funding_evidence_search_queue');
   if (error) throw new Error(error.message);
   console.log(`queue seeded: ${data}`);
+}
+
+if (requeueEmpty && apply) {
+  const { data, error } = await db
+    .from('funding_evidence_search_queue')
+    .update({ status: 'pending', error_message: 'requeued_after_zero_inference_hits', updated_at: new Date().toISOString() })
+    .eq('status', 'complete')
+    .eq('result_count', 0)
+    .select('startup_id');
+  if (error) throw new Error(error.message);
+  console.log(`requeued ${(data || []).length} zero-result startups`);
 }
 
 const { data: jobs, error: jobError } = await db

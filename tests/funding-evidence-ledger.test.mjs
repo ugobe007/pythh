@@ -516,6 +516,10 @@ test('prospective cohort monitor is free-search-first and cannot backdate eviden
 test('historical funding search defaults to inference engine, not Gemini', () => {
   const script = readFileSync(new URL('../scripts/search-startup-funding-evidence.mjs', import.meta.url), 'utf8');
   assert.match(script, /searchStartupNews/);
+  assert.match(script, /findMatchedInvestorsInText/);
+  assert.match(script, /fetchArticleText/);
+  assert.match(script, /--requeue-empty/);
+  assert.match(script, /startupMentionedInText/);
   assert.match(script, /extractKnownInvestorMentions/);
   assert.match(script, /provider === 'gemini' \? 'gemini' : 'inference'/);
   assert.match(script, /inference_engine_free_news_search/);

@@ -13,7 +13,7 @@ This is separate from:
 | `startup_investor_matches` | Prediction. **`created_at`** = match timestamp |
 | `match_validation_evidence` | Pair-level proof. **`event_at`** must be **>** `match.created_at` |
 | `match_outcome_classifications` | Per-match label: `verified_funding`, `unresolved`, `censored`, `no_observed_funding` |
-| `funding_evidence_search_queue` | Startups queued for Gemini web search |
+| `funding_evidence_search_queue` | Startups queued for inference / optional Gemini web search |
 | `startup_events` | RSS `FUNDING` events (input to correlate script / SQL RPC) |
 | `investor_investments` | Portfolio rows (needs `investment_date` + `source_url` to ingest — many rows missing today) |
 
@@ -43,6 +43,15 @@ node scripts/search-startup-funding-evidence.mjs --seed
 npm run outcomes:search-funding -- --limit=20                    # dry-run (inference)
 npm run outcomes:search-funding -- --apply --limit=100 --delay=500
 ```
+
+After a zero-hit inference batch (headlines often omit investor names), pull latest and requeue:
+
+```bash
+git pull origin main
+npm run outcomes:search-funding -- --apply --requeue-empty --limit=100 --delay=500
+```
+
+`--requeue-empty` resets queue rows marked `complete` with `result_count=0` back to `pending`. The inference path now fetches article pages and substring-matches matched investor names — not just RSS headlines.
 
 GitHub Actions runs `--apply --provider=inference --limit=100` every 30 min (`.github/workflows/funding-evidence-search.yml`).
 
