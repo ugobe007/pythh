@@ -108,6 +108,8 @@
     "enrich:rss-news": "node scripts/enrich-from-rss-news.js",
     "outcomes:correlate-funding": "node scripts/correlate-funding-event-investors.mjs",
     "outcomes:search-funding": "node scripts/search-startup-funding-evidence.mjs",
+    "outcomes:report": "node scripts/report-match-funding-reconciliation.mjs",
+    "outcomes:review": "node scripts/review-match-validation-evidence.mjs",
     "cleanup:discovered-rss": "node scripts/cleanup-discovered-rss.js",
     "enrich:sparse": "node scripts/enrich-sparse-startups.js",
     "enrich:sparse:html": "node scripts/enrich-sparse-startups.js --html-only",
