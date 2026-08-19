@@ -15,11 +15,76 @@ import {
   pitchDecks,
   subscriptions,
   users,
+  type User,
 } from "./schema";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ENV } from "./env";
 
 let pool: Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
+let _supabaseAdmin: SupabaseClient | null = null;
+
+/** Supabase REST fallback when direct Postgres (DATABASE_URL) is unreachable (e.g. IPv6-only db host). */
+function getSupabaseAdmin(): SupabaseClient | null {
+  if (_supabaseAdmin) return _supabaseAdmin;
+  const url = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+  const key = String(
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  ).trim();
+  if (!url || !key) return null;
+  _supabaseAdmin = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return _supabaseAdmin;
+}
+
+function mapRestUserRow(data: Record<string, unknown>): User {
+  return {
+    id: data.id as number,
+    openId: data.open_id as string,
+    name: (data.name as string | null) ?? null,
+    email: (data.email as string | null) ?? null,
+    loginMethod: (data.login_method as string | null) ?? null,
+    role: (data.role as string) ?? "user",
+    createdAt: new Date(String(data.created_at)),
+    updatedAt: new Date(String(data.updated_at)),
+    lastSignedIn: new Date(String(data.last_signed_in)),
+  };
+}
+
+async function upsertUserViaRest(user: InsertUser): Promise<void> {
+  const sb = getSupabaseAdmin();
+  if (!sb || !user.openId) {
+    throw new Error("Supabase REST unavailable for user upsert");
+  }
+  const row: Record<string, unknown> = {
+    open_id: user.openId,
+    last_signed_in: (user.lastSignedIn ?? new Date()).toISOString(),
+  };
+  if (user.email !== undefined) row.email = user.email ?? null;
+  if (user.name !== undefined) row.name = user.name ?? null;
+  if (user.loginMethod !== undefined) row.login_method = user.loginMethod ?? null;
+  if (user.role !== undefined) {
+    row.role = user.role;
+  } else if (user.openId === ENV.ownerOpenId) {
+    row.role = "admin";
+  }
+  const { error } = await sb.from("pythh_users").upsert(row, { onConflict: "open_id" });
+  if (error) throw error;
+}
+
+async function getUserByOpenIdViaRest(openId: string): Promise<User | undefined> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return undefined;
+  const { data, error } = await sb
+    .from("pythh_users")
+    .select("*")
+    .eq("open_id", openId)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return mapRestUserRow(data as Record<string, unknown>);
+}
 
 /** Run a raw parameterised SQL query. Used by admin tRPC procedures that need
  *  tables outside the Drizzle schema (god_weight_versions, rss_sources, etc.). */
@@ -82,7 +147,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    console.warn("[Database] Postgres unavailable — upserting user via Supabase REST");
+    await upsertUserViaRest(user);
     return;
   }
 
@@ -133,21 +199,25 @@ export async function upsertUser(user: InsertUser): Promise<void> {
         set: updateSet as Record<string, unknown>,
       });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
+    console.warn("[Database] Postgres upsert failed — trying Supabase REST:", (error as Error)?.message);
+    await upsertUserViaRest(user);
   }
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
+    return getUserByOpenIdViaRest(openId);
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  try {
+    const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    if (result.length > 0) return result[0];
+  } catch (error) {
+    console.warn("[Database] Postgres getUser failed — trying Supabase REST:", (error as Error)?.message);
+  }
 
-  return result.length > 0 ? result[0] : undefined;
+  return getUserByOpenIdViaRest(openId);
 }
 
 // ─── Subscription helpers ────────────────────────────────────────────────────
