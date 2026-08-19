@@ -78,9 +78,7 @@ function massageConnectionString(connectionString) {
   const v = String(process.env.DATABASE_SSL || '').toLowerCase();
   if (v === 'false' || v === '0' || v === 'no') return s;
   const isSupabase = /supabase\.com/i.test(s) || /\.supabase\.co/i.test(s);
-  if (!(/supabase\.com/i.test(s) || /\.supabase\.co/i.test(s)) && v !== 'true' && v !== '1' && v !== 'yes') {
-    return s;
-  }
+  if (!isSupabase && v !== 'true' && v !== '1' && v !== 'yes') return s;
   if (/sslmode=no-verify/i.test(s)) return s;
   if (/sslmode=/i.test(s)) return s.replace(/sslmode=[^&]*/i, 'sslmode=no-verify');
   return s.includes('?') ? `${s}&sslmode=no-verify` : `${s}?sslmode=no-verify`;
