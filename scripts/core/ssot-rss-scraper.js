@@ -516,6 +516,9 @@ async function scrapeRssFeeds() {
               semantic_context: {
                 ...event.semantic_context,
                 ...(signalBlock ? { signal: signalBlock } : {}),
+                // Preserve a bounded RSS-provided excerpt for source-grounded
+                // funding participant extraction. This is not a full article copy.
+                ...(articleText ? { funding_evidence_excerpt: articleText.slice(0, 1200) } : {}),
               },
               entities: event.entities,
               extraction_meta: event.extraction,

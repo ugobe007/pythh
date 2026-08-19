@@ -67,7 +67,9 @@ export async function runWizardUnlockProbe(opts = {}) {
 
     steps.push({ step: 'wizard_round_load', ok: true, url: wizardUrl });
 
-    const goBackBtn = page.getByRole('button', { name: /Optional: improve readiness score/i });
+    const goBackBtn = page.getByRole('button', {
+      name: /Improve my outreach plan|Improve matches|Optional: improve readiness score/i,
+    }).first();
 
     let landed = 'unknown';
     try {
@@ -84,9 +86,43 @@ export async function runWizardUnlockProbe(opts = {}) {
     await goBackBtn.click();
 
     const heading = page.getByRole('heading', { name: /Suggested improvements before outreach/i });
+    const evidenceHeading = page.getByRole('heading', { name: /Add what Pythh could not find/i });
+    const signupHeading = page.getByRole('heading', {
+      name: /Your investor shortlist is ready|Continue to investor outreach/i,
+    });
     const unlockCard = page.getByRole('heading', { name: /Unlock:/i });
 
-    await heading.waitFor({ state: 'visible', timeout: 30000 });
+    await page.waitForFunction(() => {
+      const text = document.body?.innerText || '';
+      return text.includes('Suggested improvements before outreach')
+        || text.includes('Add what Pythh could not find')
+        || text.includes('Your investor shortlist is ready')
+        || text.includes('Continue to investor outreach');
+    }, null, { timeout: 30000 });
+
+    if (await signupHeading.isVisible()) {
+      await page.getByPlaceholder('you@yourstartup.com').waitFor({ state: 'visible', timeout: 15000 });
+      await page.getByRole('button', { name: /Continue with email/i }).waitFor({ state: 'visible', timeout: 15000 });
+      steps.push({
+        step: 'one_step_signup_gate_visible',
+        ok: true,
+        url: page.url(),
+      });
+      return { ok: true, base, startupId, steps, destination: 'one_step_signup_gate' };
+    }
+
+    if (await evidenceHeading.isVisible()) {
+      const saveButton = page.getByRole('button', { name: /Save data & rerun match engine/i });
+      await saveButton.waitFor({ state: 'visible', timeout: 15000 });
+      steps.push({
+        step: 'improve_matches_panel_visible',
+        ok: true,
+        url: page.url(),
+      });
+      return { ok: true, base, startupId, steps, destination: 'improve_matches_panel' };
+    }
+
+    await heading.waitFor({ state: 'visible', timeout: 5000 });
     await unlockCard.waitFor({ state: 'visible', timeout: 15000 });
 
     const cardTitle = (await unlockCard.textContent())?.trim() || '';

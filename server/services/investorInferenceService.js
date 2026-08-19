@@ -24,6 +24,8 @@ const { dedupeAndRankArticles } = require('../../lib/articleDedupe');
 const { extractOntologyFromNewsText } = require('../../lib/ontologyNewsInference');
 const { getResolved: getInferenceConfig } = require('../../lib/inferencePipelineConfig');
 const { detectSignals } = require('./signalDetector');
+const { normalizeEntityName, participantNamesFromEvent, startupNameFromFundingEvent, isPlausibleStartupName } = require('../lib/fundingEvidenceLedger');
+const { assessFundingSource, normalizedPublisher } = require('../lib/fundingSourceTrust');
 
 const parser = new Parser({
   timeout: 20000,
@@ -63,9 +65,6 @@ const STAGE_PATTERNS = [
   { pattern: /\blate[- ]stage\b/i, label: 'Late Stage' },
 ];
 
-// ── Check size extraction ($5M, $50M, etc.) ──
-const CHECK_SIZE_PATTERN = /\$(\d+(?:\.\d+)?)\s*(k|m|b|million|billion|thousand)?\b/gi;
-
 function parseUSD(amount, unit) {
   const n = parseFloat(amount);
   if (!unit) return n;
@@ -74,6 +73,74 @@ function parseUSD(amount, unit) {
   if (u === 'm' || u === 'million') return n * 1e6;
   if (u === 'k' || u === 'thousand') return n * 1e3;
   return n;
+}
+
+function investorIdentityKeys(investor) {
+  return [...new Set([investor?.name, investor?.firm].map(normalizeEntityName).filter(value => value && value.length >= 3))];
+}
+
+function articleMentionsInvestorInvestment(article, investor) {
+  const text = `${article?.title || ''} ${article?.content || ''}`;
+  const normalizedText = normalizeEntityName(text);
+  if (!investorIdentityKeys(investor).some(key => normalizedText.includes(key))) return false;
+  return /\b(invest(?:s|ed|ing|ment)?|back(?:s|ed|ing)?|lead(?:s|ing)?|led|co[- ]?lead|participat(?:es|ed|ing)|portfolio|venture|fund)\b/i.test(text);
+}
+
+function sourcePublisherFromArticle(article) {
+  if (article?.publisher) return String(article.publisher).trim();
+  const suffix = String(article?.title || '').match(/\s+-\s+([^–—-]{2,80})$/)?.[1];
+  return suffix ? suffix.trim() : '';
+}
+
+function assessInvestorArticleSource(article) {
+  const publisher = sourcePublisherFromArticle(article);
+  const assessment = assessFundingSource({ source_url: article?.link, source_publisher: publisher });
+  return {
+    ...assessment,
+    publisher: publisher || null,
+    source_identity: assessment.trusted
+      ? assessment.identity
+      : publisher ? `publisher:${normalizedPublisher(publisher)}` : assessment.identity,
+  };
+}
+
+function eligibleInvestorEvidenceArticles(articles, investor) {
+  const relevant = articles.filter(article => articleMentionsInvestorInvestment(article, investor))
+    .map(article => ({ ...article, source_assessment: assessInvestorArticleSource(article) }));
+  const trusted = relevant.filter(article => article.source_assessment.trusted);
+  if (trusted.length) return trusted;
+  const independentSources = new Set(relevant.map(article => article.source_assessment.source_identity).filter(Boolean));
+  return independentSources.size >= 2 ? relevant : [];
+}
+
+function extractExplicitCheckSizeRange(text) {
+  const amount = '\\$(\\d+(?:\\.\\d+)?)\\s*(k|m|b|million|billion|thousand)?';
+  const range = new RegExp(`(?:check|ticket)(?:\\s+size)?(?:s)?[^$]{0,50}${amount}\\s*(?:-|–|—|to|and)\\s*${amount}`, 'i').exec(text);
+  if (range) {
+    const first = parseUSD(range[1], range[2]);
+    const second = parseUSD(range[3], range[4]);
+    if (first >= 50_000 && second <= 500_000_000) {
+      return { min: Math.min(first, second), max: Math.max(first, second), evidence: range[0] };
+    }
+  }
+  const single = new RegExp(`(?:typical(?:ly)?\\s+)?(?:check|ticket)(?:\\s+size)?(?:s)?(?:\\s+(?:is|of|around|up to))?[^$]{0,30}${amount}`, 'i').exec(text);
+  if (!single) return null;
+  const value = parseUSD(single[1], single[2]);
+  if (value < 50_000 || value > 500_000_000) return null;
+  return { min: value, max: value, evidence: single[0] };
+}
+
+function extractPortfolioCompanies(articles, investor) {
+  const identities = new Set(investorIdentityKeys(investor));
+  const companies = new Set();
+  for (const article of articles) {
+    const title = article.title || '';
+    const participants = participantNamesFromEvent({ source_title: title }).map(normalizeEntityName);
+    if (!participants.some(name => identities.has(name))) continue;
+    const startup = startupNameFromFundingEvent({ source_title: title });
+    if (startup && isPlausibleStartupName(startup)) companies.add(startup);
+  }
+  return [...companies].slice(0, 10);
 }
 
 /**
@@ -138,9 +205,12 @@ async function searchInvestorNews(investorName, firm) {
  * Returns { enrichedData, enrichmentCount }
  */
 function extractInvestorDataFromArticles(articles, currentInvestor) {
-  const allText = articles.map(a => `${a.title} ${a.content}`).join(' ').toLowerCase();
+  const relevantArticles = eligibleInvestorEvidenceArticles(articles, currentInvestor);
+  const allText = relevantArticles.map(a => `${a.title} ${a.content}`).join(' ').toLowerCase();
   const enrichedData = {};
   let enrichmentCount = 0;
+
+  if (!relevantArticles.length) return { enrichedData, enrichmentCount, evidence: [] };
 
   // ── 1. Sectors ──
   if (!currentInvestor.sectors || currentInvestor.sectors.length === 0) {
@@ -170,52 +240,25 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
 
   // ── 3. Check size ──
   if (!currentInvestor.check_size_min && !currentInvestor.check_size_max) {
-    const amounts = [];
-    for (const match of allText.matchAll(/\$(\d+(?:\.\d+)?)\s*(k|m|b|million|billion|thousand)/gi)) {
-      const usd = parseUSD(match[1], match[2]);
-      if (usd >= 50000 && usd <= 500000000) amounts.push(Math.round(usd)); // $50K to $500M range
-    }
-    if (amounts.length >= 2) {
-      enrichedData.check_size_min = Math.round(Math.min(...amounts));
-      enrichedData.check_size_max = Math.round(Math.max(...amounts));
-      enrichmentCount++;
-    } else if (amounts.length === 1) {
-      // Single mention — use as midpoint estimate
-      const a = amounts[0];
-      enrichedData.check_size_min = Math.round(a * 0.5);
-      enrichedData.check_size_max = Math.round(a * 2);
+    const explicitRanges = relevantArticles.map(article => extractExplicitCheckSizeRange(`${article.title || ''} ${article.content || ''}`)).filter(Boolean);
+    if (explicitRanges.length) {
+      enrichedData.check_size_min = Math.round(Math.min(...explicitRanges.map(item => item.min)));
+      enrichedData.check_size_max = Math.round(Math.max(...explicitRanges.map(item => item.max)));
       enrichmentCount++;
     }
   }
 
   // ── 4. Portfolio companies from article text ──
   if (!currentInvestor.portfolio_companies || currentInvestor.portfolio_companies.length === 0) {
-    // Extract company names mentioned alongside "invested in", "portfolio", "backed", "lead"
-    const portfolioPattern = /(?:invested in|backed|portfolio|lead(?:s)? (?:a )?round(?: for)?|co-invested)(?: in)?\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)/g;
-    const found = new Set();
-    const origText = articles.map(a => `${a.title} ${a.content}`).join(' ');
-    for (const match of origText.matchAll(portfolioPattern)) {
-      const company = match[1].trim();
-      if (company.length > 2 && company.length < 40) found.add(company);
-    }
-    if (found.size > 0) {
-      enrichedData.portfolio_companies = Array.from(found).slice(0, 10);
+    const companies = extractPortfolioCompanies(relevantArticles, currentInvestor);
+    if (companies.length > 0) {
+      enrichedData.portfolio_companies = companies;
       enrichmentCount++;
     }
   }
 
   // ── 5. Investment thesis signal (if bio/thesis empty) ──
-  if (!currentInvestor.investment_thesis && !currentInvestor.bio) {
-    // Build a summary from article snippets that mention the investor
-    const relevantSnippets = articles
-      .filter(a => a.content && a.content.length > 50)
-      .map(a => a.content.substring(0, 200))
-      .slice(0, 2);
-    if (relevantSnippets.length > 0) {
-      enrichedData.inferred_bio = relevantSnippets.join(' ').replace(/\s+/g, ' ').trim();
-      enrichmentCount++;
-    }
-  }
+  // Do not promote third-party news snippets into a first-party investment thesis.
 
   // ── 6. Geographic focus ──
   if (!currentInvestor.geography_focus || currentInvestor.geography_focus.length === 0) {
@@ -237,7 +280,7 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
   }
 
   // ── 7. Grammar ontology + colloquial signals (parity with startup inferenceService) ──
-  const combinedText = articles.map((a) => `${a.title} ${a.content}`).join('\n\n');
+  const combinedText = relevantArticles.map((a) => `${a.title} ${a.content}`).join('\n\n');
   const cfg = getInferenceConfig();
   const ontologyInference = extractOntologyFromNewsText(combinedText.slice(0, cfg.ONTOLOGY_NEWS_MAX_CHARS), {
     maxSentences: Math.min(32, cfg.ONTOLOGY_NEWS_MAX_SENTENCES),
@@ -248,7 +291,7 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
   }
 
   const anchorName = [currentInvestor.name, currentInvestor.firm].filter(Boolean).join(' ').trim() || currentInvestor.name || '';
-  const signalReport = detectSignals(articles, anchorName);
+  const signalReport = detectSignals(relevantArticles, anchorName);
   if (signalReport.signals.length > 0) {
     enrichedData.market_signals = {
       primarySignal: signalReport.primarySignal?.signal || null,
@@ -268,7 +311,19 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
     enrichmentCount++;
   }
 
-  return { enrichedData, enrichmentCount };
+  return {
+    enrichedData,
+    enrichmentCount,
+    evidence: relevantArticles.map(article => ({
+      title: article.title || '',
+      link: article.link || '',
+      pubDate: article.pubDate || '',
+      publisher: article.source_assessment.publisher,
+      trusted: article.source_assessment.trusted,
+      trust_tier: article.source_assessment.tier,
+      source_identity: article.source_assessment.source_identity,
+    })),
+  };
 }
 
 // ── Tech/investment theme keywords for Oracle "next bet" prediction ──
@@ -301,7 +356,8 @@ const RECENT_DEAL_PATTERN = /(?:lead(?:s|ing)?|invests?(?:ing)?|backs?|funded?|a
  * - last_investment_date: most recent investment date parsed from news
  */
 function buildOracleSignals(investor, articles) {
-  const allText = articles.map(a => `${a.title} ${a.content}`).join(' ');
+  const relevantArticles = eligibleInvestorEvidenceArticles(articles, investor);
+  const allText = relevantArticles.map(a => `${a.title} ${a.content}`).join(' ');
   const allTextLower = allText.toLowerCase();
   const signals = [];
   const now = new Date().toISOString();
@@ -389,7 +445,7 @@ function buildOracleSignals(investor, articles) {
       source: 'computed',
       detected_at: now,
     });
-  } else if (articles.length > 2) {
+  } else if (relevantArticles.length > 2) {
     // News implies activity
     signals.push({
       type: 'deployment_signal',
@@ -440,7 +496,7 @@ function buildOracleSignals(investor, articles) {
     /\d{4}[-/]\d{2}[-/]\d{2}/g,
   ];
   const articleDates = [];
-  for (const a of articles) {
+  for (const a of relevantArticles) {
     // Prefer pubDate from RSS
     if (a.pubDate) {
       try {
@@ -469,5 +525,10 @@ module.exports = {
   searchInvestorNews,
   extractInvestorDataFromArticles,
   buildOracleSignals,
+  articleMentionsInvestorInvestment,
+  assessInvestorArticleSource,
+  eligibleInvestorEvidenceArticles,
+  extractExplicitCheckSizeRange,
+  extractPortfolioCompanies,
   dedupeAndRankArticles,
 };

@@ -4,6 +4,7 @@
  * POST /api/auth/sync-supabase             — legacy browser token sync (fallback)
  */
 const { createClient } = require('@supabase/supabase-js');
+const { probeSocialOAuthProviders } = require('../../lib/oauthProviderHealth');
 
 const COOKIE_NAME = 'pythh_session';
 const PKCE_COOKIE = 'sb_pkce';
@@ -129,6 +130,23 @@ async function establishPythhSession(req, res, accessToken) {
   return { openId, email };
 }
 
+const OAUTH_PROVIDER_CACHE_MS = 45_000;
+let oauthProviderCache = { expiresAt: 0, value: null };
+
+async function listOAuthProviders() {
+  const now = Date.now();
+  if (oauthProviderCache.value && oauthProviderCache.expiresAt > now) {
+    return oauthProviderCache.value;
+  }
+  const { sbUrl, anonKey } = supabaseConfig();
+  const providers = await probeSocialOAuthProviders({
+    supabaseUrl: sbUrl,
+    anonKey,
+  });
+  oauthProviderCache = { expiresAt: now + OAUTH_PROVIDER_CACHE_MS, value: providers };
+  return providers;
+}
+
 function mountSupabaseAuthSync(app) {
   function oauthBridgePath(nextPath) {
     if (nextPath === '/account') return '/account?oauth_handoff=1';
@@ -219,6 +237,17 @@ function mountSupabaseAuthSync(app) {
     const forward = new URLSearchParams({ code, oauth_handoff: '1' });
     if (nextPath !== '/account') forward.set('next', nextPath);
     return res.redirect(302, `/account?${forward.toString()}`);
+  });
+
+  app.get('/api/auth/oauth-providers', async (_req, res) => {
+    try {
+      const providers = await listOAuthProviders();
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      return res.json({ providers });
+    } catch (err) {
+      console.error('[auth/oauth-providers]', err?.message || err);
+      return res.status(500).json({ error: 'Could not inspect OAuth providers' });
+    }
   });
 
   app.post('/api/auth/sync-supabase', async (req, res) => {

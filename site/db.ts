@@ -714,6 +714,7 @@ export async function upsertFounderProfile(
   patch: Partial<{
     companyName: string | null;
     companyUrl: string | null;
+    startupId: string | null;
     stage: string | null;
     sector: string | null;
     askAmount: string | null;

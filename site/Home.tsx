@@ -32,6 +32,10 @@ import {
   HERO_PRIMARY_CTA,
 } from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
+import {
+  buildLoginRedirectForSearch,
+  shouldPromptSignInForNewSearch,
+} from "@/lib/anonymousPreviewSession";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
   ArrowRight,
@@ -257,12 +261,23 @@ function useIntersectionObserver(threshold = 0.1) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return;
+    }
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setIsVisible(true); observer.disconnect(); } },
       { threshold }
     );
     if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
+    // Animation is progressive enhancement. Browser throttling, restored tabs,
+    // screenshot stitching, and WebKit observer bugs must never leave homepage
+    // sections permanently transparent.
+    const failOpen = window.setTimeout(() => setIsVisible(true), 800);
+    return () => {
+      window.clearTimeout(failOpen);
+      observer.disconnect();
+    };
   }, [threshold]);
   return { ref, isVisible };
 }
@@ -354,7 +369,7 @@ function HeroSection({
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
     loadHeroExperiments()
@@ -380,14 +395,15 @@ function HeroSection({
     }
     setError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+    if (!loading && !isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+      sessionStorage.setItem('pythia_url', normalized);
+      navigate(buildLoginRedirectForSearch(normalized));
+      return;
+    }
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
-    navigate(
-      isAuthenticated
-        ? `/matches?url=${encodeURIComponent(normalized)}`
-        : `/signup/founder?intent=matches&url=${encodeURIComponent(normalized)}`,
-    );
+    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
   const matchCount = platformStats?.matches ?? 0;

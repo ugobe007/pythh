@@ -14,8 +14,6 @@ import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatc
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import {
   postSignupPathForAction,
-  allowWizardUnlockFlow,
-  primePreviewSignupDestination,
   trackFounderGateStarted,
   type FounderGatedAction,
   type GatedInvestorContext,
@@ -31,6 +29,8 @@ import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import PitchEventRecommendations from '@/components/PitchEventRecommendations';
 import AngelGroupRecommendations from '@/components/AngelGroupRecommendations';
+import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
+import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
 
 const PREVIEW_LIMIT = 5;
 
@@ -42,29 +42,25 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
   { id: 'angel', label: 'Angels only' },
 ];
 
-function MatchWorkflowGuide({ startupName }: {
+function MatchEngineFrame({
+  startupName,
+  godScore,
+}: {
   startupName: string;
+  godScore?: number;
 }) {
-  const steps = [
-    ['1', 'Company analyzed', 'Complete'],
-    ['2', 'Understand your best matches', 'Now'],
-    ['3', 'Start investor outreach', 'Next'],
-  ];
   return (
-    <section className="mb-8 rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-lg shadow-black/20 sm:p-6">
-      <div className="mb-5">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-300">Your fundraising workflow</p>
-        <h2 className="mb-1 text-lg font-bold text-white">See why these investors fit {startupName}</h2>
-        <p className="text-sm text-zinc-300">Review each investor’s fit, check size, and priorities. Your personalized outreach is the next step.</p>
-      </div>
-      <div className="grid gap-2 md:grid-cols-3">
-        {steps.map(([number, title, state]) => (
-          <div key={number} className={`rounded-xl border p-3 ${state === 'Now' ? 'border-emerald-400/70 bg-emerald-950/60' : 'border-zinc-700 bg-zinc-950'}`}>
-            <p className={`mb-1 text-[10px] uppercase tracking-wide ${state === 'Now' ? 'text-emerald-300' : 'text-zinc-400'}`}>{number} · {state}</p>
-            <p className="text-sm font-semibold text-white">{title}</p>
-          </div>
-        ))}
-      </div>
+    <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-400">
+        Ranked by thesis, team, and timing
+      </p>
+      <h2 className="mb-1 text-lg font-bold text-white">
+        These are the investors Pythh scores as the best fit for {startupName}
+      </h2>
+      <p className="text-sm text-zinc-400">
+        Same GOD engine as the public portfolio. Raise automation — meetings, scheduling, pitch help — is optional after you save the shortlist.
+        {typeof godScore === 'number' ? ` Current GOD ${Math.round(godScore)}.` : ''}
+      </p>
     </section>
   );
 }
@@ -223,7 +219,7 @@ interface Props {
 
 export default function InstantMatchPreview({ url }: Props) {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -439,7 +435,9 @@ export default function InstantMatchPreview({ url }: Props) {
             investor_mix: investorMix,
           });
           markFirstPreviewSeen();
-          recordAnonymousPreview(url);
+          if (!authLoading && !isAuthenticated) {
+            recordAnonymousPreview(url);
+          }
           if (data.startup?.id) {
             pinActiveStartup(data.startup.id, url, data.startup.name ?? null);
           }
@@ -481,13 +479,8 @@ export default function InstantMatchPreview({ url }: Props) {
     if (!preview?.startup?.id) return;
 
     if (isAuthenticated) {
-      if (action === 'oracle_gap') {
-        allowWizardUnlockFlow();
-      } else {
-        primePreviewSignupDestination(preview.startup.id, action);
-      }
-      const post = postSignupPathForAction(action, preview.startup.id);
-      navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
+      if (action === 'save') return;
+      navigate(postSignupPathForAction(action, preview.startup.id, { url }));
       return;
     }
 
@@ -588,7 +581,15 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       </div>
 
-      <MatchWorkflowGuide startupName={startupName} />
+      <MatchEngineFrame startupName={startupName} godScore={preview.startup?.god_score} />
+
+      <PreviewOracleProofStrip />
+
+      <PreviewEvidenceStrip
+        totalInNetwork={total}
+        shownCount={visible.length}
+        startupName={startupName}
+      />
 
       {refreshed && (
         <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
@@ -596,17 +597,6 @@ export default function InstantMatchPreview({ url }: Props) {
           <p className="mt-1 text-xs text-zinc-400">The shortlist below has been reranked by the match engine.</p>
         </div>
       )}
-
-      <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/35 p-4">
-        <p className="text-[10px] uppercase tracking-[1.5px] text-emerald-400 mb-3">
-          How to use this shortlist
-        </p>
-        <div className="grid sm:grid-cols-3 gap-3 text-xs">
-          <p className="text-zinc-400"><span className="text-white font-semibold">1. Read the fit.</span> Understand why the investor surfaced.</p>
-          <p className="text-zinc-400"><span className="text-white font-semibold">2. Check their signals.</span> See what evidence they are likely screening.</p>
-          <p className="text-zinc-400"><span className="text-white font-semibold">3. Tailor outreach.</span> Lead with the strongest relevant proof.</p>
-        </div>
-      </div>
 
       <div className={`mb-6 rounded-xl border p-4 ${
         preview.shortlist_mix?.funding_stage
@@ -799,14 +789,21 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       )}
 
-      <section className="mb-8 rounded-2xl border border-emerald-400/70 bg-emerald-950/70 p-5 shadow-lg shadow-emerald-950/30 sm:p-6">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-300">Next · Start investor outreach</p>
-        <h2 className="text-xl font-bold text-white">Turn these matches into personalized investor emails.</h2>
-        <p className="mt-2 text-sm text-zinc-200">Pythh prepares the investor context and outreach drafts. Review them, make any edits, and send.</p>
-        <button type="button" onClick={() => void handleSignup('outreach')} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-400 px-5 py-3.5 text-sm font-bold text-zinc-950 hover:bg-emerald-300 sm:w-auto">
-          Prepare outreach for my top {visible.length}<ArrowRight className="h-4 w-4" />
-        </button>
-      </section>
+      {!isAuthenticated && (
+        <section className="mb-8 rounded-2xl border border-emerald-400/70 bg-emerald-950/70 p-5 shadow-lg shadow-emerald-950/30 sm:p-6">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-300">Save this shortlist</p>
+          <h2 className="text-xl font-bold text-white">Keep these ranked matches attached to your company.</h2>
+          <p className="mt-2 text-sm text-zinc-200">Matching is the product — thesis, team, and timing against the capital graph. Oracle can draft outreach and help with meetings later; it is not required to keep your list.</p>
+          <button type="button" onClick={() => handleSignup('save')} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-400 px-5 py-3.5 text-sm font-bold text-zinc-950 hover:bg-emerald-300 sm:w-auto">
+            Save my top {visible.length}<ArrowRight className="h-4 w-4" />
+          </button>
+        </section>
+      )}
+      {isAuthenticated && preview.startup?.id && (
+        <p className="mb-8 text-center text-xs text-zinc-500">
+          Optional later: Oracle can draft outreach, schedule partner meetings, and help with the pitch — after the shortlist is saved.
+        </p>
+      )}
 
       {isAuthenticated && preview.startup?.id && (
         <div className="mb-8 flex flex-col gap-3 rounded-xl border border-cyan-700 bg-cyan-950/40 p-5 sm:flex-row sm:items-center sm:justify-between">

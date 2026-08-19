@@ -323,25 +323,36 @@ async function parseStartupData(startup: StartupData, debugContext: any): Promis
  * Step 4: Generate match candidates
  */
 async function generateMatches(startup: StartupData, debugContext: any): Promise<any[]> {
-  const { data: investors, error } = await supabase
-    .from('investors')
-    .select('*')
-    .not('sectors', 'is', null);
-  
-  if (error || !investors) {
+  const investors: any[] = [];
+  let fetchError: any = null;
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .from('investors')
+      .select('*')
+      .not('sectors', 'is', null)
+      .range(offset, offset + 999);
+    if (error) {
+      fetchError = error;
+      break;
+    }
+    investors.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+
+  if (fetchError) {
     debugContext.steps.push({
       step: 'match',
-      error: error?.message,
+      error: fetchError?.message,
       candidateCount: 0
     });
     return [];
   }
   
   // Filter by sector overlap
-  const startupSectors = new Set(startup.sectors || []);
+  const startupSectors = new Set((startup.sectors || []).map((sector: string) => sector.toLowerCase().trim()));
   const candidates = investors.filter(investor => {
     const investorSectors = investor.sectors || [];
-    return investorSectors.some((s: string) => startupSectors.has(s));
+    return investorSectors.some((s: string) => startupSectors.has(String(s).toLowerCase().trim()));
   });
   
   debugContext.steps.push({

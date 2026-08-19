@@ -1163,6 +1163,7 @@ export const appRouter = router({
         z.object({
           companyName: z.string().max(256).optional(),
           companyUrl: z.string().max(512).optional(),
+          startupId: z.string().uuid().optional(),
           stage: z.string().max(64).optional(),
           sector: z.string().max(128).optional(),
           askAmount: z.string().max(64).optional(),
@@ -1172,16 +1173,16 @@ export const appRouter = router({
         }),
       )
       .mutation(async ({ input, ctx }) => {
-        const patch = {
-          companyName: input.companyName?.trim() || null,
-          companyUrl: input.companyUrl?.trim() || null,
-          stage: input.stage?.trim() || null,
-          sector: input.sector?.trim() || null,
-          askAmount: input.askAmount?.trim() || null,
-          deckFileKey: input.deckFileKey?.trim() || null,
-          bio: input.bio?.trim() || null,
-          linkedinUrl: input.linkedinUrl?.trim() || null,
-        };
+        const patch: Parameters<typeof upsertFounderProfile>[1] = {};
+        if ('companyName' in input) patch.companyName = input.companyName?.trim() || null;
+        if ('companyUrl' in input) patch.companyUrl = input.companyUrl?.trim() || null;
+        if ('startupId' in input) patch.startupId = input.startupId || null;
+        if ('stage' in input) patch.stage = input.stage?.trim() || null;
+        if ('sector' in input) patch.sector = input.sector?.trim() || null;
+        if ('askAmount' in input) patch.askAmount = input.askAmount?.trim() || null;
+        if ('deckFileKey' in input) patch.deckFileKey = input.deckFileKey?.trim() || null;
+        if ('bio' in input) patch.bio = input.bio?.trim() || null;
+        if ('linkedinUrl' in input) patch.linkedinUrl = input.linkedinUrl?.trim() || null;
         await upsertFounderProfile(ctx.user.id, patch);
         return { ok: true as const };
       }),

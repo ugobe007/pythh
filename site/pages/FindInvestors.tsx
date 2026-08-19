@@ -18,6 +18,10 @@ import {
   HERO_PRIMARY_CTA,
 } from '@/lib/heroHeadlineExperiment';
 import type { GrowthAssignment } from '@/lib/growthExperiment';
+import {
+  buildLoginRedirectForSearch,
+  shouldPromptSignInForNewSearch,
+} from '@/lib/anonymousPreviewSession';
 import { useAuth } from '@/_core/hooks/useAuth';
 
 function normalizeUrl(raw: string): string | null {
@@ -37,7 +41,7 @@ type ThesisSpotlight = {
 
 export default function FindInvestors() {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [spotlight, setSpotlight] = useState<ThesisSpotlight | null>(null);
@@ -80,13 +84,14 @@ export default function FindInvestors() {
       return;
     }
     setError(false);
+    if (!loading && !isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+      sessionStorage.setItem('pythia_url', normalized);
+      navigate(buildLoginRedirectForSearch(normalized));
+      return;
+    }
     trackUrlSubmitted(normalized, 'find_investors_landing', entryExperiment);
     trackHeroUrlSubmitted(normalized, 'find_investors_landing', headlineExperiment);
-    navigate(
-      isAuthenticated
-        ? `/matches?url=${encodeURIComponent(normalized)}`
-        : `/signup/founder?intent=matches&url=${encodeURIComponent(normalized)}`,
-    );
+    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
   return (
@@ -98,7 +103,7 @@ export default function FindInvestors() {
         <title>Find investors for your startup — free match preview — Pythh</title>
         <meta
           name="description"
-          content="First-time founder? No investor network? Paste your startup URL and create a free account to see ranked VC and angel matches in ~60 seconds."
+          content="First-time founder? No investor network? Paste your startup URL to see ranked VC and angel matches in ~60 seconds — scored on thesis, team, and timing."
         />
         <meta
           name="keywords"

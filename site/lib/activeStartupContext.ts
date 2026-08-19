@@ -41,6 +41,10 @@ export function getPinnedStartupId(): string | null {
   return sessionStorage.getItem(STARTUP_ID_KEY);
 }
 
+export function getPinnedStartupName(): string | null {
+  return sessionStorage.getItem(STARTUP_NAME_KEY);
+}
+
 /** Prefer in-page result, then URL param, then session pin only if domain-consistent. */
 export function resolveOutreachStartupId(options: {
   apiStartupId?: string | null;
