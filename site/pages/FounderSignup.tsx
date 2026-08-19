@@ -35,6 +35,7 @@ export default function FounderSignup() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const loginMutation = trpc.auth.login.useMutation();
+  const utils = trpc.useUtils();
   const startedRef = useRef(false);
   const oauthHandledRef = useRef(false);
 
@@ -186,6 +187,8 @@ export default function FounderSignup() {
       if (!fromGate) await trackDirectSignup();
 
       await loginMutation.mutateAsync({ email: trimmed });
+      await utils.auth.me.invalidate();
+      await utils.auth.me.fetch();
       sessionStorage.setItem('pythia_email', trimmed);
       void trackFunnelEvent('founder_auth_completed', {
         source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
