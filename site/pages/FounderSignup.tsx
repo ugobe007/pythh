@@ -15,6 +15,7 @@ import {
   buildFounderGateOAuthReturnPath,
   consumeFounderGatePending,
   consumePostSignupPath,
+  matchesPathForUrl,
   peekFounderGatePending,
   postSignupPathForAction,
   trackFounderGateCompleted,
@@ -137,13 +138,8 @@ export default function FounderSignup() {
         navigate(post);
         return;
       }
-      if (startupId) {
-        const post = postSignupPathForAction('save', startupId);
-        navigate(`${post}&welcome=1`);
-        return;
-      }
-      if (url) {
-        navigate(`/matches?url=${encodeURIComponent(url)}`);
+      if (startupId || url) {
+        navigate(matchesPathForUrl(url));
         return;
       }
       navigate('/account?welcome=1');
@@ -277,13 +273,8 @@ export default function FounderSignup() {
         navigate(postPath);
         return;
       }
-      if (startupId) {
-        const post = postSignupPathForAction('save', startupId);
-        navigate(`${post}&welcome=1`);
-        return;
-      }
-      if (url) {
-        navigate(`/matches?url=${encodeURIComponent(url)}`);
+      if (startupId || url) {
+        navigate(matchesPathForUrl(url));
         return;
       }
       navigate('/account?welcome=1');
@@ -295,17 +286,17 @@ export default function FounderSignup() {
   };
 
   const headline = fromMatchGate
-    ? 'Your investor shortlist is ready'
+    ? 'Save your investor shortlist'
     : fromGate
-      ? 'Continue to investor outreach'
+      ? 'Save these investor matches'
       : 'Find investors who fit your startup';
   const subline = fromMatchGate
-    ? 'Create a free account to reveal five matched investors and save your results. No credit card required.'
+    ? 'Free account — keep your ranked matches. Thesis, team, and timing stay attached to your company.'
     : fromGate
     ? gateLabel
-      ? `Create your account to ${gateLabel}. Your outreach drafts open next; signal improvements remain optional.`
-      : "Create your account to save these matches and open investor outreach."
-    : 'Create a free account to find five matched investors and save your results. No credit card required.';
+      ? `One click to ${gateLabel}. Matching is free; Oracle meeting and pitch help stay optional.`
+      : 'Save your ranked investors. Outreach drafts and meeting automation are optional later.'
+    : 'Create a free account to save ranked matches scored on thesis, team, and timing.';
 
   if (authLoading || (isAuthenticated && !oauthHandledRef.current && (isOAuthHandoffActive() || fromGate))) {
     return (

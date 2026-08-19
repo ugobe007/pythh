@@ -73,7 +73,7 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   export: 'export and track your match list',
   delta: 'see which investors moved toward you',
   oracle_gap: 'close your top GOD gap and unlock more investors',
-  outreach: 'open your investor outreach drafts',
+  outreach: 'open optional outreach drafts',
 };
 
 export type WorkflowReturnTo = 'matches' | 'outreach' | 'improvements';
@@ -85,13 +85,14 @@ function sessionStartupUrl(explicit?: string | null): string | null {
   return sessionStorage.getItem('pythia_url');
 }
 
-/** Canonical match-list route — never /activate. */
+/** Canonical post-signup destination — the ranked shortlist, never the wizard. */
 export function matchesPathForUrl(url?: string | null): string {
   const normalized = sessionStartupUrl(url);
   if (!normalized) return '/matches';
   return `/matches?url=${encodeURIComponent(normalized)}`;
 }
 
+/** Optional wizard routes — used from the matches hub, not as default post-signup landing. */
 export function outreachPath(startupId: string): string {
   return `/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
 }
@@ -100,21 +101,18 @@ export function improvementsPath(startupId: string, returnTo: WorkflowReturnTo =
   return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1&return_to=${returnTo}`;
 }
 
-/** Where founders land after preview-gate signup — outreach first, readiness optional. */
+/** Matching is the product. Wizard / Oracle automation is opt-in later. */
 export function normalizePreviewGateAction(action: FounderGatedAction | null): FounderGatedAction {
   return action ?? 'save';
 }
 
 export function postSignupPathForAction(
-  action: FounderGatedAction | null,
+  _action: FounderGatedAction | null,
   startupId: string,
   options?: { url?: string | null },
 ): string {
-  if (!startupId) return '/account';
-  if (action === 'oracle_gap') {
-    return improvementsPath(startupId, 'matches');
-  }
-  return outreachPath(startupId);
+  if (!startupId && !options?.url) return '/account';
+  return matchesPathForUrl(options?.url);
 }
 
 export function clearFounderGatePending() {
@@ -124,13 +122,9 @@ export function clearFounderGatePending() {
   sessionStorage.removeItem(SKIP_WIZARD_UNLOCKS_KEY);
 }
 
-/** Set post-signup destination immediately so nothing can route to wizard unlock loop. */
+/** Always skip wizard unlocks after signup — matching is the landing, not Act 2. */
 export function primePreviewSignupDestination(startupId: string, action: FounderGatedAction | null) {
-  if (action === 'oracle_gap') {
-    allowWizardUnlockFlow();
-  } else {
-    sessionStorage.setItem(SKIP_WIZARD_UNLOCKS_KEY, '1');
-  }
+  sessionStorage.setItem(SKIP_WIZARD_UNLOCKS_KEY, '1');
   sessionStorage.setItem(
     POST_SIGNUP_PATH_KEY,
     postSignupPathForAction(action, startupId),

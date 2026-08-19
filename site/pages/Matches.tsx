@@ -23,6 +23,10 @@ import { fetchGrowthAssignment } from "@/lib/growthExperiment";
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isOAuthHandoffActive } from "@/lib/supabaseOAuth";
+import {
+  buildLoginRedirectForSearch,
+  shouldPromptSignInForNewSearch,
+} from "@/lib/anonymousPreviewSession";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -260,7 +264,7 @@ function MatchesUrlEntry({
 
 export default function Matches() {
   const [location, navigate] = useLocation();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [highlightId, setHighlightId] = useState<string | null>(
     () => readMatchesSearchState().highlightId,
   );
@@ -295,14 +299,6 @@ export default function Matches() {
     }
   }, [location]);
 
-  useEffect(() => {
-    if (authLoading || isAuthenticated || !previewUrl) return;
-    // The OAuth callback may arrive before auth.me observes the newly-set
-    // session cookie. Never bounce an active handoff back to the signup panel.
-    if (isOAuthHandoffActive()) return;
-    navigate(`/signup/founder?intent=matches&url=${encodeURIComponent(previewUrl)}`);
-  }, [authLoading, isAuthenticated, navigate, previewUrl]);
-
   const submitPreviewUrl = (raw: string) => {
     const normalized = normalizePreviewUrl(raw);
     if (!normalized) {
@@ -310,14 +306,15 @@ export default function Matches() {
       return;
     }
     setUrlEntryError(false);
+    if (!loading && !isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+      sessionStorage.setItem('pythia_url', normalized);
+      navigate(buildLoginRedirectForSearch(normalized));
+      return;
+    }
     void fetchGrowthAssignment('founder')
       .catch(() => null)
       .then((assignment) => trackUrlSubmitted(normalized, 'matches_landing', assignment));
-    navigate(
-      isAuthenticated
-        ? `/matches?url=${encodeURIComponent(normalized)}`
-        : `/signup/founder?intent=matches&url=${encodeURIComponent(normalized)}`,
-    );
+    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
   const { data: stats, isLoading } = trpc.matches.getStats.useQuery(undefined, {
@@ -330,10 +327,7 @@ export default function Matches() {
   const recentCount = stats?.recentCount ?? 0;
   const sectors = stats?.sectors ?? [];
 
-  if (
-    previewUrl &&
-    (authLoading || (!isAuthenticated && isOAuthHandoffActive()))
-  ) {
+  if (previewUrl && !isAuthenticated && isOAuthHandoffActive()) {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-6"
@@ -345,10 +339,10 @@ export default function Matches() {
             Preparing your shortlist
           </p>
           <h1 className="text-2xl font-bold text-white mb-2">
-            Confirming your account
+            Finishing sign-in
           </h1>
           <p className="text-sm text-zinc-500">
-            Your five investor matches will open automatically.
+            Your ranked matches will open as soon as the session is ready.
           </p>
         </div>
       </div>
