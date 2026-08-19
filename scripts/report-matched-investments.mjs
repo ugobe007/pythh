@@ -73,7 +73,11 @@ const summarySql = `
   SELECT
     (SELECT count(*)::int FROM match_validation_evidence e
      JOIN startup_investor_matches m ON m.id = e.match_id
-     WHERE e.verified AND e.event_at > m.created_at) AS verified_pairs,
+     WHERE e.verified
+       AND e.startup_id = m.startup_id
+       AND e.investor_id = m.investor_id
+       AND e.event_at > m.created_at
+       AND e.evidence_type IN ('funding', 'investment')) AS verified_pairs,
     (SELECT count(*)::int FROM match_validation_evidence e
      JOIN startup_investor_matches m ON m.id = e.match_id
      WHERE NOT e.verified AND e.review_status = 'pending' AND e.event_at > m.created_at) AS pending_pairs,
