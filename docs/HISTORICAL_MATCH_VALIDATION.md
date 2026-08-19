@@ -34,15 +34,25 @@ npm run outcomes:report
 npm run outcomes:matched   # verified pairs + pending queue with source tiers
 ```
 
-### 1. Seed + web search (Gemini)
+### 1. Seed + web search (inference engine — default, no Gemini credits)
+
+Uses `searchStartupNews` (Google News RSS) + funding extractors — same path as the inference engine / cohort monitor.
 
 ```bash
 node scripts/search-startup-funding-evidence.mjs --seed
-npm run outcomes:search-funding -- --limit=20          # dry-run
-npm run outcomes:search-funding -- --apply --limit=50 --delay=1200
+npm run outcomes:search-funding -- --limit=20                    # dry-run (inference)
+npm run outcomes:search-funding -- --apply --limit=100 --delay=500
 ```
 
-Requires `GEMINI_API_KEY`. CI runs apply on a schedule (`.github/workflows/funding-evidence-search.yml`).
+GitHub Actions runs `--apply --provider=inference --limit=100` every 30 min (`.github/workflows/funding-evidence-search.yml`).
+
+Optional Gemini path when credits available:
+
+```bash
+npm run outcomes:search-funding -- --apply --provider=gemini --limit=20 --delay=1200
+```
+
+Requires `GEMINI_API_KEY` only for `--provider=gemini`.
 
 ### 2. RSS / structured events
 
