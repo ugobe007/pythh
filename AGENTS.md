@@ -71,6 +71,37 @@ caveats below are non-obvious.
   startup's GOD/oracle score and ~50 ranked investor matches. In the UI (localhost:5173) the same
   submit shows "Analysis complete — Five matches ready" and routes to the signup step.
 
+### Mac laptop: sync `main` when `git pull` fails (divergent branches)
+
+If `npm run outcomes:report` or `funding:reconcile:historical:summary` says **Missing script**, local
+`main` is behind remote. When `git pull origin main` fails with divergent branches:
+
+```bash
+cd ~/Desktop/hot-honey   # your clone path
+git stash push -u -m "local wip before funding pull"
+git fetch origin main
+git reset --hard origin/main   # discards local commits on main; stash still has WIP
+git stash pop                  # resolve conflicts manually if needed
+npm run outcomes:matched       # verified + pending matched investments
+npm run funding:reconcile:historical:summary
+```
+
+Use `git pull origin main --rebase` instead of `reset --hard` only if you need to keep local commits
+on `main`. Funding scripts live on **`main`** (not the setup PR branch).
+
+### Matched-investment funding workflow (DB scripts)
+
+Resolve **which matched investors actually funded** a startup (pair-level, not startup-only press):
+
+1. `npm run outcomes:report` — baseline counts
+2. `npm run outcomes:matched` — verified pairs + pending review queue with source tiers
+3. `npm run outcomes:review -- --list --limit=50` — human review of candidates
+4. `npm run outcomes:review -- --apply --verify --id=<uuid>` — mark one pair verified (requires `DATABASE_URL`)
+5. In SQL: `SELECT refresh_match_outcome_classifications(50000);`
+6. `npm run funding:reconcile:historical:summary` — retrospective hit rate vs canonical rounds
+
+Official positives require **`match_validation_evidence.verified=true`** and **`event_at > match.created_at`**.
+
 ### Lint
 
 - ESLint is effectively not configured: `eslint.config.js` has no TypeScript parser and there is no
