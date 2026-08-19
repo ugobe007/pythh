@@ -57,17 +57,18 @@ async function upsertUserViaRest(user: InsertUser): Promise<void> {
   if (!sb || !user.openId) {
     throw new Error("Supabase REST unavailable for user upsert");
   }
-  const role =
-    user.role ??
-    (user.openId === ENV.ownerOpenId ? "admin" : "user");
-  const row = {
+  const row: Record<string, unknown> = {
     open_id: user.openId,
-    email: user.email ?? null,
-    name: user.name ?? null,
-    login_method: user.loginMethod ?? null,
-    role,
     last_signed_in: (user.lastSignedIn ?? new Date()).toISOString(),
   };
+  if (user.email !== undefined) row.email = user.email ?? null;
+  if (user.name !== undefined) row.name = user.name ?? null;
+  if (user.loginMethod !== undefined) row.login_method = user.loginMethod ?? null;
+  if (user.role !== undefined) {
+    row.role = user.role;
+  } else if (user.openId === ENV.ownerOpenId) {
+    row.role = "admin";
+  }
   const { error } = await sb.from("pythh_users").upsert(row, { onConflict: "open_id" });
   if (error) throw error;
 }
