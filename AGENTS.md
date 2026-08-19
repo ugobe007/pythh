@@ -49,9 +49,15 @@ caveats below are non-obvious.
   `pythh_session`, and the browser will not store that cookie on `localhost`. Use
   `APP_URL=http://localhost:5173` (and the same for `APP_BASE_URL`) locally.
 - **Email signup persistence needs `DATABASE_URL`.** `auth.login` sets the cookie even without it,
-  but `upsertUser` / `auth.me` use Drizzle via `DATABASE_URL`. Without the Postgres URI,
+  but `upsertUser` / `auth.me` use Drizzle via `DATABASE_URL`. Without a working Postgres URI,
   `auth.me` returns null, `isAuthenticated` stays false, and `/matches?url=…` bounces back to
-  `/signup/founder`. Get the URI from Supabase → Settings → Database (pooler `:6543` is fine).
+  `/signup/founder`.
+- **Cloud Agent VMs often cannot use `db.<ref>.supabase.co` URIs.** That host is frequently
+  **IPv6-only**; this environment has no working IPv6 route (`ENETUNREACH`). Do not mix the direct
+  `db.*` hostname with pooler port `6543`. Copy the **Session pooler** URI from Supabase →
+  Settings → Database → Connect → **Session mode** (host looks like
+  `aws-0-<region>.pooler.supabase.com`, user `postgres.<ref>`). Paste that full string into
+  `/workspace/.env` as `DATABASE_URL=…`, then restart `npm run dev:server`.
 - The Mac laptop `.env` is **not** synced into the Cloud Agent VM (`/workspace/.env` is separate
   and gitignored). Copy secrets into the VM `.env` or Cursor Secrets when setting up a new agent.
 - Provide real `SUPABASE_*`, `DATABASE_URL`, and `OPENAI_API_KEY` values for full E2E; the app
