@@ -264,7 +264,7 @@ function MatchesUrlEntry({
 
 export default function Matches() {
   const [location, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [highlightId, setHighlightId] = useState<string | null>(
     () => readMatchesSearchState().highlightId,
   );
@@ -306,7 +306,7 @@ export default function Matches() {
       return;
     }
     setUrlEntryError(false);
-    if (!isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+    if (!loading && !isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
       sessionStorage.setItem('pythia_url', normalized);
       navigate(buildLoginRedirectForSearch(normalized));
       return;
