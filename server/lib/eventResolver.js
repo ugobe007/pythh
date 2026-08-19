@@ -102,6 +102,7 @@ const SYSTEM_PROMPT = `You are PYTHIA's entity resolver. You read a single start
 function buildUserPrompt(snippet) {
   return `News snippet:
 "${snippet.combined}"
+${snippet.inference ? `\nDeterministic inference hints (untrusted; correct them when wrong):\n${JSON.stringify(snippet.inference)}\n` : ''}
 
 Identify the startup/company this story is primarily about and extract structured data. Return ONLY JSON:
 
@@ -198,6 +199,32 @@ async function llmExtract(openai, model, snippet) {
   });
   const content = resp.choices?.[0]?.message?.content || '{}';
   return coerceExtraction(JSON.parse(content));
+}
+
+async function anthropicExtract(apiKey, model, snippet) {
+  const httpResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      system: SYSTEM_PROMPT,
+      max_tokens: 900,
+      temperature: 0.1,
+      messages: [{ role: 'user', content: buildUserPrompt(snippet) }],
+    }),
+  });
+  const response = await httpResponse.json();
+  if (!httpResponse.ok) throw new Error(`Anthropic ${httpResponse.status}: ${response.error?.message || 'request failed'}`);
+  const content = (response.content || [])
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('\n');
+  const jsonText = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] || content;
+  return coerceExtraction(JSON.parse(jsonText.trim() || '{}'));
 }
 
 /* ------------------------------------------------------------------ *
@@ -323,12 +350,28 @@ async function resolveInvestors(supabase, names) {
  */
 async function resolveEvent(event, deps) {
   const snippet = snippetFromEvent(event);
-  const model = deps.model || 'gpt-4o-mini';
+  if (deps.inference) snippet.inference = deps.inference;
+  const provider = deps.provider || 'openai';
+  const model = deps.model || (provider === 'anthropic' ? 'claude-3-5-haiku-latest' : 'gpt-4o-mini');
   const minConfidence = typeof deps.minConfidence === 'number' ? deps.minConfidence : 0.55;
 
   let extraction;
   try {
-    extraction = await llmExtract(deps.openai, model, snippet);
+    extraction = provider === 'inference'
+      ? coerceExtraction({
+          is_startup: ['FUNDING', 'INVESTMENT'].includes(event.event_type) && Boolean(deps.inference?.startup_name),
+          not_startup_reason: ['FUNDING', 'INVESTMENT'].includes(event.event_type) ? null : 'inference_funding_only',
+          startup_name: deps.inference?.startup_name || null,
+          lead_investor: deps.inference?.lead_investor || null,
+          investors: deps.inference?.investors_mentioned || [],
+          funding_amount_usd: deps.inference?.funding_amount || null,
+          round: deps.inference?.funding_round || deps.inference?.funding_stage || null,
+          confidence: deps.inference?.confidence || 0,
+          evidence: deps.inference?.evidence || event.source_title || null,
+        })
+      : provider === 'anthropic'
+      ? await anthropicExtract(deps.anthropicApiKey, model, snippet)
+      : await llmExtract(deps.openai, model, snippet);
   } catch (err) {
     _openaiErrCount += 1;
     return { action: 'error', reason: `llm: ${err.message}`, extraction: null };
@@ -379,6 +422,7 @@ async function resolveEvent(event, deps) {
       resolver: {
         version: RESOLVER_VERSION,
         model,
+        provider,
         event_id: event.id || event.event_id || null,
         event_type: event.event_type || null,
         confidence: extraction.confidence,

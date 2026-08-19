@@ -19,7 +19,15 @@ function isValidEmail(email) {
   return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-async function sendFounderActivationEmail({ to, startupName, startupId, oracleGap, wizardUrl, trialUrl }) {
+async function sendFounderActivationEmail({
+  to,
+  startupName,
+  oracleGap,
+  matchesUrl,
+  outreachUrl,
+  improvementsUrl,
+  trialUrl,
+}) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { success: false, error: 'RESEND_API_KEY not configured' };
 
@@ -44,13 +52,14 @@ async function sendFounderActivationEmail({ to, startupName, startupId, oracleGa
   const text = [
     `Hi —`,
     ``,
-    `You just activated Pythh for ${startupName}. Oracle mapped your gaps and locked outreach preview in the wizard.`,
+    `Your Pythh account is ready for ${startupName}. Your ranked investor matches and outreach drafts are waiting.`,
     ``,
     ...gapLines,
     ``,
-    `Step 1 — see your gap map: ${wizardUrl}`,
-    `Step 2 — preview locked outreach (free): ${wizardUrl}?tab=round`,
-    `Step 3 — start 7-day Oracle trial: ${trialUrl}`,
+    `View investor matches: ${matchesUrl}`,
+    `Open outreach drafts: ${outreachUrl}`,
+    `Optional Oracle improvements: ${improvementsUrl}`,
+    `Start 7-day Oracle trial: ${trialUrl}`,
     ``,
     `— Pythh Oracle`,
   ].join('\n');
@@ -66,13 +75,14 @@ async function sendFounderActivationEmail({ to, startupName, startupId, oracleGa
 
   const html = `
     <div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#111;max-width:560px;">
-      <p>Welcome — Oracle is working on <strong>${startupName}</strong>.</p>
-      <p>Your gap map and locked outreach preview are ready. Fix gap #1 first — it's the highest-leverage move before warm intros.</p>
+      <p>Welcome — your Pythh account is ready for <strong>${startupName}</strong>.</p>
+      <p>Your ranked investor matches are the best place to start. Your outreach drafts are ready to personalize; Oracle improvements are optional.</p>
       ${gapHtml}
       <p>
-        <a href="${wizardUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">Open gap map</a>
-        <a href="${wizardUrl}?tab=round" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Preview outreach</a>
+        <a href="${matchesUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">View investor matches</a>
+        <a href="${outreachUrl}" style="display:inline-block;background:#111827;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open outreach drafts</a>
       </p>
+      <p style="font-size:13px;"><a href="${improvementsUrl}" style="color:#7c3aed;">Review optional Oracle improvements →</a></p>
       <p style="font-size:13px;"><a href="${trialUrl}" style="color:#7c3aed;">Start 7-day Oracle trial →</a></p>
     </div>`;
 
@@ -121,7 +131,7 @@ async function sendFounderActivationNudge(supabase, { email, startupId, startupN
   const { data: startup } = await supabase
     .from('startup_uploads')
     .select(
-      'id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
+      'id, name, website, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
     )
     .eq('id', startupId)
     .maybeSingle();
@@ -135,15 +145,21 @@ async function sendFounderActivationNudge(supabase, { email, startupId, startupN
 
   const oracleGap = buildPreviewOracleGap(startup, matchCount || 0);
   const name = startupName || startup.name || 'your startup';
-  const wizardUrl = `${APP_BASE}/activate?startup_id=${startupId}&welcome=1`;
+  const startupUrl = String(startup.website || '').trim();
+  const matchesUrl = startupUrl
+    ? `${APP_BASE}/matches?url=${encodeURIComponent(startupUrl)}`
+    : `${APP_BASE}/matches`;
+  const outreachUrl = `${APP_BASE}/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
+  const improvementsUrl = `${APP_BASE}/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1&return_to=matches`;
   const trialUrl = `${APP_BASE}/pricing?trial=1&startup_id=${startupId}&source=activation_email`;
 
   const sendResult = await sendFounderActivationEmail({
     to: normalizedEmail,
     startupName: name,
-    startupId,
     oracleGap,
-    wizardUrl,
+    matchesUrl,
+    outreachUrl,
+    improvementsUrl,
     trialUrl,
   });
 
@@ -161,7 +177,12 @@ async function sendFounderActivationNudge(supabase, { email, startupId, startupN
     return { success: false, error: sendResult.error, captured: true };
   }
 
-  return { success: true, message_id: sendResult.id, wizard_url: wizardUrl };
+  return {
+    success: true,
+    message_id: sendResult.id,
+    matches_url: matchesUrl,
+    outreach_url: outreachUrl,
+  };
 }
 
 /** Welcome for new accounts without a startup scan yet — drives back to find-investors. */

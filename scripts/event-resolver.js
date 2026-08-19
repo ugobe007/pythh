@@ -36,6 +36,7 @@ const resolver = require('../server/lib/eventResolver');
 const gate = require('../lib/startupInsertGate');
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const InferenceExtractor = require('../lib/inference-extractor');
+const { startupNameFromFundingEvent, classifyFundingEvidence } = require('../server/lib/fundingEvidenceLedger');
 
 let inferDomainFromName = null;
 try {
@@ -58,26 +59,38 @@ const NO_VERIFY = has('--no-verify');
 const HOURS = parseInt(val('--hours', '48'), 10);
 const LIMIT = parseInt(val('--limit', '150'), 10);
 const MODEL = val('--model', 'gpt-4o-mini');
+const PROVIDER = val('--provider', 'openai').toLowerCase();
 const MIN_CONF = parseFloat(val('--min-conf', '0.55'));
 const SINGLE_ID = val('--id', null);
 const SOURCE = val('--source', 'events'); // events | discovered | uploads
 const CONCURRENCY = Math.max(1, parseInt(val('--concurrency', '1'), 10) || 1);
+const FUNDING_ONLY = has('--funding-only');
+const INFERENCE_FIRST = !has('--llm-all');
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('❌ Missing Supabase credentials');
   process.exit(1);
 }
-if (!OPENAI_KEY || OPENAI_KEY.includes('your') || OPENAI_KEY.length < 20) {
+if (PROVIDER === 'openai' && (!OPENAI_KEY || OPENAI_KEY.includes('your') || OPENAI_KEY.length < 20)) {
   console.error('❌ Missing/invalid OPENAI_API_KEY — resolver requires the LLM');
+  process.exit(1);
+}
+if (PROVIDER === 'anthropic' && (!ANTHROPIC_KEY || ANTHROPIC_KEY.includes('your') || ANTHROPIC_KEY.length < 20)) {
+  console.error('❌ Missing/invalid ANTHROPIC_API_KEY — Anthropic resolver requires the API key');
+  process.exit(1);
+}
+if (!['openai', 'anthropic', 'inference'].includes(PROVIDER)) {
+  console.error('❌ --provider must be openai, anthropic, or inference');
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const openai = new OpenAI({ apiKey: OPENAI_KEY });
+const openai = PROVIDER === 'openai' ? new OpenAI({ apiKey: OPENAI_KEY }) : null;
 gate.setSupabase(supabase);
 
 const ago = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
@@ -89,7 +102,7 @@ async function fetchCandidates() {
     return data ? [data] : [];
   }
 
-  const TYPES = [...resolver.STARTUP_EVENT_TYPES, 'OTHER'];
+  const TYPES = FUNDING_ONLY ? ['FUNDING', 'INVESTMENT'] : [...resolver.STARTUP_EVENT_TYPES, 'OTHER'];
   const candidates = [];
   const seen = new Set();
   const PAGE = 500;
@@ -347,7 +360,10 @@ async function runKnownCompanyEnrichment(kind) {
 (async () => {
   console.log('═'.repeat(64));
   console.log('  EVENT RESOLVER  ' + resolver.RESOLVER_VERSION);
-  console.log(`  source=${SOURCE}  mode=${APPLY ? 'APPLY' : 'DRY-RUN'}  model=${MODEL}  window=${HOURS}h  limit=${LIMIT}`);
+  const selectedModel = process.argv.includes('--model') ? MODEL
+    : PROVIDER === 'anthropic' ? 'claude-3-5-haiku-latest'
+      : PROVIDER === 'inference' ? 'inference-extractor-v2' : MODEL;
+  console.log(`  source=${SOURCE}${FUNDING_ONLY ? ':funding-only' : ''}  mode=${APPLY ? 'APPLY' : 'DRY-RUN'}  provider=${PROVIDER}  model=${selectedModel}  window=${HOURS}h  limit=${LIMIT}`);
   console.log(`  url-lookup=${NO_URLS ? 'off' : 'on'}  verify=${NO_VERIFY ? 'off' : 'on'}  min-conf=${MIN_CONF}`);
   console.log('═'.repeat(64));
 
@@ -360,6 +376,7 @@ async function runKnownCompanyEnrichment(kind) {
   const stats = {
     processed: 0, created: 0, reconciled: 0, skipped_existing: 0, not_startup: 0,
     no_name: 0, low_conf: 0, errors: 0, urls_found: 0, investors_linked: 0,
+    inference_only: 0, paid_fallback: 0,
   };
 
   for (const ev of candidates) {
@@ -367,8 +384,24 @@ async function runKnownCompanyEnrichment(kind) {
     const title = (ev.source_title || '').slice(0, 78);
     let result;
     try {
+      const inferredFunding = InferenceExtractor.extractFunding(`${ev.source_title || ''} ${ev.semantic_context?.evidence || ''}`);
+      const classification = classifyFundingEvidence(ev);
+      const inferredStartup = classification.eligible ? startupNameFromFundingEvent(ev) : null;
+      const hasResolvedRelationship = Boolean(
+        inferredStartup && (inferredFunding.lead_investor || inferredFunding.investors_mentioned?.length)
+      );
+      const useInference = PROVIDER === 'inference' || (INFERENCE_FIRST && (!classification.eligible || hasResolvedRelationship));
+      const effectiveProvider = useInference ? 'inference' : PROVIDER;
+      if (effectiveProvider === 'inference') stats.inference_only += 1;
+      else stats.paid_fallback += 1;
       result = await resolver.resolveEvent(ev, {
-        openai, supabase, model: MODEL,
+        openai, anthropicApiKey: ANTHROPIC_KEY, provider: effectiveProvider, supabase, model: selectedModel,
+        inference: {
+          ...inferredFunding,
+          startup_name: inferredStartup,
+          confidence: classification.eligible ? Number(ev.frame_confidence || 0) : 0,
+          evidence: ev.source_title || null,
+        },
         inferDomainFromName, resolveUrls: !NO_URLS, verifyUrls: !NO_VERIFY,
         minConfidence: MIN_CONF,
       });
@@ -433,6 +466,8 @@ async function runKnownCompanyEnrichment(kind) {
   console.log(`  reconciled in-place:${stats.reconciled}  (superseded scraper rows for same event)`);
   console.log(`  websites resolved:  ${stats.urls_found}`);
   console.log(`  investors linked:   ${stats.investors_linked}`);
+  console.log(`  inference-only:     ${stats.inference_only}`);
+  console.log(`  paid LLM fallback:  ${stats.paid_fallback}`);
   console.log(`  not-a-startup:      ${stats.not_startup}`);
   console.log(`  no clean name:      ${stats.no_name}`);
   console.log(`  low confidence:     ${stats.low_conf}`);

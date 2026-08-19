@@ -17,7 +17,6 @@
 const express    = require('express');
 const router     = express.Router();
 const OpenAI     = require('openai');
-const { Resend } = require('resend');
 const { createClient } = require('@supabase/supabase-js');
 
 function sb() {
@@ -30,6 +29,10 @@ function openai() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 function resend() {
+  // Resend imports the full Svix SDK. Loading it during server bootstrap can
+  // delay the listening socket by more than a minute on a cold filesystem.
+  // Only the send endpoint needs it, so keep boot and read-only routes light.
+  const { Resend } = require('resend');
   return new Resend(process.env.RESEND_API_KEY);
 }
 

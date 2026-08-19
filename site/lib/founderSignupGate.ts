@@ -76,6 +76,8 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   outreach: 'open optional outreach drafts',
 };
 
+export type WorkflowReturnTo = 'matches' | 'outreach' | 'improvements';
+
 function sessionStartupUrl(explicit?: string | null): string | null {
   const fromArg = explicit?.trim();
   if (fromArg) return fromArg.startsWith('http') ? fromArg : `https://${fromArg}`;
@@ -88,6 +90,15 @@ export function matchesPathForUrl(url?: string | null): string {
   const normalized = sessionStartupUrl(url);
   if (!normalized) return '/matches';
   return `/matches?url=${encodeURIComponent(normalized)}`;
+}
+
+/** Optional wizard routes — used from the matches hub, not as default post-signup landing. */
+export function outreachPath(startupId: string): string {
+  return `/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
+}
+
+export function improvementsPath(startupId: string, returnTo: WorkflowReturnTo = 'matches'): string {
+  return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1&return_to=${returnTo}`;
 }
 
 /** Matching is the product. Wizard / Oracle automation is opt-in later. */
@@ -231,9 +242,10 @@ export async function trackFounderGateCompleted(
   const startupId = ctx.startupId ?? sessionStorage.getItem('pythia_startup_id');
 
   if (startupId) {
+    const resolved = normalizePreviewGateAction(gatedAction);
     sessionStorage.setItem(
       POST_SIGNUP_PATH_KEY,
-      postSignupPathForAction(normalizePreviewGateAction(gatedAction), startupId, { url: ctx.url }),
+      postSignupPathForAction(resolved, startupId, { url: ctx.url }),
     );
     pinActiveStartup(startupId, ctx.url || undefined);
   }

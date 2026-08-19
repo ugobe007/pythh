@@ -23,7 +23,7 @@ import {
   type FounderGatedAction,
 } from '@/lib/founderSignupGate';
 import { isOAuthHandoffActive } from '@/lib/supabaseOAuth';
-import { sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
+import { persistFounderStartup, sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
 import { trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 
@@ -36,6 +36,7 @@ export default function FounderSignup() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const loginMutation = trpc.auth.login.useMutation();
+  const utils = trpc.useUtils();
   const startedRef = useRef(false);
   const oauthHandledRef = useRef(false);
 
@@ -97,6 +98,9 @@ export default function FounderSignup() {
         startup_id: startupId || undefined,
         url: url || undefined,
       });
+      if (startupId) {
+        await persistFounderStartup({ startupId, companyUrl: url });
+      }
 
       // The explicit pre-match funnel always wins over a saved startup action.
       // URL analysis may already have created a startupId, but that must not
@@ -183,6 +187,8 @@ export default function FounderSignup() {
       if (!fromGate) await trackDirectSignup();
 
       await loginMutation.mutateAsync({ email: trimmed });
+      await utils.auth.me.invalidate();
+      await utils.auth.me.fetch();
       sessionStorage.setItem('pythia_email', trimmed);
       void trackFunnelEvent('founder_auth_completed', {
         source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
@@ -190,6 +196,10 @@ export default function FounderSignup() {
         startup_id: startupId || undefined,
         url: url || undefined,
       });
+
+      if (startupId) {
+        await persistFounderStartup({ startupId, companyUrl: url });
+      }
 
       const { action: consumedAction } = fromMatchGate
         ? { action: null }
