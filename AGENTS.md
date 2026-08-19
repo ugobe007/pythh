@@ -44,7 +44,17 @@ caveats below are non-obvious.
   `GET /api/public-config` returns `503 config_unavailable` and the SPA's Supabase client stays
   null: the homepage renders and the "submit a startup URL" analysis still works, but account
   creation / login is disabled. Add the anon key to `.env` to enable the full logged-in flow.
-- Provide real `SUPABASE_*` and `OPENAI_API_KEY` values via the Secrets panel for full E2E; the app
+- **Local session cookies:** do **not** set `APP_URL` / `APP_BASE_URL` to `https://pythh.ai` in the
+  Cloud Agent `.env`. `site/_core/requestHost.ts` then forces `Domain=.pythh.ai` on
+  `pythh_session`, and the browser will not store that cookie on `localhost`. Use
+  `APP_URL=http://localhost:5173` (and the same for `APP_BASE_URL`) locally.
+- **Email signup persistence needs `DATABASE_URL`.** `auth.login` sets the cookie even without it,
+  but `upsertUser` / `auth.me` use Drizzle via `DATABASE_URL`. Without the Postgres URI,
+  `auth.me` returns null, `isAuthenticated` stays false, and `/matches?url=…` bounces back to
+  `/signup/founder`. Get the URI from Supabase → Settings → Database (pooler `:6543` is fine).
+- The Mac laptop `.env` is **not** synced into the Cloud Agent VM (`/workspace/.env` is separate
+  and gitignored). Copy secrets into the VM `.env` or Cursor Secrets when setting up a new agent.
+- Provide real `SUPABASE_*`, `DATABASE_URL`, and `OPENAI_API_KEY` values for full E2E; the app
   degrades gracefully (homepage + submit analysis) with only the service key + a placeholder OpenAI key.
 
 ### Quick verification
