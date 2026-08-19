@@ -107,3 +107,17 @@ Official positives require **`match_validation_evidence.verified=true`** and **`
 - ESLint is effectively not configured: `eslint.config.js` has no TypeScript parser and there is no
   `lint` npm script, so running ESLint over `.ts`/`.tsx` files only yields parse errors. Do not treat
   it as a gate. Type safety is exercised via the Vite build.
+
+### Mac local dev (not Cloud VM)
+
+- **`/workspace` does not exist on your Mac.** Cloud Agent paths are VM-only. On a MacBook the repo
+  root is typically `/Users/<you>/Desktop/hot-honey` and the env file is **`<repo>/.env`** (same
+  folder as `package.json`).
+- **Open `.env` in TextEdit:** `npm run env:open` (or `open -e .env` from repo root). Edit with
+  `nano .env` — not `nano .env.` (trailing dot opens the wrong file).
+- **Mac `sed -i` needs a backup suffix:** use `sed -i '' '…' .env`, not `sed -i '…' .env` (BSD sed).
+- **zsh + `node -e "…!"`:** history expansion breaks on `!` inside double quotes; use
+  `npm run env:db-check` instead of inline one-liners.
+- **`npm run dq:runbook` only needs `DATABASE_URL`** in root `.env` (database password URI from
+  Supabase Connect → Session pooler :5432 — not the anon/service JWT). Set it with
+  `npm run env:db-set`, verify with `npm run env:db-check`.

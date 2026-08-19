@@ -25,10 +25,6 @@ const limit = Math.max(
 const idArg = process.argv.find((a) => a.startsWith('--id='))?.split('=')[1];
 const noteArg = process.argv.find((a) => a.startsWith('--note='))?.split('=').slice(1).join('=');
 
-const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) throw new Error('Missing Supabase service environment');
-
 function massageConnectionString(connectionString) {
   const s = String(connectionString || '');
   if (/sslmode=no-verify/i.test(s)) return s;
@@ -52,8 +48,6 @@ async function resolveReviewerId() {
     await pool.end();
   }
 }
-
-const db = createClient(url, key, { auth: { persistSession: false } });
 
 const listSql = `
   SELECT e.id, su.name AS startup, i.name AS investor, e.evidence_type,
@@ -83,6 +77,11 @@ if (listOnly || (!apply && !verify && !reject)) {
 
 if (!verify && !reject) throw new Error('Use --verify or --reject with --apply');
 if (verify && reject) throw new Error('Use only one of --verify or --reject');
+
+const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!url || !key) throw new Error('Missing Supabase service environment');
+const db = createClient(url, key, { auth: { persistSession: false } });
 
 const decision = verify ? 'verified' : 'rejected';
 const reviewer = await resolveReviewerId();
