@@ -68,6 +68,7 @@ const queries = {
     FROM match_validation_evidence e
     JOIN startup_investor_matches m ON m.id = e.match_id
     WHERE NOT e.verified
+      AND e.review_status = 'pending'
       AND e.startup_id = m.startup_id
       AND e.investor_id = m.investor_id
       AND e.event_at > m.created_at
@@ -114,7 +115,7 @@ const queries = {
     JOIN startup_investor_matches m ON m.id = e.match_id
     JOIN startup_uploads su ON su.id = e.startup_id
     JOIN investors i ON i.id = e.investor_id
-    WHERE NOT e.verified AND e.event_at > m.created_at
+    WHERE NOT e.verified AND e.review_status = 'pending' AND e.event_at > m.created_at
     ORDER BY e.created_at DESC
     LIMIT 15
   `,
