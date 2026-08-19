@@ -34,7 +34,7 @@ rl.question('Paste DATABASE_URL: ', (uri) => {
   }
   const lines = body.split('\n').filter((l) => !/^DATABASE_URL=/.test(l.trim()));
   while (lines.length && lines[lines.length - 1] === '') lines.pop();
-  const next = [...lines, `DATABASE_URL=${uri}`, ''].join('\n');
+  const next = [...lines, `DATABASE_URL="${uri}"`, ''].join('\n');
   fs.writeFileSync(ENV_PATH, next, 'utf8');
 
   console.error('\n✅ Wrote DATABASE_URL to', ENV_PATH);
