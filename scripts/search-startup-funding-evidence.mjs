@@ -76,7 +76,7 @@ function cleanHeadline(title) {
 }
 
 function startupMentionedInText(text, startupName, website) {
-  const haystack = ledger.normalizeStartupName(text);
+  const haystack = ledger.normalizeStartupName(text.replace(/['']s\b/g, ''));
   const normalizedName = ledger.normalizeStartupName(startupName);
   if (normalizedName.length >= 3) {
     const pattern = new RegExp(`(^|\\s)${escapeRegExp(normalizedName)}(\\s|$)`, 'i');
@@ -225,7 +225,7 @@ function articleExcerpt(html) {
 async function fetchArticleText(sourceUrl) {
   const parsed = await safeSourceUrl(sourceUrl);
   const response = await fetch(parsed, {
-    redirect: 'error',
+    redirect: 'follow',
     signal: AbortSignal.timeout(12_000),
     headers: { 'user-agent': 'PythhFundingEvidence/1.0 (+https://pythh.ai)' },
   });
