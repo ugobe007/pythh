@@ -31,6 +31,7 @@ Latest match for the pair before the event wins.
 
 ```bash
 npm run outcomes:report
+npm run outcomes:matched   # verified pairs + pending queue with source tiers
 ```
 
 ### 1. Seed + web search (Gemini)
@@ -88,9 +89,9 @@ ORDER BY e.event_at DESC;
 SELECT classification, count(*) FROM match_outcome_classifications GROUP BY 1;
 ```
 
-## Current gaps (as of initial report)
+## Current gaps (as of Aug 2026)
 
-1. **49 candidate evidence rows, 0 verified** — review step not run yet.
+1. **37 pending evidence rows, 12 verified** — review queue shrinking; verify issuer-primary sources first (`resend.com/blog`, `prnewswire.com`, issuer `/blog`, `/newsroom`).
 2. **`investor_investments`**: no `investment_date` / `source_url` on most rows — portfolio ingest path blocked until backfilled.
 3. **3.8M matches since Jan 2026** — most rows `censored` until 365-day window + search complete.
 4. **`outcomes:correlate-funding` JS** may timeout loading all startups/investors; use SQL RPC instead.
