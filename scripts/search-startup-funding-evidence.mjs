@@ -78,14 +78,23 @@ function cleanHeadline(title) {
 function startupMentionedInText(text, startupName, website) {
   const haystack = ledger.normalizeStartupName(text);
   const normalizedName = ledger.normalizeStartupName(startupName);
-  if (normalizedName.length >= 3 && haystack.includes(normalizedName)) return true;
+  if (normalizedName.length >= 3) {
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(normalizedName)}(\\s|$)`, 'i');
+    if (pattern.test(haystack)) return true;
+  }
   const firstToken = normalizedName.split(' ').filter(Boolean)[0];
-  if (firstToken && firstToken.length >= 4 && haystack.includes(firstToken)) return true;
+  if (firstToken && firstToken.length >= 4) {
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(firstToken)}(\\s|$)`, 'i');
+    if (pattern.test(haystack)) return true;
+  }
   if (website) {
     try {
       const host = new URL(website).hostname.replace(/^www\./, '');
-      const brand = host.split('.')[0];
-      if (brand.length >= 4 && haystack.includes(brand.replace(/[^a-z0-9]/g, ''))) return true;
+      const brand = host.split('.')[0].replace(/[^a-z0-9]/g, '');
+      if (brand.length >= 4) {
+        const pattern = new RegExp(`(^|\\s)${escapeRegExp(brand)}(\\s|$)`, 'i');
+        if (pattern.test(haystack)) return true;
+      }
     } catch {
       /* ignore */
     }
@@ -180,7 +189,14 @@ function isPrivateIp(address) {
       || (a === 192 && b === 168)
     );
   }
-  return net.isIPv6(address) && (address === '::1' || address.startsWith('fc') || address.startsWith('fd') || address.startsWith('fe80:'));
+  if (net.isIPv6(address)) {
+    if (address === '::1' || address.startsWith('fc') || address.startsWith('fd') || address.startsWith('fe80:')) return true;
+    if (address.startsWith('::ffff:')) {
+      const ipv4 = address.slice(7);
+      return net.isIPv4(ipv4) && isPrivateIp(ipv4);
+    }
+  }
+  return false;
 }
 
 async function safeSourceUrl(value) {
@@ -209,7 +225,7 @@ function articleExcerpt(html) {
 async function fetchArticleText(sourceUrl) {
   const parsed = await safeSourceUrl(sourceUrl);
   const response = await fetch(parsed, {
-    redirect: 'follow',
+    redirect: 'error',
     signal: AbortSignal.timeout(12_000),
     headers: { 'user-agent': 'PythhFundingEvidence/1.0 (+https://pythh.ai)' },
   });
