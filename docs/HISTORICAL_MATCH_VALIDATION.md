@@ -31,8 +31,10 @@ Latest match for the pair before the event wins.
 URL submit / match write
   → enqueue funding_evidence_search_queue   (server/lib/enqueueFundingEvidenceSearch.js)
   → outcomes:agent (GHA every 30m)          (scripts/agents/match-outcome-agent.mjs)
-  → pending match_validation_evidence
-  → Admin UI /admin/match-outcomes          (verify issuer-primary only)
+      1. promote-ledger (issuer URLs → auto-verify clean investor hits)
+      2. inference search (wire-site queries + clean-hit filter)
+  → pending / verified match_validation_evidence
+  → Admin UI /admin/match-outcomes
   → verified_funding classifications
   → proof dashboard timeline
 ```
@@ -42,7 +44,8 @@ URL submit / match write
 | Capture IDs | `startup_investor_matches.startup_id` + `investor_id`, prediction = `created_at` |
 | Auto-enqueue | After match upsert in `instantSubmit`, `matchWorker`, `EnhancedMatchingService` |
 | Search agent | `npm run outcomes:agent -- --apply --limit=100` (Slack optional via `SLACK_WEBHOOK_URL`) |
-| Review UI | `/admin/match-outcomes` |
+| Ledger promote | `npm run outcomes:promote-ledger -- --apply --limit=200` (also `--reject-low-pending`) |
+| Review UI | Browser: `/admin/match-outcomes` on the running site |
 | CLI review | `npm run outcomes:review -- --apply --verify --id=<uuid>` |
 
 Admin API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`.
