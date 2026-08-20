@@ -16,6 +16,7 @@ const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
 const { extractFunding } = require('../lib/inference-extractor.js');
 const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
+const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
 const ledger = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
@@ -312,6 +313,13 @@ async function processInferenceJob(startup, job) {
 
   const articleSets = [
     await searchStartupNews(startup.name, startup.website, 8, 'funding OR raises OR investment', { lite: true }),
+    await searchStartupNews(
+      startup.name,
+      startup.website,
+      6,
+      '(site:businesswire.com OR site:prnewswire.com OR site:globenewswire.com) (raises OR funding OR series)',
+      { lite: true },
+    ),
   ];
   if (startup.website) {
     try {
@@ -346,7 +354,7 @@ async function processInferenceJob(startup, job) {
     const eventAt = publishedAt.toISOString();
     const bodyText = [headline, article.content].filter(Boolean).join('\n');
     const inferred = extractFunding(bodyText) || {};
-    const mentions = await resolveMentions(bodyText, matchedInvestors, sourceUrl);
+    let mentions = await resolveMentions(bodyText, matchedInvestors, sourceUrl);
     const leadName = inferred.lead_investor;
     if (leadName) {
       const leadInvestor = matchedInvestors.find(
@@ -362,6 +370,7 @@ async function processInferenceJob(startup, job) {
         });
       }
     }
+    mentions = filterCleanHits(mentions);
 
     for (const mention of mentions) {
       if (!mention.investor?.id) continue;

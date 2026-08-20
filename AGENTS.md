@@ -95,9 +95,13 @@ Resolve **which matched investors actually funded** a startup (pair-level, not s
 
 **Live loop (preferred):**
 1. URL submit → matches written → **auto-enqueued** into `funding_evidence_search_queue`
-2. GitHub Actions / `npm run outcomes:agent -- --apply --limit=100` searches + Slack-notifies high-tier pending
+2. GitHub Actions / `npm run outcomes:agent -- --apply --limit=100` runs:
+   - `outcomes:promote-ledger` (issuer-primary ledger → auto-verify clean investor hits; rejects unresolved Google News pending)
+   - inference search (wire-site queries + clean-hit filter)
+   - Slack-notifies high-tier pending
 3. Admin UI **`/admin/match-outcomes`** — proof dashboard + issuer-primary verify/reject
 4. Or CLI: `npm run outcomes:review -- --list` / `--apply --verify --id=<uuid>`
+5. Manual ledger pass: `npm run outcomes:promote-ledger -- --apply --limit=200`
 
 **Reports:**
 1. `npm run outcomes:report` — baseline counts

@@ -58,15 +58,9 @@ async function listHighTierPending(limitRows = 25) {
     .slice(0, limitRows);
 }
 
-function runSearchApply() {
+function runNodeScript(scriptPath, extraArgs = []) {
   return new Promise((resolve, reject) => {
-    const args = [
-      'scripts/search-startup-funding-evidence.mjs',
-      ...(apply ? ['--apply'] : []),
-      `--provider=inference`,
-      `--limit=${limit}`,
-      `--delay=${delay}`,
-    ];
+    const args = [scriptPath, ...extraArgs];
     const child = spawn(process.execPath, args, {
       cwd: process.cwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -84,7 +78,7 @@ function runSearchApply() {
     });
     child.on('close', (code) => {
       if (code !== 0) {
-        reject(new Error(`search exited ${code}: ${stderr.slice(0, 400)}`));
+        reject(new Error(`${scriptPath} exited ${code}: ${stderr.slice(0, 400)}`));
         return;
       }
       resolve(stdout);
@@ -95,7 +89,18 @@ function runSearchApply() {
 const highBefore = await listHighTierPending(50);
 
 if (!notifyOnly) {
-  await runSearchApply();
+  // 1) Promote issuer-primary ledger events → verified pairs (closes the proof gap)
+  await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
+    ...(apply ? ['--apply', '--reject-low-pending'] : []),
+    `--limit=${Math.max(limit, 50)}`,
+  ]);
+  // 2) Drain search queue for new RSS / wire hits
+  await runNodeScript('scripts/search-startup-funding-evidence.mjs', [
+    ...(apply ? ['--apply'] : []),
+    '--provider=inference',
+    `--limit=${limit}`,
+    `--delay=${delay}`,
+  ]);
 }
 
 const highAfter = await listHighTierPending(50);
