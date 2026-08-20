@@ -30,6 +30,7 @@ export default function JunkStartupsPage() {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [applyProgress, setApplyProgress] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
@@ -73,8 +74,8 @@ export default function JunkStartupsPage() {
     if (!ids.length) return;
     if (
       !confirm(
-        action === 'delete'
-          ? `${ids.length} startup(s) will be permanently deleted (social signals, matches, and other linked rows removed first).\n\nUse Reject instead if you only want to hide them from the active pool.`
+        action === "delete"
+          ? `${ids.length} startup(s) will be permanently deleted (matches, evidence, and other linked rows removed first).\n\nLarge deletes run in small batches to avoid DB timeouts.\n\nUse Reject instead if you only want to hide them from the active pool.`
           : `Reject ${ids.length} junk startup(s)? They stay in the database with status=rejected.`,
       )
     ) {
@@ -82,20 +83,47 @@ export default function JunkStartupsPage() {
     }
     setApplying(true);
     setError(null);
+    setApplyProgress(null);
+    // Reject can go larger; delete stays small so match cascades don't statement-timeout
+    const CHUNK = action === "delete" ? 25 : 200;
+    let affected = 0;
+    const failures: string[] = [];
     try {
-      const res = await fetch(apiUrl("/api/admin/junk-startups/apply"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, action }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `Apply failed (${res.status})`);
-      alert(`Done — ${body.affected ?? 0} row(s) ${action === "delete" ? "deleted" : "rejected"}.`);
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        setApplyProgress(
+          `${action === "delete" ? "Deleting" : "Rejecting"} ${Math.min(i + CHUNK, ids.length)} / ${ids.length}…`,
+        );
+        const res = await fetch(apiUrl("/api/admin/junk-startups/apply"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: chunk, action }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          failures.push(body.error || `chunk ${i} failed (${res.status})`);
+          continue;
+        }
+        affected += Number(body.affected || 0);
+        if (Array.isArray(body.errors) && body.errors.length) {
+          for (const e of body.errors.slice(0, 5)) {
+            failures.push(String(e.error || e.id || "partial error"));
+          }
+        }
+      }
+      if (affected === 0 && failures.length) {
+        throw new Error(failures[0]);
+      }
+      alert(
+        `Done — ${affected} row(s) ${action === "delete" ? "deleted" : "rejected"}.` +
+          (failures.length ? `\n\n${failures.length} batch warning(s): ${failures[0]}` : ""),
+      );
       await runScan();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setApplying(false);
+      setApplyProgress(null);
     }
   };
 
@@ -235,7 +263,7 @@ export default function JunkStartupsPage() {
             </button>
             {applying && (
               <span className="text-xs" style={{ color: muted }}>
-                Applying…
+                {applyProgress || "Applying…"}
               </span>
             )}
           </div>

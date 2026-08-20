@@ -5,6 +5,9 @@
  *
  * GET  /api/admin/junk-startups/scan?status=pending|approved|all&limit=3000
  * POST /api/admin/junk-startups/apply  { ids, action: 'reject'|'delete' }
+ *
+ * Delete uses small batches + chunked dependent purge to avoid statement_timeout
+ * when clearing startups that have hundreds of matches each.
  */
 
 const express = require('express');
@@ -13,6 +16,11 @@ const { getSupabaseClient } = require('../lib/supabaseClient');
 const { deleteStartupDependents } = require('../lib/deleteStartupDependents');
 
 const router = express.Router();
+
+const MAX_IDS = 2000;
+const REJECT_BATCH = 100;
+/** Keep delete batches tiny — each junk startup can have 100–300+ match rows. */
+const DELETE_BATCH = 8;
 
 function getSupabase() {
   return getSupabaseClient();
@@ -109,14 +117,14 @@ router.post('/junk-startups/apply', async (req, res) => {
       return res.status(400).json({ error: 'action must be reject or delete' });
     }
 
-    const uniqueIds = [...new Set(ids.map(String))].slice(0, 500);
+    const uniqueIds = [...new Set(ids.map(String))].slice(0, MAX_IDS);
     const now = new Date().toISOString();
     let affected = 0;
+    const errors = [];
 
     if (action === 'reject') {
-      const BATCH = 100;
-      for (let i = 0; i < uniqueIds.length; i += BATCH) {
-        const batch = uniqueIds.slice(i, i + BATCH);
+      for (let i = 0; i < uniqueIds.length; i += REJECT_BATCH) {
+        const batch = uniqueIds.slice(i, i + REJECT_BATCH);
         const { data, error } = await supabase
           .from('startup_uploads')
           .update({
@@ -133,35 +141,90 @@ router.post('/junk-startups/apply', async (req, res) => {
         affected += data?.length || 0;
       }
     } else {
-      const BATCH = 100;
-      for (let i = 0; i < uniqueIds.length; i += BATCH) {
-        const batch = uniqueIds.slice(i, i + BATCH);
-        const deps = await deleteStartupDependents(supabase, batch);
-        if (!deps.ok) {
-          const msg = deps.failed.map((f) => `${f.table}: ${f.error}`).join('; ');
-          throw new Error(`Failed to remove dependent rows: ${msg}`);
+      for (let i = 0; i < uniqueIds.length; i += DELETE_BATCH) {
+        const batch = uniqueIds.slice(i, i + DELETE_BATCH);
+        try {
+          const deps = await deleteStartupDependents(supabase, batch);
+          if (!deps.ok) {
+            const msg = deps.failed.map((f) => `${f.table || f.startup_id}: ${f.error}`).join('; ');
+            errors.push({ batch_start: i, error: msg });
+            // Continue other batches — partial progress is better than full abort
+            continue;
+          }
+          const { data, error } = await supabase
+            .from('startup_uploads')
+            .delete()
+            .in('id', batch)
+            .select('id');
+          if (error) {
+            if (/statement timeout|canceling statement/i.test(error.message || '')) {
+              // Fall back to one-by-one for this batch
+              for (const id of batch) {
+                try {
+                  const one = await deleteStartupDependents(supabase, [id]);
+                  if (!one.ok) {
+                    errors.push({ id, error: one.failed.map((f) => f.error).join('; ') });
+                    continue;
+                  }
+                  const { data: d2, error: e2 } = await supabase
+                    .from('startup_uploads')
+                    .delete()
+                    .eq('id', id)
+                    .select('id');
+                  if (e2) {
+                    errors.push({ id, error: e2.message });
+                    continue;
+                  }
+                  affected += d2?.length || 0;
+                } catch (oneErr) {
+                  errors.push({ id, error: String(oneErr?.message || oneErr) });
+                }
+              }
+              continue;
+            }
+            throw error;
+          }
+          affected += data?.length || 0;
+        } catch (batchErr) {
+          errors.push({ batch_start: i, error: String(batchErr?.message || batchErr) });
         }
-        const { data, error } = await supabase
-          .from('startup_uploads')
-          .delete()
-          .in('id', batch)
-          .select('id');
-        if (error) throw error;
-        affected += data?.length || 0;
       }
     }
 
     try {
       await supabase.from('admin_actions_log').insert({
         action_type: action === 'delete' ? 'junk_startup_delete' : 'junk_startup_reject',
-        details: { count: affected, ids: uniqueIds.slice(0, 50) },
+        details: {
+          count: affected,
+          requested: uniqueIds.length,
+          error_count: errors.length,
+          ids: uniqueIds.slice(0, 50),
+        },
         created_at: now,
       });
     } catch {
       /* optional table */
     }
 
-    res.json({ ok: true, action, affected, requested: uniqueIds.length });
+    if (affected === 0 && errors.length) {
+      return res.status(500).json({
+        ok: false,
+        action,
+        affected: 0,
+        requested: uniqueIds.length,
+        errors: errors.slice(0, 20),
+        error: errors[0]?.error || 'delete failed',
+      });
+    }
+
+    res.json({
+      ok: true,
+      action,
+      affected,
+      requested: uniqueIds.length,
+      partial: errors.length > 0,
+      errors: errors.length ? errors.slice(0, 20) : undefined,
+    });
   } catch (err) {
     console.error('[POST /api/admin/junk-startups/apply]', err);
     res.status(500).json({ error: err.message || 'apply failed' });
