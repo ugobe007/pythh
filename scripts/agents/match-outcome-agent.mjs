@@ -156,16 +156,17 @@ if (!notifyOnly) {
   await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
     ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
   ]);
-  await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
-    ...(apply ? ['--apply', '--reject-low-pending'] : []),
-    `--limit=${Math.max(limit, 100)}`,
-  ]);
-  // [3] Search priority>0 only (issuer-ledger / qualified+url first)
+  // [3] Search priority>0 (ledger-seeded wire URLs + inference); older clocks first
   await runNodeScript('scripts/search-startup-funding-evidence.mjs', [
     ...(apply ? ['--apply'] : []),
     '--provider=inference',
     `--limit=${limit}`,
     `--delay=${delay}`,
+  ]);
+  // Verify issuer-primary hits found/seeded by search
+  await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
+    ...(apply ? ['--apply', '--reject-low-pending'] : []),
+    `--limit=${Math.max(limit, 100)}`,
   ]);
 }
 

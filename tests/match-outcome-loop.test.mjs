@@ -81,21 +81,26 @@ test('continual agent loop recovers URLs, triages, promotes, and searches', () =
   const agent = readFileSync(new URL('../scripts/agents/match-outcome-agent.mjs', import.meta.url), 'utf8');
   assert.match(agent, /recover-startup-urls\.mjs/);
   assert.match(agent, /triage-funding-evidence-queue\.mjs/);
-  assert.match(agent, /promote-ledger-funding-evidence\.mjs/);
   assert.match(agent, /search-startup-funding-evidence\.mjs/);
+  assert.match(agent, /promote-ledger-funding-evidence\.mjs/);
+  // promote runs after search so ledger-seeded issuer URLs get verified
+  const searchIdx = agent.indexOf('search-startup-funding-evidence.mjs');
+  const promoteIdx = agent.lastIndexOf('promote-ledger-funding-evidence.mjs');
+  assert.ok(promoteIdx > searchIdx, 'promote should run after search');
   assert.match(agent, /resolved_count/);
 
   const triage = readFileSync(new URL('../scripts/triage-funding-evidence-queue.mjs', import.meta.url), 'utf8');
   assert.match(triage, /boost_qualified_url/);
   assert.match(triage, /parked_weak_identity/);
   assert.match(triage, /earliest_match_at_rectified/);
-  assert.match(triage, /boost_issuer_ledger/);
+  assert.match(triage, /boost_post_match_ledger/);
   assert.match(triage, /Alchemist Accelerator/);
 
   const search = readFileSync(new URL('../scripts/search-startup-funding-evidence.mjs', import.meta.url), 'utf8');
   assert.match(search, /\.gt\('priority', 0\)/);
   assert.match(search, /syncQueueEarliestMatchAt/);
   assert.match(search, /parked_missing_or_publisher_url/);
+  assert.match(search, /earliest_match_at', \{ ascending: true \}/);
 
   const recover = readFileSync(new URL('../scripts/recover-startup-urls.mjs', import.meta.url), 'utf8');
   assert.match(recover, /url_recovered:boost/);

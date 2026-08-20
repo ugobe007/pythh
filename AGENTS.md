@@ -97,9 +97,9 @@ Resolve **which matched investors actually funded** a startup (pair-level, not s
 1. URL submit → matches written → **auto-enqueued** (qualified+url boosted; junk skipped; weak parked)
 2. GitHub Actions every ~20m / `npm run outcomes:agent -- --apply --limit=400`:
    - `outcomes:recover-urls` — find missing/publisher websites (required for scoring + matching + search)
-   - `outcomes:triage-queue` — rectify `earliest_match_at` to min(match.created_at), boost cohort, park weak, scrub Accel pollution, boost issuer-ledger
+   - `outcomes:triage-queue` — rectify `earliest_match_at` to min(match.created_at), boost cohort, park weak, scrub Accel pollution, boost post-match ledger
+   - inference search (priority>0; seeds from `funding_evidence_events` wire URLs; parks missing/publisher URLs; older clocks first)
    - `outcomes:promote-ledger` (issuer-primary → auto-verify clean hits; never sets queue clock to announce date)
-   - inference search (priority>0 only; parks missing/publisher URLs instead of zero-hit completes)
 3. Progress target: **5000** qualified+url startups searched/resolved — agent prints `progress.resolved_count`
 4. Admin UI **Browser:** `https://pythh.ai/admin/match-outcomes` (local: `http://localhost:5173/admin/match-outcomes`)
 5. Or CLI: `npm run outcomes:review -- --list` / `--apply --verify --id=<uuid>`
