@@ -96,12 +96,17 @@ Resolve **which matched investors actually funded** a startup (pair-level, not s
 **Live loop (preferred):**
 1. URL submit → matches written → **auto-enqueued** (qualified+url boosted; junk skipped; weak parked)
 2. GitHub Actions every ~20m / `npm run outcomes:agent -- --apply --limit=400`:
-   - `outcomes:triage-queue` (boost cohort, park weak, scrub Accel firm pollution)
-   - `outcomes:promote-ledger` (issuer-primary → auto-verify clean hits)
-   - inference search (priority>0 only; wire-site queries)
+   - `outcomes:recover-urls` — find missing/publisher websites (required for scoring + matching + search)
+   - `outcomes:triage-queue` — rectify `earliest_match_at` to min(match.created_at), boost cohort, park weak, scrub Accel pollution, boost issuer-ledger
+   - `outcomes:promote-ledger` (issuer-primary → auto-verify clean hits; never sets queue clock to announce date)
+   - inference search (priority>0 only; parks missing/publisher URLs instead of zero-hit completes)
 3. Progress target: **5000** qualified+url startups searched/resolved — agent prints `progress.resolved_count`
-4. Admin UI **`/admin/match-outcomes`** — proof dashboard + issuer-primary verify/reject
+4. Admin UI **Browser:** `https://pythh.ai/admin/match-outcomes` (local: `http://localhost:5173/admin/match-outcomes`)
 5. Or CLI: `npm run outcomes:review -- --list` / `--apply --verify --id=<uuid>`
+
+Prediction clock: `funding_evidence_search_queue.earliest_match_at` **must** stay `min(startup_investor_matches.created_at)`. Triage + enqueue + search sync this; promote-ledger must not overwrite it with funding announce dates.
+
+Zero-hit batches (`results: 0` / `post_prediction_pairs: 0`) usually mean the batch drained junk “qualified” rows or polluted timestamps — run recover-urls + triage before search; prefer issuer-ledger priority (≥45000).
 
 Matching hygiene: `EnhancedMatchingService` skips `entity_gate=junk`, raises default `minScore` to 50, and drops polluted investor firm rows (e.g. Alchemist→Accel).
 

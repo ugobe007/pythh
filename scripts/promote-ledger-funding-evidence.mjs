@@ -23,6 +23,7 @@ const require = createRequire(import.meta.url);
 const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
 const { isIssuerPrimary } = require('../server/lib/matchEvidenceSourceTier.js');
 const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
+const { fetchEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');
 
 const apply = process.argv.includes('--apply');
 const rejectLowPending = process.argv.includes('--reject-low-pending');
@@ -262,6 +263,7 @@ for (const event of events) {
     }
 
     if (apply) {
+      const earliest = await fetchEarliestMatchAt(db, event.startup_id);
       const { data: qRow } = await db
         .from('funding_evidence_search_queue')
         .select('startup_id, priority, status')
@@ -273,16 +275,17 @@ for (const event of events) {
           .update({
             priority: Math.max(Number(qRow.priority) || 0, 50000),
             status: qRow.status === 'processing' ? 'processing' : 'pending',
+            ...(earliest ? { earliest_match_at: earliest } : {}),
             updated_at: new Date().toISOString(),
             error_message: 'priority_boost:issuer_ledger_event',
           })
           .eq('startup_id', event.startup_id);
-      } else {
+      } else if (earliest) {
         await db.from('funding_evidence_search_queue').insert({
           startup_id: event.startup_id,
           status: 'pending',
           priority: 50000,
-          earliest_match_at: announcedAt,
+          earliest_match_at: earliest,
           updated_at: new Date().toISOString(),
           error_message: 'priority_boost:issuer_ledger_event',
         });

@@ -2,7 +2,7 @@
 /**
  * Match Outcome Agent — continual reconciliation loop
  *
- *   triage queue (qualified+url first) → promote ledger → inference search → Slack
+ *   recover missing URLs → triage (timestamps + cohort) → promote ledger → search → Slack
  *
  * Usage:
  *   npm run outcomes:agent -- --apply --limit=400 --delay=400
@@ -146,6 +146,13 @@ function runNodeScript(scriptPath, extraArgs = []) {
 const highBefore = await listHighTierPending(50);
 
 if (!notifyOnly) {
+  // [1] Recover missing/publisher websites — scoring + matching + search need a real URL
+  await runNodeScript('scripts/recover-startup-urls.mjs', [
+    ...(apply ? ['--apply'] : []),
+    `--limit=${Math.min(Math.max(limit, 50), 150)}`,
+    '--delay=250',
+  ]);
+  // [2] Rectify earliest_match_at + boost qualified cohort / issuer-ledger
   await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
     ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
   ]);
@@ -153,6 +160,7 @@ if (!notifyOnly) {
     ...(apply ? ['--apply', '--reject-low-pending'] : []),
     `--limit=${Math.max(limit, 100)}`,
   ]);
+  // [3] Search priority>0 only (issuer-ledger / qualified+url first)
   await runNodeScript('scripts/search-startup-funding-evidence.mjs', [
     ...(apply ? ['--apply'] : []),
     '--provider=inference',

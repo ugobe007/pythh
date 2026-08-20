@@ -18,6 +18,10 @@ const { extractFunding } = require('../lib/inference-extractor.js');
 const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
 const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
 const ledger = require('../server/lib/fundingEvidenceLedger.js');
+const { syncQueueEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');
+
+const PUBLISHER_HOST_RE =
+  /\b(techcrunch|ventureburn|finsmes|forbes|bloomberg|reuters|axios|medium|substack|youtube|linkedin|twitter|crunchbase|pitchbook|wikipedia|businessinsider|theverge|wired|saastr|pulse2|eu-startups|techinafrica|thefintechtimes|asiatechdaily)\b/i;
 
 const apply = process.argv.includes('--apply');
 const seed = process.argv.includes('--seed');
@@ -307,25 +311,53 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
   return true;
 }
 
+function normalizeWebsite(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    if (!host.includes('.') || PUBLISHER_HOST_RE.test(host)) return null;
+    return `https://${host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/$/, '') || `https://${host}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Prefer company homepage; strip path noise from stored websites. */
+function companyWebsite(value) {
+  const normalized = normalizeWebsite(value);
+  if (!normalized) return null;
+  try {
+    const host = new URL(normalized).hostname.replace(/^www\./, '');
+    return `https://${host}`;
+  } catch {
+    return null;
+  }
+}
+
 async function processInferenceJob(startup, job) {
   const matchedInvestors = await loadMatchedInvestors(startup.id);
   if (!matchedInvestors.length) return { events: 0, pairs: 0 };
 
+  const website = companyWebsite(startup.website);
+  if (!website) return { events: 0, pairs: 0, skipped_no_url: true };
   const articleSets = [
-    await searchStartupNews(startup.name, startup.website, 8, 'funding OR raises OR investment', { lite: true }),
+    await searchStartupNews(startup.name, website, 8, 'funding OR raises OR investment', { lite: true }),
     await searchStartupNews(
       startup.name,
-      startup.website,
+      website,
       6,
       '(site:businesswire.com OR site:prnewswire.com OR site:globenewswire.com) (raises OR funding OR series)',
       { lite: true },
     ),
   ];
-  if (startup.website) {
+  if (website) {
     try {
-      const domain = new URL(startup.website).hostname.replace(/^www\./, '');
+      const domain = new URL(website).hostname.replace(/^www\./, '');
       articleSets.push(
-        await searchStartupNews(startup.name, startup.website, 6, `"${domain}" funding OR series`, { lite: true }),
+        await searchStartupNews(startup.name, website, 6, `"${domain}" funding OR series`, { lite: true }),
       );
     } catch {
       /* ignore bad website */
@@ -335,7 +367,7 @@ async function processInferenceJob(startup, job) {
     const label = String(investor.firm || investor.name || '').trim();
     if (label.length < 4) continue;
     articleSets.push(
-      await searchStartupNews(startup.name, startup.website, 4, `"${label}"`, { lite: true }),
+      await searchStartupNews(startup.name, website, 4, `"${label}" funding OR raises OR invest`, { lite: true }),
     );
   }
   const articles = [...new Map(articleSets.flat().map((a) => [a.link || a.title, a])).values()];
@@ -345,7 +377,7 @@ async function processInferenceJob(startup, job) {
   let pairs = 0;
 
   for (const article of articles) {
-    if (!eligibleArticle(article, startup.name, job.earliest_match_at, startup.website)) continue;
+    if (!eligibleArticle(article, startup.name, job.earliest_match_at, website)) continue;
     const headline = cleanHeadline(article.title);
     const sourceUrl = article.link;
     if (!sourceUrl) continue;
@@ -540,6 +572,9 @@ let completed = 0;
 let results = 0;
 let pairs = 0;
 
+let skippedNoUrl = 0;
+let timestampsSynced = 0;
+
 for (const job of jobs || []) {
   const { data: startup, error: suError } = await db
     .from('startup_uploads')
@@ -548,12 +583,43 @@ for (const job of jobs || []) {
     .single();
   if (suError) continue;
 
+  // Keep prediction clock = min(match.created_at); never search on a polluted timestamp.
+  if (apply) {
+    const sync = await syncQueueEarliestMatchAt(db, job.startup_id);
+    if (sync.ok && sync.earliest_match_at) {
+      job.earliest_match_at = sync.earliest_match_at;
+      timestampsSynced += 1;
+    }
+  }
+  if (!job.earliest_match_at) {
+    skippedNoUrl += 1;
+    continue;
+  }
+
+  const website = companyWebsite(startup.website);
+  if (!website) {
+    skippedNoUrl += 1;
+    if (apply) {
+      await db
+        .from('funding_evidence_search_queue')
+        .update({
+          status: 'pending',
+          priority: 0,
+          error_message: 'search:parked_missing_or_publisher_url',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('startup_id', job.startup_id);
+    }
+    continue;
+  }
+
   if (apply) {
     await db
       .from('funding_evidence_search_queue')
       .update({
         status: 'processing',
         attempts: (job.attempts || 0) + 1,
+        earliest_match_at: job.earliest_match_at,
         updated_at: new Date().toISOString(),
       })
       .eq('startup_id', job.startup_id);
@@ -564,6 +630,21 @@ for (const job of jobs || []) {
       provider === 'gemini'
         ? await processGeminiJob(startup, job)
         : await processInferenceJob(startup, job);
+    if (outcome.skipped_no_url) {
+      skippedNoUrl += 1;
+      if (apply) {
+        await db
+          .from('funding_evidence_search_queue')
+          .update({
+            status: 'pending',
+            priority: 0,
+            error_message: 'search:parked_missing_or_publisher_url',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('startup_id', job.startup_id);
+      }
+      continue;
+    }
     results += outcome.events;
     pairs += outcome.pairs;
 
@@ -575,6 +656,7 @@ for (const job of jobs || []) {
           last_searched_at: new Date().toISOString(),
           search_provider: searchProvider,
           result_count: outcome.events,
+          earliest_match_at: job.earliest_match_at,
           error_message: null,
           updated_at: new Date().toISOString(),
         })
@@ -609,6 +691,8 @@ console.log(
       search_provider: searchProvider,
       jobs: (jobs || []).length,
       completed,
+      skipped_no_url: skippedNoUrl,
+      timestamps_synced: timestampsSynced,
       results,
       post_prediction_pairs: pairs,
     },

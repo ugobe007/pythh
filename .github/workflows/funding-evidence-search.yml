@@ -26,7 +26,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Continual match-outcome loop (triage → promote → search)
+      - name: Continual match-outcome loop (recover URLs → triage → promote → search)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}

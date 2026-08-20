@@ -41,6 +41,9 @@ const summary = {
   parked_weak: 0,
   skipped_junk: 0,
   scrubbed_alchemist_firm: 0,
+  timestamps_rectified: 0,
+  parked_publisher_websites: 0,
+  boosted_issuer_ledger: 0,
   progress: null,
 };
 
@@ -106,6 +109,68 @@ if (apply) {
       AND firm IS DISTINCT FROM name
   `);
   summary.scrubbed_alchemist_firm = scrub.rowCount || 0;
+
+  // 5) Rectify earliest_match_at to true min(match.created_at) everywhere
+  const rectify = await pool.query(`
+    UPDATE funding_evidence_search_queue q
+    SET earliest_match_at = t.true_earliest,
+        updated_at = now(),
+        error_message = CASE
+          WHEN q.error_message ILIKE 'sync:%'
+            OR q.error_message ILIKE 'triage:%'
+            OR q.error_message ILIKE 'url_recovered:%'
+            THEN q.error_message
+          ELSE 'sync:earliest_match_at_rectified'
+        END
+    FROM (
+      SELECT startup_id, min(created_at) AS true_earliest
+      FROM startup_investor_matches
+      GROUP BY startup_id
+    ) t
+    WHERE q.startup_id = t.startup_id
+      AND (
+        q.earliest_match_at IS NULL
+        OR q.earliest_match_at IS DISTINCT FROM t.true_earliest
+      )
+  `);
+  summary.timestamps_rectified = rectify.rowCount || 0;
+
+  // 6) Park publisher / news-site "websites"
+  const parkPublishers = await pool.query(`
+    UPDATE funding_evidence_search_queue q
+    SET priority = LEAST(coalesce(q.priority, 0), 0),
+        updated_at = now(),
+        error_message = 'triage:parked_publisher_website'
+    FROM startup_uploads s
+    WHERE q.startup_id = s.id
+      AND q.status = 'pending'
+      AND coalesce(q.priority, 0) > 0
+      AND coalesce(s.website, s.company_domain, '') ~* '(techcrunch|ventureburn|finsmes|medium|substack|linkedin|crunchbase|techinafrica|thefintechtimes|asiatechdaily|pulse2|forbes|bloomberg)'
+  `);
+  summary.parked_publisher_websites = parkPublishers.rowCount || 0;
+
+  // 7) Boost startups with issuer-primary funding events after earliest match
+  const boostLedger = await pool.query(`
+    UPDATE funding_evidence_search_queue q
+    SET priority = GREATEST(coalesce(q.priority, 0), 45000),
+        status = CASE WHEN q.status = 'complete' THEN 'pending' ELSE q.status END,
+        updated_at = now(),
+        error_message = 'triage:boost_issuer_ledger'
+    WHERE q.status IN ('pending', 'complete', 'error')
+      AND EXISTS (
+        SELECT 1 FROM funding_evidence_events fe
+        WHERE fe.startup_id = q.startup_id
+          AND fe.announced_at > q.earliest_match_at
+          AND (
+            fe.source_url ILIKE '%businesswire%'
+            OR fe.source_url ILIKE '%prnewswire%'
+            OR fe.source_url ILIKE '%globenewswire%'
+            OR fe.source_url ILIKE '%/blog/%'
+            OR fe.source_url ILIKE '%/newsroom/%'
+          )
+      )
+  `);
+  summary.boosted_issuer_ledger = boostLedger.rowCount || 0;
 }
 
 const { rows: progressRows } = await pool.query(`
