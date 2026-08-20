@@ -75,6 +75,7 @@ test('match outcome agent and admin UI are wired', () => {
   assert.match(admin, /match-outcomes\/pending/);
   assert.match(admin, /review_match_validation_evidence/);
   assert.match(admin, /isIssuerPrimary/);
+  assert.match(admin, /toISOString\(\)\.slice\(0, 7\)/);
 
   const page = readFileSync(new URL('../site/pages/admin/MatchOutcomes.tsx', import.meta.url), 'utf8');
   assert.match(page, /Match Outcomes Proof/);

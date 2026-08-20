@@ -41,8 +41,14 @@ const border = "oklch(0.22 0.01 264)";
 const panelBg = "oklch(0.15 0.01 264)";
 const muted = "oklch(0.5 0.01 264)";
 
+function initialTab(): "proof" | "review" {
+  if (typeof window === "undefined") return "proof";
+  const q = new URLSearchParams(window.location.search).get("tab");
+  return q === "review" ? "review" : "proof";
+}
+
 export default function MatchOutcomesPage() {
-  const [tab, setTab] = useState<"proof" | "review">("proof");
+  const [tab, setTab] = useState<"proof" | "review">(initialTab);
   const [summary, setSummary] = useState<ProofSummary | null>(null);
   const [timeline, setTimeline] = useState<{ month: string; count: number }[]>([]);
   const [verified, setVerified] = useState<VerifiedPair[]>([]);
@@ -151,11 +157,16 @@ export default function MatchOutcomesPage() {
         </div>
       )}
 
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex gap-2 relative z-10">
         <button
           type="button"
-          onClick={() => setTab("proof")}
-          className="rounded px-3 py-2 text-xs font-bold"
+          onClick={() => {
+            setTab("proof");
+            const url = new URL(window.location.href);
+            url.searchParams.delete("tab");
+            window.history.replaceState({}, "", url);
+          }}
+          className="rounded px-3 py-2 text-xs font-bold cursor-pointer"
           style={{
             background: tab === "proof" ? "oklch(0.7 0.17 162)" : "transparent",
             color: tab === "proof" ? "oklch(0.13 0.01 264)" : muted,
@@ -166,15 +177,20 @@ export default function MatchOutcomesPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("review")}
-          className="rounded px-3 py-2 text-xs font-bold"
+          onClick={() => {
+            setTab("review");
+            const url = new URL(window.location.href);
+            url.searchParams.set("tab", "review");
+            window.history.replaceState({}, "", url);
+          }}
+          className="rounded px-3 py-2 text-xs font-bold cursor-pointer"
           style={{
             background: tab === "review" ? "oklch(0.7 0.17 162)" : "transparent",
             color: tab === "review" ? "oklch(0.13 0.01 264)" : muted,
             border: `1px solid ${border}`,
           }}
         >
-          Review queue ({pending.length})
+          Review queue ({pending.length || summary?.pending_review || 0})
         </button>
       </div>
 
