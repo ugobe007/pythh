@@ -521,7 +521,7 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /--requeue-empty/);
   assert.match(script, /startupMentionedInText/);
   assert.match(script, /extractKnownInvestorMentions/);
-  assert.match(script, /provider === 'gemini' \? 'gemini' : 'inference'/);
+  assert.match(script, /providerArg === 'gemini' \? 'gemini' : 'inference'/);
   assert.match(script, /inference_engine_free_news_search/);
   assert.match(script, /source_provider: 'inference_engine'/);
   assert.doesNotMatch(script, /throw new Error\('Missing GEMINI_API_KEY'\)/);

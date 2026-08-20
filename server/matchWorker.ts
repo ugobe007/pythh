@@ -10,7 +10,11 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { createRequire } from 'module';
 import { canonicalizeUrl, extractDomainKey } from './utils/urlCanonicalizer';
+
+const require = createRequire(import.meta.url);
+const { enqueueFundingEvidenceSearchAsync } = require('./lib/enqueueFundingEvidenceSearch.js');
 
 // Supabase client
 const supabase = createClient(
@@ -446,6 +450,9 @@ async function saveMatches(startupId: string, matches: any[], debugContext: any)
     .select();
   
   const saved = data?.length || 0;
+  if (saved > 0) {
+    enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'match_worker' });
+  }
   
   debugContext.steps.push({
     step: 'finalize',
