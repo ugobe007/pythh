@@ -16,7 +16,12 @@ const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
 const { extractFunding } = require('../lib/inference-extractor.js');
 const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
+const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
 const ledger = require('../server/lib/fundingEvidenceLedger.js');
+const { syncQueueEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');
+
+const PUBLISHER_HOST_RE =
+  /\b(techcrunch|ventureburn|finsmes|forbes|bloomberg|reuters|axios|medium|substack|youtube|linkedin|twitter|crunchbase|pitchbook|wikipedia|businessinsider|theverge|wired|saastr|pulse2|eu-startups|techinafrica|thefintechtimes|asiatechdaily|venturefizz|techfundingnews|statecollege)\b/i;
 
 const apply = process.argv.includes('--apply');
 const seed = process.argv.includes('--seed');
@@ -58,17 +63,74 @@ function parseSearchJson(value) {
 async function directSourceUrl(value) {
   try {
     const parsed = new URL(value);
-    if (!/vertexaisearch\.cloud\.google\.com$/i.test(parsed.hostname)) return value;
+    const host = parsed.hostname.toLowerCase();
+    const needsResolve =
+      /vertexaisearch\.cloud\.google\.com$/i.test(host) || /(?:^|\.)news\.google\.com$/i.test(host);
+    if (!needsResolve) return value;
+
     const response = await fetch(value, {
       method: 'GET',
       redirect: 'follow',
       signal: AbortSignal.timeout(15000),
-      headers: { 'user-agent': 'PythhEvidenceBot/1.0' },
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (compatible; PythhEvidenceBot/1.0; +https://pythh.ai)',
+        accept: 'text/html,application/xhtml+xml',
+      },
     });
-    return response.url && !/vertexaisearch\.cloud\.google\.com/i.test(response.url) ? response.url : value;
+    let finalUrl = response.url || value;
+
+    if (/(?:^|\.)news\.google\.com$/i.test(new URL(finalUrl).hostname)) {
+      const html = await response.text();
+      const patterns = [
+        /data-n-au="(https?:\/\/[^"]+)"/i,
+        /<a[^>]+href="(https?:\/\/(?!news\.google)[^"]+)"[^>]*(?:jsname|data-n-au)/i,
+        /url\?q=(https?%3A%2F%2F[^&"]+)/i,
+        /<meta[^>]+http-equiv=["']refresh["'][^>]+url=(https?:\/\/[^"'>]+)/i,
+      ];
+      for (const re of patterns) {
+        const m = html.match(re);
+        if (!m?.[1]) continue;
+        try {
+          finalUrl = decodeURIComponent(m[1]);
+        } catch {
+          finalUrl = m[1];
+        }
+        break;
+      }
+    }
+
+    if (/news\.google\.com|vertexaisearch\.cloud\.google\.com/i.test(finalUrl)) return value;
+    return finalUrl;
   } catch {
     return value;
   }
+}
+
+/** Pull known post-match ledger / wire URLs so search is not dependent on RSS luck. */
+async function loadLedgerSeedArticles(startupId, earliestMatchAt) {
+  const cutoff = new Date(earliestMatchAt).toISOString();
+  const { data, error } = await db
+    .from('funding_evidence_events')
+    .select('source_url, source_title, announced_at, round_type')
+    .eq('startup_id', startupId)
+    .gt('announced_at', cutoff)
+    .order('announced_at', { ascending: true })
+    .limit(12);
+  if (error) throw new Error(error.message);
+  const out = [];
+  for (const row of data || []) {
+    if (!row.source_url) continue;
+    const resolved = await directSourceUrl(row.source_url);
+    out.push({
+      title: row.source_title || `${row.round_type || 'Funding'} announcement`,
+      link: resolved,
+      pubDate: row.announced_at,
+      content: row.source_title || '',
+      source: 'funding_evidence_ledger',
+    });
+  }
+  return out;
 }
 
 function cleanHeadline(title) {
@@ -306,18 +368,54 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
   return true;
 }
 
+function normalizeWebsite(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    if (!host.includes('.') || PUBLISHER_HOST_RE.test(host)) return null;
+    return `https://${host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/$/, '') || `https://${host}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Prefer company homepage; strip path noise from stored websites. */
+function companyWebsite(value) {
+  const normalized = normalizeWebsite(value);
+  if (!normalized) return null;
+  try {
+    const host = new URL(normalized).hostname.replace(/^www\./, '');
+    return `https://${host}`;
+  } catch {
+    return null;
+  }
+}
+
 async function processInferenceJob(startup, job) {
   const matchedInvestors = await loadMatchedInvestors(startup.id);
   if (!matchedInvestors.length) return { events: 0, pairs: 0 };
 
+  const website = companyWebsite(startup.website);
+  if (!website) return { events: 0, pairs: 0, skipped_no_url: true };
   const articleSets = [
-    await searchStartupNews(startup.name, startup.website, 8, 'funding OR raises OR investment', { lite: true }),
+    await loadLedgerSeedArticles(startup.id, job.earliest_match_at),
+    await searchStartupNews(startup.name, website, 8, 'funding OR raises OR investment', { lite: true }),
+    await searchStartupNews(
+      startup.name,
+      website,
+      6,
+      '(site:businesswire.com OR site:prnewswire.com OR site:globenewswire.com) (raises OR funding OR series)',
+      { lite: true },
+    ),
   ];
-  if (startup.website) {
+  if (website) {
     try {
-      const domain = new URL(startup.website).hostname.replace(/^www\./, '');
+      const domain = new URL(website).hostname.replace(/^www\./, '');
       articleSets.push(
-        await searchStartupNews(startup.name, startup.website, 6, `"${domain}" funding OR series`, { lite: true }),
+        await searchStartupNews(startup.name, website, 6, `"${domain}" funding OR series`, { lite: true }),
       );
     } catch {
       /* ignore bad website */
@@ -327,7 +425,7 @@ async function processInferenceJob(startup, job) {
     const label = String(investor.firm || investor.name || '').trim();
     if (label.length < 4) continue;
     articleSets.push(
-      await searchStartupNews(startup.name, startup.website, 4, `"${label}"`, { lite: true }),
+      await searchStartupNews(startup.name, website, 4, `"${label}" funding OR raises OR invest`, { lite: true }),
     );
   }
   const articles = [...new Map(articleSets.flat().map((a) => [a.link || a.title, a])).values()];
@@ -337,16 +435,19 @@ async function processInferenceJob(startup, job) {
   let pairs = 0;
 
   for (const article of articles) {
-    if (!eligibleArticle(article, startup.name, job.earliest_match_at, startup.website)) continue;
+    if (!eligibleArticle(article, startup.name, job.earliest_match_at, website)) continue;
     const headline = cleanHeadline(article.title);
-    const sourceUrl = article.link;
+    let sourceUrl = article.link;
     if (!sourceUrl) continue;
+    sourceUrl = await directSourceUrl(sourceUrl);
+    // Still unresolved Google News → skip (low-tier, never verifies)
+    if (/news\.google\.com/i.test(sourceUrl)) continue;
 
     const publishedAt = new Date(article.pubDate);
     const eventAt = publishedAt.toISOString();
     const bodyText = [headline, article.content].filter(Boolean).join('\n');
     const inferred = extractFunding(bodyText) || {};
-    const mentions = await resolveMentions(bodyText, matchedInvestors, sourceUrl);
+    let mentions = await resolveMentions(bodyText, matchedInvestors, sourceUrl);
     const leadName = inferred.lead_investor;
     if (leadName) {
       const leadInvestor = matchedInvestors.find(
@@ -362,6 +463,7 @@ async function processInferenceJob(startup, job) {
         });
       }
     }
+    mentions = filterCleanHits(mentions);
 
     for (const mention of mentions) {
       if (!mention.investor?.id) continue;
@@ -403,7 +505,7 @@ async function processInferenceJob(startup, job) {
         eventAt,
         sourceUrl,
         sourceTitle: headline,
-        sourceProvider: 'inference_engine',
+        sourceProvider: article.source === 'funding_evidence_ledger' ? 'funding_evidence_ledger' : 'inference_engine',
         rawPayload: payload,
       });
       if (paired) pairs++;
@@ -518,10 +620,12 @@ if (requeueEmpty && apply) {
 
 const { data: jobs, error: jobError } = await db
   .from('funding_evidence_search_queue')
-  .select('startup_id,earliest_match_at,attempts')
+  .select('startup_id,earliest_match_at,attempts,priority')
   .in('status', ['pending', 'error'])
+  .gt('priority', 0) // triage parks weak identities at priority 0
   .order('priority', { ascending: false })
-  .order('updated_at')
+  // Older prediction clocks have a longer post-match window → more likely non-zero hits
+  .order('earliest_match_at', { ascending: true })
   .limit(limit);
 if (jobError) throw new Error(jobError.message);
 
@@ -529,6 +633,9 @@ const searchProvider = provider === 'gemini' ? 'gemini_google_search' : 'inferen
 let completed = 0;
 let results = 0;
 let pairs = 0;
+
+let skippedNoUrl = 0;
+let timestampsSynced = 0;
 
 for (const job of jobs || []) {
   const { data: startup, error: suError } = await db
@@ -538,12 +645,43 @@ for (const job of jobs || []) {
     .single();
   if (suError) continue;
 
+  // Keep prediction clock = min(match.created_at); never search on a polluted timestamp.
+  if (apply) {
+    const sync = await syncQueueEarliestMatchAt(db, job.startup_id);
+    if (sync.ok && sync.earliest_match_at) {
+      job.earliest_match_at = sync.earliest_match_at;
+      timestampsSynced += 1;
+    }
+  }
+  if (!job.earliest_match_at) {
+    skippedNoUrl += 1;
+    continue;
+  }
+
+  const website = companyWebsite(startup.website);
+  if (!website) {
+    skippedNoUrl += 1;
+    if (apply) {
+      await db
+        .from('funding_evidence_search_queue')
+        .update({
+          status: 'pending',
+          priority: 0,
+          error_message: 'search:parked_missing_or_publisher_url',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('startup_id', job.startup_id);
+    }
+    continue;
+  }
+
   if (apply) {
     await db
       .from('funding_evidence_search_queue')
       .update({
         status: 'processing',
         attempts: (job.attempts || 0) + 1,
+        earliest_match_at: job.earliest_match_at,
         updated_at: new Date().toISOString(),
       })
       .eq('startup_id', job.startup_id);
@@ -554,6 +692,21 @@ for (const job of jobs || []) {
       provider === 'gemini'
         ? await processGeminiJob(startup, job)
         : await processInferenceJob(startup, job);
+    if (outcome.skipped_no_url) {
+      skippedNoUrl += 1;
+      if (apply) {
+        await db
+          .from('funding_evidence_search_queue')
+          .update({
+            status: 'pending',
+            priority: 0,
+            error_message: 'search:parked_missing_or_publisher_url',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('startup_id', job.startup_id);
+      }
+      continue;
+    }
     results += outcome.events;
     pairs += outcome.pairs;
 
@@ -565,6 +718,7 @@ for (const job of jobs || []) {
           last_searched_at: new Date().toISOString(),
           search_provider: searchProvider,
           result_count: outcome.events,
+          earliest_match_at: job.earliest_match_at,
           error_message: null,
           updated_at: new Date().toISOString(),
         })
@@ -599,6 +753,8 @@ console.log(
       search_provider: searchProvider,
       jobs: (jobs || []).length,
       completed,
+      skipped_no_url: skippedNoUrl,
+      timestamps_synced: timestampsSynced,
       results,
       post_prediction_pairs: pairs,
     },

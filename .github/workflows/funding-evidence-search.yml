@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: Startups to search
+        description: Startups to search (qualified+url cohort)
         required: false
-        default: '100'
+        default: '400'
   schedule:
-    - cron: '7,37 * * * *'
+    # Every 20 minutes — continual drain toward 5000 resolved qualified startups
+    - cron: '3,23,43 * * * *'
 
 concurrency:
   group: funding-evidence-search
@@ -17,7 +18,7 @@ concurrency:
 jobs:
   search:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,12 +26,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Match outcome agent (inference search + high-tier Slack notify)
+      - name: Continual match-outcome loop (recover URLs → triage → promote → search)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          BATCH_LIMIT: ${{ inputs.limit || '100' }}
-        run: npm run outcomes:agent -- --apply --limit="$BATCH_LIMIT" --delay=500
+          BATCH_LIMIT: ${{ inputs.limit || '400' }}
+        run: npm run outcomes:agent -- --apply --limit="$BATCH_LIMIT" --delay=400

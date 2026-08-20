@@ -74,13 +74,33 @@ class EnhancedMatchingService {
    * Generate matches for a startup using enhanced matching
    */
   async generateMatches(startupId, options = {}) {
-    const { maxMatches = 50, minScore = 35 } = options;
+    const { maxMatches = 50, minScore = 50 } = options;
 
     try {
       // 1. Get and enrich startup data
       const startup = await this.getEnrichedStartup(startupId);
       if (!startup) {
         throw new Error(`Startup not found: ${startupId}`);
+      }
+      if (startup.entity_gate === 'junk') {
+        return {
+          success: true,
+          startupId,
+          matchCount: 0,
+          avgScore: 0,
+          topScore: 0,
+          skipped: 'junk_entity_gate',
+        };
+      }
+      if (!String(startup.website || '').trim() && startup.source_type !== 'url') {
+        return {
+          success: true,
+          startupId,
+          matchCount: 0,
+          avgScore: 0,
+          topScore: 0,
+          skipped: 'weak_identity',
+        };
       }
 
       // 2. Get potential investors
@@ -92,6 +112,9 @@ class EnhancedMatchingService {
       // 3. Score each investor match
       const matches = [];
       for (const investor of investors) {
+        // Skip firm-field pollution (e.g. Alchemist Accelerator with firm=Accel)
+        if (this.isPollutedInvestorIdentity(investor)) continue;
+
         const matchResult = this.calculateMatch(startup, investor);
         if (matchResult.score >= minScore) {
           const details = matchResult.analysis?.details || [];
@@ -252,11 +275,34 @@ class EnhancedMatchingService {
   async getActiveInvestors() {
     const { data, error } = await this.supabase
       .from('investors')
-      .select('id, name, sectors, stage, check_size_min, check_size_max, thesis, location')
+      .select('id, name, firm, type, sectors, stage, check_size_min, check_size_max, thesis, location')
       .eq('status', 'active');
 
     if (error) throw error;
     return data || [];
+  }
+
+  /**
+   * Reject investor rows whose firm field is polluted (outlet names, wrong firm labels).
+   * Example: Alchemist Accelerator with firm="Accel" floods Accel-like matches.
+   */
+  isPollutedInvestorIdentity(investor) {
+    const name = String(investor?.name || '').trim();
+    const firm = String(investor?.firm || '').trim();
+    if (!name) return true;
+    if (/\u00a0/.test(name) || /\u00a0/.test(firm)) return true; // publisher fragments
+    if (/\b(?:Business Standard|Crunchbase|YourStory|Entrackr|Entrepreneur|Economic Times|BW Disrupt|Capital Brief|Retail Technology)\b/i.test(name)) {
+      return true;
+    }
+    if (
+      /^Alchemist Accelerator$/i.test(name) &&
+      firm &&
+      !/^Alchemist/i.test(firm) &&
+      /Accel/i.test(firm)
+    ) {
+      return true;
+    }
+    return false;
   }
 
   /**
