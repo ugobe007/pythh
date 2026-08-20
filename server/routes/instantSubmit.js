@@ -23,6 +23,7 @@ const crypto = require('crypto');
 const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
+const { enqueueFundingEvidenceSearchAsync } = require('../lib/enqueueFundingEvidenceSearch');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -1110,6 +1111,8 @@ async function generateSyncTopMatchesForHttpResponse(
       .upsert(rows, { onConflict: 'startup_id,investor_id', ignoreDuplicates: false });
     if (upErr) {
       console.warn(`[SYNC] match upsert: ${upErr.message}`);
+    } else {
+      enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_sync' });
     }
     const ids = rows.map((r) => r.investor_id);
     const { data: joined, error: selErr } = await supabase
@@ -1316,6 +1319,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           console.error(`  🔄 [BG] Fast match batch ${i} upsert error: ${batchErr.message}`);
         }
       }
+      enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase1' });
     }
     
     console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
@@ -1832,6 +1836,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             console.error(`  🔄 [BG] Batch ${i} upsert error: ${batchErr.message}`);
           }
         }
+        enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase3' });
       }
       console.log(`  🔄 [BG] PHASE 3: Re-generated ${matches.length} enriched matches (${investors.length} evaluated)`);
     } else {

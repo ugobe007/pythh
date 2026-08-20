@@ -27,6 +27,7 @@ export const ADMIN_TOOLS: AdminTool[] = [
   { id: "signal-weights", label: "Signal Weights", description: "Dimension caps, class weights, feed priority", route: "/admin/signal-weights", category: "scoring", vital: true },
   { id: "ml", label: "ML Agent", description: "Training runs and weight proposals", route: "/admin/ml", category: "scoring" },
   { id: "matching", label: "Matching Engine", description: "Match queue stats and regeneration", route: "/admin/matching", category: "matching", vital: true },
+  { id: "match-outcomes", label: "Match Outcomes Proof", description: "Verified post-prediction funding pairs + review queue", route: "/admin/match-outcomes", category: "matching", vital: true },
   { id: "scrapers", label: "Scraper Management", description: "Run and monitor data scrapers", route: "/admin/scrapers", category: "pipeline", vital: true },
   { id: "rss", label: "RSS Manager", description: "Feed sources — activate, health, refresh", route: "/admin/rss", category: "pipeline" },
   { id: "junk-startups", label: "Junk Startup Cleanup", description: "Scan headline fragments and test names — bulk reject or delete", route: "/admin/junk-startups", category: "data", vital: true },

@@ -25,10 +25,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Search and classify funding evidence (inference engine — no Gemini credits)
+      - name: Match outcome agent (inference search + high-tier Slack notify)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           BATCH_LIMIT: ${{ inputs.limit || '100' }}
-        run: node scripts/search-startup-funding-evidence.mjs --apply --provider=inference --limit="$BATCH_LIMIT" --delay=500
+        run: npm run outcomes:agent -- --apply --limit="$BATCH_LIMIT" --delay=500

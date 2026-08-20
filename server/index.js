@@ -6807,6 +6807,8 @@ app.use('/api/admin', adminScoringConsole);
 
 const adminJunkStartups = require('./routes/adminJunkStartups');
 app.use('/api/admin', adminJunkStartups);
+const adminMatchOutcomes = require('./routes/adminMatchOutcomes');
+app.use('/api/admin', adminMatchOutcomes);
 
 const { loadSignalWeightConfig } = require('../lib/signalWeightConfig');
 loadSignalWeightConfig(getSupabaseClient()).catch((e) => {

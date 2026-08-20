@@ -93,14 +93,21 @@ on `main`. Funding scripts live on **`main`** (not the setup PR branch).
 
 Resolve **which matched investors actually funded** a startup (pair-level, not startup-only press):
 
+**Live loop (preferred):**
+1. URL submit → matches written → **auto-enqueued** into `funding_evidence_search_queue`
+2. GitHub Actions / `npm run outcomes:agent -- --apply --limit=100` searches + Slack-notifies high-tier pending
+3. Admin UI **`/admin/match-outcomes`** — proof dashboard + issuer-primary verify/reject
+4. Or CLI: `npm run outcomes:review -- --list` / `--apply --verify --id=<uuid>`
+
+**Reports:**
 1. `npm run outcomes:report` — baseline counts
 2. `npm run outcomes:matched` — verified pairs + pending review queue with source tiers
-3. `npm run outcomes:review -- --list --limit=50` — human review of candidates
-4. `npm run outcomes:review -- --apply --verify --id=<uuid>` — mark one pair verified (requires `DATABASE_URL`)
-5. In SQL: `SELECT refresh_match_outcome_classifications(50000);`
-6. `npm run funding:reconcile:historical:summary` — retrospective hit rate vs canonical rounds
+3. In SQL: `SELECT refresh_match_outcome_classifications(50000);`
+4. `npm run funding:reconcile:historical:summary` — retrospective hit rate vs canonical rounds
 
 Official positives require **`match_validation_evidence.verified=true`** and **`event_at > match.created_at`**.
+
+API (service-backed admin): `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`.
 
 ### Lint
 

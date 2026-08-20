@@ -25,6 +25,28 @@ event_at > match.created_at   (strict)
 
 Latest match for the pair before the event wins.
 
+## Live match → evidence → proof loop
+
+```text
+URL submit / match write
+  → enqueue funding_evidence_search_queue   (server/lib/enqueueFundingEvidenceSearch.js)
+  → outcomes:agent (GHA every 30m)          (scripts/agents/match-outcome-agent.mjs)
+  → pending match_validation_evidence
+  → Admin UI /admin/match-outcomes          (verify issuer-primary only)
+  → verified_funding classifications
+  → proof dashboard timeline
+```
+
+| Step | Where |
+|------|--------|
+| Capture IDs | `startup_investor_matches.startup_id` + `investor_id`, prediction = `created_at` |
+| Auto-enqueue | After match upsert in `instantSubmit`, `matchWorker`, `EnhancedMatchingService` |
+| Search agent | `npm run outcomes:agent -- --apply --limit=100` (Slack optional via `SLACK_WEBHOOK_URL`) |
+| Review UI | `/admin/match-outcomes` |
+| CLI review | `npm run outcomes:review -- --apply --verify --id=<uuid>` |
+
+Admin API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`.
+
 ## Workflow (run on Mac from repo root)
 
 ### 0. Baseline report
