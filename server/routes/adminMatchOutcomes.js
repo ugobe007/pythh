@@ -71,7 +71,7 @@ router.get('/match-outcomes/proof', async (req, res) => {
 
     const byMonth = {};
     for (const p of mapped) {
-      const key = String(p.event_at).slice(0, 7);
+      const key = new Date(p.event_at).toISOString().slice(0, 7);
       byMonth[key] = (byMonth[key] || 0) + 1;
     }
     const timeline = Object.entries(byMonth)
