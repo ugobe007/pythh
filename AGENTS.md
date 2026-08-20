@@ -125,6 +125,7 @@ Official positives require **`match_validation_evidence.verified=true`** and **`
 - Do **not** paste bare `/admin/match-outcomes` into a terminal — Node treats path-looking hosts badly (`getaddrinfo ENOTFOUND base` was Fly’s broken `DATABASE_URL` hostname `base`, not the SPA route).
 - Proof API uses **Supabase service client** (not raw `DATABASE_URL`) so Fly works even if `DATABASE_URL` secret is a placeholder. Still set a real session-pooler `DATABASE_URL` for scripts/`auth.me`.
 - Agent `review_url` must be absolute (`https://pythh.ai/admin/match-outcomes`).
+- **Admin Matching / ML / Analytics** (`/admin/matching`, `/admin/ml`, `/admin/analytics`) also fall back to Supabase REST + `platform_stats_cache` when `DATABASE_URL` is missing or has a placeholder host (`base`). Fix Fly/Vercel `DATABASE_URL` to the real Supabase session pooler for full SQL (score buckets, exact event GROUP BYs).
 
 API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`.
 

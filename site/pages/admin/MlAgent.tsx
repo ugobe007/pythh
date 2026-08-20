@@ -162,13 +162,22 @@ export default function MlAgentPage() {
                   <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: GATE_COLOR[g.gate] ?? "oklch(0.6 0.01 264)" }}>
                     {Number(g.cnt).toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", marginTop: 2 }}>{g.gate ?? "null"}</div>
+                  <div style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", marginTop: 2 }}>{g.gate ?? "unset"}</div>
                 </div>
               ))}
               {(data?.entityGateStats ?? []).length === 0 && (
-                <span style={{ fontSize: 12, color: "oklch(0.35 0.01 264)" }}>No data</span>
+                <span style={{ fontSize: 12, color: "oklch(0.35 0.01 264)" }}>
+                  {(data as { source?: string } | undefined)?.source === "unavailable"
+                    ? "Stats unavailable — Postgres/Supabase not reachable."
+                    : "No gate rows yet."}
+                </span>
               )}
             </div>
+            {(data as { source?: string } | undefined)?.source === "supabase" && (
+              <p style={{ fontSize: 10, color: "oklch(0.65 0.15 80)", marginTop: 10 }}>
+                Loaded via Supabase REST (Postgres raw SQL unavailable).
+              </p>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
