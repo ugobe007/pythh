@@ -102,6 +102,9 @@ function Router() {
       <Route path={"/admin/calendar"} component={Calendar} />
       <Route path={"/admin/fundraising-evidence"} component={FundraisingEvidence} />
       <Route path={"/admin/match-outcomes"} component={MatchOutcomes} />
+      <Route path={"/match-outcomes"}>
+        <Redirect to="/admin/match-outcomes" />
+      </Route>
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/startup/:startupId"} component={StartupDetail} />

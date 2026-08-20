@@ -88,6 +88,17 @@ test('continual agent loop recovers URLs, triages, promotes, and searches', () =
   const promoteIdx = agent.lastIndexOf('promote-ledger-funding-evidence.mjs');
   assert.ok(promoteIdx > searchIdx, 'promote should run after search');
   assert.match(agent, /resolved_count/);
+  assert.match(agent, /https:\/\/pythh\.ai\/admin\/match-outcomes|review_url: `\$\{SITE_ORIGIN\}\/admin\/match-outcomes`/);
+
+  const adminApi = readFileSync(new URL('../server/routes/adminMatchOutcomes.js', import.meta.url), 'utf8');
+  assert.match(adminApi, /isUsableDatabaseUrl/);
+  assert.match(adminApi, /getSupabaseClient/);
+  assert.match(adminApi, /host === 'base'/);
+  assert.doesNotMatch(adminApi, /function getPool\(\)/);
+
+  const app = readFileSync(new URL('../site/App.tsx', import.meta.url), 'utf8');
+  assert.match(app, /path=\{\"\/match-outcomes\"\}/);
+  assert.match(app, /Redirect to=\"\/admin\/match-outcomes\"/);
 
   const triage = readFileSync(new URL('../scripts/triage-funding-evidence-queue.mjs', import.meta.url), 'utf8');
   assert.match(triage, /boost_qualified_url/);

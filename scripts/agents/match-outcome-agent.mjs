@@ -175,13 +175,21 @@ const beforeIds = new Set(highBefore.map((r) => r.id));
 const newlyHigh = highAfter.filter((r) => !beforeIds.has(r.id));
 const progress = await cohortProgress();
 
+const SITE_ORIGIN = (
+  process.env.APP_URL ||
+  process.env.APP_BASE_URL ||
+  process.env.PUBLIC_SITE_URL ||
+  'https://pythh.ai'
+).replace(/\/$/, '');
+
 const summary = {
   mode: notifyOnly ? 'notify-only' : apply ? 'apply' : 'dry-run',
   limit,
   high_tier_pending: highAfter.length,
   newly_high_tier: newlyHigh.length,
   progress,
-  review_url: '/admin/match-outcomes',
+  // Always absolute — bare paths get treated as hostnames (ENOTFOUND) in some terminals/agents
+  review_url: `${SITE_ORIGIN}/admin/match-outcomes`,
 };
 
 if (newlyHigh.length || (notifyOnly && highAfter.length)) {
