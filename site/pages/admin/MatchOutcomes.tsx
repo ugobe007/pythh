@@ -66,7 +66,16 @@ export default function MatchOutcomesPage() {
         fetch(apiUrl("/api/admin/match-outcomes/proof")),
         fetch(apiUrl("/api/admin/match-outcomes/pending?limit=50")),
       ]);
-      if (!proofRes.ok) throw new Error((await proofRes.json().catch(() => ({}))).error || `Proof ${proofRes.status}`);
+      if (!proofRes.ok) {
+        const body = await proofRes.json().catch(() => ({}));
+        const raw = body.error || `Proof ${proofRes.status}`;
+        if (/ENOTFOUND\s+base/i.test(String(raw))) {
+          throw new Error(
+            "Fly API still has a broken DATABASE_URL (hostname \"base\"). Merge PR #22 so the proof endpoint uses Supabase instead, then refresh.",
+          );
+        }
+        throw new Error(raw);
+      }
       if (!pendingRes.ok) throw new Error((await pendingRes.json().catch(() => ({}))).error || `Pending ${pendingRes.status}`);
       const proof = await proofRes.json();
       const pend = await pendingRes.json();
