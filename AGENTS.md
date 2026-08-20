@@ -118,7 +118,15 @@ Matching hygiene: `EnhancedMatchingService` skips `entity_gate=junk`, raises def
 
 Official positives require **`match_validation_evidence.verified=true`** and **`event_at > match.created_at`**.
 
-API (service-backed admin): `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`.
+### Match outcomes admin UI (gotcha)
+
+- **Browser (production):** `https://pythh.ai/admin/match-outcomes` (short `/match-outcomes` redirects there)
+- **Browser (local):** `http://localhost:5173/admin/match-outcomes` with `npm run dev` + `npm run dev:server`
+- Do **not** paste bare `/admin/match-outcomes` into a terminal — Node treats path-looking hosts badly (`getaddrinfo ENOTFOUND base` was Fly’s broken `DATABASE_URL` hostname `base`, not the SPA route).
+- Proof API uses **Supabase service client** (not raw `DATABASE_URL`) so Fly works even if `DATABASE_URL` secret is a placeholder. Still set a real session-pooler `DATABASE_URL` for scripts/`auth.me`.
+- Agent `review_url` must be absolute (`https://pythh.ai/admin/match-outcomes`).
+
+API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`.
 
 ### Lint
 
