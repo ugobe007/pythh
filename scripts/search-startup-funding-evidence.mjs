@@ -527,8 +527,9 @@ if (requeueEmpty && apply) {
 
 const { data: jobs, error: jobError } = await db
   .from('funding_evidence_search_queue')
-  .select('startup_id,earliest_match_at,attempts')
+  .select('startup_id,earliest_match_at,attempts,priority')
   .in('status', ['pending', 'error'])
+  .gt('priority', 0) // triage parks weak identities at priority 0
   .order('priority', { ascending: false })
   .order('updated_at')
   .limit(limit);

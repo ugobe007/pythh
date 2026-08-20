@@ -1,31 +1,39 @@
 #!/usr/bin/env node
 /**
- * Match Outcome Agent
+ * Match Outcome Agent — continual reconciliation loop
  *
- * Live-or-die proof loop step 2:
- *   process funding_evidence_search_queue → pending evidence → Slack high-tier notify
+ *   triage queue (qualified+url first) → promote ledger → inference search → Slack
  *
  * Usage:
- *   npm run outcomes:agent -- --apply --limit=100 --delay=500
+ *   npm run outcomes:agent -- --apply --limit=400 --delay=400
  *   npm run outcomes:agent -- --notify-only
  */
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
+import pg from 'pg';
 
 const require = createRequire(import.meta.url);
 const { sourceTier } = require('../../server/lib/matchEvidenceSourceTier.js');
 
 const apply = process.argv.includes('--apply');
 const notifyOnly = process.argv.includes('--notify-only');
-const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 100));
-const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
+const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 400));
+const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 400));
+const TARGET = 5000;
 
 const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !serviceKey) throw new Error('Missing Supabase service environment');
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+function massageConnectionString(connectionString) {
+  const s = String(connectionString || '');
+  if (/sslmode=no-verify/i.test(s)) return s;
+  if (/sslmode=/i.test(s)) return s.replace(/sslmode=[^&]*/i, 'sslmode=no-verify');
+  return s.includes('?') ? `${s}&sslmode=no-verify` : `${s}?sslmode=no-verify`;
+}
 
 async function slackNotify(title, message) {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -34,9 +42,7 @@ async function slackNotify(title, message) {
     const res = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        text: `*${title}*\n${message}`,
-      }),
+      body: JSON.stringify({ text: `*${title}*\n${message}` }),
       signal: AbortSignal.timeout(10000),
     });
     return res.ok;
@@ -56,6 +62,57 @@ async function listHighTierPending(limitRows = 25) {
   return (data || [])
     .filter((row) => sourceTier(row.source_url) === 'high')
     .slice(0, limitRows);
+}
+
+async function cohortProgress() {
+  if (!process.env.DATABASE_URL) return null;
+  const pool = new pg.Pool({
+    connectionString: massageConnectionString(process.env.DATABASE_URL),
+    max: 1,
+  });
+  try {
+    const { rows } = await pool.query(`
+      WITH cohort AS (
+        SELECT s.id
+        FROM startup_uploads s
+        WHERE s.status = 'approved'
+          AND s.entity_gate = 'qualified'
+          AND s.source_type = 'url'
+          AND coalesce(s.website, '') <> ''
+          AND EXISTS (SELECT 1 FROM startup_investor_matches m WHERE m.startup_id = s.id)
+      ),
+      resolved AS (
+        SELECT c.id FROM cohort c
+        WHERE EXISTS (
+          SELECT 1 FROM funding_evidence_search_queue q
+          WHERE q.startup_id = c.id AND q.status IN ('complete', 'error')
+        )
+        OR EXISTS (
+          SELECT 1 FROM match_validation_evidence e
+          WHERE e.startup_id = c.id AND e.verified
+        )
+      )
+      SELECT
+        (SELECT count(*)::int FROM cohort) AS cohort_size,
+        (SELECT count(*)::int FROM resolved) AS resolved_count,
+        (
+          SELECT count(*)::int FROM match_validation_evidence e
+          JOIN startup_investor_matches m ON m.id = e.match_id
+          WHERE e.verified AND e.event_at > m.created_at
+        ) AS verified_pairs
+    `);
+    const row = rows[0] || {};
+    return {
+      target: TARGET,
+      cohort_size: row.cohort_size,
+      resolved_count: row.resolved_count,
+      remaining: Math.max(0, TARGET - Number(row.resolved_count || 0)),
+      pct: Number(((100 * Number(row.resolved_count || 0)) / TARGET).toFixed(1)),
+      verified_pairs: row.verified_pairs,
+    };
+  } finally {
+    await pool.end();
+  }
 }
 
 function runNodeScript(scriptPath, extraArgs = []) {
@@ -89,12 +146,13 @@ function runNodeScript(scriptPath, extraArgs = []) {
 const highBefore = await listHighTierPending(50);
 
 if (!notifyOnly) {
-  // 1) Promote issuer-primary ledger events → verified pairs (closes the proof gap)
+  await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
+    ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
+  ]);
   await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
     ...(apply ? ['--apply', '--reject-low-pending'] : []),
-    `--limit=${Math.max(limit, 50)}`,
+    `--limit=${Math.max(limit, 100)}`,
   ]);
-  // 2) Drain search queue for new RSS / wire hits
   await runNodeScript('scripts/search-startup-funding-evidence.mjs', [
     ...(apply ? ['--apply'] : []),
     '--provider=inference',
@@ -106,12 +164,14 @@ if (!notifyOnly) {
 const highAfter = await listHighTierPending(50);
 const beforeIds = new Set(highBefore.map((r) => r.id));
 const newlyHigh = highAfter.filter((r) => !beforeIds.has(r.id));
+const progress = await cohortProgress();
 
 const summary = {
   mode: notifyOnly ? 'notify-only' : apply ? 'apply' : 'dry-run',
   limit,
   high_tier_pending: highAfter.length,
   newly_high_tier: newlyHigh.length,
+  progress,
   review_url: '/admin/match-outcomes',
 };
 
@@ -121,7 +181,9 @@ if (newlyHigh.length || (notifyOnly && highAfter.length)) {
     .map((r) => `• ${r.id.slice(0, 8)}… ${r.source_provider} ${String(r.source_url || '').slice(0, 80)}`);
   await slackNotify(
     'Pythh match outcomes — high-tier evidence ready',
-    `${summary.high_tier_pending} high-tier pending (new this run: ${summary.newly_high_tier})\nReview: ${summary.review_url}\n${lines.join('\n')}`,
+    `${summary.high_tier_pending} high-tier pending (new this run: ${summary.newly_high_tier})\n` +
+      `Resolved toward ${TARGET}: ${progress?.resolved_count ?? '?'}/${TARGET} (${progress?.pct ?? '?'}%)\n` +
+      `Review: ${summary.review_url}\n${lines.join('\n')}`,
   );
 }
 

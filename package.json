@@ -113,6 +113,7 @@
     "outcomes:review": "node scripts/review-match-validation-evidence.mjs",
     "outcomes:agent": "node scripts/agents/match-outcome-agent.mjs",
     "outcomes:promote-ledger": "node scripts/promote-ledger-funding-evidence.mjs",
+    "outcomes:triage-queue": "node scripts/triage-funding-evidence-queue.mjs",
     "cleanup:discovered-rss": "node scripts/cleanup-discovered-rss.js",
     "enrich:sparse": "node scripts/enrich-sparse-startups.js",
     "enrich:sparse:html": "node scripts/enrich-sparse-startups.js --html-only",
