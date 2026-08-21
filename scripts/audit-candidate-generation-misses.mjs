@@ -113,12 +113,39 @@ async function main() {
     GROUP BY 1 ORDER BY n DESC LIMIT 12
   `);
 
+  // Qualified firm labels never present in pre-event matches (allowlist triage source).
+  // Do NOT expand frequentLedgerFunders from topMissing (unresolved junk raw names).
+  const topNeverPreMatched = await q(`
+    SELECT COALESCE(NULLIF(i.firm,''), i.name) AS firm_label,
+           COUNT(*)::int AS n,
+           COUNT(DISTINCT e.startup_id)::int AS startups
+    FROM funding_evidence_participants p
+    JOIN funding_evidence_events e ON e.id = p.funding_event_id
+    JOIN investors i ON i.id = p.investor_id
+    JOIN startup_uploads su ON su.id = e.startup_id
+    WHERE p.investor_id IS NOT NULL
+      AND p.participation_relation IS NOT NULL
+      AND p.participant_role IS DISTINCT FROM 'unknown'
+      AND COALESCE(i.is_individual, false) = false
+      AND COALESCE(i.entity_gate, '') = 'qualified'
+      AND COALESCE(su.entity_gate, '') <> 'junk'
+      AND NOT EXISTS (
+        SELECT 1 FROM startup_investor_matches m
+        WHERE m.startup_id = e.startup_id AND m.investor_id = p.investor_id
+          AND m.created_at < COALESCE(e.announced_at, e.occurred_at, e.discovered_at)
+      )
+    GROUP BY 1
+    ORDER BY n DESC
+    LIMIT 25
+  `);
+
   console.log(JSON.stringify({
     generated_at: new Date().toISOString(),
     statusBreak,
     topMissing,
     resolvePreview,
     resolvedMiss: resolvedMiss[0] || null,
+    topNeverPreMatched,
     missSectors,
   }, null, 2));
 

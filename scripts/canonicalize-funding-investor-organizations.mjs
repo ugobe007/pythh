@@ -33,6 +33,14 @@ const organizations = [
   ['Uber', 'uber.com', ['Uber', 'Uber Technologies']],
   ['ICONIQ', 'iconiqcapital.com', ['ICONIQ', 'ICONIQ Capital', 'Iconiq', 'Iconiq Capital']],
   ['BoldCap', null, ['BoldCap', 'Bold Cap']],
+  ['Sequoia Capital', 'sequoiacap.com', ['Sequoia', 'Sequoia Capital']],
+  ['EQT', 'eqtgroup.com', ['EQT', 'EQT Ventures']],
+  ['Thrive Capital', 'thrivecap.com', ['Thrive', 'Thrive Capital']],
+  ['Lightspeed', 'lsvp.com', ['Lightspeed', 'Lightspeed Venture Partners']],
+  ['WndrCo', 'wndrco.com', ['WndrCo']],
+  ['Coatue', 'coatue.com', ['Coatue', 'Coatue Management']],
+  ['Menlo Ventures', 'menlovc.com', ['Menlo Ventures', 'Menlo']],
+  ['Insight Partners', 'insightpartners.com', ['Insight Partners', 'Insight']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
