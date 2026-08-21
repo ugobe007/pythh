@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { normalizeEntityName, resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
+const { normalizeEntityName, resolveCanonicalEntity, stripInvestorHeadlineNoise } = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -59,15 +59,48 @@ async function main() {
     }
     return { participant, investor: null, organization: organization || null, method: organizationMemberships.length > 1 ? 'ambiguous_organization_members' : null, confidence: 0 };
   });
+
+  // Short aliases like "Menlo" → "Menlo Ventures" resolve as method=normalized (0.92).
+  // Apply only when the matched profile is a firm and expands/equals the raw label.
+  const isFirmSafeNormalized = (item) => {
+    const method = String(item.method || '');
+    if (!/^(?:headline_cleaned_)?normalized(?:_firm_preferred)?$/.test(method)) return false;
+    const inv = item.investor;
+    if (!inv || inv.is_individual === true) return false;
+    const raw = String(item.participant.investor_name_raw || '').trim();
+    const cleaned = stripInvestorHeadlineNoise(raw);
+    const label = String(cleaned || raw).trim().toLowerCase();
+    const name = String(inv.name || '').trim().toLowerCase();
+    const firm = String(inv.firm || '').trim().toLowerCase();
+    if (!label) return false;
+    if (name === label || firm === label) return true;
+    // Short alias expands to "Label Ventures/Capital/…"
+    if (name.startsWith(`${label} `) || firm.startsWith(`${label} `)) return true;
+    // Longer raw collapses to shorter canonical firm ("EQT Ventures" → "EQT").
+    if ((name && label.startsWith(`${name} `)) || (firm && label.startsWith(`${firm} `))) return true;
+    // Do NOT treat "Circle Ventures" ≈ "Circle Partners" (same core after suffix strip).
+    // Only allow suffix-stripped equality when the raw label itself has no org token
+    // (e.g. "Menlo" → "Menlo Ventures", "F-Prime" → "F-Prime Capital").
+    const rawHasOrgToken = /\b(?:ventures?|capital|partners?|fund)\b/i.test(label);
+    if (rawHasOrgToken) return false;
+    const labelNorm = normalizeEntityName(label);
+    const nameNorm = normalizeEntityName(name);
+    const firmNorm = normalizeEntityName(firm);
+    const hasOrgToken = /\b(?:ventures?|capital|partners?|fund)\b/i.test(`${inv.name || ''} ${inv.firm || ''}`);
+    return Boolean(hasOrgToken && labelNorm && (nameNorm === labelNorm || firmNorm === labelNorm));
+  };
+
   // Funding outcomes become training labels. Apply exact identities, firm-preferred
   // disambiguation (partner/person collisions), headline-cleaned firm matches
-  // ("Firm - Publisher" / "Person’s Firm"), or a unique reviewed organization membership.
+  // ("Firm - Publisher" / "Person’s Firm"), firm-safe normalized short aliases,
+  // or a unique reviewed organization membership.
   const resolvable = plan.filter(item => item.investor && (
     item.confidence === 1
     || item.method === 'exact_firm_preferred'
     || item.method === 'normalized_firm_preferred'
     || item.method === 'unique_canonical_organization_member'
     || /^headline_cleaned_(?:exact|exact_firm_preferred|normalized|normalized_firm_preferred)$/.test(String(item.method || ''))
+    || isFirmSafeNormalized(item)
   ));
 
   if (apply) {

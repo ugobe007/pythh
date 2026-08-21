@@ -119,6 +119,112 @@ const profiles = [
     type: 'VC',
     investorType: 'VC',
   },
+  // Frequent not_in_universe / partner-only collisions (post-#35 unresolved backlog).
+  {
+    canonicalName: 'Index Ventures', firm: 'Index Ventures', url: 'https://www.indexventures.com/',
+    sectors: ['AI/ML', 'SaaS', 'Fintech', 'Consumer', 'Enterprise'],
+    stage: ['Seed', 'Series A', 'Series B', 'Growth'], geography: ['Europe', 'United States', 'Global'],
+    thesis: 'Stage-agnostic venture firm backing transformative technology companies across Europe and the US.',
+    source: 'https://www.indexventures.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Khosla Ventures', firm: 'Khosla Ventures', url: 'https://www.khoslaventures.com/',
+    sectors: ['AI/ML', 'Climate Tech', 'Healthcare', 'DeepTech', 'SaaS'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['United States', 'Global'],
+    thesis: 'Early-stage venture firm investing in technology breakthroughs across AI, climate, and health.',
+    source: 'https://www.khoslaventures.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Tencent', firm: 'Tencent', url: 'https://www.tencent.com/',
+    sectors: ['AI/ML', 'Consumer', 'Gaming', 'Fintech', 'Enterprise'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global', 'China'],
+    thesis: 'Corporate strategic investor across consumer internet, gaming, fintech, and enterprise software.',
+    source: 'https://www.tencent.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Hummingbird', firm: 'Hummingbird Ventures', displayName: 'Hummingbird Ventures', url: 'https://hummingbird.vc/',
+    sectors: ['AI/ML', 'SaaS', 'Fintech', 'Consumer'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Early-stage venture firm backing ambitious founders across Europe and beyond.',
+    source: 'https://hummingbird.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Cyberstarts', firm: 'Cyberstarts', url: 'https://www.cyberstarts.com/',
+    sectors: ['Cybersecurity', 'Enterprise', 'AI/ML'],
+    stage: ['Seed', 'Series A'], geography: ['Israel', 'United States', 'Global'],
+    thesis: 'Cybersecurity-focused early-stage venture firm.',
+    source: 'https://www.cyberstarts.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'MarcyPen Capital Partners', firm: 'MarcyPen Capital Partners', url: null,
+    sectors: ['AI/ML', 'SaaS', 'Fintech', 'Technology'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['Global'],
+    thesis: 'Venture investor appearing frequently in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Lightrock', firm: 'Lightrock', url: 'https://www.lightrock.com/',
+    sectors: ['Climate Tech', 'Fintech', 'Healthcare', 'Technology'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global', 'India', 'Europe'],
+    thesis: 'Impact-oriented growth investor backing sustainable and technology-enabled businesses.',
+    source: 'https://www.lightrock.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Z47', firm: 'Z47', url: 'https://z47.com/',
+    sectors: ['AI/ML', 'SaaS', 'Fintech', 'Consumer'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['India', 'Global'],
+    thesis: 'India-focused venture firm (formerly Matrix Partners India) backing category-defining startups.',
+    source: 'https://z47.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'DN Capital', firm: 'DN Capital', url: 'https://www.dncapital.com/',
+    sectors: ['SaaS', 'Fintech', 'AI/ML', 'Marketplace'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'United States', 'Global'],
+    thesis: 'Early-stage venture firm investing in software and marketplace businesses.',
+    source: 'https://www.dncapital.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Advent International', firm: 'Advent International', url: 'https://www.adventinternational.com/',
+    sectors: ['Technology', 'Healthcare', 'Financial Services', 'Industrial'],
+    stage: ['Growth', 'Buyout'], geography: ['Global'],
+    thesis: 'Global private equity firm with growth and buyout strategies across technology and services.',
+    source: 'https://www.adventinternational.com/', type: 'PE', investorType: 'PE',
+  },
+  {
+    canonicalName: 'Dabur Ventures', firm: 'Dabur Ventures', url: null,
+    sectors: ['Consumer', 'Healthcare', 'Fintech', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['India', 'Global'],
+    thesis: 'Corporate venture arm investing in consumer and technology startups.',
+    source: null, type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Pitchdrive', firm: 'Pitchdrive', url: 'https://www.pitchdrive.com/',
+    sectors: ['SaaS', 'AI/ML', 'Fintech', 'Marketplace'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['Europe', 'Global'],
+    thesis: 'European early-stage venture firm backing ambitious technical founders.',
+    source: 'https://www.pitchdrive.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'OG Venture Partners', firm: 'OG Venture Partners', url: null,
+    sectors: ['AI/ML', 'SaaS', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage venture firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'XTX Markets', firm: 'XTX Markets', url: 'https://www.xtxmarkets.com/',
+    sectors: ['Fintech', 'AI/ML', 'Technology'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Quantitative trading firm investing strategically in technology and markets infrastructure.',
+    source: 'https://www.xtxmarkets.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: '8090 Industries', firm: '8090 Industries', url: null,
+    sectors: ['AI/ML', 'DeepTech', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage investor appearing frequently in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
 ];
 
 async function allInvestors() {
@@ -159,9 +265,21 @@ async function main() {
       const aExact = Number(normalizeEntityName(a.name) === normalized);
       const bExact = Number(normalizeEntityName(b.name) === normalized);
       if (bExact !== aExact) return bExact - aExact;
-      const aPerson = Number(/\bangel\b/i.test(String(a.type || '')) || a.is_individual === true);
-      const bPerson = Number(/\bangel\b/i.test(String(b.type || '')) || b.is_individual === true);
+      const aPerson = Number(
+        /\([^)]+\)/.test(String(a.name || ''))
+        || /\bangel\b/i.test(String(a.type || ''))
+        || a.is_individual === true,
+      );
+      const bPerson = Number(
+        /\([^)]+\)/.test(String(b.name || ''))
+        || /\bangel\b/i.test(String(b.type || ''))
+        || b.is_individual === true,
+      );
       if (aPerson !== bPerson) return aPerson - bPerson;
+      // Prefer name===firm org rows over partner names sharing the firm field.
+      const aOrg = Number(normalizeEntityName(a.name) === normalizeEntityName(a.firm));
+      const bOrg = Number(normalizeEntityName(b.name) === normalizeEntityName(b.firm));
+      if (bOrg !== aOrg) return bOrg - aOrg;
       return (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0);
     });
     return { ...profile, normalized, organization: organizationByName.get(normalized), existing };
@@ -179,7 +297,16 @@ async function main() {
   const results = [];
   for (const profile of plan) {
     if (!profile.organization) throw new Error(`Missing canonical organization for ${profile.canonicalName}`);
+    const displayNormalized = normalizeEntityName(profile.displayName || profile.canonicalName);
     let investor = profile.existing[0] || null;
+    // If the best candidate is still a partner/person row, create a dedicated firm profile.
+    if (investor) {
+      const nameNorm = normalizeEntityName(investor.name);
+      const personLike = investor.is_individual === true
+        || /\([^)]+\)/.test(String(investor.name || ''))
+        || (nameNorm !== displayNormalized && nameNorm !== profile.normalized);
+      if (personLike) investor = null;
+    }
     if (!investor) {
       const { data, error } = await db.from('investors').insert({
         name: profile.displayName || profile.canonicalName,
@@ -193,13 +320,30 @@ async function main() {
         investment_thesis: profile.thesis,
         type: profile.type || 'VC',
         investor_type: profile.investorType || profile.type || 'VC',
-        investor_score: 50,
+        investor_score: 55,
         investor_tier: 'emerging',
+        entity_gate: 'qualified',
         status: 'active',
         is_verified: true,
+        is_individual: false,
       }).select('id,name,firm').single();
       if (error) throw error;
       investor = data;
+    } else {
+      const { error: activateError } = await db.from('investors').update({
+        status: 'active',
+        entity_gate: 'qualified',
+        type: profile.type || 'VC',
+        investor_type: profile.investorType || profile.type || 'VC',
+        firm: profile.firm,
+        url: profile.url || undefined,
+        sectors: profile.sectors,
+        stage: profile.stage,
+        investment_thesis: profile.thesis,
+        is_individual: false,
+        updated_at: new Date().toISOString(),
+      }).eq('id', investor.id);
+      if (activateError) throw activateError;
     }
     const { error: membershipError } = await db.from('investor_organization_memberships').upsert({
       investor_id: investor.id,
@@ -211,7 +355,11 @@ async function main() {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'investor_id' });
     if (membershipError) throw membershipError;
-    results.push({ canonical_name: profile.canonicalName, investor_id: investor.id, created: profile.existing.length === 0 });
+    results.push({
+      canonical_name: profile.canonicalName,
+      investor_id: investor.id,
+      created: !profile.existing[0] || profile.existing[0].id !== investor.id,
+    });
   }
   console.log(JSON.stringify({ mode: 'apply', results }, null, 2));
 }

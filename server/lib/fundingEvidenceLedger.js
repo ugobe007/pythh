@@ -77,33 +77,53 @@ function preferFirmEntity(candidates, rawName) {
   if (candidates.length === 1) return candidates[0];
   const raw = String(rawName || '').trim().toLowerCase();
 
+  const looksLikePersonName = (name) => {
+    const trimmed = String(name || '').trim();
+    if (/\([^)]+\)\s*$/.test(trimmed)) return true;
+    if (/\b(?:ventures?|capital|partners?|fund|management|llc|lp|holdings?|group|vc)\b/i.test(trimmed)) {
+      return false;
+    }
+    // Title-case person names ("Peter Thiel", "Zach DeWitt") — not "Peak XV" / "Z47".
+    const token = String.raw`[A-Z][a-z]+(?:[A-Z][a-z]+)*(?:'[a-z]+)?`;
+    return new RegExp(`^(?:${token}|[A-Z]\\.)(?:\\s+(?:${token}|[A-Z]\\.)){1,3}$`).test(trimmed);
+  };
+
   const isPersonLike = (row) => {
     if (row?.is_individual === true) return true;
     const name = String(row?.name || '').trim();
-    if (/\([^)]+\)\s*$/.test(name)) return true;
     const firm = String(row?.firm || '').trim().toLowerCase();
     const nameLc = name.toLowerCase();
-    // "Stephanie Zhan" with firm=Sequoia while resolving "Sequoia"
-    if (firm === raw && nameLc !== raw && nameLc !== firm && !nameLc.includes(firm)) return true;
+    // Canonical org signals beat title-case person heuristics
+    // ("General Catalyst" looks title-case but is the firm itself).
+    if (nameLc === raw) return false;
+    if (nameLc.startsWith(`${raw} `)) return false;
+    if (firm && nameLc === firm) return false;
+    if (looksLikePersonName(name)) return true;
     return false;
   };
 
   const firmProfiles = candidates.filter((row) => !isPersonLike(row));
-  const perfect = firmProfiles.filter((row) => {
+  if (!firmProfiles.length) return null;
+
+  const byExactName = firmProfiles.filter(
+    (row) => String(row?.name || '').trim().toLowerCase() === raw,
+  );
+  if (byExactName.length === 1) return byExactName[0];
+
+  const nameEqualsFirm = firmProfiles.filter((row) => {
     const name = String(row?.name || '').trim().toLowerCase();
     const firm = String(row?.firm || '').trim().toLowerCase();
-    return (name === raw && firm === raw) || (name && name === firm && (name === raw || firm === raw));
+    return name && firm && name === firm && (name === raw || firm === raw || name.startsWith(`${raw} `));
   });
-  if (perfect.length === 1) return perfect[0];
-  if (firmProfiles.length === 1) return firmProfiles[0];
+  if (nameEqualsFirm.length === 1) return nameEqualsFirm[0];
 
-  // Only auto-pick a name===raw firm when we clearly dropped person noise.
-  if (candidates.some(isPersonLike)) {
-    const byName = firmProfiles.filter(
-      (row) => String(row?.name || '').trim().toLowerCase() === raw,
-    );
-    if (byName.length === 1) return byName[0];
-  }
+  const expanded = firmProfiles.filter((row) => {
+    const name = String(row?.name || '').trim().toLowerCase();
+    return name === raw || name.startsWith(`${raw} `);
+  });
+  if (expanded.length === 1) return expanded[0];
+
+  if (firmProfiles.length === 1) return firmProfiles[0];
   return null;
 }
 
@@ -155,7 +175,10 @@ function isPlausibleInvestorEntityName(value) {
   const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   return raw.length >= 3 && raw.length <= 100 && !GENERIC_INVESTOR_NAMES.has(normalized)
     && raw.split(/\s+/).length <= 8
-    && !/\b(?:funding round|financing round|led by|participation from|reports?|in-person service economy|into ai|in japan)\b/i.test(raw);
+    && !/\b(?:funding round|financing round|led by|participation from|reports?|in-person service economy|into ai|in japan)\b/i.test(raw)
+    // Extraction debris / sentence fragments, not investor names.
+    && !/\b(?:techcrunch has|exclusively learned|has exclusively|according to|co-founders?\b.+\b[A-Z][a-z]+)\b/i.test(raw)
+    && !/^(?:statistics|big tech|q\.?e\.?d\.? for)\b/i.test(raw);
 }
 
 function normalizeRoundType(value) {

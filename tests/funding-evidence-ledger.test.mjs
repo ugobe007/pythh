@@ -68,7 +68,10 @@ test('prefers exact canonical investor names and exposes normalization collision
     { id: '3', name: 'True Ventures', firm: 'True Ventures' },
   ];
   assert.equal(resolveCanonicalEntity(rows, 'True Ventures').row.id, '3');
-  assert.equal(resolveCanonicalEntity(rows, 'OpenAI').status, 'ambiguous');
+  // OpenAI vs OpenAI Startup Fund: prefer the exact-name firm row.
+  const openai = resolveCanonicalEntity(rows, 'OpenAI');
+  assert.equal(openai.status, 'resolved');
+  assert.equal(openai.row.id, '1');
   assert.equal(resolveCanonicalEntity([{ id: '1', name: 'VaynerFund' }], 'Vayner Fund').confidence, 0.92);
 });
 
@@ -81,6 +84,12 @@ test('prefers firm profile over partner rows sharing the same firm field', () =>
     { id: 'pt', name: 'Peter Thiel', firm: 'Founders Fund', is_individual: false },
     { id: 'accel', name: 'Accel', firm: 'Accel', is_individual: false },
     { id: 'ap', name: 'Andrew Braccia (Accel)', firm: 'Accel', is_individual: true },
+    { id: 'peak', name: 'Peak XV', firm: null, is_individual: false },
+    { id: 'peak-p', name: 'Peak XV Partners', firm: 'Peak XV', is_individual: false },
+    { id: 'wing', name: 'Wing Venture Capital', firm: 'Wing VC', is_individual: false },
+    { id: 'wing-p', name: 'Zach DeWitt', firm: 'Wing VC', is_individual: false },
+    { id: 'prosus', name: 'Prosus', firm: null, is_individual: false },
+    { id: 'prosus-v', name: 'Prosus Ventures', firm: 'Prosus', is_individual: false },
   ];
   const gc = resolveCanonicalEntity(rows, 'General Catalyst');
   assert.equal(gc.status, 'resolved');
@@ -92,6 +101,15 @@ test('prefers firm profile over partner rows sharing the same firm field', () =>
   const accel = resolveCanonicalEntity(rows, 'Accel');
   assert.equal(accel.status, 'resolved');
   assert.equal(accel.row.id, 'accel');
+  const peak = resolveCanonicalEntity(rows, 'Peak XV');
+  assert.equal(peak.status, 'resolved');
+  assert.equal(peak.row.id, 'peak');
+  const wing = resolveCanonicalEntity(rows, 'Wing VC');
+  assert.equal(wing.status, 'resolved');
+  assert.equal(wing.row.id, 'wing');
+  const prosus = resolveCanonicalEntity(rows, 'Prosus');
+  assert.equal(prosus.status, 'resolved');
+  assert.equal(prosus.row.id, 'prosus');
 });
 
 test('rejects generic funding stages masquerading as canonical investors', () => {
@@ -103,6 +121,8 @@ test('rejects generic funding stages masquerading as canonical investors', () =>
   assert.equal(isPlausibleInvestorEntityName('EU-Startups reports'), false);
   assert.equal(isPlausibleInvestorEntityName('Wellness Into AI In-Person Service Economy'), false);
   assert.equal(isPlausibleInvestorEntityName('Z Venture Capital in Japan'), false);
+  assert.equal(isPlausibleInvestorEntityName('TechCrunch has exclusively learned'), false);
+  assert.equal(isPlausibleInvestorEntityName('Statistics - IndexBox'), false);
 });
 
 test('builds stable candidate round keys without collapsing distinct months or amounts', () => {
@@ -809,6 +829,7 @@ test('investor coverage resolve accepts headline-cleaned firm matches', () => {
   const script = readFileSync(new URL('../scripts/resolve-funding-investor-coverage.mjs', import.meta.url), 'utf8');
   assert.match(script, /headline_cleaned_/);
   assert.match(script, /exact_firm_preferred/);
+  assert.match(script, /isFirmSafeNormalized/);
 });
 
 test('investor canonical audit checks aliases and downstream references before merging', () => {

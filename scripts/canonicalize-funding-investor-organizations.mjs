@@ -41,6 +41,21 @@ const organizations = [
   ['Coatue', 'coatue.com', ['Coatue', 'Coatue Management']],
   ['Menlo Ventures', 'menlovc.com', ['Menlo Ventures', 'Menlo']],
   ['Insight Partners', 'insightpartners.com', ['Insight Partners', 'Insight']],
+  ['Index Ventures', 'indexventures.com', ['Index Ventures', 'Index']],
+  ['Khosla Ventures', 'khoslaventures.com', ['Khosla Ventures', 'Khosla']],
+  ['Tencent', 'tencent.com', ['Tencent', 'Tencent Holdings']],
+  ['Hummingbird', 'hummingbird.vc', ['Hummingbird', 'Hummingbird Ventures']],
+  ['Cyberstarts', 'cyberstarts.com', ['Cyberstarts']],
+  ['MarcyPen Capital Partners', null, ['MarcyPen Capital Partners', 'MarcyPen']],
+  ['Lightrock', 'lightrock.com', ['Lightrock', 'Lightrock India']],
+  ['Z47', 'z47.com', ['Z47', 'Matrix Partners India']],
+  ['DN Capital', 'dncapital.com', ['DN Capital']],
+  ['Advent International', 'adventinternational.com', ['Advent International', 'Advent']],
+  ['Dabur Ventures', null, ['Dabur Ventures', 'Dabur']],
+  ['Pitchdrive', 'pitchdrive.com', ['Pitchdrive']],
+  ['OG Venture Partners', null, ['OG Venture Partners', 'OG Ventures']],
+  ['XTX Markets', 'xtxmarkets.com', ['XTX Markets', 'XTX']],
+  ['8090 Industries', null, ['8090 Industries', '8090']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
