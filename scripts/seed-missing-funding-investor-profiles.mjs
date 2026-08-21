@@ -56,19 +56,114 @@ const profiles = [
     type: 'VC',
     investorType: 'VC',
   },
+  {
+    canonicalName: 'Baillie Gifford', firm: 'Baillie Gifford', url: 'https://www.bailliegifford.com/',
+    sectors: ['AI/ML', 'Consumer', 'Healthcare', 'Technology', 'SaaS'],
+    stage: ['Series B', 'Series C', 'Growth'], geography: ['Global', 'United Kingdom'],
+    thesis: 'Long-horizon growth investor known for concentrated public and late-stage private technology positions.',
+    source: 'https://www.bailliegifford.com/',
+    type: 'VC',
+    investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Premji Invest', firm: 'Premji Invest', url: 'https://www.premjiinvest.com/',
+    sectors: ['AI/ML', 'SaaS', 'Consumer', 'Fintech'],
+    stage: ['Series B', 'Series C', 'Growth'], geography: ['India', 'Global'],
+    thesis: 'Growth investor backing category-defining technology companies across India and global markets.',
+    source: 'https://www.premjiinvest.com/',
+    type: 'VC',
+    investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Microsoft', firm: 'Microsoft', url: 'https://www.microsoft.com/',
+    sectors: ['AI/ML', 'Enterprise', 'Cloud', 'SaaS'],
+    stage: ['Seed', 'Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Corporate strategic investor across cloud, AI, and enterprise software ecosystems.',
+    source: 'https://www.microsoft.com/',
+    type: 'Corporate',
+    investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Nvidia', firm: 'Nvidia', displayName: 'Nvidia', url: 'https://www.nvidia.com/',
+    sectors: ['AI/ML', 'DeepTech', 'Robotics', 'Semiconductors'],
+    stage: ['Seed', 'Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Corporate strategic investor in AI infrastructure, robotics, and semiconductor-adjacent platforms.',
+    source: 'https://www.nvidia.com/',
+    type: 'Corporate',
+    investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Uber', firm: 'Uber', url: 'https://www.uber.com/',
+    sectors: ['AI/ML', 'Mobility', 'Logistics', 'Robotics'],
+    stage: ['Seed', 'Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Corporate strategic investor in mobility, logistics, and marketplace platforms.',
+    source: 'https://www.uber.com/',
+    type: 'Corporate',
+    investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'ICONIQ', firm: 'ICONIQ Capital', displayName: 'ICONIQ Capital', url: 'https://www.iconiqcapital.com/',
+    sectors: ['Consumer', 'Fintech', 'HealthTech', 'SaaS', 'AI/ML'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['United States', 'Global'],
+    thesis: 'Growth-oriented technology investor partnering with category leaders across software and consumer.',
+    source: 'https://www.iconiqcapital.com/',
+    type: 'VC',
+    investorType: 'VC',
+  },
+  {
+    canonicalName: 'BoldCap', firm: 'BoldCap', url: null,
+    sectors: ['Fintech', 'SaaS', 'AI/ML', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage investor appearing frequently in post-prediction funding ledgers.',
+    source: null,
+    type: 'VC',
+    investorType: 'VC',
+  },
 ];
 
+async function allInvestors() {
+  const rows = [];
+  for (let offset = 0; offset < 100000; offset += 1000) {
+    const { data, error } = await db.from('investors')
+      .select('id,name,firm,url,sectors,stage,status,is_verified,type,is_individual,investor_score')
+      .range(offset, offset + 999);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows;
+}
+
 async function main() {
-  const [{ data: investors, error: investorError }, { data: organizations, error: organizationError }] = await Promise.all([
-    db.from('investors').select('id,name,firm,url,sectors,stage,status,is_verified'),
+  const [investors, { data: organizations, error: organizationError }] = await Promise.all([
+    allInvestors(),
     db.from('investor_organizations').select('id,canonical_name,normalized_name'),
   ]);
-  if (investorError) throw investorError;
   if (organizationError) throw organizationError;
   const organizationByName = new Map((organizations || []).map(row => [row.normalized_name, row]));
   const plan = profiles.map(profile => {
     const normalized = normalizeEntityName(profile.canonicalName);
-    const existing = (investors || []).filter(row => [row.name, row.firm].some(value => normalizeEntityName(value) === normalized));
+    const displayNormalized = normalizeEntityName(profile.displayName || profile.canonicalName);
+    const firmNormalized = normalizeEntityName(profile.firm);
+    const candidates = (investors || []).filter(row =>
+      [row.name, row.firm].some(value => {
+        const n = normalizeEntityName(value);
+        return n === normalized || n === displayNormalized || n === firmNormalized;
+      })
+    );
+    // Prefer exact firm display name, then non-person rows, then first match.
+    const existing = [...candidates].sort((a, b) => {
+      const aDisplay = Number(normalizeEntityName(a.name) === displayNormalized);
+      const bDisplay = Number(normalizeEntityName(b.name) === displayNormalized);
+      if (bDisplay !== aDisplay) return bDisplay - aDisplay;
+      const aExact = Number(normalizeEntityName(a.name) === normalized);
+      const bExact = Number(normalizeEntityName(b.name) === normalized);
+      if (bExact !== aExact) return bExact - aExact;
+      const aPerson = Number(/\bangel\b/i.test(String(a.type || '')) || a.is_individual === true);
+      const bPerson = Number(/\bangel\b/i.test(String(b.type || '')) || b.is_individual === true);
+      if (aPerson !== bPerson) return aPerson - bPerson;
+      return (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0);
+    });
     return { ...profile, normalized, organization: organizationByName.get(normalized), existing };
   });
   if (!apply) {

@@ -25,6 +25,14 @@ const organizations = [
   ['Hamilton Lane', 'hamiltonlane.com', ['Hamilton Lane']],
   ['Broadhaven Ventures', null, ['Broadhaven', 'Broadhaven Ventures']],
   ['Etna Labs', 'etnalabs.co', ['Etna Labs', 'TheEtnaLabs', 'Etna', 'Etna Capital Management']],
+  // Frequent Hit@5 candidate_generation_miss funders (firm aliases for resolution).
+  ['Baillie Gifford', 'bailliegifford.com', ['Baillie Gifford']],
+  ['Premji Invest', null, ['Premji Invest', 'PremjiInvest']],
+  ['Microsoft', 'microsoft.com', ['Microsoft', 'Microsoft Corporation']],
+  ['Nvidia', 'nvidia.com', ['Nvidia', 'NVIDIA', 'NVIDIA Ventures', 'Nvidia Ventures']],
+  ['Uber', 'uber.com', ['Uber', 'Uber Technologies']],
+  ['ICONIQ', 'iconiqcapital.com', ['ICONIQ', 'ICONIQ Capital', 'Iconiq', 'Iconiq Capital']],
+  ['BoldCap', null, ['BoldCap', 'Bold Cap']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
@@ -38,6 +46,14 @@ const reviewedMemberIds = new Set([
   '35e2664c-2c7e-4442-829c-4f53af872d1f', // Monashees organization row
   '1eb3c02a-d8e9-4495-91e8-07d669218f1b', // Portage Ventures; referenced by matches
   '65662c8c-410a-4357-b896-122422cc670a', // Apollo Global Management; referenced by matches
+  // Frequent Hit@5 miss funders — firm rows only (reviewed).
+  '4e58f118-67c3-40a6-936b-28c03423241a', // Baillie Gifford
+  'c8a13763-caf9-4872-9b1c-f3c1f71fea82', // Premji Invest
+  '2c3d282e-b994-406f-bc31-b302c287bb2b', // Microsoft
+  '033d0b37-2721-4917-8887-b4414baa67ef', // Nvidia
+  'a07fb4a8-c30c-4c2e-a127-af34f5e893e8', // Uber (corporate firm; not person angels)
+  '246335d7-eb1e-43f6-b990-02c2258683cd', // ICONIQ Capital
+  '53cf1206-3a24-4ada-90a8-32326e7dcd9f', // BoldCap
 ]);
 
 async function allRows(table, select) {

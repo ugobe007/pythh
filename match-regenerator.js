@@ -18,6 +18,10 @@ const { applyTechVcMatchAdjustment } = require('./lib/proprietaryTechAssessment'
 const { applyStageInvestorFitAdjustment } = require('./lib/stageInvestorFit');
 const { applyInvestorRecencyAdjustment } = require('./lib/matchInvestorRecency');
 const { isNonInvestorAggregator } = require('./lib/investorAggregatorBlocklist');
+const {
+  collectFrequentLedgerFunderIds,
+  selectTopMatchesReservingForced,
+} = require('./server/lib/frequentLedgerFunders');
 
 // Matching configuration
 // ═══════════════════════════════════════════════════════════════════════════
@@ -998,10 +1002,15 @@ async function regenerateMatches() {
         return String(a.investor_id).localeCompare(String(b.investor_id));
       });
       
-      // ✅ RANK-FIRST: filter low floor, then take top N
-      const topMatches = scoredMatches
-        .filter(m => m.match_score >= PERSISTENCE_FLOOR)
-        .slice(0, CONFIG.TOP_MATCHES_PER_STARTUP);
+      // ✅ RANK-FIRST: filter low floor, reserve frequent ledger funders, then top N.
+      // Prevents candidate_generation_miss for mega-funders that score below the cut.
+      const aboveFloor = scoredMatches.filter(m => m.match_score >= PERSISTENCE_FLOOR);
+      const frequentForceIds = collectFrequentLedgerFunderIds(investors);
+      const topMatches = selectTopMatchesReservingForced(
+        aboveFloor,
+        frequentForceIds,
+        CONFIG.TOP_MATCHES_PER_STARTUP,
+      );
       
       allMatches.push(...topMatches);
       
