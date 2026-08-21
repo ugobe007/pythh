@@ -9,13 +9,56 @@ const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 const { classifyNamedInvestorParticipation, extractExplicitParticipantMentions } = require('../server/lib/fundingParticipationOntology.js');
 
-const { normalizeEntityName, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPredictionGradeStartupIdentity, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
+const { normalizeEntityName, stripInvestorHeadlineNoise, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPredictionGradeStartupIdentity, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
 
 test('normalizes common investor firm suffixes for deterministic resolution', () => {
   assert.equal(normalizeEntityName('Acme Ventures, LLC'), 'acme llc');
   assert.equal(normalizeEntityName('Acme Capital Partners'), 'acme');
   // Weak remainders keep the corporate token (Founders Fund ≠ "founders")
   assert.equal(normalizeEntityName('Founders Fund'), 'founders fund');
+});
+
+test('strips RSS/headline publisher suffixes and possessive person prefixes', () => {
+  assert.equal(stripInvestorHeadlineNoise('General Catalyst - Entrackr'), 'General Catalyst');
+  assert.equal(stripInvestorHeadlineNoise('Accel - Capital Brief'), 'Accel');
+  assert.equal(stripInvestorHeadlineNoise('Thrive Capital - marketscreener'), 'Thrive Capital');
+  assert.equal(stripInvestorHeadlineNoise('Peter Thiel’s Founders Fund - Moneycontrol'), 'Founders Fund');
+  assert.equal(stripInvestorHeadlineNoise('Peter Thiel\'s Founders Fund'), 'Founders Fund');
+  // Hyphenated firm tokens without spaces must not strip
+  assert.equal(stripInvestorHeadlineNoise('F-Prime'), 'F-Prime');
+  assert.equal(stripInvestorHeadlineNoise('Long-Z Investments'), 'Long-Z Investments');
+  // Generic remainder after possessive stays intact
+  assert.equal(
+    stripInvestorHeadlineNoise('Reddit co-founder Alexis Ohanian’s venture firm'),
+    'Reddit co-founder Alexis Ohanian’s venture firm',
+  );
+  assert.equal(stripInvestorHeadlineNoise('Figma’s CEO'), 'Figma’s CEO');
+  assert.equal(stripInvestorHeadlineNoise('Shlomo Kramer’s Skinos Ventures'), 'Skinos Ventures');
+});
+
+test('resolves headline-glued investor names to firm profiles', () => {
+  const rows = [
+    { id: 'gc', name: 'General Catalyst', firm: 'General Catalyst', is_individual: false },
+    { id: 'ff', name: 'Founders Fund', firm: 'Founders Fund', is_individual: false },
+    { id: 'accel', name: 'Accel', firm: 'Accel', is_individual: false },
+    { id: 'a16z', name: 'Andreessen Horowitz', firm: 'Andreessen Horowitz', is_individual: false },
+  ];
+  const gc = resolveCanonicalEntity(rows, 'General Catalyst - Entrackr');
+  assert.equal(gc.status, 'resolved');
+  assert.equal(gc.row.id, 'gc');
+  assert.match(gc.matchKind, /headline_cleaned_/);
+
+  const ff = resolveCanonicalEntity(rows, 'Peter Thiel’s Founders Fund - Moneycontrol');
+  assert.equal(ff.status, 'resolved');
+  assert.equal(ff.row.id, 'ff');
+
+  const accel = resolveCanonicalEntity(rows, 'Accel - Capital Brief');
+  assert.equal(accel.status, 'resolved');
+  assert.equal(accel.row.id, 'accel');
+
+  const a16z = resolveCanonicalEntity(rows, 'Andreessen Horowitz - Fintech Finance');
+  assert.equal(a16z.status, 'resolved');
+  assert.equal(a16z.row.id, 'a16z');
 });
 
 test('prefers exact canonical investor names and exposes normalization collisions', () => {
@@ -760,6 +803,12 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /existing_candidates/);
   assert.doesNotMatch(script, /\.delete\(/);
+});
+
+test('investor coverage resolve accepts headline-cleaned firm matches', () => {
+  const script = readFileSync(new URL('../scripts/resolve-funding-investor-coverage.mjs', import.meta.url), 'utf8');
+  assert.match(script, /headline_cleaned_/);
+  assert.match(script, /exact_firm_preferred/);
 });
 
 test('investor canonical audit checks aliases and downstream references before merging', () => {
