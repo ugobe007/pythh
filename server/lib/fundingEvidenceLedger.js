@@ -257,6 +257,38 @@ function isPredictionGradeStartupIdentity(row = {}) {
   return companyAction.test(description) || companyAppositive.test(description);
 }
 
+/**
+ * Serve-time identity for freezing Hit@5 predictions.
+ * Requires URL↔name alignment but does NOT require prior funding language in the
+ * description — otherwise we only snapshot companies that already raised.
+ */
+function isServeGradeStartupIdentity(row = {}) {
+  const name = String(row.name || '').trim();
+  if (!isPromotionSafeStartupName(name) || row.source_type !== 'url') return false;
+  if (/\b(?:vc|venture capital|ventures?|capital partners?|investment management|fund)\b$/i.test(name)) return false;
+
+  const identityUrl = row.company_domain || row.website;
+  if (!identityUrl) return false;
+  let hostname = '';
+  try {
+    hostname = new URL(/^https?:\/\//i.test(identityUrl) ? identityUrl : `https://${identityUrl}`).hostname
+      .toLowerCase().replace(/^www\./, '');
+  } catch {
+    return false;
+  }
+  if (/\b(?:techcrunch|ventureburn|businessinsider|finsmes|globenewswire|saastr|medium|substack|youtube)\./i.test(hostname)) return false;
+  const domainKey = hostname.split('.')[0].replace(/[^a-z0-9]/g, '');
+  const nameKey = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (domainKey.length < 3 || nameKey.length < 3) return false;
+  if (!domainKey.includes(nameKey) && !nameKey.includes(domainKey)) return false;
+
+  const description = String(row.description || '').replace(/\s+/g, ' ').trim();
+  if (description.length < 40) return false;
+  if (/\b(?:nasdaq|nyse|publicly traded|stock exchange|ticker symbol)\b/i.test(description)) return false;
+  if (/\b(?:permanent capital company|private equity firm|investment firm|asset manager)\b/i.test(description)) return false;
+  return true;
+}
+
 function startupNameCandidates(event, inferredName) {
   const title = String(event.source_title || '');
   const directionalTarget = startupNameFromFundingEvent(event);
@@ -452,6 +484,7 @@ module.exports = {
   isPlausibleStartupName,
   isPromotionSafeStartupName,
   isPredictionGradeStartupIdentity,
+  isServeGradeStartupIdentity,
   startupNameCandidates,
   participantNamesFromEvent,
   classifyFundingEvidence,

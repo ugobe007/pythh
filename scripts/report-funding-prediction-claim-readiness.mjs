@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
-const { classifyFundingEvidence, isPredictionGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
+const { classifyFundingEvidence, isServeGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
 
 const HORIZONS = [30, 90, 180, 365];
 const DAY_MS = 86_400_000;
@@ -253,7 +253,7 @@ async function main() {
   const organizationByInvestor = new Map(memberships.map(row => [row.investor_id, row.organization_id]));
   const identityQualifiedSets = allPredictionSets.filter(set => {
     const startup = startupById.get(set.startup_id);
-    return isPredictionGradeStartupIdentity(startup);
+    return isServeGradeStartupIdentity(startup);
   });
   const predictionSets = identityQualifiedSets.filter(set =>
     hasFiveDistinctInvestorFirms(set, investorById, organizationByInvestor));

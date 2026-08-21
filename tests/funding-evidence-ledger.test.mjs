@@ -164,6 +164,28 @@ test('prediction-grade startup identity requires a coherent first-party domain a
   }), false);
 });
 
+test('serve-grade identity allows pre-raise startups with URL↔name alignment', () => {
+  const { isServeGradeStartupIdentity } = ledger;
+  assert.equal(isServeGradeStartupIdentity({
+    name: 'Acme Robotics',
+    source_type: 'url',
+    website: 'https://acmerobotics.com',
+    description: 'Acme Robotics builds autonomous warehouse robots for mid-market logistics teams worldwide.',
+  }), true);
+  assert.equal(isServeGradeStartupIdentity({
+    name: 'Acme Robotics',
+    source_type: 'url',
+    website: 'https://acmerobotics.com',
+    description: 'short',
+  }), false);
+  assert.equal(isServeGradeStartupIdentity({
+    name: 'Acme Robotics',
+    source_type: 'url',
+    website: 'https://totallyunrelated.io',
+    description: 'Acme Robotics builds autonomous warehouse robots for mid-market logistics teams worldwide.',
+  }), false);
+});
+
 test('reverses directional investment headlines into investor and funded company', () => {
   const event = { source_title: 'HongShan invests in ZXMOTO as Chinese motorcycle maker expands' };
   assert.equal(startupNameFromFundingEvent(event), 'ZXMOTO');
@@ -462,13 +484,12 @@ test('prospective snapshots freeze approved top-five sets without changing live 
   assert.match(sql, /REVOKE ALL .* FROM anon, authenticated/);
   assert.match(script, /\.eq\('status', 'approved'\)/);
   assert.match(script, /seenFirms/);
-  assert.match(script, /isEligibleInvestor/);
-  assert.match(script, /isGarbageInvestorName/);
+  assert.match(script, /isEligibleFirmInvestor/);
+  assert.match(script, /freezeFundingPredictionSnapshot/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /process\.argv\.includes\('--new-only'\)/);
   assert.match(script, /previouslySnapshotted/);
-  assert.match(script, /isPredictionGradeStartupIdentity/);
-  assert.match(script, /row\.is_individual !== true/);
+  assert.match(script, /isServeGradeStartupIdentity/);
   assert.match(script, /offset \+= 20/);
   assert.match(script, /snapshots\.length >= limit \* 5/);
   assert.match(script, /description,total_god_score/);
@@ -517,7 +538,7 @@ test('claim-readiness report prevents temporal leakage and separates accuracy de
   assert.match(script, /classifyFundingEvidence/);
   assert.match(script, /source_title/);
   assert.match(script, /excluded_prediction_sets_without_prediction_grade_identity/);
-  assert.match(script, /isPredictionGradeStartupIdentity/);
+  assert.match(script, /isServeGradeStartupIdentity/);
   assert.match(script, /rowsByIds/);
   assert.match(script, /hasFiveDistinctInvestorFirms/);
   assert.match(script, /excluded_prediction_sets_with_duplicate_or_unresolved_firms/);

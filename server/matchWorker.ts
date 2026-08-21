@@ -15,6 +15,7 @@ import { canonicalizeUrl, extractDomainKey } from './utils/urlCanonicalizer';
 
 const require = createRequire(import.meta.url);
 const { enqueueFundingEvidenceSearchAsync } = require('./lib/enqueueFundingEvidenceSearch.js');
+const { freezeTopFiveIfAbsent } = require('./lib/freezeFundingPredictionSnapshot.js');
 
 // Supabase client
 const supabase = createClient(
@@ -420,13 +421,7 @@ async function rankMatches(startup: StartupData, candidates: any[], debugContext
  * Step 6: Save matches to database
  */
 async function saveMatches(startupId: string, matches: any[], debugContext: any): Promise<number> {
-  // Delete old suggested matches for this startup
-  await supabase
-    .from('startup_investor_matches')
-    .delete()
-    .eq('startup_id', startupId)
-    .eq('status', 'suggested');
-  
+  // Upsert only — never delete suggested matches (preserves created_at prediction clocks).
   if (matches.length === 0) {
     debugContext.steps.push({
       step: 'finalize',
@@ -435,23 +430,34 @@ async function saveMatches(startupId: string, matches: any[], debugContext: any)
     return 0;
   }
   
-  // Insert new matches
   const rows = matches.map(m => ({
     startup_id: startupId,
     investor_id: m.investor_id,
     match_score: m.match_score,
     match_reasoning: m.match_reasoning,
-    status: 'suggested'
+    status: 'suggested',
+    algorithm_version: 'match-worker',
+    updated_at: new Date().toISOString(),
   }));
   
   const { data, error } = await supabase
     .from('startup_investor_matches')
-    .insert(rows)
+    .upsert(rows, { onConflict: 'startup_id,investor_id', ignoreDuplicates: false })
     .select();
   
   const saved = data?.length || 0;
   if (saved > 0) {
     enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'match_worker' });
+    try {
+      await freezeTopFiveIfAbsent({
+        supabase,
+        startupId,
+        predictionKind: 'served_impression',
+        modelVersionFallback: 'match-worker',
+      });
+    } catch (_) {
+      /* non-fatal */
+    }
   }
   
   debugContext.steps.push({

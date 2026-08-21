@@ -24,6 +24,7 @@ const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
 const { enqueueFundingEvidenceSearchAsync } = require('../lib/enqueueFundingEvidenceSearch');
+const { freezeTopFiveIfAbsent } = require('../lib/freezeFundingPredictionSnapshot');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -1105,6 +1106,8 @@ function uploadRowToPlaceholderStartup(startupId, row) {
 
 function buildInstantMatchRow(startupId, placeholderStartup, investor, fitResult) {
   const { score, fitAnalysis, confidence } = fitResult;
+  // Do NOT set created_at — it is the Hit@5 prediction clock. Upserts must preserve
+  // the original match timestamp (DB default on insert only).
   return {
     startup_id: startupId,
     investor_id: investor.id,
@@ -1114,10 +1117,28 @@ function buildInstantMatchRow(startupId, placeholderStartup, investor, fitResult
     confidence_level: confidence,
     why_you_match: generateWhyYouMatch(placeholderStartup, investor, fitAnalysis),
     status: 'suggested',
-    created_at: new Date().toISOString(),
+    algorithm_version: 'v3.5-instant-submit',
     updated_at: new Date().toISOString(),
     feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'sync_response', placeholderStartup, investor, {}),
   };
+}
+
+async function freezeServedPredictionSafe(supabase, startupId, source) {
+  try {
+    const result = await freezeTopFiveIfAbsent({
+      supabase,
+      startupId,
+      predictionKind: 'served_impression',
+      modelVersionFallback: 'v3.5-instant-submit',
+    });
+    if (result.frozen) {
+      console.log(`  🧊 [PRED] Frozen top-5 for ${startupId} via ${source} @ ${result.predicted_at}`);
+    }
+    return result;
+  } catch (err) {
+    console.warn(`  ⚠️ [PRED] freeze failed (${source}): ${err.message}`);
+    return { frozen: false, reason: 'error', error: err.message };
+  }
 }
 
 /**
@@ -1182,6 +1203,7 @@ async function generateSyncTopMatchesForHttpResponse(
       console.warn(`[SYNC] match upsert: ${upErr.message}`);
     } else {
       enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_sync' });
+      await freezeServedPredictionSafe(supabase, startupId, 'instant_sync');
     }
     const ids = rows.map((r) => r.investor_id);
     const { data: joined, error: selErr } = await supabase
@@ -1347,7 +1369,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
                   confidence_level: result.confidence,
                   why_you_match: generateWhyYouMatch(placeholderStartup, investor, result.fitAnalysis),
                   status: 'suggested',
-                  created_at: new Date().toISOString(),
+                  algorithm_version: 'v3.5-instant-submit',
                   updated_at: new Date().toISOString(),
                   feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'phase1', placeholderStartup, investor, {}),
                 };
@@ -1373,11 +1395,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     quickMatches.sort((a, b) => b.match_score - a.match_score);
     fastMatches = quickMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
     
-    // Insert fast matches so frontend picks them up on next poll (~3s)
-    // Uses unique(startup_id, investor_id) constraint for proper deduplication
+    // Upsert fast matches so frontend picks them up on next poll (~3s).
+    // Never delete-all: that rewrote created_at and destroyed the Hit@5 prediction clock.
     if (fastMatches.length > 0) {
-      // Delete existing matches for this startup first, then insert fresh set
-      await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
       const batchSize = 500;
       for (let i = 0; i < fastMatches.length; i += batchSize) {
         const batch = fastMatches.slice(i, i + batchSize);
@@ -1389,6 +1409,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         }
       }
       enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase1' });
+      await freezeServedPredictionSafe(supabase, startupId, 'instant_bg_phase1');
     }
     
     console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
@@ -1868,7 +1889,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
                     confidence_level: result.confidence,
                     why_you_match: generateWhyYouMatch(enrichedStartup, investor, result.fitAnalysis),
                     status: 'suggested',
-                    created_at: new Date().toISOString(),
+                    algorithm_version: 'v3.5-instant-submit',
                     updated_at: new Date().toISOString(),
                     feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'phase3', startupSnapshotPhase3, investor, {
                       signal_total: signalScore,
@@ -1898,8 +1919,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       const matches = allMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
       
       if (matches.length > 0) {
-        // Delete old matches, then insert enriched set (deduped by unique constraint)
-        await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+        // Upsert enriched scores only — preserve original created_at prediction clocks.
         const batchSize = 500;
         for (let i = 0; i < matches.length; i += batchSize) {
           const batch = matches.slice(i, i + batchSize);
@@ -1911,6 +1931,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           }
         }
         enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase3' });
+        await freezeServedPredictionSafe(supabase, startupId, 'instant_bg_phase3');
       }
       console.log(`  🔄 [BG] PHASE 3: Re-generated ${matches.length} enriched matches (${investors.length} evaluated)`);
     } else {

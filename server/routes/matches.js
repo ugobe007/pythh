@@ -106,8 +106,7 @@ router.post('/generate', async (req, res) => {
 
     console.log(`  Found startup: ${startup.name || 'Unnamed'} (GOD: ${startup.total_god_score})`);
 
-    await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
-
+    // Do not delete-all — that destroys match created_at (Hit@5 prediction clock).
     const svc = new EnhancedMatchingService(supabase);
     const result = await svc.generateMatches(startupId, { maxMatches: 50, minScore: 20 });
 
@@ -120,6 +119,18 @@ router.post('/generate', async (req, res) => {
 
     const matchCount = result.matchCount ?? 0;
     console.log(`  ✅ Enhanced matching wrote ${matchCount} rows (min score 20)`);
+
+    try {
+      const { freezeTopFiveIfAbsent } = require('../lib/freezeFundingPredictionSnapshot');
+      await freezeTopFiveIfAbsent({
+        supabase,
+        startupId,
+        predictionKind: 'served_impression',
+        modelVersionFallback: 'enhanced-matching',
+      });
+    } catch (freezeErr) {
+      console.warn(`  ⚠️ prediction freeze: ${freezeErr.message}`);
+    }
 
     try {
       await supabase.from('ai_logs').insert({
