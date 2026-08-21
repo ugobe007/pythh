@@ -24,6 +24,7 @@ const organizations = [
   ['Apollo Global Management', 'apollo.com', ['Apollo', 'Apollo Global Management']],
   ['Hamilton Lane', 'hamiltonlane.com', ['Hamilton Lane']],
   ['Broadhaven Ventures', null, ['Broadhaven', 'Broadhaven Ventures']],
+  ['Etna Labs', 'etnalabs.co', ['Etna Labs', 'TheEtnaLabs', 'Etna', 'Etna Capital Management']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
