@@ -32,6 +32,8 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
     stripInvestorHeadlineNoise('Reddit co-founder Alexis Ohanian’s venture firm'),
     'Reddit co-founder Alexis Ohanian’s venture firm',
   );
+  assert.equal(stripInvestorHeadlineNoise('Figma’s CEO'), 'Figma’s CEO');
+  assert.equal(stripInvestorHeadlineNoise('Shlomo Kramer’s Skinos Ventures'), 'Skinos Ventures');
 });
 
 test('resolves headline-glued investor names to firm profiles', () => {
@@ -801,6 +803,12 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /existing_candidates/);
   assert.doesNotMatch(script, /\.delete\(/);
+});
+
+test('investor coverage resolve accepts headline-cleaned firm matches', () => {
+  const script = readFileSync(new URL('../scripts/resolve-funding-investor-coverage.mjs', import.meta.url), 'utf8');
+  assert.match(script, /headline_cleaned_/);
+  assert.match(script, /exact_firm_preferred/);
 });
 
 test('investor canonical audit checks aliases and downstream references before merging', () => {

@@ -60,12 +60,14 @@ async function main() {
     return { participant, investor: null, organization: organization || null, method: organizationMemberships.length > 1 ? 'ambiguous_organization_members' : null, confidence: 0 };
   });
   // Funding outcomes become training labels. Apply exact identities, firm-preferred
-  // disambiguation (partner/person collisions), or a unique reviewed organization membership.
+  // disambiguation (partner/person collisions), headline-cleaned firm matches
+  // ("Firm - Publisher" / "Person’s Firm"), or a unique reviewed organization membership.
   const resolvable = plan.filter(item => item.investor && (
     item.confidence === 1
     || item.method === 'exact_firm_preferred'
     || item.method === 'normalized_firm_preferred'
     || item.method === 'unique_canonical_organization_member'
+    || /^headline_cleaned_(?:exact|exact_firm_preferred|normalized|normalized_firm_preferred)$/.test(String(item.method || ''))
   ));
 
   if (apply) {

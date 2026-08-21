@@ -33,10 +33,10 @@ function stripInvestorHeadlineNoise(value) {
   const possessive = s.match(/^(.+?)['’]s\s+(.+)$/u);
   if (possessive) {
     const remainder = possessive[2].trim();
-    const firmLike = /\b(?:capital|ventures?|partners?|fund|management|llc|lp|group)\b/i.test(remainder)
-      || (remainder.split(/\s+/).length <= 4 && remainder.length >= 3 && /[A-Za-z]/.test(remainder));
-    const genericRemainder = /^(?:venture firm|vc firm|investment firm|firm)$/i.test(remainder);
-    if (firmLike && !genericRemainder) s = remainder;
+    const firmToken = /\b(?:capital|ventures?|partners?|fund|management|llc|lp|group)\b/i.test(remainder);
+    const genericRemainder = /^(?:venture firm|vc firm|investment firm|firm|ceo|cto|cfo|founder|co-?founder|partner|partners|investor|investors)$/i.test(remainder);
+    // Require an explicit firm token — do not treat bare titles ("CEO") as firms.
+    if (firmToken && !genericRemainder && remainder.length >= 3) s = remainder;
   }
 
   return s.trim();
