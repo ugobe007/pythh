@@ -12,12 +12,53 @@ const { isPlausibleInvestorEntityName, normalizeEntityName, resolveCanonicalEnti
 
 const apply = process.argv.includes('--apply');
 const retryFailed = process.argv.includes('--retry-failed');
+const predictionLinked = process.argv.includes('--prediction-linked');
+const eventIdsArg = process.argv.find(arg => arg.startsWith('--event-ids='));
+const eventIds = String(eventIdsArg?.split('=')[1] || '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
 const limitArg = process.argv.find(arg => arg.startsWith('--limit='));
 const limit = Math.min(Math.max(Number(limitArg?.split('=')[1] || 100), 1), 500);
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 if (!url || !key) throw new Error('SUPABASE_URL and service-role key are required');
 const db = createClient(url, key, { auth: { persistSession: false } });
+
+async function loadPredictionLinkedIncompleteEventIds(max) {
+  if (!process.env.DATABASE_URL) return [];
+  const pg = (await import('pg')).default;
+  const raw = String(process.env.DATABASE_URL || '');
+  const connectionString = /sslmode=no-verify/i.test(raw)
+    ? raw
+    : (/sslmode=/i.test(raw) ? raw.replace(/sslmode=[^&]*/i, 'sslmode=no-verify') : `${raw}${raw.includes('?') ? '&' : '?'}sslmode=no-verify`);
+  const pool = new pg.Pool({ connectionString, max: 1 });
+  try {
+    const { rows } = await pool.query(
+      `
+      WITH predicted AS (
+        SELECT startup_id, min(predicted_at) AS predicted_at
+        FROM funding_prediction_snapshots
+        GROUP BY startup_id
+      )
+      SELECT e.id
+      FROM predicted p
+      JOIN funding_evidence_events e ON e.startup_id = p.startup_id
+      WHERE coalesce(e.announced_at, e.occurred_at, e.created_at) > p.predicted_at
+        AND e.verification_status IN ('verified', 'corroborated', 'observed')
+        AND coalesce(e.metadata->>'participant_list_complete', 'false') <> 'true'
+      ORDER BY CASE e.verification_status
+        WHEN 'verified' THEN 0 WHEN 'corroborated' THEN 1 ELSE 2 END,
+        coalesce(e.announced_at, e.occurred_at) DESC NULLS LAST
+      LIMIT $1
+      `,
+      [max],
+    );
+    return rows.map((r) => r.id);
+  } finally {
+    await pool.end();
+  }
+}
 
 function isPrivateIp(address) {
   if (net.isIPv4(address)) {
@@ -62,17 +103,41 @@ async function fetchExcerpt(sourceUrl) {
 }
 
 async function main() {
-  let eventQuery = db.from('funding_evidence_events')
-    .select('id,startup_name_raw,source_url,source_title,verification_status,metadata')
-    .in('verification_status', ['verified', 'corroborated'])
-    .order('announced_at', { ascending: false });
-  if (!retryFailed) eventQuery = eventQuery.is('metadata->>participant_enrichment_version', null);
-  const [{ data: events, error: eventError }, { data: investors, error: investorError }, { data: memberships, error: membershipError }] = await Promise.all([
-    eventQuery.limit(limit),
+  let events = [];
+  let selection = retryFailed ? 'retry_latest' : 'never_processed';
+  if (eventIds.length) {
+    selection = 'explicit_event_ids';
+    const { data, error } = await db.from('funding_evidence_events')
+      .select('id,startup_name_raw,source_url,source_title,verification_status,metadata')
+      .in('id', eventIds.slice(0, limit));
+    if (error) throw error;
+    const byId = new Map((data || []).map((row) => [row.id, row]));
+    events = eventIds.slice(0, limit).map((id) => byId.get(id)).filter(Boolean);
+  } else if (predictionLinked) {
+    selection = 'prediction_linked_incomplete';
+    const ids = await loadPredictionLinkedIncompleteEventIds(limit);
+    if (ids.length) {
+      const { data, error } = await db.from('funding_evidence_events')
+        .select('id,startup_name_raw,source_url,source_title,verification_status,metadata')
+        .in('id', ids);
+      if (error) throw error;
+      const byId = new Map((data || []).map((row) => [row.id, row]));
+      events = ids.map((id) => byId.get(id)).filter(Boolean);
+    }
+  } else {
+    let eventQuery = db.from('funding_evidence_events')
+      .select('id,startup_name_raw,source_url,source_title,verification_status,metadata')
+      .in('verification_status', ['verified', 'corroborated'])
+      .order('announced_at', { ascending: false });
+    if (!retryFailed) eventQuery = eventQuery.is('metadata->>participant_enrichment_version', null);
+    const { data, error: eventError } = await eventQuery.limit(limit);
+    if (eventError) throw eventError;
+    events = data || [];
+  }
+  const [{ data: investors, error: investorError }, { data: memberships, error: membershipError }] = await Promise.all([
     db.from('investors').select('id,name,firm').limit(10000),
     db.from('investor_organization_memberships').select('investor_id,organization_id,resolution_confidence').limit(20000),
   ]);
-  if (eventError) throw eventError;
   if (investorError) throw investorError;
   if (membershipError) throw membershipError;
   const membershipByInvestor = new Map((memberships || []).map(row => [row.investor_id, row]));
@@ -81,8 +146,9 @@ async function main() {
 
   for (const event of events || []) {
     let excerpt = event.metadata?.funding_evidence_excerpt || '';
-    let fetchStatus = excerpt ? 'cached' : 'headline_only';
-    if (!excerpt && event.source_url) {
+    const cachedLooksBlocked = /just a moment|cf_chl|enable javascript and cookies|attention required/i.test(excerpt);
+    let fetchStatus = excerpt && !cachedLooksBlocked ? 'cached' : 'headline_only';
+    if ((!excerpt || cachedLooksBlocked || selection === 'explicit_event_ids') && event.source_url) {
       try { excerpt = await fetchExcerpt(event.source_url); fetchStatus = 'fetched'; }
       catch (error) { fetchStatus = `unavailable:${error.message}`; }
     }
@@ -109,10 +175,13 @@ async function main() {
     }
     // A roster is auditable for Hit@5 misses only when the article explicitly names
     // leads/participants and we successfully extracted at least one proven relation.
-    const hasExplicitRoster = /\bled\s+by\b|\bco[- ]led\s+by\b|\bwith participation from\b|\bparticipation from\b|\bsyndicate (?:included|includes)\b/i.test(evidenceText);
+    // Keep this aligned with extractExplicitParticipantMentions patterns.
+    const hasExplicitRoster = /\bled\s+by\b|\bco[- ]led\s+by\b|\bjoined by\b|\bwith participation from\b|\bparticipation from\b|\bsyndicate (?:included|includes)\b|\bbacked by\b|\binvestors?\s+include\b|\b(?:raises?|raised|secures?|secured)\b[\s\S]{0,80}?\bfrom\b/i.test(evidenceText);
     const sourceReadable = fetchStatus === 'cached' || fetchStatus === 'fetched' || fetchStatus === 'headline_only';
+    const titleRoster = /\bled\s+by\b|\bco[- ]led\s+by\b|\bbacked by\b|\b(?:raises?|raised|secures?|secured)\b[\s\S]{0,80}?\bfrom\b/i.test(event.source_title || '');
+    // Title-only "raises $X from A, B" is enough when body fetch is blocked (FinSMEs CF, Google News).
     const listComplete = event.metadata?.participant_list_complete === true
-      || (hasExplicitRoster && mentions.length > 0 && sourceReadable && !String(fetchStatus).startsWith('unavailable'));
+      || (hasExplicitRoster && mentions.length > 0 && (sourceReadable || titleRoster));
     if (apply) {
       const { error } = await db.from('funding_evidence_events').update({
         metadata: {
@@ -159,7 +228,7 @@ async function main() {
   }
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run',
-    selection: retryFailed ? 'retry_latest' : 'never_processed',
+    selection,
     events_scanned: events?.length || 0,
     sources_available: results.filter(row => !row.source_status.startsWith('unavailable:')).length,
     events_with_proven_participants: results.filter(row => row.mentions.length).length,
