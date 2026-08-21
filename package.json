@@ -150,6 +150,8 @@
     "funding:repair": "node scripts/repair-funding-ledger-derived-fields.mjs",
     "funding:participants": "node scripts/enrich-funding-ledger-participants.mjs",
     "funding:participants:scrub": "node scripts/scrub-funding-participant-chronology.mjs",
+    "funding:snapshots:backfill:served": "node scripts/backfill-served-prediction-snapshots.mjs",
+    "funding:snapshots:backfill:served:apply": "node scripts/backfill-served-prediction-snapshots.mjs --apply",
     "funding:enrich:investors": "node scripts/enrich-funding-outcome-investors.js",
     "funding:enrich:investors:apply": "node scripts/enrich-funding-outcome-investors.js --apply",
     "enrich:investors:safe": "node scripts/enrich-sparse-investors.js --dry-run",
