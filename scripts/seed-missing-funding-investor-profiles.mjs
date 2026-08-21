@@ -47,6 +47,15 @@ const profiles = [
     thesis: 'Early-stage investor at the intersection of financial services and technology, primarily Seed and Series A with follow-on reserves.',
     source: 'https://www.broadhaven.com/investment',
   },
+  {
+    canonicalName: 'Etna Labs', firm: 'Etna Labs', displayName: 'TheEtnaLabs', url: 'https://etnalabs.co/',
+    sectors: ['AI/ML', 'Robotics', 'DeepTech', 'Software', 'Data Infrastructure'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['United States', 'Global'],
+    thesis: 'Research-driven VC backing frontier AI and robotics; thesis emphasis on real-world robot interaction / data-collection flywheels that compound physical intelligence.',
+    source: 'https://etnalabs.co/',
+    type: 'VC',
+    investorType: 'VC',
+  },
 ];
 
 async function main() {
@@ -78,7 +87,7 @@ async function main() {
     let investor = profile.existing[0] || null;
     if (!investor) {
       const { data, error } = await db.from('investors').insert({
-        name: profile.canonicalName,
+        name: profile.displayName || profile.canonicalName,
         firm: profile.firm,
         url: profile.url,
         sectors: profile.sectors,
@@ -87,6 +96,8 @@ async function main() {
         check_size_min: profile.checkMin || null,
         check_size_max: profile.checkMax || null,
         investment_thesis: profile.thesis,
+        type: profile.type || 'VC',
+        investor_type: profile.investorType || profile.type || 'VC',
         investor_score: 50,
         investor_tier: 'emerging',
         status: 'active',
