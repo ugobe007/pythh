@@ -25,6 +25,11 @@ const { createClient } = require('@supabase/supabase-js');
 const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
 const { enqueueFundingEvidenceSearchAsync } = require('../lib/enqueueFundingEvidenceSearch');
 const { freezeTopFiveIfAbsent } = require('../lib/freezeFundingPredictionSnapshot');
+const {
+  pickCanonicalFrequentFunders,
+  collectFrequentLedgerFunderIds,
+  selectTopMatchesReservingForced,
+} = require('../lib/frequentLedgerFunders');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -379,8 +384,9 @@ function getRelevantInvestors(startupSectors) {
  * Tier B: top 500–1000 for expanded mode
  * Never block first render on full-universe evaluation.
  * Filters: sector overlap, investor quality score, hard cap.
- * Also force-includes documented prior funders from the startup record so they
- * cannot be dropped by the sector shortlist (candidate_generation_miss fix).
+ * Also force-includes documented prior funders from the startup record and
+ * frequent Hit@5 ledger funders so they cannot be dropped by the sector
+ * shortlist (candidate_generation_miss fix). Does not retune GOD/fit.
  */
 function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
   const relevant = getRelevantInvestors(startupSectors || []);
@@ -411,6 +417,11 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
       const labels = [inv.firm, inv.name].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
       if (labels.some((label) => priorNames.includes(label))) push(inv);
     }
+  }
+
+  // Force-include frequent ledger funders (one canonical firm per family).
+  if (investorCache.data) {
+    for (const inv of pickCanonicalFrequentFunders(investorCache.data)) push(inv);
   }
 
   for (const inv of relevant
@@ -1393,7 +1404,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     }
     quickMatches.sort((a, b) => b.match_score - a.match_score);
-    fastMatches = quickMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
+    const phase1ForceIds = collectFrequentLedgerFunderIds(quickInvestors);
+    fastMatches = selectTopMatchesReservingForced(
+      quickMatches,
+      phase1ForceIds,
+      MATCH_CONFIG.TOP_MATCHES_PER_STARTUP,
+    );
     
     // Upsert fast matches so frontend picks them up on next poll (~3s).
     // Never delete-all: that rewrote created_at and destroyed the Hit@5 prediction clock.
@@ -1916,7 +1932,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
 
       allMatches.sort((a, b) => b.match_score - a.match_score);
-      const matches = allMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
+      const phase3ForceIds = collectFrequentLedgerFunderIds(investors);
+      const matches = selectTopMatchesReservingForced(
+        allMatches,
+        phase3ForceIds,
+        MATCH_CONFIG.TOP_MATCHES_PER_STARTUP,
+      );
       
       if (matches.length > 0) {
         // Upsert enriched scores only — preserve original created_at prediction clocks.
