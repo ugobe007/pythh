@@ -18,13 +18,22 @@ const WEAK_NORMALIZED_TOKENS = new Set([
 
 /**
  * Strip RSS/headline noise glued onto investor names:
+ * - unicode whitespace (NBSP / narrow NBSP) → ASCII space
  * - publisher suffixes: "General Catalyst - Entrackr", "Accel - Capital Brief"
  * - possessive person prefixes: "Peter Thiel’s Founders Fund"
+ * - program / sub-vehicle suffixes: "Andreessen Horowitz Speedrun", "SoftBank Vision Fund 2"
  * Only strips spaced dashes so "F-Prime" / "Long-Z Investments" stay intact.
  */
 function stripInvestorHeadlineNoise(value) {
-  let s = String(value || '').trim();
+  let s = String(value || '')
+    .replace(/[\u00A0\u202F\u2007\u2008\u2009\u200A\uFEFF]/g, ' ')
+    .replace(/[’‘‛]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!s) return '';
+
+  // Leading conjunction debris from roster lists: "And a16z Scout Fund"
+  s = s.replace(/^(?:and|plus|also)\s+/i, '').trim();
 
   // "Firm - Publisher" / "Firm — Outlet"
   s = s.replace(/\s+[-–—]\s+[^-–—\n]{2,80}$/u, '').trim();
@@ -38,6 +47,13 @@ function stripInvestorHeadlineNoise(value) {
     // Require an explicit firm token — do not treat bare titles ("CEO") as firms.
     if (firmToken && !genericRemainder && remainder.length >= 3) s = remainder;
   }
+
+  // Numbered Vision Fund vehicles → parent Vision Fund ("SoftBank Vision Fund 2")
+  s = s.replace(/\b(Vision Fund)\s+\d+\b/i, '$1').trim();
+
+  // Accelerator / scout / specialty-desk suffixes that collapse to the parent firm.
+  // Keep hyphenated tokens intact; only strip trailing spaced program labels.
+  s = s.replace(/\s+(?:Speedrun|Crypto|Builders?|Fellowship|Accelerator|Scout(?:\s+(?:Fund|Programme|Program))?)$/i, '').trim();
 
   return s.trim();
 }
@@ -178,7 +194,9 @@ function isPlausibleInvestorEntityName(value) {
     && !/\b(?:funding round|financing round|led by|participation from|reports?|in-person service economy|into ai|in japan)\b/i.test(raw)
     // Extraction debris / sentence fragments, not investor names.
     && !/\b(?:techcrunch has|exclusively learned|has exclusively|according to|co-founders?\b.+\b[A-Z][a-z]+)\b/i.test(raw)
-    && !/^(?:statistics|big tech|q\.?e\.?d\.? for)\b/i.test(raw);
+    && !/^(?:statistics|big tech|q\.?e\.?d\.? for)\b/i.test(raw)
+    && !/\b(?:for ai assistant|indexbox|venture firm)$/i.test(normalized)
+    && !/^(?:king co[- ]founders?)\b/i.test(raw);
 }
 
 function normalizeRoundType(value) {
