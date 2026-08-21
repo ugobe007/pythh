@@ -34,6 +34,38 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   );
   assert.equal(stripInvestorHeadlineNoise('Figma’s CEO'), 'Figma’s CEO');
   assert.equal(stripInvestorHeadlineNoise('Shlomo Kramer’s Skinos Ventures'), 'Skinos Ventures');
+  // Unicode whitespace + program / sub-vehicle suffixes
+  assert.equal(stripInvestorHeadlineNoise('EQT\u202FVentures'), 'EQT Ventures');
+  assert.equal(stripInvestorHeadlineNoise('Andreessen Horowitz Speedrun'), 'Andreessen Horowitz');
+  assert.equal(stripInvestorHeadlineNoise('SoftBank Vision Fund 2'), 'SoftBank Vision Fund');
+  assert.equal(stripInvestorHeadlineNoise('Susquehanna Crypto'), 'Susquehanna');
+  assert.equal(stripInvestorHeadlineNoise('And a16z Scout Fund'), 'a16z');
+});
+
+test('resolves program-suffix and unicode-normalized investor names', () => {
+  const rows = [
+    { id: 'a16z', name: 'Andreessen Horowitz', firm: 'Andreessen Horowitz', is_individual: false },
+    { id: 'sbvf', name: 'SoftBank Vision Fund', firm: 'SoftBank Vision Fund', is_individual: false },
+    { id: 'susq', name: 'Susquehanna', firm: 'Susquehanna', is_individual: false },
+    { id: 'eqt', name: 'EQT', firm: 'EQT', is_individual: false },
+    { id: 'eqtv', name: 'EQT Ventures', firm: 'EQT', is_individual: false },
+  ];
+  const speedrun = resolveCanonicalEntity(rows, 'Andreessen Horowitz Speedrun');
+  assert.equal(speedrun.status, 'resolved');
+  assert.equal(speedrun.row.id, 'a16z');
+  assert.match(speedrun.matchKind, /headline_cleaned_/);
+
+  const vision = resolveCanonicalEntity(rows, 'SoftBank Vision Fund 2');
+  assert.equal(vision.status, 'resolved');
+  assert.equal(vision.row.id, 'sbvf');
+
+  const crypto = resolveCanonicalEntity(rows, 'Susquehanna Crypto');
+  assert.equal(crypto.status, 'resolved');
+  assert.equal(crypto.row.id, 'susq');
+
+  const nbsp = resolveCanonicalEntity(rows, 'EQT\u202FVentures');
+  assert.equal(nbsp.status, 'resolved');
+  assert.ok(['eqt', 'eqtv'].includes(nbsp.row.id));
 });
 
 test('resolves headline-glued investor names to firm profiles', () => {
@@ -123,6 +155,8 @@ test('rejects generic funding stages masquerading as canonical investors', () =>
   assert.equal(isPlausibleInvestorEntityName('Z Venture Capital in Japan'), false);
   assert.equal(isPlausibleInvestorEntityName('TechCrunch has exclusively learned'), false);
   assert.equal(isPlausibleInvestorEntityName('Statistics - IndexBox'), false);
+  assert.equal(isPlausibleInvestorEntityName('QED For AI Assistant'), false);
+  assert.equal(isPlausibleInvestorEntityName('King co-founders Sebastian Knutsson'), false);
 });
 
 test('builds stable candidate round keys without collapsing distinct months or amounts', () => {
