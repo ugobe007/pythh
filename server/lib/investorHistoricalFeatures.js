@@ -97,6 +97,10 @@ function scoreHistoricalFit(startup, feature, asOf = new Date()) {
       reasons.push('Verified investment activity within 12 months');
     }
   }
+  if (feature.lead_count >= 1) {
+    points += Math.min(4, 2 + Math.log2(feature.lead_count + 1));
+    reasons.push(`Historical lead/co-lead activity (${feature.lead_count})`);
+  }
   return { points: Math.min(20, points), reasons };
 }
 

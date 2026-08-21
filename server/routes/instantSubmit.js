@@ -378,22 +378,51 @@ function getRelevantInvestors(startupSectors) {
  * Tier B: top 500–1000 for expanded mode
  * Never block first render on full-universe evaluation.
  * Filters: sector overlap, investor quality score, hard cap.
+ * Also force-includes documented prior funders from the startup record so they
+ * cannot be dropped by the sector shortlist (candidate_generation_miss fix).
  */
-function getCandidateInvestors(startupSectors, maxCandidates) {
+function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
   const relevant = getRelevantInvestors(startupSectors || []);
   const minScore = PIPELINE_CONFIG.MIN_INVESTOR_SCORE;
   const cap = Math.min(maxCandidates || PIPELINE_CONFIG.FAST_MATCH_LIMIT, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
 
-  const candidates = relevant
-    .filter((inv) => {
-      const score = Number(inv.investor_score);
-      // Require a valid GOD score at or above the minimum (nulls rejected)
+  const seen = new Set();
+  const candidates = [];
+
+  const push = (inv) => {
+    if (!inv?.id || seen.has(inv.id)) return;
+    const score = Number(inv.investor_score);
+    if (!Number.isFinite(score) || score < minScore) return;
+    seen.add(inv.id);
+    candidates.push(inv);
+  };
+
+  // Force-include documented prior investors (website/extracted) before sector cut.
+  const priorNames = [
+    ...(Array.isArray(startup?.extracted_data?.investors) ? startup.extracted_data.investors : []),
+    ...(Array.isArray(startup?.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
+    ...(Array.isArray(startup?.backed_by) ? startup.backed_by : []),
+  ]
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (priorNames.length && investorCache.data) {
+    for (const inv of investorCache.data) {
+      const labels = [inv.firm, inv.name].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+      if (labels.some((label) => priorNames.includes(label))) push(inv);
+    }
+  }
+
+  for (const inv of relevant
+    .filter((row) => {
+      const score = Number(row.investor_score);
       return Number.isFinite(score) && score >= minScore;
     })
-    .sort((a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0))
-    .slice(0, cap);
+    .sort((a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0))) {
+    push(inv);
+    if (candidates.length >= cap) break;
+  }
 
-  return candidates;
+  return candidates.slice(0, cap);
 }
 
 function matchFeatureSnapshotFor(engine, phase, startupPayload, investor, extra) {
@@ -674,7 +703,47 @@ function calculateMatchScore(startup, investor, signalScore, investorSignals) {
     startup,
     investor
   );
-  return applyInvestorRecencyAdjustment(stageAdjusted, investor);
+  const withRecency = applyInvestorRecencyAdjustment(stageAdjusted, investor);
+
+  // Documented prior relationship (website/extracted) — same causal signal as batch matcher.
+  const recordedInvestors = [
+    ...(Array.isArray(startup?.extracted_data?.investors) ? startup.extracted_data.investors : []),
+    ...(Array.isArray(startup?.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
+    ...(Array.isArray(startup?.backed_by) ? startup.backed_by : []),
+  ].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  const investorLabels = [investor.firm, investor.name]
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter(Boolean);
+  let priorBoost = 0;
+  if (recordedInvestors.length && investorLabels.some((label) => recordedInvestors.includes(label))) {
+    priorBoost = 15;
+  }
+
+  // Optional historical features when attached to the investor object (batch/backfill paths).
+  let historyBoost = 0;
+  let historyReasons = [];
+  if (investor?.historical_features) {
+    try {
+      const { scoreHistoricalFit } = require('../lib/investorHistoricalFeatures');
+      const hist = scoreHistoricalFit(startup, investor.historical_features, new Date());
+      historyBoost = hist.points || 0;
+      historyReasons = hist.reasons || [];
+    } catch {
+      /* optional */
+    }
+  }
+
+  const boosted = Math.min(100, (withRecency.score || 0) + priorBoost + historyBoost);
+  return {
+    ...withRecency,
+    score: boosted,
+    fitAnalysis: {
+      ...withRecency.fitAnalysis,
+      prior_relationship: priorBoost,
+      historical_fit: historyBoost,
+      historical_reasons: historyReasons,
+    },
+  };
 }
 
 function formatSectors(sectors) {
@@ -1068,7 +1137,7 @@ async function generateSyncTopMatchesForHttpResponse(
         ? placeholderStartup.sectors
         : ['Technology'];
     const cap = Math.min(PIPELINE_CONFIG.FAST_MATCH_LIMIT, SYNC_MATCH_CANDIDATE_CAP);
-    const candidates = getCandidateInvestors(sec, cap);
+    const candidates = getCandidateInvestors(sec, cap, placeholderStartup);
     if (!candidates.length) {
       return out;
     }
@@ -1240,7 +1309,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       Array.isArray(placeholderStartup.sectors) && placeholderStartup.sectors.length
         ? placeholderStartup.sectors
         : ['Technology'];
-    const quickInvestors = getCandidateInvestors(phase1Sectors, PIPELINE_CONFIG.FAST_MATCH_LIMIT);
+    const quickInvestors = getCandidateInvestors(phase1Sectors, PIPELINE_CONFIG.FAST_MATCH_LIMIT, placeholderStartup);
     console.log(`  ⚡ [BG] Phase 1 shortlist: ${quickInvestors.length} candidates (cap=${PIPELINE_CONFIG.FAST_MATCH_LIMIT}, sectors=${phase1Sectors.join(',')})`);
     const quickMatches = [];
     
@@ -1752,7 +1821,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 
       const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
       // Tier B: max 1000 candidates, expensive scoring on shortlist only
-      const investors = getCandidateInvestors(startupSectors, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
+      const phase3Startup = {
+        ...startupSnapshotPhase3,
+        extracted_data: enrichedRow.extracted_data || null,
+        backed_by: enrichedRow.backed_by || null,
+      };
+      const investors = getCandidateInvestors(startupSectors, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS, phase3Startup);
       console.log(`  ⚡ [BG] Phase 3 shortlist: ${investors.length} candidates (cap=${PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS})`);
       
       // Use the just-seeded signal total (already computed above) for match scoring

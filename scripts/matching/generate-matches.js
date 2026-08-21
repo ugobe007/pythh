@@ -457,18 +457,37 @@ function fallbackFirmKey(investor) {
   return `label:${normalizeEntityName(label)}`;
 }
 
-function selectTopInvestorCandidates(scored, membershipByInvestor = new Map(), limit = 50) {
+function selectTopInvestorCandidates(scored, membershipByInvestor = new Map(), limit = 50, options = {}) {
+  const forceIds = new Set((options.forceInvestorIds || []).map(String));
   const ranked = [...scored].sort((a, b) =>
     b.match.score - a.match.score || String(a.investor.id).localeCompare(String(b.investor.id))
   );
   const seenOrganizations = new Set();
   const selected = [];
-  for (const item of ranked) {
+
+  const tryAdd = (item) => {
     const organizationId = membershipByInvestor.get(item.investor.id);
     const firmKeys = [organizationId ? `organization:${organizationId}` : null, fallbackFirmKey(item.investor)].filter(Boolean);
-    if (!firmKeys.length || firmKeys.some(key => seenOrganizations.has(key))) continue;
+    if (!firmKeys.length || firmKeys.some(key => seenOrganizations.has(key))) return false;
     firmKeys.forEach(key => seenOrganizations.add(key));
     selected.push(item);
+    return true;
+  };
+
+  // Reserve forced funders (ledger participants / prior relationships) before top-N cut.
+  if (forceIds.size) {
+    for (const item of ranked) {
+      if (!forceIds.has(String(item.investor.id))) continue;
+      tryAdd(item);
+      if (selected.length >= limit) return selected;
+    }
+  }
+
+  for (const item of ranked) {
+    if (forceIds.has(String(item.investor.id)) && selected.some((s) => s.investor.id === item.investor.id)) {
+      continue;
+    }
+    tryAdd(item);
     if (selected.length >= limit) break;
   }
   return selected;
@@ -621,7 +640,23 @@ async function generateMatches() {
       investor,
       match: calculateMatch(startup, investor),
     })).filter(item => item.match.score > minMatchScore);
-    const selectedCandidates = selectTopInvestorCandidates(scoredCandidates, membershipByInvestor, 50);
+    const forceInvestorIds = scoredCandidates
+      .filter((item) => {
+        const reason = String(item.match.reason || '');
+        return (
+          reason.includes('Documented prior investor relationship')
+          || reason.includes('+history')
+          || reason.includes('Historical sector fit')
+          || reason.includes('Historical stage fit')
+        );
+      })
+      .map((item) => item.investor.id);
+    const selectedCandidates = selectTopInvestorCandidates(
+      scoredCandidates,
+      membershipByInvestor,
+      50,
+      { forceInvestorIds },
+    );
 
     for (const { investor, match } of selectedCandidates) {
         matches.push({

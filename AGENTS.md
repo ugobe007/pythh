@@ -115,6 +115,10 @@ Matching hygiene: `EnhancedMatchingService` skips `entity_gate=junk`, raises def
 2. `npm run outcomes:matched` — verified pairs + pending review queue with source tiers
 3. In SQL: `SELECT refresh_match_outcome_classifications(50000);`
 4. `npm run funding:reconcile:historical:summary` — retrospective hit rate vs canonical rounds
+5. `npm run funding:audit:candidate-misses` — why participants are `not_in_universe` / never pre-matched
+6. `npm run funding:coverage:investors:resolve:apply` — link null `investor_id` rows to firm profiles (firm-vs-partner disambiguation)
+
+**Candidate-generation miss pattern (common):** major firms (Accel, General Catalyst, Founders Fund) were stuck as `ambiguous`/`not_in_universe` because partner rows share `firm=` with the firm profile. Resolver now prefers the firm profile. Separately, qualified investors can still miss top-N via sector shortlist — live matching force-includes documented prior funders from the startup record; batch matching reserves historical-fit / prior-relationship candidates before the top-50 cut.
 
 Official positives require **`match_validation_evidence.verified=true`** and **`event_at > match.created_at`**.
 

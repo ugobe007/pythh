@@ -26,7 +26,7 @@ async function all(table, select, configure = query => query) {
 async function main() {
   const [participants, investors, organizations, aliases, memberships] = await Promise.all([
     all('funding_evidence_participants', 'id,investor_name_raw,participant_role,participation_relation,resolution_status,resolution_confidence', query => query.is('investor_id', null).not('participation_relation', 'is', null).neq('participant_role', 'unknown')),
-    all('investors', 'id,name,firm,status,is_verified'),
+    all('investors', 'id,name,firm,status,is_verified,is_individual'),
     all('investor_organizations', 'id,canonical_name,normalized_name,status'),
     all('investor_organization_aliases', 'organization_id,alias,normalized_alias'),
     all('investor_organization_memberships', 'investor_id,organization_id,resolution_confidence'),
@@ -59,10 +59,14 @@ async function main() {
     }
     return { participant, investor: null, organization: organization || null, method: organizationMemberships.length > 1 ? 'ambiguous_organization_members' : null, confidence: 0 };
   });
-  // Funding outcomes become training labels, so normalized-name-only investor
-  // matches stay in review. Apply only exact identities or a unique reviewed
-  // organization membership.
-  const resolvable = plan.filter(item => item.investor && item.confidence === 1);
+  // Funding outcomes become training labels. Apply exact identities, firm-preferred
+  // disambiguation (partner/person collisions), or a unique reviewed organization membership.
+  const resolvable = plan.filter(item => item.investor && (
+    item.confidence === 1
+    || item.method === 'exact_firm_preferred'
+    || item.method === 'normalized_firm_preferred'
+    || item.method === 'unique_canonical_organization_member'
+  ));
 
   if (apply) {
     for (const item of resolvable) {
