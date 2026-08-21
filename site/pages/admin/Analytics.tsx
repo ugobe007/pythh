@@ -98,6 +98,17 @@ export default function AnalyticsPage() {
 
       {!isLoading && !adminStats.isLoading && (
         <div style={{ display: "grid", gap: 16 }}>
+          {((data as { source?: string } | undefined)?.source === "supabase" ||
+            (adminStats.data as { source?: string } | undefined)?.source === "supabase") && (
+            <p style={{ fontSize: 11, color: "oklch(0.65 0.15 80)" }}>
+              Showing Supabase REST aggregates (Postgres unavailable). Event sample capped at 5k rows.
+            </p>
+          )}
+          {(data as { source?: string } | undefined)?.source === "unavailable" && (
+            <p style={{ fontSize: 11, color: "oklch(0.65 0.18 25)" }}>
+              Analytics unavailable — fix <code>DATABASE_URL</code> or Supabase service credentials.
+            </p>
+          )}
 
           {/* Platform KPIs */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>

@@ -10,6 +10,9 @@ import {
   countPipelineRunsForUser,
   createPipelineRun,
   getAdminAggregateStats,
+  getAdminMatchSummary,
+  getAdminMlRecommendations,
+  getAdminAnalytics,
   getFounderProfile,
   getInvestorById,
   getAnimationFeed,
@@ -1342,71 +1345,10 @@ export const appRouter = router({
       };
     }),
 
-    getMatchSummary: adminProcedure.query(async () => {
-      const [totals, buckets] = await Promise.all([
-        rawQuery<{ total: string; high_score: string; strong_fit: string; recent7d: string; avg_score: string }>(`
-          SELECT
-            COUNT(*)::text AS total,
-            COUNT(*) FILTER (WHERE match_score >= 75)::text AS high_score,
-            COUNT(*) FILTER (WHERE match_score >= 85)::text AS strong_fit,
-            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::text AS recent7d,
-            ROUND(AVG(match_score)::numeric, 1)::text AS avg_score
-          FROM startup_investor_matches
-        `),
-        rawQuery<{ bucket: string; cnt: string }>(`
-          SELECT
-            CASE
-              WHEN match_score IS NULL THEN 'unscored'
-              WHEN match_score < 50  THEN '0–49'
-              WHEN match_score < 70  THEN '50–69'
-              WHEN match_score < 85  THEN '70–84'
-              ELSE '85–100'
-            END AS bucket,
-            COUNT(*)::text AS cnt
-          FROM startup_investor_matches
-          GROUP BY 1
-          ORDER BY 1
-        `),
-      ]);
-      const row = totals[0] ?? {};
-      return {
-        total: row.total ?? "0",
-        highScore: row.high_score ?? "0",
-        strongFit: row.strong_fit ?? "0",
-        recent7d: row.recent7d ?? "0",
-        avgScore: row.avg_score ?? null,
-        buckets,
-      };
-    }),
+    getMatchSummary: adminProcedure.query(async () => getAdminMatchSummary()),
 
     // ── ML Agent ──────────────────────────────────────────────────────────
-    getMlRecommendations: adminProcedure.query(async () => {
-      const [pending, recent, entityGateStats] = await Promise.all([
-        rawQuery(`
-          SELECT id, weights_version, recommendation_type, confidence, reasoning,
-                 expected_improvement, status, requires_manual_approval,
-                 current_weights, recommended_weights, created_at
-          FROM ml_recommendations
-          WHERE status = 'pending'
-          ORDER BY created_at DESC
-          LIMIT 20
-        `),
-        rawQuery(`
-          SELECT id, recommendation_type, confidence, status, reviewed_at, rejection_reason, created_at
-          FROM ml_recommendations
-          WHERE status != 'pending'
-          ORDER BY created_at DESC
-          LIMIT 20
-        `),
-        rawQuery<{ gate: string; cnt: string }>(`
-          SELECT entity_gate AS gate, COUNT(*) AS cnt
-          FROM startup_uploads
-          GROUP BY entity_gate
-          ORDER BY cnt DESC
-        `),
-      ]);
-      return { pending, recent, entityGateStats };
-    }),
+    getMlRecommendations: adminProcedure.query(async () => getAdminMlRecommendations()),
 
     reviewMlRecommendation: adminProcedure
       .input(z.object({ id: z.string(), action: z.enum(["approve", "reject"]), reason: z.string().optional() }))
@@ -1443,42 +1385,7 @@ export const appRouter = router({
       }),
 
     // ── Analytics ─────────────────────────────────────────────────────────
-    getAnalytics: adminProcedure.query(async () => {
-      const [eventBreakdown, dailySignups, pageViews, usageStats] = await Promise.all([
-        rawQuery<{ event_name: string; cnt: string }>(`
-          SELECT event_name, COUNT(*) AS cnt
-          FROM events
-          WHERE created_at > now() - interval '30 days'
-          GROUP BY event_name
-          ORDER BY cnt DESC
-          LIMIT 25
-        `),
-        rawQuery<{ day: string; cnt: string }>(`
-          SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt
-          FROM pythh_users
-          WHERE created_at > now() - interval '30 days'
-          GROUP BY 1
-          ORDER BY 1
-        `),
-        rawQuery<{ page: string; cnt: string }>(`
-          SELECT page, COUNT(*) AS cnt
-          FROM events
-          WHERE event_name = 'page_viewed'
-            AND created_at > now() - interval '30 days'
-          GROUP BY page
-          ORDER BY cnt DESC
-          LIMIT 20
-        `),
-        rawQuery<{ total_users: string; avg_analysis_count: string; active_30d: string }>(`
-          SELECT
-            COUNT(*) AS total_users,
-            ROUND(AVG(analysis_count)::numeric, 1) AS avg_analysis_count,
-            COUNT(*) FILTER (WHERE updated_at > now() - interval '30 days') AS active_30d
-          FROM profiles
-        `),
-      ]);
-      return { eventBreakdown, dailySignups, pageViews, usageStats: usageStats[0] ?? null };
-    }),
+    getAnalytics: adminProcedure.query(async () => getAdminAnalytics()),
   }),
 });
 

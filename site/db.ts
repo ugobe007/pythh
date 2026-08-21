@@ -38,6 +38,28 @@ function getSupabaseAdmin(): SupabaseClient | null {
   return _supabaseAdmin;
 }
 
+/** Reject placeholder DATABASE_URL hosts (Fly had hostname literally "base" → ENOTFOUND). */
+function isUsableDatabaseUrl(connectionString: string): boolean {
+  try {
+    const normalized = String(connectionString || "")
+      .replace(/^postgresql:/i, "http:")
+      .replace(/^postgres:/i, "http:");
+    const host = new URL(normalized).hostname.toLowerCase();
+    if (!host || host === "base" || host === "hostname" || host === "your-db-host") return false;
+    if (
+      (process.env.FLY_APP_NAME || process.env.NODE_ENV === "production") &&
+      (host === "localhost" || host === "127.0.0.1")
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export { getSupabaseAdmin };
+
 function mapRestUserRow(data: Record<string, unknown>): User {
   return {
     id: data.id as number,
@@ -97,7 +119,13 @@ export async function rawQuery<T = Record<string, unknown>>(
   try {
     const result = await pool.query(text, values);
     return result.rows as T[];
-  } catch {
+  } catch (err) {
+    console.warn(
+      "[Database] rawQuery failed:",
+      err instanceof Error ? err.message : err,
+      "| sql:",
+      text.slice(0, 80).replace(/\s+/g, " "),
+    );
     return [];
   }
 }
@@ -117,7 +145,14 @@ export async function rawExecute(text: string, values?: unknown[]): Promise<numb
 /** Postgres (Supabase) — use `DATABASE_URL` (pooler or direct). */
 export async function getDb() {
   const url = process.env.DATABASE_URL?.trim();
-  if (!url) return null;
+  if (!url || !isUsableDatabaseUrl(url)) {
+    if (url && !isUsableDatabaseUrl(url)) {
+      console.warn(
+        "[Database] DATABASE_URL host is unusable (e.g. placeholder \"base\") — using Supabase REST fallbacks for admin stats",
+      );
+    }
+    return null;
+  }
   if (!_db) {
     try {
       const isSupabase =
@@ -931,42 +966,345 @@ function utcStartOfTodayMs() {
 export async function getAdminAggregateStats() {
   const db = await getDb();
   if (!db) {
+    return getAdminAggregateStatsViaSupabase();
+  }
+  try {
+    const startMs = utcStartOfTodayMs();
+    const startDay = new Date(startMs);
+
+    const [{ n: totalUsers }] = await db.select({ n: count() }).from(users);
+
+    const [{ n: activeSubscribers }] = await db
+      .select({ n: count() })
+      .from(subscriptions)
+      .where(
+        and(eq(subscriptions.plan, "oracle"), inArray(subscriptions.status, ["active", "trialing", "paused"])),
+      );
+
+    const [{ n: pipelineRunsToday }] = await db
+      .select({ n: count() })
+      .from(pipelineRuns)
+      .where(gte(pipelineRuns.createdAt, startDay));
+
+    const [{ n: emailsSentToday }] = await db
+      .select({ n: count() })
+      .from(outreachEmails)
+      .where(
+        and(eq(outreachEmails.status, "sent"), isNotNull(outreachEmails.sentAt), gte(outreachEmails.sentAt, startMs)),
+      );
+
+    return {
+      totalUsers: totalUsers ?? 0,
+      activeSubscribers: activeSubscribers ?? 0,
+      pipelineRunsToday: pipelineRunsToday ?? 0,
+      emailsSentToday: emailsSentToday ?? 0,
+      source: "postgres" as const,
+    };
+  } catch (err) {
+    console.warn(
+      "[Database] getAdminAggregateStats postgres failed, using Supabase:",
+      err instanceof Error ? err.message : err,
+    );
+    return getAdminAggregateStatsViaSupabase();
+  }
+}
+
+async function getAdminAggregateStatsViaSupabase() {
+  const sb = getSupabaseAdmin();
+  if (!sb) {
     return {
       totalUsers: 0,
       activeSubscribers: 0,
       pipelineRunsToday: 0,
       emailsSentToday: 0,
+      source: "unavailable" as const,
     };
   }
-  const startMs = utcStartOfTodayMs();
-  const startDay = new Date(startMs);
+  const startIso = new Date(utcStartOfTodayMs()).toISOString();
+  const [usersQ, subsQ, runsQ, emailsQ] = await Promise.all([
+    sb.from("pythh_users").select("id", { count: "exact", head: true }),
+    sb
+      .from("subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("plan", "oracle")
+      .in("status", ["active", "trialing", "paused"]),
+    sb.from("pipeline_runs").select("id", { count: "exact", head: true }).gte("created_at", startIso),
+    sb
+      .from("outreach_emails")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "sent")
+      .gte("sent_at", startIso),
+  ]);
+  return {
+    totalUsers: usersQ.count ?? 0,
+    activeSubscribers: subsQ.count ?? 0,
+    pipelineRunsToday: runsQ.count ?? 0,
+    emailsSentToday: emailsQ.count ?? 0,
+    source: "supabase" as const,
+  };
+}
 
-  const [{ n: totalUsers }] = await db.select({ n: count() }).from(users);
+/** Matching admin summary — uses platform_stats_cache when Postgres is down. */
+export async function getAdminMatchSummary() {
+  const db = await getDb();
+  if (db) {
+    const viaPg = await rawQuery<{
+      total: string;
+      high_score: string;
+      strong_fit: string;
+      recent7d: string;
+      avg_score: string;
+    }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE match_score >= 75)::text AS high_score,
+        COUNT(*) FILTER (WHERE match_score >= 85)::text AS strong_fit,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::text AS recent7d,
+        ROUND(AVG(match_score)::numeric, 1)::text AS avg_score
+      FROM startup_investor_matches
+    `);
+    const buckets = await rawQuery<{ bucket: string; cnt: string }>(`
+      SELECT
+        CASE
+          WHEN match_score IS NULL THEN 'unscored'
+          WHEN match_score < 50  THEN '0–49'
+          WHEN match_score < 70  THEN '50–69'
+          WHEN match_score < 85  THEN '70–84'
+          ELSE '85–100'
+        END AS bucket,
+        COUNT(*)::text AS cnt
+      FROM startup_investor_matches
+      GROUP BY 1
+      ORDER BY 1
+    `);
 
-  const [{ n: activeSubscribers }] = await db
-    .select({ n: count() })
-    .from(subscriptions)
-    .where(
-      and(eq(subscriptions.plan, "oracle"), inArray(subscriptions.status, ["active", "trialing", "paused"])),
-    );
+    const row = viaPg[0];
+    if (row && Number(row.total) > 0) {
+      return {
+        total: row.total ?? "0",
+        highScore: row.high_score ?? "0",
+        strongFit: row.strong_fit ?? "0",
+        recent7d: row.recent7d ?? "0",
+        avgScore: row.avg_score ?? null,
+        buckets,
+        source: "postgres" as const,
+      };
+    }
+  }
 
-  const [{ n: pipelineRunsToday }] = await db
-    .select({ n: count() })
-    .from(pipelineRuns)
-    .where(gte(pipelineRuns.createdAt, startDay));
+  const sb = getSupabaseAdmin();
+  if (!sb) {
+    return {
+      total: "0",
+      highScore: "0",
+      strongFit: "0",
+      recent7d: "0",
+      avgScore: null,
+      buckets: [] as { bucket: string; cnt: string }[],
+      source: "unavailable" as const,
+    };
+  }
 
-  const [{ n: emailsSentToday }] = await db
-    .select({ n: count() })
-    .from(outreachEmails)
-    .where(
-      and(eq(outreachEmails.status, "sent"), isNotNull(outreachEmails.sentAt), gte(outreachEmails.sentAt, startMs)),
-    );
+  const { data: cache } = await sb.from("platform_stats_cache").select("*").eq("id", 1).maybeSingle();
+
+  // Skip filtered exact counts on startup_investor_matches via PostgREST — they time out
+  // on ~3.8M rows. Totals/7d come from platform_stats_cache; high/strong need Postgres.
+  return {
+    total: String(cache?.matches ?? 0),
+    highScore: "—",
+    strongFit: "—",
+    recent7d: String(cache?.matches_new_7d ?? 0),
+    avgScore: null as string | null,
+    buckets: [] as { bucket: string; cnt: string }[],
+    source: "supabase_cache" as const,
+    cacheUpdatedAt: cache?.updated_at ?? null,
+  };
+}
+
+/** ML admin panel — Supabase when Postgres rawQuery returns empty. */
+export async function getAdminMlRecommendations() {
+  const db = await getDb();
+  if (db) {
+    const [pending, recent, entityGateStats] = await Promise.all([
+      rawQuery(`
+        SELECT id, weights_version, recommendation_type, confidence, reasoning,
+               expected_improvement, status, requires_manual_approval,
+               current_weights, recommended_weights, created_at
+        FROM ml_recommendations
+        WHERE status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 20
+      `),
+      rawQuery(`
+        SELECT id, recommendation_type, confidence, status, reviewed_at, rejection_reason, created_at
+        FROM ml_recommendations
+        WHERE status != 'pending'
+        ORDER BY created_at DESC
+        LIMIT 20
+      `),
+      rawQuery<{ gate: string; cnt: string }>(`
+        SELECT COALESCE(entity_gate, 'unset') AS gate, COUNT(*) AS cnt
+        FROM startup_uploads
+        GROUP BY entity_gate
+        ORDER BY cnt DESC
+      `),
+    ]);
+
+    if (pending.length || recent.length || entityGateStats.length) {
+      return { pending, recent, entityGateStats, source: "postgres" as const };
+    }
+  }
+
+  const sb = getSupabaseAdmin();
+  if (!sb) {
+    return { pending: [], recent: [], entityGateStats: [], source: "unavailable" as const };
+  }
+
+  const [pendingSb, recentSb] = await Promise.all([
+    sb
+      .from("ml_recommendations")
+      .select(
+        "id, weights_version, recommendation_type, confidence, reasoning, expected_improvement, status, requires_manual_approval, current_weights, recommended_weights, created_at",
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    sb
+      .from("ml_recommendations")
+      .select("id, recommendation_type, confidence, status, reviewed_at, rejection_reason, created_at")
+      .neq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const gateKeys = ["qualified", "needs_url", "junk", "review"] as const;
+  const gateCounts = await Promise.all([
+    sb.from("startup_uploads").select("id", { count: "exact", head: true }).is("entity_gate", null),
+    ...gateKeys.map((g) =>
+      sb.from("startup_uploads").select("id", { count: "exact", head: true }).eq("entity_gate", g),
+    ),
+  ]);
+
+  const entityGateStatsSb = [
+    { gate: "unset", cnt: String(gateCounts[0].count ?? 0) },
+    ...gateKeys.map((g, i) => ({ gate: g, cnt: String(gateCounts[i + 1].count ?? 0) })),
+  ].filter((r) => Number(r.cnt) > 0);
 
   return {
-    totalUsers: totalUsers ?? 0,
-    activeSubscribers: activeSubscribers ?? 0,
-    pipelineRunsToday: pipelineRunsToday ?? 0,
-    emailsSentToday: emailsSentToday ?? 0,
+    pending: pendingSb.data ?? [],
+    recent: recentSb.data ?? [],
+    entityGateStats: entityGateStatsSb,
+    source: "supabase" as const,
+  };
+}
+
+/** Analytics admin — Supabase aggregation when Postgres is down. */
+export async function getAdminAnalytics() {
+  const db = await getDb();
+  if (db) {
+    const [eventBreakdown, dailySignups, pageViews, usageStats] = await Promise.all([
+      rawQuery<{ event_name: string; cnt: string }>(`
+        SELECT event_name, COUNT(*) AS cnt
+        FROM events
+        WHERE created_at > now() - interval '30 days'
+        GROUP BY event_name
+        ORDER BY cnt DESC
+        LIMIT 25
+      `),
+      rawQuery<{ day: string; cnt: string }>(`
+        SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt
+        FROM pythh_users
+        WHERE created_at > now() - interval '30 days'
+        GROUP BY 1
+        ORDER BY 1
+      `),
+      rawQuery<{ page: string; cnt: string }>(`
+        SELECT page, COUNT(*) AS cnt
+        FROM events
+        WHERE event_name = 'page_viewed'
+          AND created_at > now() - interval '30 days'
+        GROUP BY page
+        ORDER BY cnt DESC
+        LIMIT 20
+      `),
+      rawQuery<{ total_users: string; avg_analysis_count: string; active_30d: string }>(`
+        SELECT
+          COUNT(*) AS total_users,
+          ROUND(AVG(analysis_count)::numeric, 1) AS avg_analysis_count,
+          COUNT(*) FILTER (WHERE updated_at > now() - interval '30 days') AS active_30d
+        FROM profiles
+      `),
+    ]);
+
+    if (eventBreakdown.length || dailySignups.length || usageStats[0]) {
+      return {
+        eventBreakdown,
+        dailySignups,
+        pageViews,
+        usageStats: usageStats[0] ?? null,
+        source: "postgres" as const,
+      };
+    }
+  }
+
+  const sb = getSupabaseAdmin();
+  if (!sb) {
+    return {
+      eventBreakdown: [],
+      dailySignups: [],
+      pageViews: [],
+      usageStats: null,
+      source: "unavailable" as const,
+    };
+  }
+
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const [{ data: eventRows }, { data: userRows }, { count: totalUsers }, { count: active30d }] =
+    await Promise.all([
+      sb.from("events").select("event_name, page, created_at").gte("created_at", since).limit(5000),
+      sb.from("pythh_users").select("created_at").gte("created_at", since).limit(5000),
+      sb.from("profiles").select("id", { count: "exact", head: true }),
+      sb
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .gte("updated_at", since),
+    ]);
+
+  const eventMap = new Map<string, number>();
+  const pageMap = new Map<string, number>();
+  for (const row of eventRows || []) {
+    const name = String((row as { event_name?: string }).event_name || "unknown");
+    eventMap.set(name, (eventMap.get(name) || 0) + 1);
+    if (name === "page_viewed") {
+      const page = String((row as { page?: string }).page || "/");
+      pageMap.set(page, (pageMap.get(page) || 0) + 1);
+    }
+  }
+  const dayMap = new Map<string, number>();
+  for (const row of userRows || []) {
+    const day = String((row as { created_at?: string }).created_at || "").slice(0, 10);
+    if (!day) continue;
+    dayMap.set(day, (dayMap.get(day) || 0) + 1);
+  }
+
+  return {
+    eventBreakdown: [...eventMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 25)
+      .map(([event_name, cnt]) => ({ event_name, cnt: String(cnt) })),
+    dailySignups: [...dayMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, cnt]) => ({ day, cnt: String(cnt) })),
+    pageViews: [...pageMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([page, cnt]) => ({ page, cnt: String(cnt) })),
+    usageStats: {
+      total_users: String(totalUsers ?? 0),
+      avg_analysis_count: "—",
+      active_30d: String(active30d ?? 0),
+    },
+    source: "supabase" as const,
   };
 }
 

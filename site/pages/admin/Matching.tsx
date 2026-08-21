@@ -73,6 +73,19 @@ export default function MatchingAdminPage() {
 
       {isAdmin && !isLoading && data && (
         <div style={{ display: "grid", gap: 16 }}>
+          {(data as { source?: string; cacheUpdatedAt?: string | null }).source === "supabase_cache" && (
+            <p style={{ fontSize: 11, color: "oklch(0.65 0.15 80)" }}>
+              Showing platform stats cache (Postgres unavailable). Score buckets omitted.
+              {(data as { cacheUpdatedAt?: string | null }).cacheUpdatedAt
+                ? ` Cache updated ${new Date(String((data as { cacheUpdatedAt?: string }).cacheUpdatedAt)).toLocaleString()}.`
+                : ""}
+            </p>
+          )}
+          {(data as { source?: string }).source === "unavailable" && (
+            <p style={{ fontSize: 11, color: "oklch(0.65 0.18 25)" }}>
+              Match stats unavailable — fix Fly/Vercel <code>DATABASE_URL</code> (session pooler) or Supabase service key.
+            </p>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
             {[
               ["Total Matches", data.total, "oklch(0.75 0.15 270)"],
@@ -83,7 +96,7 @@ export default function MatchingAdminPage() {
             ].map(([lbl, val, color]) => (
               <div key={lbl as string} style={S.card}>
                 <div style={S.label}>{lbl}</div>
-                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "monospace", color: color as string }}>{String(val)}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "monospace", color: color as string }}>{String(val ?? "—")}</div>
               </div>
             ))}
           </div>
@@ -91,7 +104,11 @@ export default function MatchingAdminPage() {
           <div style={S.card}>
             <div style={S.label}>Score distribution (0–100)</div>
             {(data.buckets ?? []).length === 0 ? (
-              <p style={{ fontSize: 12, color: "oklch(0.45 0.01 264)" }}>No rows in startup_investor_matches yet.</p>
+              <p style={{ fontSize: 12, color: "oklch(0.45 0.01 264)" }}>
+                {Number(data.total) > 0
+                  ? "Bucket breakdown requires a working Postgres connection."
+                  : "No rows in startup_investor_matches yet."}
+              </p>
             ) : (
               (data.buckets ?? []).map((b: { bucket: string; cnt: string }) => (
                 <div key={b.bucket} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid oklch(0.18 0.01 264)" }}>
@@ -102,7 +119,7 @@ export default function MatchingAdminPage() {
             )}
           </div>
 
-          {Number(data.total) === 0 && (
+          {Number(data.total) === 0 && (data as { source?: string }).source !== "unavailable" && (
             <p style={{ fontSize: 11, color: "oklch(0.55 0.01 264)" }}>
               Run the match autopilot to populate:{" "}
               <code style={{ color: "oklch(0.75 0.15 270)" }}>node scripts/core/hot-match-autopilot.js</code>
