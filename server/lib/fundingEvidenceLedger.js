@@ -16,6 +16,32 @@ const WEAK_NORMALIZED_TOKENS = new Set([
   'ridge', 'grove', 'union', 'social', 'global', 'national', 'united', 'american',
 ]);
 
+/**
+ * Strip RSS/headline noise glued onto investor names:
+ * - publisher suffixes: "General Catalyst - Entrackr", "Accel - Capital Brief"
+ * - possessive person prefixes: "Peter Thiel’s Founders Fund"
+ * Only strips spaced dashes so "F-Prime" / "Long-Z Investments" stay intact.
+ */
+function stripInvestorHeadlineNoise(value) {
+  let s = String(value || '').trim();
+  if (!s) return '';
+
+  // "Firm - Publisher" / "Firm — Outlet"
+  s = s.replace(/\s+[-–—]\s+[^-–—\n]{2,80}$/u, '').trim();
+
+  // "Person’s Firm Name" → Firm Name (only when remainder looks firm-like)
+  const possessive = s.match(/^(.+?)['’]s\s+(.+)$/u);
+  if (possessive) {
+    const remainder = possessive[2].trim();
+    const firmLike = /\b(?:capital|ventures?|partners?|fund|management|llc|lp|group)\b/i.test(remainder)
+      || (remainder.split(/\s+/).length <= 4 && remainder.length >= 3 && /[A-Za-z]/.test(remainder));
+    const genericRemainder = /^(?:venture firm|vc firm|investment firm|firm)$/i.test(remainder);
+    if (firmLike && !genericRemainder) s = remainder;
+  }
+
+  return s.trim();
+}
+
 function normalizeEntityName(value) {
   const raw = String(value || '')
     .normalize('NFKD')
@@ -155,31 +181,52 @@ function canonicalRoundKey({ startupId, startupName, roundType, amountUsd, annou
 }
 
 function resolveCanonicalEntity(rows, rawName, aliasesForRow = () => []) {
+  const attempt = (name) => {
+    const raw = String(name || '').trim();
+    if (!raw) return { row: null, status: 'unresolved', confidence: 0, matchKind: null };
+    const exact = rows.filter(row => [row.name, row.firm, ...aliasesForRow(row)]
+      .some(value => String(value || '').trim().toLowerCase() === raw.toLowerCase()));
+    if (exact.length === 1) return { row: exact[0], status: 'resolved', confidence: 1, matchKind: 'exact' };
+    if (exact.length > 1) {
+      const preferred = preferFirmEntity(exact, raw);
+      if (preferred) {
+        return { row: preferred, status: 'resolved', confidence: 1, matchKind: 'exact_firm_preferred' };
+      }
+      return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'exact_collision' };
+    }
+    const normalized = normalizeEntityName(raw);
+    if (!normalized) return { row: null, status: 'not_in_universe', confidence: 0, matchKind: null };
+    const candidates = rows.filter(row => [row.name, row.firm, ...aliasesForRow(row)]
+      .some(value => normalizeEntityName(value) === normalized));
+    if (candidates.length === 1) return { row: candidates[0], status: 'resolved', confidence: 0.92, matchKind: 'normalized' };
+    if (candidates.length > 1) {
+      const preferred = preferFirmEntity(candidates, raw);
+      if (preferred) {
+        return { row: preferred, status: 'resolved', confidence: 0.9, matchKind: 'normalized_firm_preferred' };
+      }
+      return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'normalized_collision' };
+    }
+    return { row: null, status: 'not_in_universe', confidence: 0, matchKind: null };
+  };
+
   const raw = String(rawName || '').trim();
   if (!raw) return { row: null, status: 'unresolved', confidence: 0, matchKind: null };
-  const exact = rows.filter(row => [row.name, row.firm, ...aliasesForRow(row)]
-    .some(value => String(value || '').trim().toLowerCase() === raw.toLowerCase()));
-  if (exact.length === 1) return { row: exact[0], status: 'resolved', confidence: 1, matchKind: 'exact' };
-  if (exact.length > 1) {
-    const preferred = preferFirmEntity(exact, raw);
-    if (preferred) {
-      return { row: preferred, status: 'resolved', confidence: 1, matchKind: 'exact_firm_preferred' };
+
+  // Prefer headline-cleaned form first so "Firm - Publisher" does not normalize-match
+  // a junk investor row named like the full glued string.
+  const cleaned = stripInvestorHeadlineNoise(raw);
+  if (cleaned && cleaned.toLowerCase() !== raw.toLowerCase()) {
+    const cleanedResult = attempt(cleaned);
+    if (cleanedResult.status === 'resolved') {
+      return {
+        ...cleanedResult,
+        matchKind: `headline_cleaned_${cleanedResult.matchKind}`,
+        confidence: Math.min(cleanedResult.confidence, 0.9),
+      };
     }
-    return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'exact_collision' };
   }
-  const normalized = normalizeEntityName(raw);
-  if (!normalized) return { row: null, status: 'not_in_universe', confidence: 0, matchKind: null };
-  const candidates = rows.filter(row => [row.name, row.firm, ...aliasesForRow(row)]
-    .some(value => normalizeEntityName(value) === normalized));
-  if (candidates.length === 1) return { row: candidates[0], status: 'resolved', confidence: 0.92, matchKind: 'normalized' };
-  if (candidates.length > 1) {
-    const preferred = preferFirmEntity(candidates, raw);
-    if (preferred) {
-      return { row: preferred, status: 'resolved', confidence: 0.9, matchKind: 'normalized_firm_preferred' };
-    }
-    return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'normalized_collision' };
-  }
-  return { row: null, status: 'not_in_universe', confidence: 0, matchKind: null };
+
+  return attempt(raw);
 }
 
 function isPlausibleStartupName(value) {
@@ -472,6 +519,7 @@ function metricsForEvaluations(rows, topK = 5) {
 
 module.exports = {
   HORIZONS,
+  stripInvestorHeadlineNoise,
   normalizeEntityName,
   preferFirmEntity,
   normalizeStartupName,
