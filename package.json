@@ -144,6 +144,7 @@
     "funding:coverage:investors": "node scripts/report-funding-investor-coverage.mjs",
     "funding:coverage:investors:resolve": "node scripts/resolve-funding-investor-coverage.mjs",
     "funding:coverage:investors:resolve:apply": "node scripts/resolve-funding-investor-coverage.mjs --apply",
+    "funding:audit:candidate-misses": "node scripts/audit-candidate-generation-misses.mjs",
     "funding:repair": "node scripts/repair-funding-ledger-derived-fields.mjs",
     "funding:participants": "node scripts/enrich-funding-ledger-participants.mjs",
     "funding:participants:scrub": "node scripts/scrub-funding-participant-chronology.mjs",
