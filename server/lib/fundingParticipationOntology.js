@@ -31,6 +31,8 @@ function classifyParticipationPhrase(text) {
   if (/\bparticipat(?:ed|ing) in (?:the )?syndicate\b/i.test(value)) return { role: 'syndicate_member', relation: 'PARTICIPATED_IN_SYNDICATE' };
   if (/\bparticipat(?:ed|ing) in (?:the )?(?:round|financing)\b/i.test(value)) return { role: 'participant', relation: 'PARTICIPATED_IN_ROUND' };
   if (/\bjoined by\b/i.test(value)) return { role: 'participant', relation: 'PARTICIPATED_IN_ROUND' };
+  if (/\bbacked by\b/i.test(value)) return { role: 'participant', relation: 'PARTICIPATED_IN_ROUND' };
+  if (/\binvestors?\s+include\b/i.test(value)) return { role: 'participant', relation: 'PARTICIPATED_IN_ROUND' };
   if (/\bexisting investor(?:s)?\b|\bfollow[- ]on investment\b/i.test(value)) return { role: 'existing_investor', relation: 'INVESTED_IN' };
   if (/\binvest(?:ed|s|ing) in\b/i.test(value)) return { role: 'participant', relation: 'INVESTED_IN' };
   return { role: 'unknown', relation: null };
@@ -118,6 +120,8 @@ function extractExplicitParticipantMentions(text) {
     { role: 'participant', relation: 'PARTICIPATED_IN_ROUND', pattern: /\bjoined by\s+(.+?)(?=\bwith participation\b|\bparticipation from\b|\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
     { role: 'participant', relation: 'PARTICIPATED_IN_ROUND', pattern: /(?:with participation from|participation from)\s+(.+?)(?=\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|\bto (?:support|expand|accelerate|build)\b|[.;]|$)/ig },
     { role: 'syndicate_member', relation: 'PARTICIPATED_IN_SYNDICATE', pattern: /(?:syndicate (?:included|includes)|participated in the syndicate[:,]?)\s+(.+?)(?=\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
+    { role: 'participant', relation: 'PARTICIPATED_IN_ROUND', pattern: /\bbacked by\s+(.+?)(?=\b(?:founded|created|started|built) by\b|\bbringing\b|\bthe company\b|\bwhich\b|\bfollows\b|\bto (?:support|expand|accelerate|build)\b|[.;]|$)/ig },
+    { role: 'participant', relation: 'PARTICIPATED_IN_ROUND', pattern: /\binvestors?\s+include\s+(.+?)(?=\bbringing\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
     { role: 'participant', relation: 'INVESTED_IN', pattern: /\b(?:raises?|raised|secures?|secured)\b.{0,80}?\bfrom\s+(.+?)(?=\bbringing\b|\b(?:as|to)\b|\bthe company\b|\bwhich\b|[.;]|$)/ig },
     { role: 'participant', relation: 'INVESTED_IN', pattern: /\bsecures?\s+(.+?)\s+investment\b(?=\s+(?:at|to|for|as)\b|[.;]|$)/ig },
   ];

@@ -149,6 +149,7 @@
     "funding:audit:candidate-misses": "node scripts/audit-candidate-generation-misses.mjs",
     "funding:repair": "node scripts/repair-funding-ledger-derived-fields.mjs",
     "funding:participants": "node scripts/enrich-funding-ledger-participants.mjs",
+    "funding:participants:prediction-linked": "node scripts/enrich-funding-ledger-participants.mjs --prediction-linked",
     "funding:participants:scrub": "node scripts/scrub-funding-participant-chronology.mjs",
     "funding:snapshots:backfill:served": "node scripts/backfill-served-prediction-snapshots.mjs",
     "funding:snapshots:backfill:served:apply": "node scripts/backfill-served-prediction-snapshots.mjs --apply",

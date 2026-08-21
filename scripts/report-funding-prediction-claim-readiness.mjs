@@ -142,12 +142,14 @@ function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organiz
       && discoveredAt >= predictedAt;
   });
   const sourceOutcomes = eligibleEvents.map(event => {
-    const participants = (participantsByEvent.get(event.id) || []).filter(row =>
-      row.participation_relation && row.participant_role !== 'unknown' && participantKey(row));
+    const namedParticipants = (participantsByEvent.get(event.id) || []).filter(row =>
+      row.participation_relation && row.participant_role !== 'unknown' && String(row.investor_name_raw || '').trim());
+    const participants = namedParticipants.filter(row => participantKey(row));
     const hitParticipants = participants.filter(row => predictedKeys.has(participantKey(row)));
     return {
       event,
       participants,
+      namedParticipants,
       hitParticipants,
       participant_list_complete: event.metadata?.participant_list_complete === true,
     };
@@ -155,17 +157,22 @@ function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organiz
   const roundGroups = groupBy(sourceOutcomes, row => row.event.canonical_round_key || `event:${row.event.id}`);
   const eventOutcomes = [...roundGroups.values()].map(sources => {
     const participants = [...new Map(sources.flatMap(row => row.participants).map(row => [participantKey(row), row])).values()];
+    const namedParticipants = [...new Map(sources.flatMap(row => row.namedParticipants)
+      .map(row => [String(row.investor_name_raw || '').trim().toLowerCase(), row])).values()];
     const hitParticipants = participants.filter(row => predictedKeys.has(participantKey(row)));
     return {
       event_ids: sources.map(row => row.event.id),
       participants,
+      namedParticipants,
       hitParticipants,
       participant_list_complete: sources.some(row => row.participant_list_complete),
     };
   });
   const funded = eventOutcomes.length > 0;
   const confirmedHit = eventOutcomes.some(row => row.hitParticipants.length > 0);
-  const auditableMiss = funded && !confirmedHit && eventOutcomes.every(row => row.participant_list_complete && row.participants.length > 0);
+  // Misses need a complete named roster; names need not resolve into our investor universe.
+  const auditableMiss = funded && !confirmedHit
+    && eventOutcomes.every(row => row.participant_list_complete && row.namedParticipants.length > 0);
   const indeterminate = funded && !confirmedHit && !auditableMiss;
   const audited = confirmedHit || auditableMiss;
   const distinctActualKeys = new Set(eventOutcomes.flatMap(row => row.participants.map(participantKey)).filter(Boolean));
