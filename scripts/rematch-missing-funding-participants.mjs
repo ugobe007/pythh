@@ -47,9 +47,17 @@ function massageConnectionString(connectionString) {
 
 function isEligibleFirm(row) {
   const label = String(row.firm || row.name || '').trim();
-  const type = `${row.type || ''} ${row.investor_type || ''}`;
+  const typeField = String(row.type || '');
+  const investorType = String(row.investor_type || '');
+  // Many firm profiles are mis-tagged type=Angel while investor_type=VC (Accel, Benchmark, …).
+  // Trust firm-like investor_type over a generic Angel type label.
+  const firmTyped = /\b(?:vc|pe|venture|corporate|accelerator|family.?office|growth|hedge|fund)\b/i.test(
+    `${investorType} ${typeField}`,
+  );
+  const personTyped = /\b(?:individual|person|founder)\b/i.test(`${typeField} ${investorType}`)
+    || (/\bangel\b/i.test(typeField) && !firmTyped);
   return row.is_individual !== true
-    && !/\b(?:angel|individual|person|founder)\b/i.test(type)
+    && !(personTyped && !firmTyped)
     && isPlausibleInvestorEntityName(label)
     && !isGarbageInvestorName(label)
     && !isHardJunkInvestorName(label);

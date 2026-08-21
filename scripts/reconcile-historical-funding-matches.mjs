@@ -43,8 +43,12 @@ function investorLabel(row) {
 function eligibleInvestor(row) {
   const label = investorLabel(row);
   const type = `${row?.type || ''} ${row?.investor_type || ''}`;
+  // Firm profiles are often mis-tagged type=Angel with investor_type=VC.
+  const firmTyped = /\b(?:vc|pe|venture|corporate|accelerator|family.?office|growth|hedge|fund)\b/i.test(type);
+  const personTyped = /\b(?:individual|person|founder)\b/i.test(type)
+    || (/\bangel\b/i.test(String(row?.type || '')) && !firmTyped);
   return row && row.is_individual !== true
-    && !/\b(?:angel|individual|person|founder)\b/i.test(type)
+    && !(personTyped && !firmTyped)
     && isPlausibleInvestorEntityName(label)
     && !isGarbageInvestorName(label)
     && !isHardJunkInvestorName(label)
