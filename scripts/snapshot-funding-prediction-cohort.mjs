@@ -4,8 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { isGarbageInvestorName, isHardJunkInvestorName } = require('../lib/investorNameHeuristics.js');
-const { isPlausibleInvestorEntityName, isPredictionGradeStartupIdentity } = require('../server/lib/fundingEvidenceLedger.js');
+const { isServeGradeStartupIdentity } = require('../server/lib/fundingEvidenceLedger.js');
+const {
+  isEligibleFirmInvestor,
+  canonicalFirm,
+} = require('../server/lib/freezeFundingPredictionSnapshot.js');
 
 const apply = process.argv.includes('--apply');
 const newOnly = process.argv.includes('--new-only');
@@ -21,24 +24,6 @@ const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 if (!url || !key) throw new Error('SUPABASE_URL and service-role key are required');
 const db = createClient(url, key, { auth: { persistSession: false } });
-
-function canonicalFirm(row) {
-  return String(row.firm || row.name || '').toLowerCase().replace(/\b(?:ventures?|capital|partners?|management|fund|holdings?)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function isEligibleInvestor(row) {
-  const label = String(row.firm || row.name || '').trim();
-  const type = `${row.type || ''} ${row.investor_type || ''}`;
-  // Firm profiles are often mis-tagged type=Angel with investor_type=VC.
-  const firmTyped = /\b(?:vc|pe|venture|corporate|accelerator|family.?office|growth|hedge|fund)\b/i.test(type);
-  const personTyped = /\b(?:individual|person|founder)\b/i.test(type)
-    || (/\bangel\b/i.test(String(row.type || '')) && !firmTyped);
-  return row.is_individual !== true
-    && !(personTyped && !firmTyped)
-    && isPlausibleInvestorEntityName(label)
-    && !isGarbageInvestorName(label)
-    && !isHardJunkInvestorName(label);
-}
 
 async function fetchInvestors(ids) {
   const rows = [];
@@ -99,7 +84,7 @@ async function main() {
   const startupCandidates = await fetchStartupCandidates();
   const eligibleStartups = (startupCandidates || []).filter(row =>
     row.entity_gate !== 'junk'
-    && isPredictionGradeStartupIdentity(row)
+    && isServeGradeStartupIdentity(row)
     && (!newOnly || !previouslySnapshotted.has(row.id))
   );
   const startups = newOnly ? eligibleStartups : eligibleStartups.slice(0, limit);
@@ -129,7 +114,7 @@ async function main() {
     const seenFirms = new Set();
     const unique = (grouped.get(startup.id) || []).filter(match => {
       const investor = investorById.get(match.investor_id) || {};
-      if (!isEligibleInvestor(investor)) return false;
+      if (!isEligibleFirmInvestor(investor)) return false;
       const firmKeys = [
         organizationByInvestor.get(match.investor_id) ? `organization:${organizationByInvestor.get(match.investor_id)}` : null,
         `label:${canonicalFirm(investor)}`,

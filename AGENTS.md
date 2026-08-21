@@ -89,12 +89,22 @@ npm run funding:reconcile:historical:summary
 Use `git pull origin main --rebase` instead of `reset --hard` only if you need to keep local commits
 on `main`. Funding scripts live on **`main`** (not the setup PR branch).
 
+### Product thesis gate (Hit@5)
+
+Pythh’s claim is **not** “fit vibes” — it is: **match startups to investors who later invest**. Without sealed Hit@5 proof, the product is unproven.
+
+**Sealed evaluation contract:**
+1. `startup_investor_matches.created_at` is the prediction clock — upserts must not rewrite it (DB trigger + writers omit `created_at`). Never delete-all rematch.
+2. On first durable top-5 (firm-deduped), write `funding_prediction_snapshots` via `freezeTopFiveIfAbsent` (`cohort_key=served-first-top5`, `ignoreDuplicates`) with `predicted_at = min(match.created_at)`.
+3. Claim readiness: `npm run funding:claim-readiness` — needs ≥100 audited hit/miss outcomes with complete participant lists and event/discovery after `predicted_at`. Startup identity for claim sets is **serve-grade** (URL↔name aligned); do not require prior funding language in the description or we only evaluate companies that already raised.
+4. Do **not** retune GOD/fit weights until claim inventory has mature horizons; use `funding:reconcile:historical:summary` only for triage buckets (`candidate_generation_miss` vs `ranked_outside_top_five`).
+
 ### Matched-investment funding workflow (DB scripts)
 
 Resolve **which matched investors actually funded** a startup (pair-level, not startup-only press):
 
 **Live loop (preferred):**
-1. URL submit → matches written → **auto-enqueued** (qualified+url boosted; junk skipped; weak parked)
+1. URL submit → matches written (clock preserved) → **freeze top-5 snapshot if absent** → **auto-enqueued** (qualified+url boosted; junk skipped; weak parked)
 2. GitHub Actions every ~20m / `npm run outcomes:agent -- --apply --limit=400`:
    - `outcomes:recover-urls` — find missing/publisher websites (required for scoring + matching + search)
    - `outcomes:triage-queue` — rectify `earliest_match_at` to min(match.created_at), boost cohort, park weak, scrub Accel pollution, boost post-match ledger
