@@ -95,9 +95,10 @@ Pythh’s claim is **not** “fit vibes” — it is: **match startups to invest
 
 **Sealed evaluation contract:**
 1. `startup_investor_matches.created_at` is the prediction clock — upserts must not rewrite it (DB trigger + writers omit `created_at`). Never delete-all rematch.
-2. On first durable top-5 (firm-deduped), write `funding_prediction_snapshots` via `freezeTopFiveIfAbsent` (`cohort_key=served-first-top5`, `ignoreDuplicates`) with `predicted_at = min(match.created_at)`.
+2. On first durable top-5 (firm-deduped), write `funding_prediction_snapshots` via `freezeTopFiveIfAbsent` (`cohort_key=served-first-top5`, `ignoreDuplicates`) with `predicted_at = min(match.created_at)`. Backfill: `npm run funding:snapshots:backfill:served -- --apply --limit=200`.
 3. Claim readiness: `npm run funding:claim-readiness` — needs ≥100 audited hit/miss outcomes with complete participant lists and event/discovery after `predicted_at`. Startup identity for claim sets is **serve-grade** (URL↔name aligned); do not require prior funding language in the description or we only evaluate companies that already raised.
-4. Do **not** retune GOD/fit weights until claim inventory has mature horizons; use `funding:reconcile:historical:summary` only for triage buckets (`candidate_generation_miss` vs `ranked_outside_top_five`).
+4. Participant completeness: `npm run funding:participants -- --apply` (and `--retry-failed`) marks `metadata.participant_list_complete` when an article has explicit lead/participation roster language and ≥1 extracted participant. Without this flag, funded outcomes stay indeterminate and cannot count as Hit@5 misses.
+5. Do **not** retune GOD/fit weights until claim inventory has mature horizons; use `funding:reconcile:historical:summary` only for triage buckets (`candidate_generation_miss` vs `ranked_outside_top_five`).
 
 ### Matched-investment funding workflow (DB scripts)
 

@@ -107,14 +107,23 @@ async function main() {
       seenParticipants.add(participantKey);
       mentions.push({ ...rawMention, investor: resolution.row || null, resolution });
     }
+    // A roster is auditable for Hit@5 misses only when the article explicitly names
+    // leads/participants and we successfully extracted at least one proven relation.
+    const hasExplicitRoster = /\bled\s+by\b|\bco[- ]led\s+by\b|\bwith participation from\b|\bparticipation from\b|\bsyndicate (?:included|includes)\b/i.test(evidenceText);
+    const sourceReadable = fetchStatus === 'cached' || fetchStatus === 'fetched' || fetchStatus === 'headline_only';
+    const listComplete = event.metadata?.participant_list_complete === true
+      || (hasExplicitRoster && mentions.length > 0 && sourceReadable && !String(fetchStatus).startsWith('unavailable'));
     if (apply) {
       const { error } = await db.from('funding_evidence_events').update({
         metadata: {
           ...(event.metadata || {}),
           ...(excerpt ? { funding_evidence_excerpt: excerpt } : {}),
           funding_evidence_excerpt_source: fetchStatus,
-          participant_list_complete: event.metadata?.participant_list_complete === true,
-          participant_enrichment_version: 'v2',
+          participant_list_complete: listComplete,
+          participant_list_complete_reason: listComplete
+            ? (event.metadata?.participant_list_complete === true ? 'preserved' : 'explicit_roster_extracted')
+            : (hasExplicitRoster ? 'roster_language_without_mentions' : 'no_explicit_roster'),
+          participant_enrichment_version: 'v3',
           participant_enrichment_attempted_at: new Date().toISOString(),
         },
         updated_at: new Date().toISOString(),
@@ -140,9 +149,25 @@ async function main() {
         participantsWritten++;
       }
     }
-    results.push({ event_id: event.id, startup: event.startup_name_raw, source_status: fetchStatus, mentions: mentions.map(row => ({ investor: row.investorNameRaw, role: row.role, relation: row.relation })) });
+    results.push({
+      event_id: event.id,
+      startup: event.startup_name_raw,
+      source_status: fetchStatus,
+      participant_list_complete: listComplete,
+      mentions: mentions.map(row => ({ investor: row.investorNameRaw, role: row.role, relation: row.relation })),
+    });
   }
-  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', selection: retryFailed ? 'retry_latest' : 'never_processed', events_scanned: events?.length || 0, sources_available: results.filter(row => !row.source_status.startsWith('unavailable:')).length, events_with_proven_participants: results.filter(row => row.mentions.length).length, proven_participants: results.reduce((sum, row) => sum + row.mentions.length, 0), participants_written: participantsWritten, results }, null, 2));
+  console.log(JSON.stringify({
+    mode: apply ? 'apply' : 'dry-run',
+    selection: retryFailed ? 'retry_latest' : 'never_processed',
+    events_scanned: events?.length || 0,
+    sources_available: results.filter(row => !row.source_status.startsWith('unavailable:')).length,
+    events_with_proven_participants: results.filter(row => row.mentions.length).length,
+    events_marked_complete: results.filter(row => row.participant_list_complete).length,
+    proven_participants: results.reduce((sum, row) => sum + row.mentions.length, 0),
+    participants_written: participantsWritten,
+    results,
+  }, null, 2));
 }
 
 main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });

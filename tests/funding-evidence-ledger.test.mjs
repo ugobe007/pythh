@@ -599,7 +599,9 @@ test('verified participant enrichment is bounded, source-grounded, and preserves
   const script = readFileSync(new URL('../scripts/enrich-funding-ledger-participants.mjs', import.meta.url), 'utf8');
   assert.match(script, /verification_status', \['verified', 'corroborated'\]/);
   assert.match(script, /extractKnownInvestorMentions/);
-  assert.match(script, /participant_list_complete: event\.metadata\?\.participant_list_complete === true/);
+  assert.match(script, /participant_list_complete/);
+  assert.match(script, /explicit_roster_extracted|hasExplicitRoster/);
+  assert.match(script, /participant_enrichment_version: 'v3'/);
   assert.match(script, /isPrivateIp/);
   assert.match(script, /redirect: 'error'/);
   assert.match(script, /focusedEvidenceExcerpt/);
