@@ -795,6 +795,7 @@ async function main() {
       investor = data;
     } else {
       const { error: activateError } = await db.from('investors').update({
+        name: profile.displayName || investor.name || profile.canonicalName,
         status: 'active',
         entity_gate: 'qualified',
         type: profile.type || 'VC',
