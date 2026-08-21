@@ -3,8 +3,9 @@
  * match pool (candidate_generation_miss). Force-include into the scored /
  * persisted candidate set — do not retune GOD/fit weights for these names.
  *
- * Prefer firm rows (is_individual !== true). Collapse alias variants to one
- * canonical firm per family (e.g. ICONIQ / ICONIQ Capital).
+ * Prefer true firm profiles (name ≈ firm / name is an allowlisted alias) over
+ * high-scoring partner rows mis-tagged is_individual=false. Collapse alias
+ * variants to one canonical firm per family.
  */
 
 const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
@@ -24,6 +25,25 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'notable capital',
   'boldcap',
   'luminar ventures',
+  // Expanded from never-pre-matched qualified firm ledger (post-#33).
+  'sequoia',
+  'sequoia capital',
+  'eqt',
+  'eqt ventures',
+  'thrive',
+  'thrive capital',
+  'lightspeed',
+  'lightspeed venture partners',
+  'wndrco',
+  'coatue',
+  'coatue management',
+  'menlo ventures',
+  'insight partners',
+  'y combinator',
+  'yc',
+  'accel',
+  'peak xv',
+  'peak xv partners',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -44,6 +64,24 @@ const ALIAS_FAMILY = Object.freeze({
   'notable capital': 'notable',
   boldcap: 'boldcap',
   'luminar ventures': 'luminar',
+  sequoia: 'sequoia',
+  'sequoia capital': 'sequoia',
+  eqt: 'eqt',
+  'eqt ventures': 'eqt',
+  thrive: 'thrive',
+  'thrive capital': 'thrive',
+  lightspeed: 'lightspeed',
+  'lightspeed venture partners': 'lightspeed',
+  wndrco: 'wndrco',
+  coatue: 'coatue',
+  'coatue management': 'coatue',
+  'menlo ventures': 'menlo',
+  'insight partners': 'insight',
+  'y combinator': 'y_combinator',
+  yc: 'y_combinator',
+  accel: 'accel',
+  'peak xv': 'peak_xv',
+  'peak xv partners': 'peak_xv',
 });
 
 function normalizeFunderLabel(value) {
@@ -73,17 +111,51 @@ function isFrequentLedgerFunder(investor) {
 }
 
 /**
- * One best firm row per frequent-funder family (highest investor_score wins).
+ * Prefer true firm org rows over partner/person profiles that share a firm label.
+ * Higher is better. Negative = skip.
+ */
+function firmProfileRank(investor) {
+  if (!investor || investor.is_individual === true) return -1;
+  const rawName = String(investor.name || '');
+  if (/\([^)]+\)/.test(rawName)) return -1; // "Hemant Taneja (General Catalyst)"
+  const name = normalizeFunderLabel(investor.name);
+  const firm = normalizeFunderLabel(investor.firm);
+  if (!name) return -1;
+  // Name itself is an allowlisted firm alias.
+  if (ALIAS_FAMILY[name]) return 3;
+  // Name equals firm and firm is allowlisted (canonical org row).
+  if (firm && name === firm && ALIAS_FAMILY[firm]) return 2;
+  // Firm matches allowlist but name is a different person/partner label.
+  if (firm && ALIAS_FAMILY[firm] && name !== firm) return 0;
+  return 1;
+}
+
+/**
+ * One best firm row per frequent-funder family.
+ * Firm-profile rank beats investor_score so partner rows cannot win.
  */
 function pickCanonicalFrequentFunders(investors) {
   const bestByFamily = new Map();
   for (const inv of investors || []) {
     const family = investorFamilyKey(inv);
     if (!family || !inv?.id) continue;
+    const rank = firmProfileRank(inv);
+    if (rank < 0) continue;
     const prev = bestByFamily.get(family);
-    const score = Number(inv.investor_score) || 0;
-    const prevScore = Number(prev?.investor_score) || 0;
-    if (!prev || score > prevScore) bestByFamily.set(family, inv);
+    if (!prev) {
+      bestByFamily.set(family, inv);
+      continue;
+    }
+    const prevRank = firmProfileRank(prev);
+    if (rank > prevRank) {
+      bestByFamily.set(family, inv);
+      continue;
+    }
+    if (rank === prevRank) {
+      const score = Number(inv.investor_score) || 0;
+      const prevScore = Number(prev.investor_score) || 0;
+      if (score > prevScore) bestByFamily.set(family, inv);
+    }
   }
   return [...bestByFamily.values()];
 }
@@ -137,6 +209,7 @@ module.exports = {
   familyKeyForLabel,
   investorFamilyKey,
   isFrequentLedgerFunder,
+  firmProfileRank,
   pickCanonicalFrequentFunders,
   collectFrequentLedgerFunderIds,
   selectTopMatchesReservingForced,
