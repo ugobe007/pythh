@@ -792,7 +792,8 @@ test('funding proof candidate backfill is bounded, firm-only, leakage-safe, and 
   assert.match(script, /\.eq\('source_type', 'url'\)/);
   assert.match(script, /snapshottedStartupIds\.has/);
   assert.match(script, /row\.is_individual !== true/);
-  assert.match(script, /angel\|individual\|person\|founder/);
+  assert.match(script, /firmTyped/);
+  assert.match(script, /personTyped/);
   assert.match(script, /feature_cutoff_at: cutoffIso/);
   assert.match(script, /full_universe_firm_only_no_outcome_labels/);
   assert.match(script, /\.upsert\(/);
