@@ -27,6 +27,7 @@ const WEAK_NORMALIZED_TOKENS = new Set([
 function stripInvestorHeadlineNoise(value) {
   let s = String(value || '')
     .replace(/[\u00A0\u202F\u2007\u2008\u2009\u200A\uFEFF]/g, ' ')
+    .replace(/[’‘‛]/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
   if (!s) return '';

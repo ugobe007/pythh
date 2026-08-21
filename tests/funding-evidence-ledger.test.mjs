@@ -30,7 +30,7 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   // Generic remainder after possessive stays intact
   assert.equal(
     stripInvestorHeadlineNoise('Reddit co-founder Alexis Ohanian’s venture firm'),
-    'Reddit co-founder Alexis Ohanian’s venture firm',
+    "Reddit co-founder Alexis Ohanian's venture firm",
   );
   assert.equal(stripInvestorHeadlineNoise('Figma’s CEO'), 'Figma’s CEO');
   assert.equal(stripInvestorHeadlineNoise('Shlomo Kramer’s Skinos Ventures'), 'Skinos Ventures');
@@ -40,6 +40,7 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(stripInvestorHeadlineNoise('SoftBank Vision Fund 2'), 'SoftBank Vision Fund');
   assert.equal(stripInvestorHeadlineNoise('Susquehanna Crypto'), 'Susquehanna');
   assert.equal(stripInvestorHeadlineNoise('And a16z Scout Fund'), 'a16z');
+  assert.equal(stripInvestorHeadlineNoise('Wa\u2019ed Ventures'), "Wa'ed Ventures");
 });
 
 test('resolves program-suffix and unicode-normalized investor names', () => {
