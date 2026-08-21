@@ -14,6 +14,8 @@ const { normalizeEntityName, normalizeStartupName, normalizeRoundType, canonical
 test('normalizes common investor firm suffixes for deterministic resolution', () => {
   assert.equal(normalizeEntityName('Acme Ventures, LLC'), 'acme llc');
   assert.equal(normalizeEntityName('Acme Capital Partners'), 'acme');
+  // Weak remainders keep the corporate token (Founders Fund ≠ "founders")
+  assert.equal(normalizeEntityName('Founders Fund'), 'founders fund');
 });
 
 test('prefers exact canonical investor names and exposes normalization collisions', () => {
@@ -25,6 +27,28 @@ test('prefers exact canonical investor names and exposes normalization collision
   assert.equal(resolveCanonicalEntity(rows, 'True Ventures').row.id, '3');
   assert.equal(resolveCanonicalEntity(rows, 'OpenAI').status, 'ambiguous');
   assert.equal(resolveCanonicalEntity([{ id: '1', name: 'VaynerFund' }], 'Vayner Fund').confidence, 0.92);
+});
+
+test('prefers firm profile over partner rows sharing the same firm field', () => {
+  const rows = [
+    { id: 'gc', name: 'General Catalyst', firm: 'General Catalyst', is_individual: false },
+    { id: 'p1', name: 'Hemant Taneja (General Catalyst)', firm: 'General Catalyst', is_individual: true },
+    { id: 'p2', name: 'Joel Cutler (General Catalyst)', firm: 'General Catalyst', is_individual: true },
+    { id: 'ff', name: 'Founders Fund', firm: 'Founders Fund', is_individual: false },
+    { id: 'pt', name: 'Peter Thiel', firm: 'Founders Fund', is_individual: false },
+    { id: 'accel', name: 'Accel', firm: 'Accel', is_individual: false },
+    { id: 'ap', name: 'Andrew Braccia (Accel)', firm: 'Accel', is_individual: true },
+  ];
+  const gc = resolveCanonicalEntity(rows, 'General Catalyst');
+  assert.equal(gc.status, 'resolved');
+  assert.equal(gc.row.id, 'gc');
+  assert.equal(gc.matchKind, 'exact_firm_preferred');
+  const ff = resolveCanonicalEntity(rows, 'Founders Fund');
+  assert.equal(ff.status, 'resolved');
+  assert.equal(ff.row.id, 'ff');
+  const accel = resolveCanonicalEntity(rows, 'Accel');
+  assert.equal(accel.status, 'resolved');
+  assert.equal(accel.row.id, 'accel');
 });
 
 test('rejects generic funding stages masquerading as canonical investors', () => {
@@ -608,7 +632,9 @@ test('candidate generation paginates the full investor universe before ranking a
   const worker = readFileSync(new URL('../server/matchWorker.ts', import.meta.url), 'utf8');
   assert.match(batchMatcher, /fetchAllInvestors/);
   assert.match(batchMatcher, /\.range\(offset, offset \+ pageSize - 1\)/);
-  assert.match(batchMatcher, /selectTopInvestorCandidates\(scoredCandidates, membershipByInvestor, 50\)/);
+  assert.match(batchMatcher, /selectTopInvestorCandidates\(/);
+  assert.match(batchMatcher, /forceInvestorIds/);
+  assert.match(batchMatcher, /Documented prior investor relationship/);
   assert.match(batchMatcher, /b\.match\.score - a\.match\.score/);
   assert.match(batchMatcher, /organization:\$\{organizationId\}/);
   assert.match(batchMatcher, /firmKeys\.some/);

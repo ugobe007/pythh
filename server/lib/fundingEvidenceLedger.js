@@ -9,16 +9,76 @@ const GENERIC_INVESTOR_NAMES = new Set([
   'plug', 'play', 'australia', 'netherlands',
 ]);
 
+/** Tokens that must not stand alone after stripping Fund/Capital/Partners (e.g. Founders Fund). */
+const WEAK_NORMALIZED_TOKENS = new Set([
+  'founders', 'general', 'first', 'index', 'light', 'soft', 'hard', 'open', 'true',
+  'new', 'next', 'red', 'blue', 'bond', 'spark', 'prime', 'core', 'edge', 'peak',
+  'ridge', 'grove', 'union', 'social', 'global', 'national', 'united', 'american',
+]);
+
 function normalizeEntityName(value) {
-  return String(value || '')
+  const raw = String(value || '')
     .normalize('NFKD')
     .replace(/[’']/g, '')
-    .replace(/(?<=[a-z0-9])(?:Ventures?|Capital|Partners?|Management|Fund|Holdings?)$/, ' ')
     .replace(/&/g, ' and ')
-    .replace(/\b(?:ventures?|capital|partners?|management|fund|holdings?)\b/gi, ' ')
     .replace(/[^a-z0-9]+/gi, ' ')
     .trim()
     .toLowerCase();
+  if (!raw) return '';
+
+  // Strip corporate suffixes, but keep them when the remainder is a weak/generic token
+  // (e.g. "Founders Fund" must not collapse to "founders").
+  const stripped = raw
+    .replace(/(?<=[a-z0-9])(?:ventures?|capital|partners?|management|fund|holdings?)$/i, ' ')
+    .replace(/\b(?:ventures?|capital|partners?|management|fund|holdings?)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    stripped
+    && stripped.length >= 3
+    && !WEAK_NORMALIZED_TOKENS.has(stripped)
+    && !GENERIC_INVESTOR_NAMES.has(stripped)
+  ) {
+    return stripped;
+  }
+  return raw;
+}
+
+/** Prefer a firm profile over partner/person rows that share the same firm field. */
+function preferFirmEntity(candidates, rawName) {
+  if (!candidates?.length) return null;
+  if (candidates.length === 1) return candidates[0];
+  const raw = String(rawName || '').trim().toLowerCase();
+
+  const isPersonLike = (row) => {
+    if (row?.is_individual === true) return true;
+    const name = String(row?.name || '').trim();
+    if (/\([^)]+\)\s*$/.test(name)) return true;
+    const firm = String(row?.firm || '').trim().toLowerCase();
+    const nameLc = name.toLowerCase();
+    // "Stephanie Zhan" with firm=Sequoia while resolving "Sequoia"
+    if (firm === raw && nameLc !== raw && nameLc !== firm && !nameLc.includes(firm)) return true;
+    return false;
+  };
+
+  const firmProfiles = candidates.filter((row) => !isPersonLike(row));
+  const perfect = firmProfiles.filter((row) => {
+    const name = String(row?.name || '').trim().toLowerCase();
+    const firm = String(row?.firm || '').trim().toLowerCase();
+    return (name === raw && firm === raw) || (name && name === firm && (name === raw || firm === raw));
+  });
+  if (perfect.length === 1) return perfect[0];
+  if (firmProfiles.length === 1) return firmProfiles[0];
+
+  // Only auto-pick a name===raw firm when we clearly dropped person noise.
+  if (candidates.some(isPersonLike)) {
+    const byName = firmProfiles.filter(
+      (row) => String(row?.name || '').trim().toLowerCase() === raw,
+    );
+    if (byName.length === 1) return byName[0];
+  }
+  return null;
 }
 
 function normalizeStartupName(value) {
@@ -100,12 +160,25 @@ function resolveCanonicalEntity(rows, rawName, aliasesForRow = () => []) {
   const exact = rows.filter(row => [row.name, row.firm, ...aliasesForRow(row)]
     .some(value => String(value || '').trim().toLowerCase() === raw.toLowerCase()));
   if (exact.length === 1) return { row: exact[0], status: 'resolved', confidence: 1, matchKind: 'exact' };
-  if (exact.length > 1) return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'exact_collision' };
+  if (exact.length > 1) {
+    const preferred = preferFirmEntity(exact, raw);
+    if (preferred) {
+      return { row: preferred, status: 'resolved', confidence: 1, matchKind: 'exact_firm_preferred' };
+    }
+    return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'exact_collision' };
+  }
   const normalized = normalizeEntityName(raw);
+  if (!normalized) return { row: null, status: 'not_in_universe', confidence: 0, matchKind: null };
   const candidates = rows.filter(row => [row.name, row.firm, ...aliasesForRow(row)]
     .some(value => normalizeEntityName(value) === normalized));
   if (candidates.length === 1) return { row: candidates[0], status: 'resolved', confidence: 0.92, matchKind: 'normalized' };
-  if (candidates.length > 1) return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'normalized_collision' };
+  if (candidates.length > 1) {
+    const preferred = preferFirmEntity(candidates, raw);
+    if (preferred) {
+      return { row: preferred, status: 'resolved', confidence: 0.9, matchKind: 'normalized_firm_preferred' };
+    }
+    return { row: null, status: 'ambiguous', confidence: 0, matchKind: 'normalized_collision' };
+  }
   return { row: null, status: 'not_in_universe', confidence: 0, matchKind: null };
 }
 
@@ -368,6 +441,7 @@ function metricsForEvaluations(rows, topK = 5) {
 module.exports = {
   HORIZONS,
   normalizeEntityName,
+  preferFirmEntity,
   normalizeStartupName,
   startupAliases,
   resolveCanonicalStartup,
