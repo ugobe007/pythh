@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
-const { classifyFundingEvidence, isServeGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
+const { classifyFundingEvidence, isServeGradeStartupIdentity, normalizeEntityName, groupSourceOutcomesByRoundCluster } = require('../server/lib/fundingEvidenceLedger.js');
 const {
   predictionIdentityKeys,
   participantIdentityKeys,
@@ -156,7 +156,7 @@ function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organiz
       participant_list_complete: event.metadata?.participant_list_complete === true,
     };
   });
-  const roundGroups = groupBy(sourceOutcomes, row => row.event.canonical_round_key || `event:${row.event.id}`);
+  const roundGroups = groupSourceOutcomesByRoundCluster(sourceOutcomes);
   const eventOutcomes = [...roundGroups.values()].map(sources => {
     const participants = [...new Map(sources.flatMap(row => row.participants)
       .map((row) => [participantPrimaryKey(row, identityCtx), row])).values()];

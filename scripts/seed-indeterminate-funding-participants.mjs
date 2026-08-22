@@ -440,6 +440,145 @@ const seeds = [
       ['NVIDIA', 'lead', 'INVESTED_IN', 'NVIDIA invests $2 billion in Nebius'],
     ],
   },
+  // Post-#45 indeterminate drain — complete rosters + fix split round keys.
+  {
+    key: 'actively-series-b-45m',
+    eventIds: [
+      '36518d33-9189-4325-ac4a-a029094f21e4', // Google News / FinSMEs typed Series B
+      'd125b528-d429-43e8-b8e5-ea59269d13f1', // Pulse2 complete (fix Capital Ventures typo)
+    ],
+    evidenceUrl: 'https://www.businesswire.com/news/home/20260428810008/en/Actively-Raises-45M-Series-B-to-Scale-Intelligence-Led-Revenue-Platform',
+    evidencePublisher: 'Business Wire',
+    evidenceTitle: 'Actively Raises $45M Series B to Scale Intelligence-Led Revenue Platform',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['TCV', 'co_lead', 'CO_LED_ROUND', 'co-led by TCV and First Harmonic'],
+      ['First Harmonic', 'co_lead', 'CO_LED_ROUND', 'co-led by TCV and First Harmonic'],
+      ['Bain Capital Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Bain Capital Ventures, First Round Capital, and Alkeon'],
+      ['First Round Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Bain Capital Ventures, First Round Capital, and Alkeon'],
+      ['Alkeon', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Bain Capital Ventures, First Round Capital, and Alkeon'],
+    ],
+  },
+  {
+    key: 'bionyra-series-a-165m',
+    eventIds: [
+      'cff413d2-cdf9-4db0-b51d-933bd854bb55',
+      '8b44fc9e-bec2-4a06-92cd-77eed33d2e86',
+    ],
+    evidenceUrl: 'https://www.biospace.com/press-releases/bionyra-pharma-launches-with-165-million-oversubscribed-series-a-to-advance-clinical-stage-pipeline-of-next-generation-biologics-for-immune-mediated-inflammatory-diseases',
+    evidencePublisher: 'BioSpace',
+    evidenceTitle: 'Bionyra Pharma Launches with $165 million Oversubscribed Series A',
+    participantListComplete: true,
+    participants: [
+      ['Jeito Capital', 'lead', 'LED_ROUND', 'Series A co-led by Jeito Capital and Sofinnova Partners'],
+      ['Sofinnova Partners', 'lead', 'LED_ROUND', 'Series A co-led by Jeito Capital and Sofinnova Partners'],
+      ['Arkin Bio', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Arkin Bio, Sanofi Ventures, Sixty Degree Capital, Vives Partners and Apollo Health Ventures'],
+      ['Sanofi Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Arkin Bio, Sanofi Ventures, Sixty Degree Capital, Vives Partners and Apollo Health Ventures'],
+      ['Sixty Degree Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Arkin Bio, Sanofi Ventures, Sixty Degree Capital, Vives Partners and Apollo Health Ventures'],
+      ['Vives Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Arkin Bio, Sanofi Ventures, Sixty Degree Capital, Vives Partners and Apollo Health Ventures'],
+      ['Apollo Health Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Arkin Bio, Sanofi Ventures, Sixty Degree Capital, Vives Partners and Apollo Health Ventures'],
+    ],
+  },
+  {
+    key: 'convey-series-a-38m',
+    eventIds: [
+      '148b2a7b-3e7d-49bd-84cb-9f846d4158d3', // Business Insider
+      '724aabc3-db7d-47f9-a479-43ca08417129', // Pulse2
+    ],
+    evidenceUrl: 'https://pulse2.com/convey-raises-38-million-series-a-to-automate-enterprise-operations-with-ai-teammates/',
+    evidencePublisher: 'Pulse 2.0',
+    evidenceTitle: 'Convey Raises $38 Million Series A To Automate Enterprise Operations With AI Teammates',
+    participantListComplete: true,
+    participants: [
+      ['Andreessen Horowitz', 'lead', 'LED_ROUND', 'Series A financing led by Andreessen Horowitz'],
+    ],
+  },
+  {
+    key: 'nava-series-a-22m',
+    eventIds: [
+      '414ea857-7761-4ab8-b366-2fb0a77f984a',
+      '74d4cb0e-9a8d-47dd-9fbe-705873ba699b',
+      '71537495-a7ec-458d-8914-9140c18823ee',
+      '87730e07-0b6c-43b6-88ab-68945d550e5d',
+      'c3e010fd-e7c7-4f77-b36e-4f24c6bf5ec0',
+      '52c0a821-9461-4fe6-a5e1-b9b865b172c9',
+      '8c6ba23d-e527-41ae-b469-245f5407565c',
+      '8739ab64-9f39-4118-9d08-95109656a0bc',
+      '43b7a3fa-cc25-4e14-a862-d67ec1262146',
+      '1fd14032-b810-445b-93f8-08a63b7909fb',
+    ],
+    evidenceUrl: 'https://techcrunch.com/2026/04/09/nava-raises-22-million-series-a-led-by-greenoaks-capital/',
+    evidencePublisher: 'TechCrunch',
+    evidenceTitle: 'Nava raises $22 million Series A led by Greenoaks Capital',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Greenoaks Capital', 'lead', 'LED_ROUND', 'Series A led by Greenoaks Capital'],
+      ['RTP Global', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from RTP Global and Unicorn India Ventures'],
+      ['Unicorn India Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from RTP Global and Unicorn India Ventures'],
+    ],
+  },
+  {
+    key: 'nava-seed-archetype-8-3m',
+    eventIds: [
+      '20f293b7-ffe7-4180-ba72-9ac87e4249d5',
+      '4a54e69d-9658-4e92-a90d-a1384620e79a',
+      '887fb34d-91db-4f88-b86a-42c655240091',
+      'a2e42977-3fe0-4c2f-a8f2-4784b3bbbbb2',
+      'd091a643-1854-4abb-834b-8453852c6062',
+      'd7e8cb3f-7982-48a0-a344-7504bc62fc55',
+    ],
+    evidenceUrl: 'https://startupsamadhan.com/nava-ai-startup-raises-22-million-greenoaks-capital-series-a/',
+    evidencePublisher: 'Startup Samadhan',
+    evidenceTitle: 'Nava AI Startup Raises $22M Led by Greenoaks Capital',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Archetype', 'lead', 'LED_ROUND', 'Archetype co-led seed round'],
+      ['RTP Global', 'participant', 'PARTICIPATED_IN_ROUND', 'prior seed from RTP Global, Unicorn India Ventures, Blume Founders Fund, and Climber Capital'],
+      ['Unicorn India Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'prior seed from RTP Global, Unicorn India Ventures, Blume Founders Fund, and Climber Capital'],
+      ['Blume Founders Fund', 'participant', 'PARTICIPATED_IN_ROUND', 'prior seed from RTP Global, Unicorn India Ventures, Blume Founders Fund, and Climber Capital'],
+      ['Climber Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'prior seed from RTP Global, Unicorn India Ventures, Blume Founders Fund, and Climber Capital'],
+    ],
+  },
+  {
+    key: 'slate-series-c-650m',
+    eventIds: [
+      'c879bdd4-aeca-46e3-98b3-2cb724a343e9',
+    ],
+    evidenceUrl: 'https://www.prnewswire.com/news-releases/slate-raises-650-million-in-series-c-round-302739884.html',
+    evidencePublisher: 'PR Newswire',
+    evidenceTitle: 'Slate Raises $650 Million in Series C Round',
+    participantListComplete: true,
+    participants: [
+      ['TWG Global', 'lead', 'LED_ROUND', 'Series C round led by TWG Global'],
+    ],
+  },
+];
+
+/** Reject every event on a canonical_round_key (valuation noise / duplicate mis-amount). */
+const bulkRejectRoundKeys = [
+  {
+    canonical_round_key: 'id:569df921-aa17-4b63-9e07-eea3eeb36157|unknown|unknown|2026-03',
+    reason: 'nscale_valuation_liquidity_noise',
+  },
+  {
+    canonical_round_key: 'id:569df921-aa17-4b63-9e07-eea3eeb36157|unknown|unknown|2026-07',
+    reason: 'nscale_valuation_noise',
+  },
+  {
+    canonical_round_key: 'id:569df921-aa17-4b63-9e07-eea3eeb36157|growth|unknown|2026-06',
+    reason: 'unrostered_growth_rumor',
+  },
+  {
+    canonical_round_key: 'id:569df921-aa17-4b63-9e07-eea3eeb36157|unknown|1400000000|2026-02',
+    reason: 'nscale_roundup_liquidity_not_rostered_raise',
+  },
+  {
+    canonical_round_key: 'id:569df921-aa17-4b63-9e07-eea3eeb36157|unknown|1400000000|2026-07',
+    reason: 'nscale_roundup_liquidity_not_rostered_raise',
+  },
 ];
 
 /** Non-startup funding false positives / rumors to exclude from Hit@5 outcomes. */
@@ -493,6 +632,7 @@ const rejectEventIds = [
   '0dc283b6-e2ea-4c28-9e35-4258f000c645', // Rain VARA license, not a raise
   '8775db12-779d-4cda-8c80-77f27bf71dac', // Starlink mislinked Univity article
   'b487e3b7-8b6d-4201-aa18-1765e5b2f5d1', // Steps Dev.to tutorial, not funding
+  'e3663092-52be-4d3c-b976-8370c7152cfa', // Nava mis-extracted $21.7M duplicate
 ];
 
 async function seedEvent(eventId, seed, investors) {
@@ -626,6 +766,35 @@ async function rejectFundraiseFalsePositives() {
   return results;
 }
 
+async function rejectBulkRoundKeys() {
+  const results = [];
+  for (const entry of bulkRejectRoundKeys) {
+    const { data: events, error } = await db.from('funding_evidence_events')
+      .select('id,startup_name_raw,metadata,verification_status')
+      .eq('canonical_round_key', entry.canonical_round_key)
+      .neq('verification_status', 'rejected');
+    if (error) throw error;
+    for (const event of events || []) {
+      if (!apply) {
+        results.push({ event_id: event.id, startup: event.startup_name_raw, dry_run: true, action: 'reject_round_key', reason: entry.reason });
+        continue;
+      }
+      const { error: updateError } = await db.from('funding_evidence_events').update({
+        verification_status: 'rejected',
+        metadata: {
+          ...(event.metadata || {}),
+          rejection_reason: entry.reason,
+          rejected_at: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', event.id);
+      if (updateError) throw updateError;
+      results.push({ event_id: event.id, startup: event.startup_name_raw, action: 'rejected', reason: entry.reason });
+    }
+  }
+  return results;
+}
+
 async function allInvestors() {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
@@ -648,12 +817,14 @@ async function main() {
     }
   }
   const rejected = await rejectFundraiseFalsePositives();
+  const bulkRejected = await rejectBulkRoundKeys();
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run',
     investor_universe: investors.length,
     seeds: seeds.length,
     events_seeded: seeded.length,
     rejected_fundraises: rejected,
+    bulk_rejected_round_keys: bulkRejected,
     results: seeded,
   }, null, 2));
 }
