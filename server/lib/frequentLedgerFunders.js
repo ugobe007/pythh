@@ -57,6 +57,9 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'dabur',
   'aker asa',
   'aker',
+  // Post-#38 never-pre-matched labels still missing from force-include.
+  'dell',
+  'dell technologies',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -71,7 +74,6 @@ const ALIAS_FAMILY = Object.freeze({
   'founders fund': 'founders_fund',
   'premji invest': 'premji_invest',
   microsoft: 'microsoft',
-  'dell technologies capital': 'dell_tech_capital',
   'basis set ventures': 'basis_set',
   'nexus venture partners': 'nexus_vp',
   'notable capital': 'notable',
@@ -107,6 +109,9 @@ const ALIAS_FAMILY = Object.freeze({
   dabur: 'dabur',
   'aker asa': 'aker',
   aker: 'aker',
+  dell: 'dell',
+  'dell technologies': 'dell',
+  'dell technologies capital': 'dell',
 });
 
 function normalizeFunderLabel(value) {

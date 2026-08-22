@@ -24,7 +24,9 @@ const WEAK_NORMALIZED_TOKENS = new Set([
  * - possessive person prefixes: "Peter Thiel’s Founders Fund"
  * - program / sub-vehicle suffixes: "Andreessen Horowitz Speedrun", "SoftBank Vision Fund 2"
  * - corporate legal suffixes: "Nvidia Corp", "Visa Inc"
- * - parent attribution: "Rainmatter by Zerodha"
+ * - parent attribution: "Rainmatter by Zerodha" (keeps CVC brands like "Leaps by Bayer")
+ * - geo prefixes: "India-based TGC Capital"
+ * - trailing VC abbreviation: "Susquehanna Asia VC"
  * Only strips spaced dashes so "F-Prime" / "Long-Z Investments" stay intact.
  */
 function stripInvestorHeadlineNoise(value) {
@@ -37,6 +39,9 @@ function stripInvestorHeadlineNoise(value) {
 
   // Leading conjunction debris from roster lists: "And a16z Scout Fund"
   s = s.replace(/^(?:and|plus|also)\s+/i, '').trim();
+
+  // Geo/location prefixes: "India-based TGC Capital", "US-based Accel"
+  s = s.replace(/^[A-Za-z][\w.]*-based\s+/i, '').trim();
 
   // "Firm - Publisher" / "Firm — Outlet"
   s = s.replace(/\s+[-–—]\s+[^-–—\n]{2,80}$/u, '').trim();
@@ -62,8 +67,17 @@ function stripInvestorHeadlineNoise(value) {
   // Do not strip ASA/SA — those are often part of the canonical name (Aker ASA).
   s = s.replace(/\s*,?\s*\b(?:Corp\.?|Corporation|Inc\.?|Incorporated|Ltd\.?|Limited)\s*$/i, '').trim();
 
-  // "Brand by Parent" attribution ("Rainmatter by Zerodha")
-  s = s.replace(/\s+by\s+[A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,3}$/u, '').trim();
+  // "Brand by Parent" attribution ("Rainmatter by Zerodha").
+  // Keep corporate-venture brands whose official name is "X by Y" (Leaps by Bayer).
+  if (!/^Leaps\s+by\s+Bayer$/i.test(s)) {
+    s = s.replace(/\s+by\s+[A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,3}$/u, '').trim();
+  }
+
+  // Trailing "joint" debris from broken roster extracts ("BSV Ventures joint")
+  s = s.replace(/\s+joint$/i, '').trim();
+
+  // Trailing VC abbreviation → Venture Capital ("Susquehanna Asia VC")
+  s = s.replace(/\s+VC$/i, ' Venture Capital').trim();
 
   // Headline marketing debris ("PedalStart To Expand")
   s = s.replace(/\s+To Expand\b.*$/i, '').trim();
@@ -210,7 +224,9 @@ function isPlausibleInvestorEntityName(value) {
     && !/^(?:statistics|big tech|q\.?e\.?d\.? for)\b/i.test(raw)
     && !/\b(?:for ai assistant|indexbox|venture firm)$/i.test(normalized)
     && !/^(?:king co[- ]founders?)\b/i.test(raw)
-    && !/^(?:growth equity|private equity|venture capital|corporate venture)$/i.test(normalized);
+    && !/^(?:growth equity|private equity|venture capital|corporate venture)$/i.test(normalized)
+    && !/\b(?:contingent on|learned exclusively|fortune learned)\b/i.test(raw)
+    && !/^(?:uber contingent)\b/i.test(raw);
 }
 
 function normalizeRoundType(value) {

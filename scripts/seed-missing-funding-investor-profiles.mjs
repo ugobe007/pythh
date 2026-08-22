@@ -689,6 +689,280 @@ const profiles = [
     thesis: 'Zerodha’s early-stage investment arm backing fintech and India-first startups.',
     source: 'https://rainmatter.com/', type: 'VC', investorType: 'VC',
   },
+  // Post-#38 unresolved firm + angel backlog
+  {
+    canonicalName: 'Casdin Capital', firm: 'Casdin Capital', url: 'https://www.casdincapital.com/',
+    sectors: ['Healthcare', 'Biotech', 'Life Sciences'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['United States', 'Global'],
+    thesis: 'Life-sciences specialist investor across biotech and healthcare technology.',
+    source: 'https://www.casdincapital.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'CincyTech', firm: 'CincyTech', url: 'https://www.cincytechusa.com/',
+    sectors: ['Healthcare', 'DeepTech', 'SaaS'],
+    stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Midwest early-stage investor backing technology and healthcare startups.',
+    source: 'https://www.cincytechusa.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'FiBAN', firm: 'FiBAN', url: 'https://fiban.org/',
+    sectors: ['Technology', 'SaaS', 'DeepTech'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['Finland', 'Nordics', 'Europe'],
+    thesis: 'Finnish business angel network co-investing in early-stage startups.',
+    source: 'https://fiban.org/', type: 'Angel', investorType: 'Angel',
+  },
+  {
+    canonicalName: 'LatBAN', firm: 'LatBAN', url: null,
+    sectors: ['Technology', 'SaaS'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['Latvia', 'Europe'],
+    thesis: 'Latvian business angel network co-investing in early-stage startups.',
+    source: null, type: 'Angel', investorType: 'Angel',
+  },
+  {
+    canonicalName: 'BHP Ventures', firm: 'BHP Ventures', url: 'https://www.bhp.com/',
+    sectors: ['Mining', 'Climate Tech', 'Industrial', 'DeepTech'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['Global'],
+    thesis: 'Corporate venture arm of BHP investing in resources and industrial technology.',
+    source: 'https://www.bhp.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Ring Capital', firm: 'Ring Capital', url: 'https://www.ringcap.com/',
+    sectors: ['SaaS', 'Fintech', 'Climate Tech'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Europe', 'Global'],
+    thesis: 'European growth investor backing software and impact-oriented companies.',
+    source: 'https://www.ringcap.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: '468 Capital', firm: '468 Capital', url: 'https://www.468cap.com/',
+    sectors: ['AI/ML', 'SaaS', 'DeepTech'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'European early-stage venture firm backing technical founding teams.',
+    source: 'https://www.468cap.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Haatch', firm: 'Haatch', url: 'https://www.haatch.com/',
+    sectors: ['SaaS', 'Fintech', 'Marketplace'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['United Kingdom', 'Europe'],
+    thesis: 'UK early-stage investor and accelerator backing ambitious founders.',
+    source: 'https://www.haatch.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Gilgamesh Ventures', firm: 'Gilgamesh Ventures', url: null,
+    sectors: ['AI/ML', 'SaaS', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage venture firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Brightmind Partners', firm: 'Brightmind Partners', url: null,
+    sectors: ['AI/ML', 'SaaS', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage venture firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'S Capital VC', firm: 'S Capital VC', url: null,
+    sectors: ['AI/ML', 'SaaS', 'Enterprise'],
+    stage: ['Seed', 'Series A'], geography: ['Israel', 'Global'],
+    thesis: 'Early-stage venture firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Noteus', firm: 'Noteus', url: null,
+    sectors: ['Technology', 'SaaS'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'CityRock', firm: 'CityRock', url: null,
+    sectors: ['Technology', 'Consumer', 'Marketplace'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Litquidity Ventures', firm: 'Litquidity Ventures', url: null,
+    sectors: ['Fintech', 'Crypto', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['United States', 'Global'],
+    thesis: 'Early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Emblem', firm: 'Emblem', url: null,
+    sectors: ['AI/ML', 'SaaS', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Early-stage venture firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Unique Capital', firm: 'Unique Capital', url: null,
+    sectors: ['Technology', 'SaaS', 'Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Placeholder', firm: 'Placeholder', url: 'https://placeholder.vc/',
+    sectors: ['Crypto', 'Fintech', 'Infrastructure'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Crypto-focused early-stage venture firm.',
+    source: 'https://placeholder.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Rubio Impact Ventures', firm: 'Rubio Impact Ventures', url: null,
+    sectors: ['Climate Tech', 'Impact', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Impact-oriented early-stage venture firm.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Leaps by Bayer', firm: 'Leaps by Bayer', url: 'https://leaps.bayer.com/',
+    sectors: ['Healthcare', 'Biotech', 'Agriculture', 'DeepTech'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Bayer’s impact investment unit backing breakthrough health and agriculture science.',
+    source: 'https://leaps.bayer.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'TGC Capital', firm: 'TGC Capital', url: null,
+    sectors: ['Technology', 'SaaS', 'Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['India', 'Global'],
+    thesis: 'India-focused early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Forebright Concerto Capital', firm: 'Forebright Concerto Capital', url: null,
+    sectors: ['Technology', 'Healthcare', 'Industrial'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Asia', 'Global'],
+    thesis: 'Growth investor appearing in Asian post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Collab+Currency', firm: 'Collab+Currency', url: 'https://www.collabcurrency.com/',
+    sectors: ['Crypto', 'Consumer', 'Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['United States', 'Global'],
+    thesis: 'Early-stage investor at the intersection of culture, crypto, and consumer.',
+    source: 'https://www.collabcurrency.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'L1D', firm: 'L1D', url: null,
+    sectors: ['Crypto', 'Fintech', 'Infrastructure'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Crypto-focused early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Atlantic Bridge', firm: 'Atlantic Bridge', url: 'https://www.abven.com/',
+    sectors: ['Enterprise', 'DeepTech', 'SaaS'],
+    stage: ['Series A', 'Series B'], geography: ['Europe', 'United States', 'Global'],
+    thesis: 'Transatlantic venture firm investing in enterprise and deep technology.',
+    source: 'https://www.abven.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Northern Gritstone', firm: 'Northern Gritstone', url: 'https://northerngritstone.com/',
+    sectors: ['DeepTech', 'University Spinouts', 'Healthcare'],
+    stage: ['Seed', 'Series A'], geography: ['United Kingdom'],
+    thesis: 'UK investor backing university spinouts and deep-tech companies in Northern England.',
+    source: 'https://northerngritstone.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Linden Advisors', firm: 'Linden Advisors', url: null,
+    sectors: ['Technology', 'Healthcare', 'Fintech'],
+    stage: ['Growth'], geography: ['Global'],
+    thesis: 'Investment advisor appearing in post-prediction funding ledgers.',
+    source: null, type: 'PE', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Varma', firm: 'Varma', url: 'https://www.varma.fi/',
+    sectors: ['Technology', 'Healthcare', 'Industrial'],
+    stage: ['Growth'], geography: ['Finland', 'Nordics', 'Europe'],
+    thesis: 'Finnish pension insurer investing in growth-stage companies.',
+    source: 'https://www.varma.fi/', type: 'Corporate', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Valutia', firm: 'Valutia', url: null,
+    sectors: ['Technology', 'Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Early-stage investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Optiverder', firm: 'Optiverder', url: null,
+    sectors: ['Technology', 'Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Investment vehicle appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'RoboStrategy', firm: 'RoboStrategy', url: null,
+    sectors: ['Robotics', 'AI/ML', 'DeepTech'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Robotics-focused investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Sunshine Lake', firm: 'Sunshine Lake', url: null,
+    sectors: ['Technology', 'Healthcare'],
+    stage: ['Seed', 'Series A', 'Growth'], geography: ['Global'],
+    thesis: 'Investment firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'PC Rettig Impact & Co', firm: 'PC Rettig Impact & Co', url: null,
+    sectors: ['Impact', 'Climate Tech', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Impact investment firm appearing in post-prediction funding ledgers.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Dell Technologies Capital', firm: 'Dell Technologies Capital', url: 'https://www.delltechnologiescapital.com/',
+    sectors: ['Enterprise', 'AI/ML', 'Infrastructure', 'SaaS'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['Global'],
+    thesis: 'Corporate venture arm of Dell Technologies investing in enterprise infrastructure.',
+    source: 'https://www.delltechnologiescapital.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Mirae Asset Venture Investments', firm: 'Mirae Asset Venture Investments', displayName: 'Mirae Asset Venture Investments', url: 'https://www.miraeasset.com/',
+    sectors: ['Fintech', 'Technology', 'Healthcare'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global', 'Asia'],
+    thesis: 'Venture investment arm of Mirae Asset Financial Group.',
+    source: 'https://www.miraeasset.com/', type: 'Corporate', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Bill Ackman', firm: 'Pershing Square', url: null,
+    sectors: ['Technology', 'Consumer', 'Healthcare'],
+    stage: ['Growth'], geography: ['United States', 'Global'],
+    thesis: 'Public-markets investor occasionally participating in private rounds.',
+    source: null, type: 'Angel', investorType: 'Angel', isIndividual: true,
+  },
+  {
+    canonicalName: 'Satya Nadella', firm: 'Microsoft', url: null,
+    sectors: ['AI/ML', 'Enterprise', 'Cloud'],
+    stage: ['Seed', 'Series A', 'Growth'], geography: ['Global'],
+    thesis: 'Individual strategic participant appearing in post-prediction funding ledgers.',
+    source: null, type: 'Angel', investorType: 'Angel', isIndividual: true,
+  },
+  {
+    canonicalName: 'Omri Casspi', firm: 'Omri Casspi', url: null,
+    sectors: ['Technology', 'Consumer', 'Sports'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Angel investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'Angel', investorType: 'Angel', isIndividual: true,
+  },
+  {
+    canonicalName: 'Winston Weinberg', firm: 'Winston Weinberg', url: null,
+    sectors: ['AI/ML', 'Legal Tech', 'Enterprise'],
+    stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Angel investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'Angel', investorType: 'Angel', isIndividual: true,
+  },
+  {
+    canonicalName: 'Jeff Wang', firm: 'Jeff Wang', url: null,
+    sectors: ['Technology', 'AI/ML'],
+    stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Angel investor appearing in post-prediction funding ledgers.',
+    source: null, type: 'Angel', investorType: 'Angel', isIndividual: true,
+  },
 ];
 
 async function allInvestors() {
@@ -763,8 +1037,24 @@ async function main() {
     if (!profile.organization) throw new Error(`Missing canonical organization for ${profile.canonicalName}`);
     const displayNormalized = normalizeEntityName(profile.displayName || profile.canonicalName);
     let investor = profile.existing[0] || null;
-    // If the best candidate is still a partner/person row, create a dedicated firm profile.
-    if (investor) {
+    const desiredName = profile.displayName || profile.canonicalName;
+    // Prefer an existing row that already has the desired display name to avoid
+    // unique-constraint renames (e.g. Iconiq → ICONIQ Capital when both exist).
+    if (profile.existing?.length) {
+      const exactDisplay = profile.existing.find(
+        (row) => String(row.name || '').trim().toLowerCase() === String(desiredName).trim().toLowerCase(),
+      );
+      if (exactDisplay) investor = exactDisplay;
+    }
+    // Angels must never reuse a firm row matched only via firm-field alias
+    // (e.g. Satya Nadella firm=Microsoft must not overwrite Microsoft).
+    if (investor && profile.isIndividual === true) {
+      const nameNorm = normalizeEntityName(investor.name);
+      if (nameNorm !== displayNormalized && nameNorm !== profile.normalized) {
+        investor = null;
+      }
+    } else if (investor) {
+      // If the best candidate is still a partner/person row, create a dedicated firm profile.
       const nameNorm = normalizeEntityName(investor.name);
       const personLike = investor.is_individual === true
         || /\([^)]+\)/.test(String(investor.name || ''))
@@ -772,8 +1062,9 @@ async function main() {
       if (personLike) investor = null;
     }
     if (!investor) {
+      const insertName = desiredName;
       const { data, error } = await db.from('investors').insert({
-        name: profile.displayName || profile.canonicalName,
+        name: insertName,
         firm: profile.firm,
         url: profile.url,
         sectors: profile.sectors,
@@ -789,13 +1080,58 @@ async function main() {
         entity_gate: 'qualified',
         status: 'active',
         is_verified: true,
-        is_individual: false,
+        is_individual: profile.isIndividual === true,
       }).select('id,name,firm').single();
-      if (error) throw error;
-      investor = data;
+      if (error) {
+        // Name unique constraint: reuse the existing row instead of failing the batch.
+        const msg = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`;
+        if (msg.includes('investors_name_unique') || error.code === '23505') {
+          const { data: existingByName, error: lookupError } = await db.from('investors')
+            .select('id,name,firm')
+            .eq('name', insertName)
+            .limit(1)
+            .maybeSingle();
+          if (lookupError) throw lookupError;
+          if (!existingByName) {
+            console.error(JSON.stringify({ stage: 'unique_lookup_miss', canonical: profile.canonicalName, insertName, error }));
+            throw error;
+          }
+          investor = existingByName;
+          const { error: activateError } = await db.from('investors').update({
+            status: 'active',
+            entity_gate: 'qualified',
+            type: profile.type || 'VC',
+            investor_type: profile.investorType || profile.type || 'VC',
+            firm: profile.firm,
+            url: profile.url || undefined,
+            sectors: profile.sectors,
+            stage: profile.stage,
+            investment_thesis: profile.thesis,
+            is_individual: profile.isIndividual === true,
+            updated_at: new Date().toISOString(),
+          }).eq('id', investor.id);
+          if (activateError) throw activateError;
+        } else {
+          console.error(JSON.stringify({ stage: 'insert_error', canonical: profile.canonicalName, insertName, error }));
+          throw error;
+        }
+      } else {
+        investor = data;
+      }
     } else {
+      let nameToSet = investor.name;
+      if (desiredName && desiredName !== investor.name) {
+        const { data: nameClash, error: clashError } = await db.from('investors')
+          .select('id')
+          .eq('name', desiredName)
+          .neq('id', investor.id)
+          .limit(1)
+          .maybeSingle();
+        if (clashError) throw clashError;
+        if (!nameClash) nameToSet = desiredName;
+      }
       const { error: activateError } = await db.from('investors').update({
-        name: profile.displayName || investor.name || profile.canonicalName,
+        name: nameToSet,
         status: 'active',
         entity_gate: 'qualified',
         type: profile.type || 'VC',
@@ -805,10 +1141,13 @@ async function main() {
         sectors: profile.sectors,
         stage: profile.stage,
         investment_thesis: profile.thesis,
-        is_individual: false,
+        is_individual: profile.isIndividual === true,
         updated_at: new Date().toISOString(),
       }).eq('id', investor.id);
-      if (activateError) throw activateError;
+      if (activateError) {
+        console.error(JSON.stringify({ stage: 'update_error', canonical: profile.canonicalName, investor_id: investor.id, desiredName, nameToSet, activateError }));
+        throw activateError;
+      }
     }
     const { error: membershipError } = await db.from('investor_organization_memberships').upsert({
       investor_id: investor.id,
