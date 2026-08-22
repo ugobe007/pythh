@@ -633,6 +633,12 @@ const rejectEventIds = [
   '8775db12-779d-4cda-8c80-77f27bf71dac', // Starlink mislinked Univity article
   'b487e3b7-8b6d-4201-aa18-1765e5b2f5d1', // Steps Dev.to tutorial, not funding
   'e3663092-52be-4d3c-b976-8370c7152cfa', // Nava mis-extracted $21.7M duplicate
+  // Whop stablecoin strategic investment (separate from $200M Tether round)
+  '82fd189e-6c02-4b0a-aeaa-0ac3ef950bdc',
+  // "Three" junk: roundup / conference / grant (not a single startup round)
+  'ac57d878-eb7b-42e6-b208-3372856d55a9',
+  '1349012e-de89-4acf-84f6-8ef318d199c3',
+  'f9406692-8308-4534-aadf-488f31ce568d',
 ];
 
 async function seedEvent(eventId, seed, investors) {

@@ -533,6 +533,9 @@ test('trusted funding sources can verify one report while unreviewed sources req
   assert.deepEqual(assessFundingSource({ source_url: 'https://tech.eu/2026/05/05/example/' }), {
     trusted: true, tier: 'specialist_editorial', identity: 'tech.eu', basis: 'domain',
   });
+  assert.deepEqual(assessFundingSource({ source_url: 'https://siliconangle.com/2026/06/25/runpod-raises-100m/' }), {
+    trusted: true, tier: 'specialist_editorial', identity: 'siliconangle.com', basis: 'domain',
+  });
   assert.equal(assessFundingSource({ source_url: 'https://pulse2.com/example' }).trusted, false);
 });
 
@@ -1001,6 +1004,15 @@ test('recent investor activity is evaluated relative to the prediction cutoff wi
   assert.equal(scoreRecentActivity('2024-01-01', '2025-06-01').points, 0);
   assert.equal(scoreRecentActivity('2025-07-01', '2025-06-01').points, 0);
   assert.equal(scoreRecentActivity('not-a-date', '2025-06-01').points, 0);
+});
+
+test('Hit@5 pending triage script measures horizon maturity and hunts untrusted funding gaps', () => {
+  const script = readFileSync(new URL('../scripts/triage-hit5-pending-horizons.mjs', import.meta.url), 'utf8');
+  assert.match(script, /canonical_round_key/);
+  assert.match(script, /groupSourceOutcomesByRoundCluster/);
+  assert.match(script, /untrusted_observed/);
+  assert.match(script, /near_term_maturity_soon/);
+  assert.match(script, /duplicate_firm_excluded_startups/);
 });
 
 test('corroboration requires two independent sources or one reviewed trusted source', () => {
