@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { normalizeEntityName, resolveCanonicalEntity, stripInvestorHeadlineNoise } = require('../server/lib/fundingEvidenceLedger.js');
+const { normalizeEntityName, resolveCanonicalEntity, stripInvestorHeadlineNoise, isPlausibleInvestorEntityName } = require('../server/lib/fundingEvidenceLedger.js');
 
 const apply = process.argv.includes('--apply');
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -25,7 +25,7 @@ async function all(table, select, configure = query => query) {
 
 async function main() {
   const [participants, investors, organizations, aliases, memberships] = await Promise.all([
-    all('funding_evidence_participants', 'id,investor_name_raw,participant_role,participation_relation,resolution_status,resolution_confidence', query => query.is('investor_id', null).not('participation_relation', 'is', null).neq('participant_role', 'unknown')),
+    all('funding_evidence_participants', 'id,funding_event_id,investor_name_raw,participant_role,participation_relation,resolution_status,resolution_confidence', query => query.is('investor_id', null).not('participation_relation', 'is', null).neq('participant_role', 'unknown')),
     all('investors', 'id,name,firm,status,is_verified,is_individual'),
     all('investor_organizations', 'id,canonical_name,normalized_name,status'),
     all('investor_organization_aliases', 'organization_id,alias,normalized_alias'),
@@ -105,13 +105,28 @@ async function main() {
 
   if (apply) {
     for (const item of resolvable) {
-      const { error } = await db.from('funding_evidence_participants').update({
+      const raw = String(item.participant.investor_name_raw || '').trim();
+      const cleaned = stripInvestorHeadlineNoise(raw);
+      const update = {
         investor_id: item.investor.id,
         investor_organization_id: item.organization?.id || null,
         resolution_status: 'resolved',
         resolution_confidence: item.confidence,
         updated_at: new Date().toISOString(),
-      }).eq('id', item.participant.id).is('investor_id', null);
+      };
+      // Rewrite publisher/chronology debris onto the cleaned firm label when safe.
+      if (cleaned && cleaned !== raw && isPlausibleInvestorEntityName(cleaned)) {
+        const { data: collision, error: collisionError } = await db.from('funding_evidence_participants')
+          .select('id')
+          .eq('funding_event_id', item.participant.funding_event_id)
+          .eq('investor_name_raw', cleaned)
+          .neq('id', item.participant.id)
+          .maybeSingle();
+        if (collisionError) throw collisionError;
+        if (!collision) update.investor_name_raw = cleaned;
+      }
+      const { error } = await db.from('funding_evidence_participants').update(update)
+        .eq('id', item.participant.id).is('investor_id', null);
       if (error) throw error;
     }
   }

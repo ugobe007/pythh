@@ -76,7 +76,11 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(stripInvestorHeadlineNoise('SCVC to fix gene therapy’s costly flaw'), 'SCVC');
   assert.equal(stripInvestorHeadlineNoise('Others'), '');
   assert.equal(stripInvestorHeadlineNoise('Ackman for AI identity defence'), 'Ackman');
+  assert.equal(stripInvestorHeadlineNoise('Eclipse in October 2025'), 'Eclipse');
+  assert.equal(stripInvestorHeadlineNoise('Greenoaks Capital - Entrackr'), 'Greenoaks Capital');
   assert.equal(isPlausibleInvestorEntityName('500 new users per day'), false);
+  assert.equal(isPlausibleInvestorEntityName('Wayve said in a statement'), false);
+  assert.equal(isPlausibleInvestorEntityName('Resiliency Initiative'), false);
 });
 
 test('resolves country-possessive sovereign wealth fund names', () => {

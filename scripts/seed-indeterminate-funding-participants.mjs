@@ -405,22 +405,40 @@ async function seedEvent(eventId, seed, investors) {
   if (updateError) throw updateError;
   let written = 0;
   for (const participant of resolved) {
+    // Never downgrade an already-resolved investor_id to null when re-seeding.
+    const { data: existing, error: existingError } = await db.from('funding_evidence_participants')
+      .select('id,investor_id,investor_organization_id,resolution_status,resolution_confidence')
+      .eq('funding_event_id', eventId)
+      .eq('investor_name_raw', participant.name)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    const resolvedId = participant.row?.id || null;
+    const keepExisting = Boolean(existing?.investor_id) && !resolvedId;
+    const investorId = resolvedId || existing?.investor_id || null;
+    const resolutionStatus = resolvedId
+      ? participant.status
+      : (keepExisting ? (existing.resolution_status || 'resolved') : participant.status);
+    const resolutionConfidence = resolvedId
+      ? participant.confidence
+      : (keepExisting ? (existing.resolution_confidence || 1) : participant.confidence);
     const { error: participantError } = await db.from('funding_evidence_participants').upsert({
       funding_event_id: eventId,
       investor_name_raw: participant.name,
-      investor_id: participant.row?.id || null,
+      investor_id: investorId,
+      investor_organization_id: keepExisting ? existing.investor_organization_id : null,
       participant_role: participant.role,
       participation_relation: participant.relation,
       evidence_phrase: participant.phrase,
-      resolution_status: participant.status,
-      resolution_confidence: participant.confidence,
+      resolution_status: resolutionStatus,
+      resolution_confidence: resolutionConfidence,
       evidence: {
         extraction_version: 'manual-seed-v1',
         audited: true,
         source_url: seed.evidenceUrl,
         source_publisher: seed.evidencePublisher,
         source_title: seed.evidenceTitle,
-        resolution_match_kind: participant.matchKind,
+        resolution_match_kind: participant.matchKind || (keepExisting ? 'preserved_existing_resolution' : null),
+        preserved_existing_resolution: keepExisting || undefined,
       },
       updated_at: new Date().toISOString(),
     }, { onConflict: 'funding_event_id,investor_name_raw' });
@@ -467,18 +485,31 @@ async function rejectFundraiseFalsePositives() {
   return results;
 }
 
+async function allInvestors() {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db.from('investors')
+      .select('id,name,firm,url,is_individual,type,status')
+      .range(offset, offset + 999);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows.filter((row) => !['inactive', 'rejected', 'deleted'].includes(String(row.status || '').toLowerCase()));
+}
+
 async function main() {
-  const { data: investors, error } = await db.from('investors').select('id,name,firm');
-  if (error) throw error;
+  const investors = await allInvestors();
   const seeded = [];
   for (const seed of seeds) {
     for (const eventId of seed.eventIds) {
-      seeded.push(await seedEvent(eventId, seed, investors || []));
+      seeded.push(await seedEvent(eventId, seed, investors));
     }
   }
   const rejected = await rejectFundraiseFalsePositives();
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run',
+    investor_universe: investors.length,
     seeds: seeds.length,
     events_seeded: seeded.length,
     rejected_fundraises: rejected,
