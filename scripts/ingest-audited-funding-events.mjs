@@ -219,6 +219,59 @@ const audited = [
       ['NFX', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from all existing investors, Hetz Ventures, JAL Ventures and NFX'],
     ],
   },
+  // Post-#48 mature unfunded unlock batch.
+  {
+    key: 'audited:titan:seed:2026-06-09:3000000', startupId: 'c1fd6c23-c2c5-40c8-81bc-4a13c96cad7b', startupName: 'Titan',
+    roundType: 'Seed', amountUsd: 3_000_000, announcedAt: '2026-06-09T19:48:49Z', participantListComplete: true,
+    sourceUrl: 'https://www.businesswire.com/news/home/20260609605347/en/Titan-Secures-3M-in-New-Funding-to-Further-Scale-Its-Banking-Native-AI-Platform-for-Financial-Services',
+    sourcePublisher: 'Business Wire',
+    sourceTitle: 'Titan Secures $3M in New Funding to Further Scale Its Banking Native AI Platform', verificationStatus: 'verified',
+    participants: [
+      ['Entropy Ventures', 'lead', 'LED_ROUND', 'new funding, led by Entropy Ventures'],
+    ],
+  },
+  {
+    key: 'audited:traversal:strategic:2026-03-05:5000000', startupId: 'c1f37131-cdb7-4b36-999a-0163854341ac', startupName: 'Traversal',
+    roundType: 'Strategic', amountUsd: 5_000_000, announcedAt: '2026-03-05T06:28:10Z', participantListComplete: true,
+    sourceUrl: 'https://siliconangle.com/2026/03/04/exclusive-american-express-partners-invests-ai-operations-startup-traversal/',
+    sourcePublisher: 'SiliconANGLE',
+    sourceTitle: 'Traversal Announces Strategic Investment from Amex Ventures', verificationStatus: 'verified',
+    participants: [
+      ['Amex Ventures', 'lead', 'LED_ROUND', 'strategic investment from Amex Ventures'],
+    ],
+  },
+  {
+    key: 'audited:rizon:pre-seed:2026-02-19:2000000', startupId: 'dac10255-df41-404d-8f21-224466672fbd', startupName: 'Rizon',
+    roundType: 'Pre-Seed', amountUsd: 2_000_000, announcedAt: '2026-02-19T10:44:31Z', participantListComplete: true,
+    sourceUrl: 'https://www.finsmes.com/2026/02/rizon-raises-2m-in-pre-seed-funding.html',
+    sourcePublisher: 'FinSMEs',
+    sourceTitle: 'Rizon Raises $2M in Pre-Seed Funding', verificationStatus: 'verified',
+    participants: [
+      ['Market One Capital', 'lead', 'LED_ROUND', 'investment from Market One Capital'],
+    ],
+  },
+  {
+    key: 'audited:coderabbit:series-c:2026-08-12:143000000', startupId: '2c6467e5-9f5b-4f87-a48c-bb281b8fc77b', startupName: 'Coderabbit',
+    roundType: 'Series C', amountUsd: 143_000_000, announcedAt: '2026-08-12T00:00:00Z', participantListComplete: true,
+    sourceUrl: 'https://siliconangle.com/2026/08/12/coderabbit-bags-143m-help-companies-get-grip-explosion-ai-generated-code/',
+    sourcePublisher: 'SiliconANGLE',
+    sourceTitle: 'CodeRabbit raises $143M in Series C funding', verificationStatus: 'verified',
+    participants: [
+      ['Atomico', 'lead', 'LED_ROUND', 'round was co-led by Atomico and Smash Capital'],
+      ['Smash Capital', 'co_lead', 'CO_LED_ROUND', 'round was co-led by Atomico and Smash Capital'],
+      ['BMW i Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['Datadog', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['Hirtle Callaghan', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['SineWave Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['Scenic Management', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['CRV', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors including CRV, Scale Venture Partners, and Flex Capital'],
+      ['Scale Venture Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors including CRV, Scale Venture Partners, and Flex Capital'],
+      ['Flex Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors including CRV, Scale Venture Partners, and Flex Capital'],
+      ['Pelion Venture Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors Pelion Venture Partners, Harmony Partners, and Engineering Capital'],
+      ['Harmony Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors Pelion Venture Partners, Harmony Partners, and Engineering Capital'],
+      ['Engineering Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors Pelion Venture Partners, Harmony Partners, and Engineering Capital'],
+    ],
+  },
 ];
 
 async function main() {

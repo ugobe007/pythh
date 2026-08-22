@@ -683,6 +683,67 @@ const seeds = [
       ['NFX', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from all existing investors, Hetz Ventures, JAL Ventures and NFX'],
     ],
   },
+  // Post-#48 mature unfunded unlock batch (issuer wires + roster seeds).
+  {
+    key: 'titan-seed-3m',
+    eventIds: ['14c5f249-8908-4602-93f9-e916cb4f7819'],
+    evidenceUrl: 'https://www.businesswire.com/news/home/20260609605347/en/Titan-Secures-3M-in-New-Funding-to-Further-Scale-Its-Banking-Native-AI-Platform-for-Financial-Services',
+    evidencePublisher: 'Business Wire',
+    evidenceTitle: 'Titan Secures $3M in New Funding to Further Scale Its Banking Native AI Platform',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Entropy Ventures', 'lead', 'LED_ROUND', 'new funding, led by Entropy Ventures'],
+    ],
+  },
+  {
+    key: 'traversal-amex-strategic-5m',
+    eventIds: ['53756ea8-45f3-4e90-9d0b-c726929753ed'],
+    evidenceUrl: 'https://www.businesswire.com/news/home/20260304551167/en/Traversal-Announces-Strategic-Investment-from-Amex-Ventures',
+    evidencePublisher: 'Business Wire',
+    evidenceTitle: 'Traversal Announces Strategic Investment from Amex Ventures',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Amex Ventures', 'lead', 'LED_ROUND', 'strategic investment from Amex Ventures'],
+    ],
+  },
+  {
+    key: 'rizon-pre-seed-2m',
+    eventIds: ['3c925e78-eed1-49e3-8155-28311b8d7083'],
+    evidenceUrl: 'https://www.finsmes.com/2026/02/rizon-raises-2m-in-pre-seed-funding.html',
+    evidencePublisher: 'FinSMEs',
+    evidenceTitle: 'Rizon Raises $2M in Pre-Seed Funding',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Market One Capital', 'lead', 'LED_ROUND', 'investment from Market One Capital'],
+    ],
+  },
+  {
+    key: 'coderabbit-series-c-143m',
+    eventIds: ['dde5c914-1063-494b-8fef-739b9664d688'],
+    evidenceUrl: 'https://siliconangle.com/2026/08/12/coderabbit-bags-143m-help-companies-get-grip-explosion-ai-generated-code/',
+    evidencePublisher: 'SiliconANGLE',
+    evidenceTitle: 'CodeRabbit bags $143M to help companies get a grip on the explosion of AI-generated code',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Atomico', 'lead', 'LED_ROUND', 'round was co-led by Atomico and Smash Capital'],
+      ['Smash Capital', 'co_lead', 'CO_LED_ROUND', 'round was co-led by Atomico and Smash Capital'],
+      ['BMW i Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['Datadog', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['Hirtle Callaghan', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['SineWave Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['Scenic Management', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from BMW i Ventures, Datadog, Hirtle Callaghan, SineWave Ventures, and Scenic Management'],
+      ['CRV', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors including CRV, Scale Venture Partners, and Flex Capital'],
+      ['Scale Venture Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors including CRV, Scale Venture Partners, and Flex Capital'],
+      ['Flex Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors including CRV, Scale Venture Partners, and Flex Capital'],
+      ['Pelion Venture Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors Pelion Venture Partners, Harmony Partners, and Engineering Capital'],
+      ['Harmony Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors Pelion Venture Partners, Harmony Partners, and Engineering Capital'],
+      ['Engineering Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investors Pelion Venture Partners, Harmony Partners, and Engineering Capital'],
+    ],
+  },
 ];
 
 /** Reject every event on a canonical_round_key (valuation noise / duplicate mis-amount). */
