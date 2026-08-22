@@ -9,7 +9,27 @@ const { buildInvestorHistoricalFeatures, scoreHistoricalFit, scoreRecentActivity
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 const { classifyNamedInvestorParticipation, extractExplicitParticipantMentions } = require('../server/lib/fundingParticipationOntology.js');
 
-const { normalizeEntityName, stripInvestorHeadlineNoise, normalizeStartupName, normalizeRoundType, canonicalRoundKey, resolveCanonicalEntity, resolveCanonicalStartup, isPlausibleStartupName, isPromotionSafeStartupName, isPredictionGradeStartupIdentity, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, evaluateRecommendationSet, metricsForEvaluations } = ledger;
+const {
+  normalizeEntityName,
+  stripInvestorHeadlineNoise,
+  normalizeStartupName,
+  normalizeRoundType,
+  canonicalRoundKey,
+  clusterCompatibleRoundEvents,
+  groupSourceOutcomesByRoundCluster,
+  resolveCanonicalEntity,
+  resolveCanonicalStartup,
+  isPlausibleStartupName,
+  isPromotionSafeStartupName,
+  isPredictionGradeStartupIdentity,
+  isPlausibleInvestorEntityName,
+  startupNameCandidates,
+  participantNamesFromEvent,
+  classifyFundingEvidence,
+  startupNameFromFundingEvent,
+  evaluateRecommendationSet,
+  metricsForEvaluations,
+} = ledger;
 
 test('normalizes common investor firm suffixes for deterministic resolution', () => {
   assert.equal(normalizeEntityName('Acme Ventures, LLC'), 'acme llc');
@@ -517,7 +537,6 @@ test('trusted funding sources can verify one report while unreviewed sources req
 });
 
 test('soft-merges unknown vs typed round keys for corroboration clusters', () => {
-  const { clusterCompatibleRoundEvents } = ledger;
   const clusters = clusterCompatibleRoundEvents([
     { id: 'a', canonical_round_key: 'id:s1|unknown|60000000|2026-06' },
     { id: 'b', canonical_round_key: 'id:s1|series-a|60000000|2026-06' },
@@ -533,6 +552,21 @@ test('soft-merges unknown vs typed round keys for corroboration clusters', () =>
   assert.ok(byIds.includes('e+f'), `expected e+f, got ${byIds.join(',')}`);
   assert.ok(byIds.includes('g'), 'fully unknown amount+round stays alone');
   assert.equal(byIds.some((row) => row.includes('a') && row.includes('e')), false);
+});
+
+test('groups Hit@5 source outcomes by soft-merged round cluster keys', () => {
+  const eventA = { id: 'a', canonical_round_key: 'id:s1|series-b|45000000|2026-04' };
+  const eventB = { id: 'b', canonical_round_key: 'id:s1|unknown|45000000|2026-04' };
+  const eventC = { id: 'c', canonical_round_key: 'id:s1|seed|5000000|2026-03' };
+  const groups = groupSourceOutcomesByRoundCluster([
+    { event: eventA, outcome: 'miss' },
+    { event: eventB, outcome: 'miss' },
+    { event: eventC, outcome: 'miss' },
+  ]);
+  assert.equal(groups.size, 2);
+  const merged = [...groups.values()].find((rows) => rows.some((row) => row.event.id === 'a'));
+  assert.equal(merged?.length, 2);
+  assert.ok(merged?.some((row) => row.event.id === 'b'));
 });
 
 test('funding amount extraction separates the raise from valuation semantics', () => {

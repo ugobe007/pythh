@@ -386,6 +386,31 @@ function clusterCompatibleRoundEvents(events, keyFor = (row) => row.canonical_ro
   return clusters;
 }
 
+/**
+ * Group per-event Hit@5 / claim-readiness outcomes by soft-merged round cluster
+ * (same startup + month when round/amount differ only by `unknown`).
+ */
+function groupSourceOutcomesByRoundCluster(sourceOutcomes) {
+  const clusters = clusterCompatibleRoundEvents(
+    (sourceOutcomes || []).map((row) => row.event),
+    (event) => event?.canonical_round_key,
+  );
+  const keyByEventId = new Map();
+  for (const cluster of clusters) {
+    for (const event of cluster.events) {
+      if (event?.id) keyByEventId.set(event.id, cluster.key);
+    }
+  }
+  const groups = new Map();
+  for (const row of sourceOutcomes || []) {
+    const clusterKey = keyByEventId.get(row.event.id)
+      || row.event.canonical_round_key
+      || `event:${row.event.id}`;
+    groups.set(clusterKey, [...(groups.get(clusterKey) || []), row]);
+  }
+  return groups;
+}
+
 function resolveCanonicalEntity(rows, rawName, aliasesForRow = () => []) {
   const attempt = (name) => {
     const raw = String(name || '').trim();
@@ -744,6 +769,7 @@ module.exports = {
   canonicalRoundKey,
   parseCanonicalRoundKey,
   clusterCompatibleRoundEvents,
+  groupSourceOutcomesByRoundCluster,
   resolveCanonicalEntity,
   isPlausibleStartupName,
   isPromotionSafeStartupName,
