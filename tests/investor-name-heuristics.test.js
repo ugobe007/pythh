@@ -80,6 +80,13 @@ test('protects sovereign wealth funds from geo/country junk fencing', () => {
   assert.strictEqual(isGarbageInvestorName('Mubadala'), false);
 });
 
+test('keeps Invest-NL / 360 ONE / Kleiner legacy firm names', () => {
+  assert.strictEqual(isGarbageInvestorName('Invest-NL'), false);
+  assert.strictEqual(isGarbageInvestorName('Nextech Invest'), false);
+  assert.strictEqual(isGarbageInvestorName('360 ONE'), false);
+  assert.strictEqual(isGarbageInvestorName('Kleiner Perkins Caufield & Byers'), false);
+});
+
 test('rejects headline / role prefixes', () => {
   assert.strictEqual(isGarbageInvestorName('Data Scientist Jane Smith'), true);
   assert.strictEqual(isGarbageInvestorName('Bio Robert Nelsen (Archventure)'), true);
