@@ -56,6 +56,57 @@ const audited = [
       ['Broadhaven Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'backed by Motive Ventures, Portage, Apollo Global Management, Hamilton Lane, Tectonic Ventures, and Broadhaven Ventures'],
     ],
   },
+  // Post-#44 mature stuck single-source raises unlocked via issuer wires / audited ingest.
+  {
+    key: 'audited:paper:series-a:2026-07-23:34000000', startupId: '55416fbb-a4a8-4243-ae2d-db433fc547c4', startupName: 'Paper',
+    roundType: 'Series A', amountUsd: 34_000_000, announcedAt: '2026-07-23T00:00:00Z', participantListComplete: true,
+    sourceUrl: 'https://www.businesswire.com/news/home/20260723608438/en/Paper-Raises-34-Million-Series-A-with-Accel-and-ICONIQ-to-Build-the-Design-Platform-for-the-Agentic-Era',
+    sourcePublisher: 'Business Wire',
+    sourceTitle: 'Paper Raises $34 Million Series A with Accel and ICONIQ', verificationStatus: 'verified',
+    participants: [
+      ['Accel', 'lead', 'LED_ROUND', 'Series A with Accel and ICONIQ'],
+      ['ICONIQ', 'lead', 'LED_ROUND', 'Series A with Accel and ICONIQ'],
+      ['Designer Fund', 'participant', 'PARTICIPATED_IN_ROUND', 'Investors participating include Designer Fund'],
+    ],
+  },
+  {
+    key: 'audited:rork:seed:2026-04-09:15000000', startupId: '6a3c23c4-42b9-44ae-9b8a-ec2ce26bf2cf', startupName: 'Rork',
+    roundType: 'Seed', amountUsd: 15_000_000, announcedAt: '2026-04-09T00:00:00Z', participantListComplete: true,
+    sourceUrl: 'https://www.prnewswire.com/news-releases/rork-raises-15m-to-power-the-next-generation-of-app-store-entrepreneurs-302736638.html',
+    sourcePublisher: 'PR Newswire',
+    sourceTitle: 'Rork Raises $15M to Power the Next Generation of App Store Entrepreneurs', verificationStatus: 'verified',
+    participants: [
+      ['Left Lane Capital', 'lead', 'LED_ROUND', 'Seed funding round led by Left Lane Capital'],
+      ['Peak XV', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from Peak XV, True Ventures, Goodwater'],
+      ['True Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from Peak XV, True Ventures, Goodwater'],
+      ['Goodwater Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from Peak XV, True Ventures, Goodwater'],
+      ['Andreessen Horowitz', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investor a16z Speedrun'],
+    ],
+  },
+  {
+    key: 'audited:phia:series-a:2026-06-06:35500000', startupId: '204e0ef2-c303-4568-9d93-ac8bc6ff925f', startupName: 'Phia',
+    roundType: 'Series A', amountUsd: 35_500_000, announcedAt: '2026-06-06T00:00:00Z', participantListComplete: true,
+    sourceUrl: 'https://pulse2.com/phia-raises-35-5-million-series-a-and-reveals-star-studded-investor-roster-to-expand-ai-powered-shopping-platform/',
+    sourcePublisher: 'Pulse 2.0',
+    sourceTitle: 'Phia Raises $35.5 Million Series A And Reveals Star-Studded Investor Roster', verificationStatus: 'verified',
+    participants: [
+      ['Notable Capital', 'lead', 'LED_ROUND', 'financing led by Notable Capital, Khosla Ventures, and Kleiner Perkins'],
+      ['Khosla Ventures', 'lead', 'LED_ROUND', 'financing led by Notable Capital, Khosla Ventures, and Kleiner Perkins'],
+      ['Kleiner Perkins', 'lead', 'LED_ROUND', 'financing led by Notable Capital, Khosla Ventures, and Kleiner Perkins'],
+    ],
+  },
+  {
+    key: 'audited:arcade:series-a:2026-06-15:60000000', startupId: '41858b38-34f5-4c17-a374-cf856c9acf49', startupName: 'Arcade',
+    roundType: 'Series A', amountUsd: 60_000_000, announcedAt: '2026-06-15T00:00:00Z', participantListComplete: true,
+    sourceUrl: 'https://www.businesswire.com/news/home/20260615229631/en/Arcade-Raises-60M-to-Become-the-Secure-Action-Layer-Behind-Every-Production-AI-Agent',
+    sourcePublisher: 'Business Wire',
+    sourceTitle: 'Arcade Raises $60M Series A led by SYN Ventures', verificationStatus: 'verified',
+    participants: [
+      ['SYN Ventures', 'lead', 'LED_ROUND', 'Series A funding led by SYN Ventures'],
+      ['Morgan Stanley', 'participant', 'PARTICIPATED_IN_ROUND', 'strategic investment from Morgan Stanley and Wipro'],
+      ['Wipro', 'participant', 'PARTICIPATED_IN_ROUND', 'strategic investment from Morgan Stanley and Wipro'],
+    ],
+  },
 ];
 
 async function main() {

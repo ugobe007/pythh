@@ -4,7 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { classifyFundingEvidence, isPromotionSafeStartupName } = require('../server/lib/fundingEvidenceLedger.js');
+const {
+  classifyFundingEvidence,
+  isPromotionSafeStartupName,
+  clusterCompatibleRoundEvents,
+} = require('../server/lib/fundingEvidenceLedger.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 
 const apply = process.argv.includes('--apply');
@@ -27,13 +31,12 @@ async function main() {
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
-  const groups = new Map();
-  for (const row of rows) {
-    if (!row.canonical_round_key) continue;
-    groups.set(row.canonical_round_key, [...(groups.get(row.canonical_round_key) || []), row]);
-  }
+  // Soft-merge unknown vs typed round/amount keys so Pulse2+FinSMEs / TNW+Pulse2 can corroborate.
+  const clustered = clusterCompatibleRoundEvents(rows.filter((row) => row.canonical_round_key));
   const eligible = [];
-  for (const [canonicalRoundKey, events] of groups) {
+  for (const cluster of clustered) {
+    const events = cluster.events;
+    const canonicalRoundKey = cluster.key;
     if (!events.every(event => isPromotionSafeStartupName(event.startup_name_raw))) continue;
     const financingSafe = events.every(event => classifyFundingEvidence({
       event_type: 'FUNDING',

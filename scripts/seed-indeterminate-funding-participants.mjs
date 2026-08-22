@@ -319,6 +319,127 @@ const seeds = [
       ['Visa', 'lead', 'INVESTED_IN', 'Visa invests in Replit to power agentic payments for developers'],
     ],
   },
+  // Post-#44 mature stuck raises — seed clean rosters from issuer / specialist primaries.
+  {
+    key: 'arcade-series-a-60m',
+    eventIds: [
+      '208a8392-6ef3-4dc1-80ec-8233a05137ed', // TNW
+      '5642f868-c340-454d-b56d-fd0534411400', // Pulse2
+    ],
+    evidenceUrl: 'https://www.businesswire.com/news/home/20260615229631/en/Arcade-Raises-60M-to-Become-the-Secure-Action-Layer-Behind-Every-Production-AI-Agent',
+    evidencePublisher: 'Business Wire',
+    evidenceTitle: 'Arcade Raises $60M to Become the Secure Action Layer Behind Every Production AI Agent',
+    participantListComplete: true,
+    participants: [
+      ['SYN Ventures', 'lead', 'LED_ROUND', 'Series A funding led by SYN Ventures'],
+      ['Morgan Stanley', 'participant', 'PARTICIPATED_IN_ROUND', 'with strategic investment from Morgan Stanley and Wipro'],
+      ['Wipro', 'participant', 'PARTICIPATED_IN_ROUND', 'with strategic investment from Morgan Stanley and Wipro'],
+    ],
+  },
+  {
+    key: 'taya-seed-5m',
+    eventIds: [
+      '456179c5-b166-4e66-b0bc-8c6c61a4614b', // Pulse2 complete
+      '3dc237ba-775f-403e-81f2-969d92edb0fa', // FinSMEs
+    ],
+    evidenceUrl: 'https://pulse2.com/taya-5-million-seed-funding/',
+    evidencePublisher: 'Pulse 2.0',
+    evidenceTitle: 'Taya: $5 Million Raised For AI Jewelry Designed To Capture Personal Thoughts',
+    participantListComplete: true,
+    participants: [
+      ['MaC Venture Capital', 'lead', 'LED_ROUND', 'The round was led by MaC Venture Capital and Female Founders Fund'],
+      ['Female Founders Fund', 'lead', 'LED_ROUND', 'The round was led by MaC Venture Capital and Female Founders Fund'],
+      ['Andreessen Horowitz', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from a16z speedrun'],
+    ],
+  },
+  {
+    key: 'corvera-seed-4-2m',
+    eventIds: [
+      'dab3bb96-7791-4a37-b6ed-09b1179afb43', // Tech.eu complete
+      'eed48c57-2836-4a74-882d-450fa097b613', // Google News / FinSMEs
+      'a4172aef-60a9-493a-a0d0-f18ecbe629f8',
+    ],
+    evidenceUrl: 'https://tech.eu/2026/05/05/london-founded-corvera-raises-42m-to-bring-agentic-ai-to-cpg-supply-chains/',
+    evidencePublisher: 'Tech.eu',
+    evidenceTitle: 'London-founded Corvera raises $4.2M to bring agentic AI to CPG supply chains',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['6 Degrees Capital', 'lead', 'LED_ROUND', 'The round was led by 6 Degrees Capital'],
+      ['Y Combinator', 'participant', 'PARTICIPATED_IN_ROUND', 'backed by Y Combinator'],
+      ['Rebel Fund', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Rebel Fund, Duke Capital Partners, and Multimodal Ventures'],
+      ['Duke Capital Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Rebel Fund, Duke Capital Partners, and Multimodal Ventures'],
+      ['Multimodal Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Rebel Fund, Duke Capital Partners, and Multimodal Ventures'],
+    ],
+  },
+  {
+    key: 'paper-series-a-34m',
+    eventIds: ['f00ae427-5bd7-4751-b1b4-9e5f8da26063'],
+    evidenceUrl: 'https://www.businesswire.com/news/home/20260723608438/en/Paper-Raises-34-Million-Series-A-with-Accel-and-ICONIQ-to-Build-the-Design-Platform-for-the-Agentic-Era',
+    evidencePublisher: 'Business Wire',
+    evidenceTitle: 'Paper Raises $34 Million Series A with Accel and ICONIQ',
+    participantListComplete: true,
+    participants: [
+      ['Accel', 'lead', 'LED_ROUND', 'Series A with Accel and ICONIQ'],
+      ['ICONIQ', 'lead', 'LED_ROUND', 'Series A with Accel and ICONIQ'],
+      ['Designer Fund', 'participant', 'PARTICIPATED_IN_ROUND', 'Investors participating include Designer Fund'],
+    ],
+  },
+  {
+    key: 'rork-seed-15m',
+    eventIds: ['193365c6-5648-4a40-b561-4bd70b3a8732'],
+    evidenceUrl: 'https://www.prnewswire.com/news-releases/rork-raises-15m-to-power-the-next-generation-of-app-store-entrepreneurs-302736638.html',
+    evidencePublisher: 'PR Newswire',
+    evidenceTitle: 'Rork Raises $15M to Power the Next Generation of App Store Entrepreneurs',
+    participantListComplete: true,
+    participants: [
+      ['Left Lane Capital', 'lead', 'LED_ROUND', 'Seed funding round led by Left Lane Capital'],
+      ['Peak XV', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from Peak XV, True Ventures, Goodwater, and existing investor a16z Speedrun'],
+      ['True Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from Peak XV, True Ventures, Goodwater, and existing investor a16z Speedrun'],
+      ['Goodwater Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'with participation from Peak XV, True Ventures, Goodwater, and existing investor a16z Speedrun'],
+      ['Andreessen Horowitz', 'participant', 'PARTICIPATED_IN_ROUND', 'existing investor a16z Speedrun'],
+    ],
+  },
+  {
+    key: 'phia-series-a-35-5m',
+    eventIds: ['7bb2c96b-1150-4736-94ac-a30e9c9fb2f9'],
+    evidenceUrl: 'https://pulse2.com/phia-raises-35-5-million-series-a-and-reveals-star-studded-investor-roster-to-expand-ai-powered-shopping-platform/',
+    evidencePublisher: 'Pulse 2.0',
+    evidenceTitle: 'Phia Raises $35.5 Million Series A And Reveals Star-Studded Investor Roster',
+    participantListComplete: true,
+    participants: [
+      ['Notable Capital', 'lead', 'LED_ROUND', 'financing led by Notable Capital, Khosla Ventures, and Kleiner Perkins'],
+      ['Khosla Ventures', 'lead', 'LED_ROUND', 'financing led by Notable Capital, Khosla Ventures, and Kleiner Perkins'],
+      ['Kleiner Perkins', 'lead', 'LED_ROUND', 'financing led by Notable Capital, Khosla Ventures, and Kleiner Perkins'],
+    ],
+  },
+  {
+    key: 'flutterwave-series-e-ripple',
+    eventIds: [
+      'bacf6396-4086-4612-8294-1e91adb61ad8',
+      '6009221d-2d84-4a6a-8d21-0f395b4292f8',
+      'ac88a708-047c-4416-a82c-96a7a0c2a7c7',
+    ],
+    evidenceUrl: 'https://www.coindesk.com/business/2026/06/16/ripple-invests-in-flutterwave-pushing-its-stablecoin-and-xrp-ledger-into-payments-across-africa',
+    evidencePublisher: 'CoinDesk',
+    evidenceTitle: 'Ripple invests in Flutterwave, pushing its stablecoin and XRP Ledger into payments across Africa',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['Ripple', 'lead', 'INVESTED_IN', 'Ripple has made a strategic investment in Flutterwave as part of its Series E'],
+    ],
+  },
+  {
+    key: 'nebius-nvidia-2b',
+    eventIds: ['26ffba69-8afa-491e-a4e4-1a836a0a9679'],
+    evidenceUrl: 'https://thenextweb.com/news/nvidia-invests-2-billion-in-nebius',
+    evidencePublisher: 'The Next Web',
+    evidenceTitle: 'NVIDIA invests $2 billion in Nebius',
+    participantListComplete: true,
+    participants: [
+      ['NVIDIA', 'lead', 'INVESTED_IN', 'NVIDIA invests $2 billion in Nebius'],
+    ],
+  },
 ];
 
 /** Non-startup funding false positives / rumors to exclude from Hit@5 outcomes. */
@@ -326,6 +447,7 @@ const rejectEventIds = [
   // Paradigm.xyz VC firm "raises $1.5B" fund — not a startup round
   '359955b1-a889-4d06-b61f-1e7f88b39131',
   '7a3520ad-da3a-43b8-a1a2-c338cc08a28f',
+  'fb878359-1675-4ae2-a647-448cb87e9b9e', // Paradigm fourth fund Pulse2
   // Katie Haun raises $1B for new venture funds
   'c636230a-c21c-4c41-a90a-61a92df63897',
   'cd1f0db8-5911-4c5b-9dfe-3146042e1984',
@@ -367,6 +489,10 @@ const rejectEventIds = [
   'c27a0f95-f79d-43da-a6de-a6be88a8403b',
   'b1326c55-02b4-4296-9627-ca485f720ee8',
   'ed7b4207-1126-4ac0-9837-dbb46503efe0',
+  // Post-#44 mature stuck false positives
+  '0dc283b6-e2ea-4c28-9e35-4258f000c645', // Rain VARA license, not a raise
+  '8775db12-779d-4cda-8c80-77f27bf71dac', // Starlink mislinked Univity article
+  'b487e3b7-8b6d-4201-aa18-1765e5b2f5d1', // Steps Dev.to tutorial, not funding
 ];
 
 async function seedEvent(eventId, seed, investors) {
@@ -445,11 +571,26 @@ async function seedEvent(eventId, seed, investors) {
     if (participantError) throw participantError;
     written += 1;
   }
+  if (seed.replaceParticipants) {
+    const keep = new Set(seed.participants.map(([name]) => name));
+    const { data: existingRows, error: listError } = await db.from('funding_evidence_participants')
+      .select('id,investor_name_raw')
+      .eq('funding_event_id', eventId);
+    if (listError) throw listError;
+    const toDelete = (existingRows || []).filter((row) => !keep.has(row.investor_name_raw)).map((row) => row.id);
+    for (let offset = 0; offset < toDelete.length; offset += 50) {
+      const { error: deleteError } = await db.from('funding_evidence_participants')
+        .delete()
+        .in('id', toDelete.slice(offset, offset + 50));
+      if (deleteError) throw deleteError;
+    }
+  }
   return {
     event_id: eventId,
     startup: event.startup_name_raw,
     seed: seed.key,
     participants_written: written,
+    participants_replaced: Boolean(seed.replaceParticipants),
     participants: resolved.map((row) => `${row.name}:${row.status}`),
   };
 }
