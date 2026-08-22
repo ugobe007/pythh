@@ -141,6 +141,8 @@ function stripInvestorHeadlineNoise(value) {
   s = s.replace(/\s+To Expand\b.*$/i, '').trim();
   s = s.replace(/\s+For\s+(?:AI[- ]Native|user recovery|AI-Powered|AI identity)\b.*$/i, '').trim();
   s = s.replace(/\s+to (?:Build|fix)\b.*$/i, '').trim();
+  // Chronology glued onto firm leads: "Eclipse in October 2025"
+  s = s.replace(/\s+in\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{4}\s*$/i, '').trim();
   // "Firms Including Mirae Asset" → Mirae Asset
   s = s.replace(/^Firms?\s+Including\s+/i, '').trim();
   // Bare roster placeholders
@@ -298,7 +300,9 @@ function isPlausibleInvestorEntityName(value) {
     && !/^(?:japan|china|india|singapore|korea|germany|france)\s+government$/i.test(normalized)
     && !/\b(?:also participating|also investing|for user recovery|for ai[- ]native)\b/i.test(raw)
     && !/^(?:figma'?s?\s+ceo|clovia co-founder|nasdaq firm|grammy-winning|500 new users)\b/i.test(raw)
-    && !/^(?:luxembourg'?s?\s+financial regulator|a\s+[“"]frontier technology)\b/i.test(raw);
+    && !/^(?:luxembourg'?s?\s+financial regulator|a\s+[“"]frontier technology)\b/i.test(raw)
+    && !/\bsaid in a statement\b/i.test(raw)
+    && !/^(?:european|washington|security|resiliency initiative)$/i.test(normalized);
 }
 
 function normalizeRoundType(value) {
