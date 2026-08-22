@@ -136,6 +136,7 @@
     "funding:claim-readiness": "node scripts/report-funding-prediction-claim-readiness.mjs",
     "funding:hit5:startup-report": "node scripts/report-hit5-startup-prediction-outcomes.mjs",
     "funding:hit5:pending-triage": "node scripts/triage-hit5-pending-horizons.mjs",
+    "funding:hit5:gap-unlocks": "node scripts/list-hit5-mature-gap-unlocks.mjs",
     "funding:reconcile:historical": "node scripts/reconcile-historical-funding-matches.mjs",
     "funding:reconcile:historical:summary": "node scripts/reconcile-historical-funding-matches.mjs --summary",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",

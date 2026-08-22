@@ -152,7 +152,7 @@ const audited = [
     roundType: 'Seed', amountUsd: 22_000_000, announcedAt: '2026-06-19T04:09:24Z', participantListComplete: true,
     sourceUrl: 'https://techcrunch.com/2026/06/17/spacex-alum-nabs-22m-to-turn-rocket-engines-into-geothermal-power-plants/',
     sourcePublisher: 'TechCrunch',
-    sourceTitle: 'SpaceX alum nabs $22M to turn rocket engines into geothermal power plants', verificationStatus: 'verified',
+    sourceTitle: 'Critical Energy raises $22 million in seed funding', verificationStatus: 'verified',
     participants: [
       ['Susa Ventures', 'lead', 'LED_ROUND', 'seed rounds were led by Susa Ventures and Upfront Ventures'],
       ['Upfront Ventures', 'lead', 'LED_ROUND', 'seed rounds were led by Susa Ventures and Upfront Ventures'],
