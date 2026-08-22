@@ -165,6 +165,27 @@ const organizations = [
   ['Omri Casspi', null, ['Omri Casspi']],
   ['Winston Weinberg', null, ['Winston Weinberg']],
   ['Jeff Wang', null, ['Jeff Wang']],
+  // Post-#39 SWF protect + next unresolved firm backlog
+  ['Harlem Capital', 'harlem.capital', ['Harlem Capital']],
+  ['Sixth Street Growth', 'sixthstreet.com', ['Sixth Street Growth', 'Sixth Street']],
+  ['Visible Hands VC', 'visiblehands.vc', ['Visible Hands VC', 'Visible Hands']],
+  ['Karman Ventures', null, ['Karman Ventures', 'Karman']],
+  ['Active Impact Investments', 'activeimpact.com', ['Active Impact Investments', 'Active Impact']],
+  ['PSG Equity', 'psgequity.com', ['PSG Equity', 'PSG']],
+  ['360 Capital', '360cap.vc', ['360 Capital']],
+  ['CDP Venture Capital', 'cdpventurecapital.it', ['CDP Venture Capital', 'CDP']],
+  ['JobsOhio Ventures', 'jobsohio.com', ['JobsOhio Ventures', 'JobsOhio']],
+  ['Concrete VC', null, ['Concrete VC', 'Concrete']],
+  ['Supernode Global', null, ['Supernode Global', 'Supernode']],
+  ['Koro Capital', null, ['Koro Capital', 'Koro']],
+  ['Inovo', 'inovo.vc', ['Inovo']],
+  ['Medtronic', 'medtronic.com', ['Medtronic']],
+  ['Lululemon', 'lululemon.com', ['Lululemon']],
+  ['Fubon Financial Holding Venture Capital', null, ['Fubon Financial Holding Venture Capital', 'Fubon']],
+  ['50 Partners Health', '50partners.fr', ['50 Partners Health', '50 Partners']],
+  ['Galaxia', null, ['Galaxia']],
+  ['Tritemius', null, ['Tritemius']],
+  ['Scaleup Fund', null, ['Scaleup Fund', "EU's Scaleup Fund", "EU’s Scaleup Fund"]],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
