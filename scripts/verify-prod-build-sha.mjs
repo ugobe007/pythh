@@ -31,6 +31,18 @@ function shaMatches(deployed, expected) {
   return d === e || d.startsWith(e) || e.startsWith(d);
 }
 
+/** Merge commits vs feature-branch tips share a tree but stamp different pythh-build SHAs. */
+function sameGitTree(a, b) {
+  if (!a || !b) return false;
+  try {
+    const ta = execSync(`git rev-parse ${a}^{tree}`, { encoding: 'utf8' }).trim();
+    const tb = execSync(`git rev-parse ${b}^{tree}`, { encoding: 'utf8' }).trim();
+    return ta.length === 40 && ta === tb;
+  } catch {
+    return false;
+  }
+}
+
 async function fetchBuildSha() {
   const res = await fetch(`${ORIGIN}/?t=${Date.now()}`, { redirect: 'follow' });
   const html = await res.text();
@@ -60,6 +72,7 @@ async function main() {
         expected_sha: expected,
         deployed_sha: last.deployed_sha,
         attempt,
+        tree_equivalent: false,
       };
       if (JSON_OUT) {
         console.log(JSON.stringify(report, null, 2));
@@ -67,6 +80,24 @@ async function main() {
         console.log(`\n✅ Deploy SHA match (${attempt}/${MAX_ATTEMPTS})`);
         console.log(`   expected=${expected.slice(0, 12)}…`);
         console.log(`   deployed=${last.deployed_sha.slice(0, 12)}…\n`);
+      }
+      process.exit(0);
+    } else if (sameGitTree(last.deployed_sha, expected)) {
+      const report = {
+        ok: true,
+        origin: ORIGIN,
+        expected_sha: expected,
+        deployed_sha: last.deployed_sha,
+        attempt,
+        tree_equivalent: true,
+        note: 'deployed SHA differs but Git tree matches (merge commit vs feature tip)',
+      };
+      if (JSON_OUT) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        console.log(`\n✅ Deploy tree match (${attempt}/${MAX_ATTEMPTS})`);
+        console.log(`   expected=${expected.slice(0, 12)}…`);
+        console.log(`   deployed=${last.deployed_sha.slice(0, 12)}… (same tree)\n`);
       }
       process.exit(0);
     } else {
