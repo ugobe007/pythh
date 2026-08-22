@@ -1569,6 +1569,63 @@ const profiles = [
     thesis: 'Healthcare-focused investment firm.',
     source: null, type: 'VC', investorType: 'Growth',
   },
+  // Post-#42 indeterminate inventory drain
+  {
+    canonicalName: 'Advent International', firm: 'Advent International', url: 'https://www.adventinternational.com/',
+    sectors: ['Technology', 'Healthcare', 'Industrial'],
+    stage: ['Growth', 'Buyout'], geography: ['Global'],
+    thesis: 'Global private equity firm appearing in post-prediction funding ledgers.',
+    source: 'https://www.adventinternational.com/', type: 'PE', investorType: 'PE',
+  },
+  {
+    canonicalName: 'Rainmatter Capital', firm: 'Rainmatter Capital', url: null,
+    sectors: ['Fintech', 'Consumer', 'Climate Tech'],
+    stage: ['Seed', 'Series A'], geography: ['India', 'Global'],
+    thesis: 'Zerodha-affiliated early-stage investor (Rainmatter).',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'In Revenue Capital', firm: 'In Revenue Capital', url: null,
+    sectors: ['Healthcare', 'SaaS', 'AI/ML'],
+    stage: ['Seed', 'Series A'], geography: ['United States', 'Global'],
+    thesis: 'Operator-immersive early-stage healthcare investor.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Habanero Ventures', firm: 'Habanero Ventures', url: null,
+    sectors: ['Healthcare', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['United States', 'Global'],
+    thesis: 'Early-stage healthcare investor.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'US Innovative Technology Fund', firm: 'US Innovative Technology Fund', url: null,
+    sectors: ['Hardware', 'Infrastructure', 'DeepTech', 'AI/ML'],
+    stage: ['Series A', 'Series B', 'Series C', 'Growth'], geography: ['United States', 'Global'],
+    thesis: 'Thomas Tull sovereign-compute / deeptech growth fund (USIT).',
+    source: null, type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Jane Street', firm: 'Jane Street', url: 'https://www.janestreet.com/',
+    sectors: ['Technology', 'Fintech', 'AI/ML'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Trading firm strategic / growth investor.',
+    source: 'https://www.janestreet.com/', type: 'Corporate', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Counterpart Ventures', firm: 'Counterpart Ventures', url: null,
+    sectors: ['Technology', 'Enterprise', 'AI/ML'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['United States', 'Global'],
+    thesis: 'Early-stage venture firm.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Georgian', firm: 'Georgian', url: 'https://georgian.io/',
+    sectors: ['SaaS', 'AI/ML', 'Enterprise'],
+    stage: ['Series B', 'Series C', 'Growth'], geography: ['Global'],
+    thesis: 'Growth investor focused on applied AI software companies.',
+    source: 'https://georgian.io/', type: 'VC', investorType: 'Growth',
+  },
 ];
 
 async function allInvestors() {

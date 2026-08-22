@@ -139,10 +139,12 @@ function stripInvestorHeadlineNoise(value) {
 
   // Headline marketing debris ("PedalStart To Expand", "Northzone For AI-Native …")
   s = s.replace(/\s+To Expand\b.*$/i, '').trim();
-  s = s.replace(/\s+For\s+(?:AI[- ]Native|user recovery|AI-Powered)\b.*$/i, '').trim();
-  s = s.replace(/\s+to Build\b.*$/i, '').trim();
+  s = s.replace(/\s+For\s+(?:AI[- ]Native|user recovery|AI-Powered|AI identity)\b.*$/i, '').trim();
+  s = s.replace(/\s+to (?:Build|fix)\b.*$/i, '').trim();
   // "Firms Including Mirae Asset" → Mirae Asset
   s = s.replace(/^Firms?\s+Including\s+/i, '').trim();
+  // Bare roster placeholders
+  if (/^(?:others?|and others?|undisclosed(?: investors?)?)$/i.test(s)) return '';
   // Ellipsis / quote debris from truncated headlines
   s = s.replace(/….*$/u, '').replace(/[“”"].*$/u, '').trim();
 
@@ -546,7 +548,9 @@ function classifyFundingEvidence(event) {
     || /\bwhich (?:has|had) raised\b.{0,160}\b(?:releases?|launches?|announces?|unveils?)\b/i.test(text)
     || /^inside\b.{0,160}\bhas raised\b/i.test(text)
     || /\brais(?:es|ed)\b.{0,50}\b(?:safety|security|ethical|legal) concerns?\b/i.test(text)
+    || /\brais(?:es|ed)\b.{0,40}\balarms?\b.{0,40}\b(?:about|over|on)\b/i.test(text)
     || /\bsecures?\b.{0,40}\blicen[cs]e\b/i.test(text)
+    || /\bsecures?\b.{0,60}\b(?:position|spot|place)\b.{0,40}\b(?:on|in)\b.{0,40}\b(?:list|ranking|index)\b/i.test(text)
     || /\binvest(?:s|ed)?\b.{0,70}\b(?:in|into)\b.{0,70}\b(?:operations?|factor(?:y|ies)|facilit(?:y|ies)|plant|fulfillment hub|data centers?|subsidiar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
@@ -560,7 +564,7 @@ function classifyFundingEvidence(event) {
   if (/\b(?:raises?|raised|raising|increases?|increased)\b.{0,50}\b(?:prices?|rates?|fees?|wages?|salar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
-  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|may invest|could invest|could secure|to invest|expected to raise|is raising|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise|seeks? (?:funding|financing|investment))\b/i.test(text)
+  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|reportedly on track|may invest|could invest|could secure|to invest|expected to raise|is raising|set to raise|on track to raise|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise|seeks? (?:funding|financing|investment))\b/i.test(text)
     || /\btarget(?:s|ed|ing)?\b.{0,80}\b(?:raise|funding|valuation)\b/i.test(text)) {
     return { eligible: false, reason: 'unconfirmed_transaction', financingType: 'unknown' };
   }
@@ -569,6 +573,11 @@ function classifyFundingEvidence(event) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
   if (/\b(?:qip|qualified institutional placement|fund\s+[ivxlcdm]+|fund final close|final close|ipo|pre-ipo)\b/i.test(text)
+    || /\b(?:nasdaq|nyse|stock market)\s+debut\b/i.test(text)
+    || /\b(?:us|u\.s\.)\s+(?:stock\s+)?(?:market\s+)?(?:listing|debut|share\s+sale|share\s+offering)\b/i.test(text)
+    || /\b(?:equity|stock|share)\s+(?:offering|sale|raise)\b/i.test(text)
+    || /\bin\s+equity\s+(?:for|to|capital)\b/i.test(text)
+    || /\braises?\b.{0,40}\bin\s+bonds?\b/i.test(text)
     || /\braises?\b.{0,40}\b(?:million|billion)\s+fund\b/i.test(text)
     || /\b(?:raises?|raised|closes?|closed)\b.{0,90}\b(?:new|inaugural|venture|credit|secondaries|buyout|growth)\s+(?:fund|investment vehicle)\b/i.test(text)
     || /\b(?:raises?|raised|closes?|closed)\b.{0,90}\b(?:early[ -]stage|late[ -]stage)\s+fund\b/i.test(text)
