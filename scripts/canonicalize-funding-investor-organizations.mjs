@@ -251,6 +251,15 @@ const organizations = [
   ['Tayeh Capital', null, ['Tayeh Capital']],
   ['GordonMD Global Investments', null, ['GordonMD Global Investments', 'GordonMD Global Investments LP', 'GordonMD Global Investments® LP']],
   ['PC Rettig Impact & Co', null, ['PC Rettig Impact & Co', 'PC Rettig Impact', 'PC Rettig']],
+  // Post-#42 indeterminate inventory drain
+  ['Advent International', 'adventinternational.com', ['Advent International', 'Advent']],
+  ['Rainmatter Capital', null, ['Rainmatter Capital', 'Rainmatter']],
+  ['In Revenue Capital', null, ['In Revenue Capital']],
+  ['Habanero Ventures', null, ['Habanero Ventures', 'Habanero']],
+  ['US Innovative Technology Fund', null, ['US Innovative Technology Fund', 'USIT', "Thomas Tull's US Innovative Technology Fund", 'U.S. Innovative Technology Fund']],
+  ['Jane Street', 'janestreet.com', ['Jane Street']],
+  ['Counterpart Ventures', null, ['Counterpart Ventures', 'Counterpart']],
+  ['Georgian', 'georgian.io', ['Georgian', 'Georgian Partners']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership

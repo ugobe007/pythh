@@ -78,6 +78,19 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'balderton',
   'citadel',
   'bain capital',
+  // Post-#42 never-pre-matched + indeterminate seed firms still missing from force-include.
+  'advent international',
+  'advent',
+  'rainmatter',
+  'rainmatter capital',
+  'jane street',
+  'us innovative technology fund',
+  'usit',
+  'eclipse',
+  'eclipse ventures',
+  'riot ventures',
+  'georgian',
+  'georgian partners',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -146,6 +159,18 @@ const ALIAS_FAMILY = Object.freeze({
   balderton: 'balderton',
   citadel: 'citadel',
   'bain capital': 'bain_capital',
+  'advent international': 'advent',
+  advent: 'advent',
+  rainmatter: 'rainmatter',
+  'rainmatter capital': 'rainmatter',
+  'jane street': 'jane_street',
+  'us innovative technology fund': 'usit',
+  usit: 'usit',
+  eclipse: 'eclipse',
+  'eclipse ventures': 'eclipse',
+  'riot ventures': 'riot',
+  georgian: 'georgian',
+  'georgian partners': 'georgian',
 });
 
 function normalizeFunderLabel(value) {

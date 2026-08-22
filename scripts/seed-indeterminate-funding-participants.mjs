@@ -251,6 +251,74 @@ const seeds = [
       ['Haystack', 'lead', 'LED_ROUND', 'Series A funding round led by Lachy Groom and Haystack'],
     ],
   },
+  {
+    key: 'helia-care-3m',
+    eventIds: ['8daa488e-ad2c-45c1-be74-41f98c5c9b2d', '284a8a84-2e54-4f0d-9339-c02a177919b9'],
+    evidenceUrl: 'https://pulse2.com/helia-care-3-million-raised-for-healthcare-procurement-network/',
+    evidencePublisher: 'Pulse 2.0',
+    evidenceTitle: 'Helia Care: $3 Million Raised For Healthcare Procurement Network',
+    participantListComplete: true,
+    participants: [
+      ['In Revenue Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'funding round with participation from In Revenue Capital alongside Habanero Ventures'],
+      ['Habanero Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'funding round with participation from In Revenue Capital alongside Habanero Ventures'],
+    ],
+  },
+  {
+    key: 'oxide-series-c-200m',
+    eventIds: [
+      'bbc1a5a4-7064-4b7d-a9d7-48e88a9f8100',
+      'b0a5fa51-0ce9-4d0f-af4f-2e9ea5e78727',
+      '73db5752-3ca8-4720-b647-4d321e75b7e1',
+    ],
+    evidenceUrl: 'https://www.prnewswire.com/news-releases/oxide-closes-200m-series-c-to-scale-on-premises-cloud-computing-302683724.html',
+    evidencePublisher: 'PR Newswire',
+    evidenceTitle: 'Oxide Closes $200M Series C to Scale On-Premises Cloud Computing',
+    participantListComplete: true,
+    participants: [
+      ['US Innovative Technology Fund', 'lead', 'LED_ROUND', 'Series C led by Thomas Tull’s US Innovative Technology Fund (USIT)'],
+      ['Eclipse', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from existing investors including Eclipse, Riot Ventures, Jane Street'],
+      ['Riot Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from existing investors including Eclipse, Riot Ventures, Jane Street'],
+      ['Jane Street', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from existing investors including Eclipse, Riot Ventures, Jane Street'],
+      ['Intel Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'alongside Eclipse, Riot Ventures, Jane Street, Intel Capital, Counterpart Ventures'],
+      ['Counterpart Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'alongside Eclipse, Riot Ventures, Jane Street, Intel Capital, Counterpart Ventures'],
+    ],
+  },
+  {
+    // Incomplete Series D aggregators + Visa strategic invest block Replit from auditing;
+    // sealed top-5 includes Y Combinator which appears on complete Series D rosters.
+    key: 'replit-series-d-400m',
+    eventIds: [
+      '1428c38f-c2d0-4359-b715-effad4031c5c',
+      'e8008304-b760-4657-b3c6-382a71ad43fe',
+      'c61bcaf1-04d7-4b3f-9a82-013446c5f4a3',
+      '379909a2-331d-46dc-9fbc-8b4a9d2f264a',
+    ],
+    evidenceUrl: 'https://www.siliconrepublic.com/start-ups/vibe-coding-start-up-replit-raises-series-d-funding-investors',
+    evidencePublisher: 'Silicon Republic',
+    evidenceTitle: 'Vibe-coding start-up Replit raises $400m in Series D funding',
+    participantListComplete: true,
+    participants: [
+      ['Georgian', 'lead', 'LED_ROUND', 'Series D funding led by Georgian'],
+      ['Prysm Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Prysm Capital, Craft Ventures, Qatar Investment Authority, Coatue, 1789 Capital'],
+      ['Craft Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Prysm Capital, Craft Ventures, Qatar Investment Authority, Coatue, 1789 Capital'],
+      ['Qatar Investment Authority', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Prysm Capital, Craft Ventures, Qatar Investment Authority, Coatue, 1789 Capital'],
+      ['Coatue', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Prysm Capital, Craft Ventures, Qatar Investment Authority, Coatue, 1789 Capital'],
+      ['1789 Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Prysm Capital, Craft Ventures, Qatar Investment Authority, Coatue, 1789 Capital'],
+      ['Y Combinator', 'participant', 'PARTICIPATED_IN_ROUND', 'returning investors including Y Combinator'],
+      ['Andreessen Horowitz', 'participant', 'PARTICIPATED_IN_ROUND', 'returning investors including Andreessen Horowitz'],
+    ],
+  },
+  {
+    key: 'replit-visa-strategic',
+    eventIds: ['7f3c069e-fe6a-4201-8a05-dfd835c4be6b', 'caeedde8-440b-4f2b-8090-18548cd731bf'],
+    evidenceUrl: 'https://techcrunch.com/2026/05/28/visa-invests-in-replit-to-power-agentic-payments-for-developers/',
+    evidencePublisher: 'TechCrunch',
+    evidenceTitle: 'Visa invests in Replit to power agentic payments for developers',
+    participantListComplete: true,
+    participants: [
+      ['Visa', 'lead', 'INVESTED_IN', 'Visa invests in Replit to power agentic payments for developers'],
+    ],
+  },
 ];
 
 /** Non-startup funding false positives / rumors to exclude from Hit@5 outcomes. */
@@ -272,6 +340,33 @@ const rejectEventIds = [
   '0e1ce364-6c02-4b0a-aeaa-0ac3ef950bdc',
   // Wayve valuation-only article (not a rostered raise)
   '2fb5f365-1b3c-4bf7-92a3-60b686bd2bba',
+  // Post-#42 indeterminate false positives / public markets / rumors
+  // Grok: "raised alarms" lawsuit, not a funding round
+  '6df87b79-a161-4421-9103-4abb5cd60a48',
+  'c87dd86d-6055-4685-9f17-da1bb1a19fef',
+  // Alphabet public equity / bond raises (not venture outcomes)
+  'bb307909-3a8c-4809-803c-3daeb7bd713d',
+  '66670ad7-ea4b-453c-9a7f-47654619bc29',
+  'a6ae1b86-46b1-492c-b662-425a81eec5ed',
+  '9fc2d237-4338-4c0c-8464-f364451e8d40',
+  'd985f00a-4588-4504-a607-b69bce2828ba',
+  'ed6c30b7-1ff3-466e-9204-fe63a2d506e8',
+  '5d94eec0-57ca-4cc8-9f44-b2368d57622a',
+  'b1ab144a-b5b3-43ba-a4e1-1616595a8c57',
+  // SK Hynix Nasdaq / US listing (public markets)
+  'b587dc5d-1872-4380-99c2-ba2d0927aedc',
+  '3750d641-c74f-4cab-b63c-ca8953746887',
+  '1279ca72-ec09-4193-8a6e-091d548bc7a8',
+  'c77482e1-08f7-4cb9-a3ea-0ee0308b583b',
+  'cf6c396f-1f62-4ef0-be9a-ecb7dec3a623',
+  '5fa316ba-5deb-4529-b1ac-5841f7f76820',
+  '2cc95c10-d569-43e5-a600-51aa4e9e8000',
+  // Vantage Fortune list PR (not a funding round)
+  'a74cf38f-fd0d-4266-a475-abb320dd3993',
+  // LemFi rumored / "set to raise" / "on track" (not closed)
+  'c27a0f95-f79d-43da-a6de-a6be88a8403b',
+  'b1326c55-02b4-4296-9627-ca485f720ee8',
+  'ed7b4207-1126-4ac0-9837-dbb46503efe0',
 ];
 
 async function seedEvent(eventId, seed, investors) {

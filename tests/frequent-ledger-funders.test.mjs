@@ -27,6 +27,10 @@ const {
   assert.equal(isFrequentLedgerFunder({ name: 'Goldman Sachs', firm: 'Goldman Sachs' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'Kleiner Perkins', firm: 'Kleiner Perkins' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'HongShan', firm: 'HongShan' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Advent International', firm: 'Advent International' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Rainmatter Capital', firm: 'Rainmatter Capital' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Jane Street', firm: 'Jane Street' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Georgian', firm: 'Georgian' }), true);
 }
 
 {

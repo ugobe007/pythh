@@ -73,6 +73,9 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(isPlausibleInvestorEntityName('GPUs'), false);
   assert.equal(stripInvestorHeadlineNoise('Monashees to Build an AI Investment Advisor'), 'Monashees');
   assert.equal(stripInvestorHeadlineNoise('Firms Including Mirae Asset'), 'Mirae Asset');
+  assert.equal(stripInvestorHeadlineNoise('SCVC to fix gene therapy’s costly flaw'), 'SCVC');
+  assert.equal(stripInvestorHeadlineNoise('Others'), '');
+  assert.equal(stripInvestorHeadlineNoise('Ackman for AI identity defence'), 'Ackman');
   assert.equal(isPlausibleInvestorEntityName('500 new users per day'), false);
 });
 
@@ -449,6 +452,14 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Cast AI raises funds from Pacific Alliance Ventures at $1B valuation' }).eligible, true);
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme raises annual revenue guidance' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme seeks to raise $20M next year' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'LemFi reportedly on track to raise €30m Series B extension' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Scoop: LemFi set to raise a €30M Series B extension' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'xAI fired an engineer who raised alarms about Grok safety, new lawsuit claims' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Vantage Secures Position on the Fortune Crypto Innovators List' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Alphabet to Raise $80 Billion in Equity for AI Spending' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Alphabet Raises $80 Billion in AI Equity Raise as Berkshire Backs Expansion' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Chipmaker SK Hynix raises $26.5bn in US stock market debut' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'SK Hynix Raises $26.5 Billion In Record US Listing As AI Chip Demand Supercharges' }).reason, 'outside_venture_outcome_scope');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme raises its stake in Beta Corp' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Acme acquisition backed by $20M financing' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Boiler room raised $74M while reaping hidden fees, SEC claims' }).reason, 'non_financing_headline');
