@@ -17,7 +17,9 @@ const organizations = [
   ['Y Combinator', 'ycombinator.com', ['Y Combinator', 'YC']],
   ['Citius', null, ['Citius']],
   ['BTG Pactual', 'btgpactual.com', ['BTG Pactual']],
-  ['GIC', 'gic.com.sg', ['GIC']],
+  ['GIC', 'gic.com.sg', ['GIC', "Singapore's GIC", "Singapore’s GIC"]],
+  ['Temasek', 'temasek.com.sg', ['Temasek', 'Temasek Holdings', "Singapore's Temasek", "Singapore’s Temasek"]],
+  ['Mubadala', 'mubadala.com', ['Mubadala', 'Mubadala Capital']],
   ['Monashees', 'monashees.com.br', ['Monashees']],
   ['Pacific Alliance Ventures', null, ['Pacific Alliance Ventures', 'PAV']],
   ['Portage', null, ['Portage', 'Portage Ventures']],
@@ -172,7 +174,9 @@ const reviewedMemberIds = new Set([
   '6bfdd2c0-b583-4b0f-848d-d96d4655d049', // Gradient Ventures organization row
   '1725b4a5-ca22-452d-b96b-ce80a6fec6b8', // Michael Seibel / YC; verified, 1000 matches
   '5e2fc5ff-af06-4823-929c-5b78fc83ebec', // Y Combinator organization row
-  '62799323-ce23-4c8c-b43d-fc9509e477ce', // GIC organization row
+  '62799323-ce23-4c8c-b43d-fc9509e477ce', // GIC organization row (gic.com.sg)
+  'b0180672-dce1-43cf-bcd5-c08d1c6801b6', // Temasek Holdings (temasek.com.sg)
+  '027a42d1-bf63-4642-b366-4e8399a11bf8', // Mubadala
   '35e2664c-2c7e-4442-829c-4f53af872d1f', // Monashees organization row
   '1eb3c02a-d8e9-4495-91e8-07d669218f1b', // Portage Ventures; referenced by matches
   '65662c8c-410a-4357-b896-122422cc670a', // Apollo Global Management; referenced by matches
