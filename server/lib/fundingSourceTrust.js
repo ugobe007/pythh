@@ -14,6 +14,7 @@ const TRUSTED_DOMAINS = Object.freeze(new Map([
   // Do NOT add Pulse2 / FinSMEs / aggregators here — unlock those via corroboration or issuer wires.
   ['thenextweb.com', 'specialist_editorial'],
   ['tech.eu', 'specialist_editorial'],
+  ['siliconangle.com', 'specialist_editorial'],
   ['businesswire.com', 'issuer_primary_wire'],
   ['globenewswire.com', 'issuer_primary_wire'],
   ['prnewswire.com', 'issuer_primary_wire'],
@@ -29,6 +30,7 @@ const TRUSTED_PUBLISHERS = Object.freeze(new Map([
   ['crunchbase news', 'specialist_editorial'],
   ['the next web', 'specialist_editorial'],
   ['tech eu', 'specialist_editorial'],
+  ['siliconangle', 'specialist_editorial'],
   ['business wire', 'issuer_primary_wire'],
   ['globe newswire', 'issuer_primary_wire'],
   ['pr newswire', 'issuer_primary_wire'],
