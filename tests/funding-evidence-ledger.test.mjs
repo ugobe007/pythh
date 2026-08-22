@@ -47,6 +47,30 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(stripInvestorHeadlineNoise('PedalStart To Expand - BW Disrupt'), 'PedalStart');
   // Keep ASA as part of the canonical name
   assert.equal(stripInvestorHeadlineNoise('Aker ASA'), 'Aker ASA');
+  assert.equal(stripInvestorHeadlineNoise('India-based TGC Capital'), 'TGC Capital');
+  assert.equal(stripInvestorHeadlineNoise('Susquehanna Asia VC - Mint'), 'Susquehanna Asia Venture Capital');
+  assert.equal(stripInvestorHeadlineNoise('Leaps by Bayer'), 'Leaps by Bayer');
+  assert.equal(stripInvestorHeadlineNoise('Rainmatter by Zerodha'), 'Rainmatter');
+  assert.equal(stripInvestorHeadlineNoise('BSV Ventures joint by Beamline'), 'BSV Ventures');
+});
+
+test('resolves geo-prefix and VC-abbreviation investor names', () => {
+  const rows = [
+    { id: 'tgc', name: 'TGC Capital', firm: 'TGC Capital', is_individual: false },
+    { id: 'asia', name: 'Susquehanna Asia Venture Capital', firm: 'Susquehanna Asia Venture Capital', is_individual: false },
+    { id: 'leaps', name: 'Leaps by Bayer', firm: 'Leaps by Bayer', is_individual: false },
+  ];
+  const geo = resolveCanonicalEntity(rows, 'India-based TGC Capital');
+  assert.equal(geo.status, 'resolved');
+  assert.equal(geo.row.id, 'tgc');
+
+  const vc = resolveCanonicalEntity(rows, 'Susquehanna Asia VC - Mint');
+  assert.equal(vc.status, 'resolved');
+  assert.equal(vc.row.id, 'asia');
+
+  const leaps = resolveCanonicalEntity(rows, 'Leaps by Bayer');
+  assert.equal(leaps.status, 'resolved');
+  assert.equal(leaps.row.id, 'leaps');
 });
 
 test('resolves corp-suffix and by-parent investor names', () => {
@@ -185,6 +209,8 @@ test('rejects generic funding stages masquerading as canonical investors', () =>
   assert.equal(isPlausibleInvestorEntityName('QED For AI Assistant'), false);
   assert.equal(isPlausibleInvestorEntityName('King co-founders Sebastian Knutsson'), false);
   assert.equal(isPlausibleInvestorEntityName('Growth Equity'), false);
+  assert.equal(isPlausibleInvestorEntityName('Uber contingent on deploying robotaxis'), false);
+  assert.equal(isPlausibleInvestorEntityName('Fortune learned exclusively'), false);
 });
 
 test('builds stable candidate round keys without collapsing distinct months or amounts', () => {
