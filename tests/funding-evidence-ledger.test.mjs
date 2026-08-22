@@ -507,6 +507,32 @@ test('trusted funding sources can verify one report while unreviewed sources req
   });
   assert.equal(assessFundingSource({ source_url: 'https://news.google.com/rss/articles/x', source_publisher: 'Reuters' }).trusted, true);
   assert.equal(assessFundingSource({ source_url: 'https://random-blog.example/post' }).trusted, false);
+  assert.deepEqual(assessFundingSource({ source_url: 'https://thenextweb.com/news/example' }), {
+    trusted: true, tier: 'specialist_editorial', identity: 'thenextweb.com', basis: 'domain',
+  });
+  assert.deepEqual(assessFundingSource({ source_url: 'https://tech.eu/2026/05/05/example/' }), {
+    trusted: true, tier: 'specialist_editorial', identity: 'tech.eu', basis: 'domain',
+  });
+  assert.equal(assessFundingSource({ source_url: 'https://pulse2.com/example' }).trusted, false);
+});
+
+test('soft-merges unknown vs typed round keys for corroboration clusters', () => {
+  const { clusterCompatibleRoundEvents } = ledger;
+  const clusters = clusterCompatibleRoundEvents([
+    { id: 'a', canonical_round_key: 'id:s1|unknown|60000000|2026-06' },
+    { id: 'b', canonical_round_key: 'id:s1|series-a|60000000|2026-06' },
+    { id: 'c', canonical_round_key: 'id:s1|seed|5000000|2026-03' },
+    { id: 'd', canonical_round_key: 'id:s1|unknown|5000000|2026-03' },
+    { id: 'e', canonical_round_key: 'id:s1|series-e|unknown|2026-06' },
+    { id: 'f', canonical_round_key: 'id:s1|series-e|250000000|2026-06' },
+    { id: 'g', canonical_round_key: 'id:s1|unknown|unknown|2026-06' },
+  ]);
+  const byIds = clusters.map((cluster) => cluster.events.map((row) => row.id).sort().join('+')).sort();
+  assert.ok(byIds.includes('a+b'), `expected a+b, got ${byIds.join(',')}`);
+  assert.ok(byIds.includes('c+d'), `expected c+d, got ${byIds.join(',')}`);
+  assert.ok(byIds.includes('e+f'), `expected e+f, got ${byIds.join(',')}`);
+  assert.ok(byIds.includes('g'), 'fully unknown amount+round stays alone');
+  assert.equal(byIds.some((row) => row.includes('a') && row.includes('e')), false);
 });
 
 test('funding amount extraction separates the raise from valuation semantics', () => {

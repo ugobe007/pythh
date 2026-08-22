@@ -327,6 +327,65 @@ function canonicalRoundKey({ startupId, startupName, roundType, amountUsd, annou
   return `${startup}|${round}|${amount}|${month}`;
 }
 
+function parseCanonicalRoundKey(canonicalRoundKeyValue) {
+  const parts = String(canonicalRoundKeyValue || '').split('|');
+  if (parts.length !== 4) return null;
+  const [startup, round, amount, month] = parts;
+  if (!startup) return null;
+  return { startup, round, amount, month, key: parts.join('|') };
+}
+
+function compatibleRoundCluster(members) {
+  if (!members?.length) return false;
+  const startups = new Set(members.map((row) => row.startup));
+  const months = new Set(members.map((row) => row.month));
+  if (startups.size !== 1 || months.size !== 1 || months.has('unknown')) return false;
+
+  const amountAnchored = members.every((row) => row.amount !== 'unknown')
+    && new Set(members.map((row) => String(row.amount))).size === 1
+    && new Set(members.map((row) => row.round).filter((value) => value !== 'unknown')).size <= 1;
+
+  const roundAnchored = members.every((row) => row.round !== 'unknown')
+    && new Set(members.map((row) => row.round)).size === 1
+    && new Set(members.map((row) => String(row.amount)).filter((value) => value !== 'unknown')).size <= 1;
+
+  return amountAnchored || roundAnchored;
+}
+
+/**
+ * Merge ledger rows that share startup + announcement month when round/amount
+ * differ only by `unknown` (e.g. Pulse2 unknown-round vs FinSMEs seed).
+ * Amount-anchored and round-anchored merges are allowed; mixed anchors are not
+ * (avoids joining a $60M Series A unknown-round row to a Series E unknown-amount row).
+ */
+function clusterCompatibleRoundEvents(events, keyFor = (row) => row.canonical_round_key) {
+  const clusters = [];
+  for (const event of events || []) {
+    const parsed = parseCanonicalRoundKey(keyFor(event));
+    if (!parsed || parsed.month === 'unknown') {
+      clusters.push({ events: [event], key: keyFor(event) || `event:${event?.id || clusters.length}` });
+      continue;
+    }
+    let merged = false;
+    for (const cluster of clusters) {
+      const parsedMembers = [...cluster.events, event]
+        .map((row) => parseCanonicalRoundKey(keyFor(row)))
+        .filter(Boolean);
+      if (!compatibleRoundCluster(parsedMembers)) continue;
+      cluster.events.push(event);
+      const concreteRound = parsedMembers.map((row) => row.round).find((value) => value !== 'unknown') || 'unknown';
+      const concreteAmount = parsedMembers.map((row) => row.amount).find((value) => value !== 'unknown') || 'unknown';
+      cluster.key = `${parsed.startup}|${concreteRound}|${concreteAmount}|${parsed.month}`;
+      merged = true;
+      break;
+    }
+    if (!merged) {
+      clusters.push({ events: [event], key: keyFor(event) });
+    }
+  }
+  return clusters;
+}
+
 function resolveCanonicalEntity(rows, rawName, aliasesForRow = () => []) {
   const attempt = (name) => {
     const raw = String(name || '').trim();
@@ -683,6 +742,8 @@ module.exports = {
   isPlausibleInvestorEntityName,
   normalizeRoundType,
   canonicalRoundKey,
+  parseCanonicalRoundKey,
+  clusterCompatibleRoundEvents,
   resolveCanonicalEntity,
   isPlausibleStartupName,
   isPromotionSafeStartupName,
