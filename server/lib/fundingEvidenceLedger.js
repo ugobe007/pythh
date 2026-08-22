@@ -19,9 +19,12 @@ const WEAK_NORMALIZED_TOKENS = new Set([
 /**
  * Strip RSS/headline noise glued onto investor names:
  * - unicode whitespace (NBSP / narrow NBSP) → ASCII space
+ * - curly apostrophes → ASCII
  * - publisher suffixes: "General Catalyst - Entrackr", "Accel - Capital Brief"
  * - possessive person prefixes: "Peter Thiel’s Founders Fund"
  * - program / sub-vehicle suffixes: "Andreessen Horowitz Speedrun", "SoftBank Vision Fund 2"
+ * - corporate legal suffixes: "Nvidia Corp", "Visa Inc"
+ * - parent attribution: "Rainmatter by Zerodha"
  * Only strips spaced dashes so "F-Prime" / "Long-Z Investments" stay intact.
  */
 function stripInvestorHeadlineNoise(value) {
@@ -54,6 +57,16 @@ function stripInvestorHeadlineNoise(value) {
   // Accelerator / scout / specialty-desk suffixes that collapse to the parent firm.
   // Keep hyphenated tokens intact; only strip trailing spaced program labels.
   s = s.replace(/\s+(?:Speedrun|Crypto|Builders?|Fellowship|Accelerator|Scout(?:\s+(?:Fund|Programme|Program))?)$/i, '').trim();
+
+  // Legal entity suffixes glued onto known brands ("Nvidia Corp", "Visa Inc.")
+  // Do not strip ASA/SA — those are often part of the canonical name (Aker ASA).
+  s = s.replace(/\s*,?\s*\b(?:Corp\.?|Corporation|Inc\.?|Incorporated|Ltd\.?|Limited)\s*$/i, '').trim();
+
+  // "Brand by Parent" attribution ("Rainmatter by Zerodha")
+  s = s.replace(/\s+by\s+[A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,3}$/u, '').trim();
+
+  // Headline marketing debris ("PedalStart To Expand")
+  s = s.replace(/\s+To Expand\b.*$/i, '').trim();
 
   return s.trim();
 }
@@ -196,7 +209,8 @@ function isPlausibleInvestorEntityName(value) {
     && !/\b(?:techcrunch has|exclusively learned|has exclusively|according to|co-founders?\b.+\b[A-Z][a-z]+)\b/i.test(raw)
     && !/^(?:statistics|big tech|q\.?e\.?d\.? for)\b/i.test(raw)
     && !/\b(?:for ai assistant|indexbox|venture firm)$/i.test(normalized)
-    && !/^(?:king co[- ]founders?)\b/i.test(raw);
+    && !/^(?:king co[- ]founders?)\b/i.test(raw)
+    && !/^(?:growth equity|private equity|venture capital|corporate venture)$/i.test(normalized);
 }
 
 function normalizeRoundType(value) {

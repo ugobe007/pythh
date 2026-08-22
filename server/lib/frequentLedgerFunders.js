@@ -44,6 +44,19 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'accel',
   'peak xv',
   'peak xv partners',
+  // Post-#37 never-pre-matched qualified firms still missing from force-include.
+  'andreessen horowitz',
+  'a16z',
+  'susquehanna',
+  'greenoaks',
+  'greenoaks capital',
+  'general atlantic',
+  'elevation',
+  'elevation capital',
+  'dabur ventures',
+  'dabur',
+  'aker asa',
+  'aker',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -82,6 +95,18 @@ const ALIAS_FAMILY = Object.freeze({
   accel: 'accel',
   'peak xv': 'peak_xv',
   'peak xv partners': 'peak_xv',
+  'andreessen horowitz': 'a16z',
+  a16z: 'a16z',
+  susquehanna: 'susquehanna',
+  greenoaks: 'greenoaks',
+  'greenoaks capital': 'greenoaks',
+  'general atlantic': 'general_atlantic',
+  elevation: 'elevation',
+  'elevation capital': 'elevation',
+  'dabur ventures': 'dabur',
+  dabur: 'dabur',
+  'aker asa': 'aker',
+  aker: 'aker',
 });
 
 function normalizeFunderLabel(value) {

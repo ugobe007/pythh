@@ -32,7 +32,7 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
     stripInvestorHeadlineNoise('Reddit co-founder Alexis Ohanian’s venture firm'),
     "Reddit co-founder Alexis Ohanian's venture firm",
   );
-  assert.equal(stripInvestorHeadlineNoise('Figma’s CEO'), 'Figma’s CEO');
+  assert.equal(stripInvestorHeadlineNoise('Figma’s CEO'), "Figma's CEO");
   assert.equal(stripInvestorHeadlineNoise('Shlomo Kramer’s Skinos Ventures'), 'Skinos Ventures');
   // Unicode whitespace + program / sub-vehicle suffixes
   assert.equal(stripInvestorHeadlineNoise('EQT\u202FVentures'), 'EQT Ventures');
@@ -41,6 +41,32 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(stripInvestorHeadlineNoise('Susquehanna Crypto'), 'Susquehanna');
   assert.equal(stripInvestorHeadlineNoise('And a16z Scout Fund'), 'a16z');
   assert.equal(stripInvestorHeadlineNoise('Wa\u2019ed Ventures'), "Wa'ed Ventures");
+  assert.equal(stripInvestorHeadlineNoise('Nvidia Corp'), 'Nvidia');
+  assert.equal(stripInvestorHeadlineNoise('Visa Inc.'), 'Visa');
+  assert.equal(stripInvestorHeadlineNoise('Rainmatter by Zerodha'), 'Rainmatter');
+  assert.equal(stripInvestorHeadlineNoise('PedalStart To Expand - BW Disrupt'), 'PedalStart');
+  // Keep ASA as part of the canonical name
+  assert.equal(stripInvestorHeadlineNoise('Aker ASA'), 'Aker ASA');
+});
+
+test('resolves corp-suffix and by-parent investor names', () => {
+  const rows = [
+    { id: 'nv', name: 'Nvidia', firm: 'Nvidia', is_individual: false },
+    { id: 'rain', name: 'Rainmatter Capital', firm: 'Rainmatter Capital', is_individual: false },
+    { id: 'pedal', name: 'PedalStart', firm: 'PedalStart', is_individual: false },
+  ];
+  const corp = resolveCanonicalEntity(rows, 'Nvidia Corp');
+  assert.equal(corp.status, 'resolved');
+  assert.equal(corp.row.id, 'nv');
+  assert.match(corp.matchKind, /headline_cleaned_/);
+
+  const byParent = resolveCanonicalEntity(rows, 'Rainmatter by Zerodha');
+  assert.equal(byParent.status, 'resolved');
+  assert.equal(byParent.row.id, 'rain');
+
+  const pedal = resolveCanonicalEntity(rows, 'PedalStart To Expand - BW Disrupt');
+  assert.equal(pedal.status, 'resolved');
+  assert.equal(pedal.row.id, 'pedal');
 });
 
 test('resolves program-suffix and unicode-normalized investor names', () => {
@@ -158,6 +184,7 @@ test('rejects generic funding stages masquerading as canonical investors', () =>
   assert.equal(isPlausibleInvestorEntityName('Statistics - IndexBox'), false);
   assert.equal(isPlausibleInvestorEntityName('QED For AI Assistant'), false);
   assert.equal(isPlausibleInvestorEntityName('King co-founders Sebastian Knutsson'), false);
+  assert.equal(isPlausibleInvestorEntityName('Growth Equity'), false);
 });
 
 test('builds stable candidate round keys without collapsing distinct months or amounts', () => {
