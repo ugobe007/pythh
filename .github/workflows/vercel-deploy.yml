@@ -73,7 +73,11 @@ jobs:
         run: |
           deploy_cli() {
             echo "Deploying via vercel CLI --prod --force…"
+            # Stamp merge-commit SHA into pythh-build meta (vite pythhBuildMetaPlugin reads VERCEL_GIT_COMMIT_SHA).
+            # Without this, Vercel Git auto-deploys can overwrite production with a feature-branch tip SHA
+            # that has the same tree but fails check:deploy-sha vs github.sha.
             args=(deploy --prod --force --yes --logs --token "$VERCEL_TOKEN")
+            args+=(--build-env "VERCEL_GIT_COMMIT_SHA=${GITHUB_SHA}")
             if [ -n "$VITE_SUPABASE_URL" ]; then
               args+=(--build-env "VITE_SUPABASE_URL=$VITE_SUPABASE_URL")
             fi

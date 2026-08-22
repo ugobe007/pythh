@@ -151,6 +151,15 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
   `lint` npm script, so running ESLint over `.ts`/`.tsx` files only yields parse errors. Do not treat
   it as a gate. Type safety is exercised via the Vite build.
 
+### Production deploy (pythh.ai)
+
+- Frontend prod is **Vercel project `pythh`** (GHA `vercel-deploy.yml` on `main`), not legacy
+  `hot-money-honey`. API is **Fly** (`fly-deploy.yml`). See `docs/DEPLOY_PYTHH_AI.md` for the GHA
+  success/failure PR list (#23–#50 green; #3–#22 failed workflow but shipped on cumulative #23+).
+- After merge, verify: `npm run check:deploy-cache` and `npm run check:deploy-sha`. If SHA meta
+  shows a feature-branch tip but tree matches `main`, the verify script accepts tree equivalence;
+  dual Vercel Git + GHA deploys can cause that cosmetic drift.
+
 ### Mac local dev (not Cloud VM)
 
 - **`/workspace` does not exist on your Mac.** Cloud Agent paths are VM-only. On a MacBook the repo
