@@ -6,8 +6,32 @@ const GENERIC_INVESTOR_NAMES = new Set([
   'seed', 'pre seed', 'series a', 'series b', 'series c', 'series d', 'venture',
   'ventures', 'capital', 'fund', 'investor', 'investors', 'angel', 'angels',
   'syndicate', 'investment', 'investing', 'backing', 'undisclosed', 'confidential', 'unknown',
-  'plug', 'play', 'australia', 'netherlands',
+  // Bare geography labels (not funds). Keep SWFs like Temasek / GIC via brand allowlist.
+  'plug', 'play', 'australia', 'netherlands', 'singapore', 'japan', 'china', 'india',
+  'germany', 'france', 'israel', 'canada', 'brazil', 'korea', 'switzerland',
 ]);
+
+/**
+ * Known sovereign / state-linked institutional investors. Country possessives like
+ * "Singapore's GIC" must strip to the brand — never treat the SWF as geo junk.
+ * @see https://www.temasek.com.sg/en/index https://www.gic.com.sg
+ */
+const SOVEREIGN_WEALTH_FUND_BRANDS = new Set([
+  'temasek', 'temasek holdings', 'gic', 'mubadala', 'mubadala capital', 'adia',
+  'khazanah', 'khazanah nasional', 'qia', 'qatar investment authority', 'pif',
+  'public investment fund', 'cppib', 'cic', 'china investment corporation',
+  'nbim', 'norges bank', 'norges bank investment management', 'future fund',
+  'ireland strategic investment fund', 'isif', 'tesi',
+]);
+
+function isSovereignWealthFundBrand(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  const spaced = raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (SOVEREIGN_WEALTH_FUND_BRANDS.has(spaced)) return true;
+  const normalized = normalizeEntityName(raw);
+  return Boolean(normalized && SOVEREIGN_WEALTH_FUND_BRANDS.has(normalized));
+}
 
 /** Tokens that must not stand alone after stripping Fund/Capital/Partners (e.g. Founders Fund). */
 const WEAK_NORMALIZED_TOKENS = new Set([
@@ -26,6 +50,7 @@ const WEAK_NORMALIZED_TOKENS = new Set([
  * - corporate legal suffixes: "Nvidia Corp", "Visa Inc"
  * - parent attribution: "Rainmatter by Zerodha" (keeps CVC brands like "Leaps by Bayer")
  * - geo prefixes: "India-based TGC Capital"
+ * - country possessives on SWFs: "Singapore's GIC" → GIC (never delete the SWF)
  * - trailing VC abbreviation: "Susquehanna Asia VC"
  * Only strips spaced dashes so "F-Prime" / "Long-Z Investments" stay intact.
  */
@@ -47,13 +72,25 @@ function stripInvestorHeadlineNoise(value) {
   s = s.replace(/\s+[-–—]\s+[^-–—\n]{2,80}$/u, '').trim();
 
   // "Person’s Firm Name" → Firm Name (only when remainder looks firm-like)
+  // Also: "Singapore's GIC" / "Spain's State Research Agency" — country possessive → institution.
   const possessive = s.match(/^(.+?)['’]s\s+(.+)$/u);
   if (possessive) {
+    const subject = possessive[1].trim();
     const remainder = possessive[2].trim();
-    const firmToken = /\b(?:capital|ventures?|partners?|fund|management|llc|lp|group)\b/i.test(remainder);
+    const firmToken = /\b(?:capital|ventures?|partners?|fund|management|llc|lp|group|authority|agency|holdings?)\b/i.test(remainder);
     const genericRemainder = /^(?:venture firm|vc firm|investment firm|firm|ceo|cto|cfo|founder|co-?founder|partner|partners|investor|investors)$/i.test(remainder);
-    // Require an explicit firm token — do not treat bare titles ("CEO") as firms.
-    if (firmToken && !genericRemainder && remainder.length >= 3) s = remainder;
+    const swfRemainder = isSovereignWealthFundBrand(remainder);
+    const countryLikeSubject = /^(?:EU|U\.?S\.?A?\.?|UK|UAE|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})$/u.test(subject);
+    const shortInstitution = /^(?:[A-Z]{2,6}|[A-Z][A-Za-z0-9&.\-]*(?:\s+[A-Z][A-Za-z0-9&.\-]*){0,5})$/u.test(remainder)
+      && remainder.length >= 2
+      && remainder.length <= 80;
+    // SWF brands always strip. Country + institutional remainder strips without requiring
+    // Capital/Ventures tokens (GIC, Temasek). Person + firm still requires firmToken.
+    if (!genericRemainder && remainder.length >= 2) {
+      if (swfRemainder) s = remainder;
+      else if (firmToken) s = remainder;
+      else if (countryLikeSubject && shortInstitution) s = remainder;
+    }
   }
 
   // Numbered Vision Fund vehicles → parent Vision Fund ("SoftBank Vision Fund 2")
@@ -591,6 +628,7 @@ function metricsForEvaluations(rows, topK = 5) {
 module.exports = {
   HORIZONS,
   stripInvestorHeadlineNoise,
+  isSovereignWealthFundBrand,
   normalizeEntityName,
   preferFirmEntity,
   normalizeStartupName,

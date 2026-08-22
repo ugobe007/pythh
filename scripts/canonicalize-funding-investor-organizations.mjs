@@ -17,7 +17,9 @@ const organizations = [
   ['Y Combinator', 'ycombinator.com', ['Y Combinator', 'YC']],
   ['Citius', null, ['Citius']],
   ['BTG Pactual', 'btgpactual.com', ['BTG Pactual']],
-  ['GIC', 'gic.com.sg', ['GIC']],
+  ['GIC', 'gic.com.sg', ['GIC', "Singapore's GIC", "Singapore’s GIC"]],
+  ['Temasek', 'temasek.com.sg', ['Temasek', 'Temasek Holdings', "Singapore's Temasek", "Singapore’s Temasek"]],
+  ['Mubadala', 'mubadala.com', ['Mubadala', 'Mubadala Capital']],
   ['Monashees', 'monashees.com.br', ['Monashees']],
   ['Pacific Alliance Ventures', null, ['Pacific Alliance Ventures', 'PAV']],
   ['Portage', null, ['Portage', 'Portage Ventures']],
@@ -163,6 +165,27 @@ const organizations = [
   ['Omri Casspi', null, ['Omri Casspi']],
   ['Winston Weinberg', null, ['Winston Weinberg']],
   ['Jeff Wang', null, ['Jeff Wang']],
+  // Post-#39 SWF protect + next unresolved firm backlog
+  ['Harlem Capital', 'harlem.capital', ['Harlem Capital']],
+  ['Sixth Street Growth', 'sixthstreet.com', ['Sixth Street Growth', 'Sixth Street']],
+  ['Visible Hands VC', 'visiblehands.vc', ['Visible Hands VC', 'Visible Hands']],
+  ['Karman Ventures', null, ['Karman Ventures', 'Karman']],
+  ['Active Impact Investments', 'activeimpact.com', ['Active Impact Investments', 'Active Impact']],
+  ['PSG Equity', 'psgequity.com', ['PSG Equity', 'PSG']],
+  ['360 Capital', '360cap.vc', ['360 Capital']],
+  ['CDP Venture Capital', 'cdpventurecapital.it', ['CDP Venture Capital', 'CDP']],
+  ['JobsOhio Ventures', 'jobsohio.com', ['JobsOhio Ventures', 'JobsOhio']],
+  ['Concrete VC', null, ['Concrete VC', 'Concrete']],
+  ['Supernode Global', null, ['Supernode Global', 'Supernode']],
+  ['Koro Capital', null, ['Koro Capital', 'Koro']],
+  ['Inovo', 'inovo.vc', ['Inovo']],
+  ['Medtronic', 'medtronic.com', ['Medtronic']],
+  ['Lululemon', 'lululemon.com', ['Lululemon']],
+  ['Fubon Financial Holding Venture Capital', null, ['Fubon Financial Holding Venture Capital', 'Fubon']],
+  ['50 Partners Health', '50partners.fr', ['50 Partners Health', '50 Partners']],
+  ['Galaxia', null, ['Galaxia']],
+  ['Tritemius', null, ['Tritemius']],
+  ['Scaleup Fund', null, ['Scaleup Fund', "EU's Scaleup Fund", "EU’s Scaleup Fund"]],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
@@ -172,7 +195,9 @@ const reviewedMemberIds = new Set([
   '6bfdd2c0-b583-4b0f-848d-d96d4655d049', // Gradient Ventures organization row
   '1725b4a5-ca22-452d-b96b-ce80a6fec6b8', // Michael Seibel / YC; verified, 1000 matches
   '5e2fc5ff-af06-4823-929c-5b78fc83ebec', // Y Combinator organization row
-  '62799323-ce23-4c8c-b43d-fc9509e477ce', // GIC organization row
+  '62799323-ce23-4c8c-b43d-fc9509e477ce', // GIC organization row (gic.com.sg)
+  'b0180672-dce1-43cf-bcd5-c08d1c6801b6', // Temasek Holdings (temasek.com.sg)
+  '027a42d1-bf63-4642-b366-4e8399a11bf8', // Mubadala
   '35e2664c-2c7e-4442-829c-4f53af872d1f', // Monashees organization row
   '1eb3c02a-d8e9-4495-91e8-07d669218f1b', // Portage Ventures; referenced by matches
   '65662c8c-410a-4357-b896-122422cc670a', // Apollo Global Management; referenced by matches

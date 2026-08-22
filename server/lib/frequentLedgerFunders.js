@@ -60,6 +60,12 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   // Post-#38 never-pre-matched labels still missing from force-include.
   'dell',
   'dell technologies',
+  // Sovereign wealth / state-linked funds (country-associated brands — do not geo-delete).
+  'temasek',
+  'temasek holdings',
+  'gic',
+  'mubadala',
+  'mubadala capital',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -112,6 +118,11 @@ const ALIAS_FAMILY = Object.freeze({
   dell: 'dell',
   'dell technologies': 'dell',
   'dell technologies capital': 'dell',
+  temasek: 'temasek',
+  'temasek holdings': 'temasek',
+  gic: 'gic',
+  mubadala: 'mubadala',
+  'mubadala capital': 'mubadala',
 });
 
 function normalizeFunderLabel(value) {

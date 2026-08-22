@@ -71,6 +71,15 @@ test('rejects scraper concat and program tags (user examples)', () => {
   );
 });
 
+test('protects sovereign wealth funds from geo/country junk fencing', () => {
+  assert.strictEqual(isGarbageInvestorName('Temasek'), false);
+  assert.strictEqual(isGarbageInvestorName('GIC'), false);
+  assert.strictEqual(isGarbageInvestorName('Temasek Holdings'), false);
+  assert.strictEqual(isGarbageInvestorName("Singapore's GIC"), false);
+  assert.strictEqual(isGarbageInvestorName('Singapore’s GIC'), false);
+  assert.strictEqual(isGarbageInvestorName('Mubadala'), false);
+});
+
 test('rejects headline / role prefixes', () => {
   assert.strictEqual(isGarbageInvestorName('Data Scientist Jane Smith'), true);
   assert.strictEqual(isGarbageInvestorName('Bio Robert Nelsen (Archventure)'), true);

@@ -52,6 +52,27 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(stripInvestorHeadlineNoise('Leaps by Bayer'), 'Leaps by Bayer');
   assert.equal(stripInvestorHeadlineNoise('Rainmatter by Zerodha'), 'Rainmatter');
   assert.equal(stripInvestorHeadlineNoise('BSV Ventures joint by Beamline'), 'BSV Ventures');
+  // Country possessives on sovereign wealth funds — keep the SWF, drop the country label.
+  assert.equal(stripInvestorHeadlineNoise("Singapore's GIC"), 'GIC');
+  assert.equal(stripInvestorHeadlineNoise('Singapore’s GIC'), 'GIC');
+  assert.equal(stripInvestorHeadlineNoise("Singapore's Temasek"), 'Temasek');
+  assert.equal(stripInvestorHeadlineNoise("Spain's State Research Agency"), 'State Research Agency');
+  assert.equal(isPlausibleInvestorEntityName('Singapore'), false);
+  assert.equal(isPlausibleInvestorEntityName('GIC'), true);
+  assert.equal(isPlausibleInvestorEntityName('Temasek'), true);
+});
+
+test('resolves country-possessive sovereign wealth fund names', () => {
+  const rows = [
+    { id: 'gic', name: 'GIC', firm: 'GIC', is_individual: false },
+    { id: 'tem', name: 'Temasek', firm: 'Temasek Holdings', is_individual: false },
+  ];
+  const gic = resolveCanonicalEntity(rows, "Singapore's GIC");
+  assert.equal(gic.status, 'resolved');
+  assert.equal(gic.row.id, 'gic');
+  const tem = resolveCanonicalEntity(rows, "Singapore's Temasek");
+  assert.equal(tem.status, 'resolved');
+  assert.equal(tem.row.id, 'tem');
 });
 
 test('resolves geo-prefix and VC-abbreviation investor names', () => {

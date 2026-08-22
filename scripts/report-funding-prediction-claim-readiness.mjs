@@ -13,6 +13,7 @@ const DAY_MS = 86_400_000;
 const targetArg = process.argv.find(arg => arg.startsWith('--target='));
 const minimumArg = process.argv.find(arg => arg.startsWith('--minimum='));
 const asOfArg = process.argv.find(arg => arg.startsWith('--as-of='));
+const summaryOnly = process.argv.includes('--summary');
 const targetRate = Number(targetArg?.split('=')[1] || 0.85);
 const minimumAuditedOutcomes = Number(minimumArg?.split('=')[1] || 100);
 const asOf = new Date(asOfArg?.slice('--as-of='.length) || Date.now());
@@ -301,7 +302,16 @@ async function main() {
       funding_participants: participants.length,
     },
     metrics: HORIZONS.map(horizon => summarize(rows, horizon)),
-    confirmed_outcomes: confirmedOutcomes,
+    confirmed_outcome_counts: {
+      total: confirmedOutcomes.length,
+      by_result: confirmedOutcomes.reduce((acc, row) => {
+        acc[row.result] = (acc[row.result] || 0) + 1;
+        return acc;
+      }, {}),
+    },
+    ...(summaryOnly
+      ? {}
+      : { confirmed_outcomes: confirmedOutcomes }),
   }, null, 2));
 }
 
