@@ -922,7 +922,7 @@ const profiles = [
     source: 'https://www.delltechnologiescapital.com/', type: 'Corporate', investorType: 'Corporate',
   },
   {
-    canonicalName: 'Mirae Asset Venture Investments', firm: 'Mirae Asset Financial Group', displayName: 'Mirae Asset Venture Investments', url: 'https://www.miraeasset.com/',
+    canonicalName: 'Mirae Asset Venture Investments', firm: 'Mirae Asset Venture Investments', displayName: 'Mirae Asset Venture Investments', url: 'https://www.miraeasset.com/',
     sectors: ['Fintech', 'Technology', 'Healthcare'],
     stage: ['Series A', 'Series B', 'Growth'], geography: ['Global', 'Asia'],
     thesis: 'Venture investment arm of Mirae Asset Financial Group.',
@@ -1037,8 +1037,24 @@ async function main() {
     if (!profile.organization) throw new Error(`Missing canonical organization for ${profile.canonicalName}`);
     const displayNormalized = normalizeEntityName(profile.displayName || profile.canonicalName);
     let investor = profile.existing[0] || null;
-    // If the best candidate is still a partner/person row, create a dedicated firm profile.
-    if (investor && profile.isIndividual !== true) {
+    const desiredName = profile.displayName || profile.canonicalName;
+    // Prefer an existing row that already has the desired display name to avoid
+    // unique-constraint renames (e.g. Iconiq → ICONIQ Capital when both exist).
+    if (profile.existing?.length) {
+      const exactDisplay = profile.existing.find(
+        (row) => String(row.name || '').trim().toLowerCase() === String(desiredName).trim().toLowerCase(),
+      );
+      if (exactDisplay) investor = exactDisplay;
+    }
+    // Angels must never reuse a firm row matched only via firm-field alias
+    // (e.g. Satya Nadella firm=Microsoft must not overwrite Microsoft).
+    if (investor && profile.isIndividual === true) {
+      const nameNorm = normalizeEntityName(investor.name);
+      if (nameNorm !== displayNormalized && nameNorm !== profile.normalized) {
+        investor = null;
+      }
+    } else if (investor) {
+      // If the best candidate is still a partner/person row, create a dedicated firm profile.
       const nameNorm = normalizeEntityName(investor.name);
       const personLike = investor.is_individual === true
         || /\([^)]+\)/.test(String(investor.name || ''))
@@ -1046,8 +1062,9 @@ async function main() {
       if (personLike) investor = null;
     }
     if (!investor) {
+      const insertName = desiredName;
       const { data, error } = await db.from('investors').insert({
-        name: profile.displayName || profile.canonicalName,
+        name: insertName,
         firm: profile.firm,
         url: profile.url,
         sectors: profile.sectors,
@@ -1065,11 +1082,56 @@ async function main() {
         is_verified: true,
         is_individual: profile.isIndividual === true,
       }).select('id,name,firm').single();
-      if (error) throw error;
-      investor = data;
+      if (error) {
+        // Name unique constraint: reuse the existing row instead of failing the batch.
+        const msg = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`;
+        if (msg.includes('investors_name_unique') || error.code === '23505') {
+          const { data: existingByName, error: lookupError } = await db.from('investors')
+            .select('id,name,firm')
+            .eq('name', insertName)
+            .limit(1)
+            .maybeSingle();
+          if (lookupError) throw lookupError;
+          if (!existingByName) {
+            console.error(JSON.stringify({ stage: 'unique_lookup_miss', canonical: profile.canonicalName, insertName, error }));
+            throw error;
+          }
+          investor = existingByName;
+          const { error: activateError } = await db.from('investors').update({
+            status: 'active',
+            entity_gate: 'qualified',
+            type: profile.type || 'VC',
+            investor_type: profile.investorType || profile.type || 'VC',
+            firm: profile.firm,
+            url: profile.url || undefined,
+            sectors: profile.sectors,
+            stage: profile.stage,
+            investment_thesis: profile.thesis,
+            is_individual: profile.isIndividual === true,
+            updated_at: new Date().toISOString(),
+          }).eq('id', investor.id);
+          if (activateError) throw activateError;
+        } else {
+          console.error(JSON.stringify({ stage: 'insert_error', canonical: profile.canonicalName, insertName, error }));
+          throw error;
+        }
+      } else {
+        investor = data;
+      }
     } else {
+      let nameToSet = investor.name;
+      if (desiredName && desiredName !== investor.name) {
+        const { data: nameClash, error: clashError } = await db.from('investors')
+          .select('id')
+          .eq('name', desiredName)
+          .neq('id', investor.id)
+          .limit(1)
+          .maybeSingle();
+        if (clashError) throw clashError;
+        if (!nameClash) nameToSet = desiredName;
+      }
       const { error: activateError } = await db.from('investors').update({
-        name: profile.displayName || investor.name || profile.canonicalName,
+        name: nameToSet,
         status: 'active',
         entity_gate: 'qualified',
         type: profile.type || 'VC',
@@ -1082,7 +1144,10 @@ async function main() {
         is_individual: profile.isIndividual === true,
         updated_at: new Date().toISOString(),
       }).eq('id', investor.id);
-      if (activateError) throw activateError;
+      if (activateError) {
+        console.error(JSON.stringify({ stage: 'update_error', canonical: profile.canonicalName, investor_id: investor.id, desiredName, nameToSet, activateError }));
+        throw activateError;
+      }
     }
     const { error: membershipError } = await db.from('investor_organization_memberships').upsert({
       investor_id: investor.id,
