@@ -139,7 +139,12 @@ function stripInvestorHeadlineNoise(value) {
 
   // Headline marketing debris ("PedalStart To Expand", "Northzone For AI-Native …")
   s = s.replace(/\s+To Expand\b.*$/i, '').trim();
-  s = s.replace(/\s+For\s+(?:AI[- ]Native|user recovery)\b.*$/i, '').trim();
+  s = s.replace(/\s+For\s+(?:AI[- ]Native|user recovery|AI-Powered)\b.*$/i, '').trim();
+  s = s.replace(/\s+to Build\b.*$/i, '').trim();
+  // "Firms Including Mirae Asset" → Mirae Asset
+  s = s.replace(/^Firms?\s+Including\s+/i, '').trim();
+  // Ellipsis / quote debris from truncated headlines
+  s = s.replace(/….*$/u, '').replace(/[“”"].*$/u, '').trim();
 
   return s.trim();
 }
@@ -290,7 +295,8 @@ function isPlausibleInvestorEntityName(value) {
     && !/^(?:safe|gpus?|angel invest|disruptive)$/i.test(normalized)
     && !/^(?:japan|china|india|singapore|korea|germany|france)\s+government$/i.test(normalized)
     && !/\b(?:also participating|also investing|for user recovery|for ai[- ]native)\b/i.test(raw)
-    && !/^(?:figma'?s?\s+ceo|clovia co-founder|nasdaq firm)\b/i.test(raw);
+    && !/^(?:figma'?s?\s+ceo|clovia co-founder|nasdaq firm|grammy-winning|500 new users)\b/i.test(raw)
+    && !/^(?:luxembourg'?s?\s+financial regulator|a\s+[“"]frontier technology)\b/i.test(raw);
 }
 
 function normalizeRoundType(value) {

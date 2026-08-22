@@ -157,7 +157,6 @@ const organizations = [
   ['Optiverder', null, ['Optiverder']],
   ['RoboStrategy', null, ['RoboStrategy']],
   ['Sunshine Lake', null, ['Sunshine Lake']],
-  ['PC Rettig Impact & Co', null, ['PC Rettig Impact & Co', 'PC Rettig']],
   ['Dell Technologies Capital', 'delltechnologiescapital.com', ['Dell Technologies Capital', 'Dell', 'Dell Technologies']],
   ['Mirae Asset Venture Investments', 'miraeasset.com', ['Mirae Asset Venture Investments']],
   ['Bill Ackman', null, ['Bill Ackman']],
@@ -234,6 +233,24 @@ const organizations = [
   ['Ryan Anderson', null, ['Ryan Anderson']],
   ['Manu Lecomte', null, ['Manu Lecomte']],
   ['Georges Harik', null, ['Georges Harik']],
+  // Post-#41 claim-rectify loose ends
+  ['3one4 Capital', '3one4.com', ['3one4 Capital', '3one4']],
+  ['450 Ventures', null, ['450 Ventures']],
+  ['216 Capital', '216capital.com', ['216 Capital']],
+  ['4impact Capital', null, ['4impact Capital', '4impact capital']],
+  ['Pentathlon Ventures', null, ['Pentathlon Ventures', 'Pentathlon']],
+  ['Ethereal Ventures', null, ['Ethereal Ventures']],
+  ['Zoho', 'zoho.com', ['Zoho', 'Zoho Corporation']],
+  ['CIBC Innovation Banking', 'cibc.com', ['CIBC Innovation Banking', 'CIBC']],
+  ['KPS Capital', null, ['KPS Capital']],
+  ['Bpifrance Amorçage Industriel', 'bpifrance.fr', ['Bpifrance Amorçage Industriel', 'Bpifrance']],
+  ['MPCi', null, ['MPCi']],
+  ['Unbound', null, ['Unbound']],
+  ['Varrock', null, ['Varrock']],
+  ['Coalesce', null, ['Coalesce']],
+  ['Tayeh Capital', null, ['Tayeh Capital']],
+  ['GordonMD Global Investments', null, ['GordonMD Global Investments', 'GordonMD Global Investments LP', 'GordonMD Global Investments® LP']],
+  ['PC Rettig Impact & Co', null, ['PC Rettig Impact & Co', 'PC Rettig Impact', 'PC Rettig']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
@@ -257,6 +274,9 @@ const reviewedMemberIds = new Set([
   'a07fb4a8-c30c-4c2e-a127-af34f5e893e8', // Uber (corporate firm; not person angels)
   '246335d7-eb1e-43f6-b990-02c2258683cd', // ICONIQ Capital
   '53cf1206-3a24-4ada-90a8-32326e7dcd9f', // BoldCap
+  // Duplicate firm rows that must share Insight Partners org for Hit@5 identity.
+  '8ecacb33-103a-4b2f-9f99-dc6cee151c68', // Insight Partners (prediction-side profile)
+  '82e4da34-7f6c-43af-af72-5ea6b5c1d160', // Insightpartners (outcome-side profile)
 ]);
 
 async function allRows(table, select) {

@@ -44,6 +44,11 @@ async function main() {
     && ['verified', 'corroborated'].includes(row.verification_status)).map(row => row.id));
   const targetParticipants = participants.filter(row => auditedEventIds.has(row.funding_event_id)
     && row.participation_relation && row.participant_role !== 'unknown' && !row.investor_organization_id);
+  // Participants already linked to an org, but the investor profile lacks membership —
+  // Hit@5 predictions on duplicate firm rows otherwise fail to share organization keys.
+  const membershipBackfillParticipants = participants.filter((row) => auditedEventIds.has(row.funding_event_id)
+    && row.participation_relation && row.participant_role !== 'unknown'
+    && row.investor_id && row.investor_organization_id);
   const investorById = new Map(investors.map(row => [row.id, row]));
   const organizationById = new Map(organizations.map(row => [row.id, row]));
   const membershipByInvestor = new Map(memberships.map(row => [row.investor_id, row]));
@@ -58,6 +63,46 @@ async function main() {
     names.add(organization.normalized_name);
     aliasesByOrganization.set(organization.id, names);
     organizationByAlias.set(organization.normalized_name, organization.id);
+  }
+
+  const membershipBackfillPlans = [];
+  const seenBackfillInvestors = new Set();
+  for (const participant of membershipBackfillParticipants) {
+    if (seenBackfillInvestors.has(participant.investor_id)) continue;
+    const existingMembership = membershipByInvestor.get(participant.investor_id);
+    if (existingMembership?.organization_id === participant.investor_organization_id) continue;
+    if (existingMembership && existingMembership.organization_id !== participant.investor_organization_id) {
+      membershipBackfillPlans.push({
+        participant,
+        profile: investorById.get(participant.investor_id),
+        organization_id: participant.investor_organization_id,
+        action: 'withhold',
+        reason: 'conflicting existing organization membership',
+      });
+      seenBackfillInvestors.add(participant.investor_id);
+      continue;
+    }
+    const profile = investorById.get(participant.investor_id);
+    const allowedAliases = aliasesByOrganization.get(participant.investor_organization_id) || new Set();
+    if (!profile || !profileMatchesOrganization(profile, allowedAliases)) {
+      membershipBackfillPlans.push({
+        participant,
+        profile,
+        organization_id: participant.investor_organization_id,
+        action: 'withhold',
+        reason: 'resolved investor profile does not match reviewed organization aliases',
+      });
+      seenBackfillInvestors.add(participant.investor_id);
+      continue;
+    }
+    membershipBackfillPlans.push({
+      participant,
+      profile,
+      organization_id: participant.investor_organization_id,
+      action: 'backfill_membership_from_participant',
+      reason: 'participant already linked to reviewed organization; investor membership missing',
+    });
+    seenBackfillInvestors.add(participant.investor_id);
   }
 
   const plans = [];
@@ -103,8 +148,10 @@ async function main() {
     plans.push({ participant, profile, organization_id: organizationId, create_organization: createOrganization, action, reason });
   }
 
+  const allPlans = [...plans, ...membershipBackfillPlans];
+
   if (apply) {
-    for (const plan of plans.filter(row => row.action !== 'withhold')) {
+    for (const plan of allPlans.filter(row => row.action !== 'withhold')) {
       let organizationId = plan.organization_id;
       if (plan.create_organization) {
         const now = new Date().toISOString();
@@ -131,7 +178,9 @@ async function main() {
       const { error: membershipError } = await db.from('investor_organization_memberships').upsert({
         investor_id: plan.profile.id,
         organization_id: organizationId,
-        resolution_method: 'exact_audited_funding_alias',
+        resolution_method: plan.action === 'backfill_membership_from_participant'
+          ? 'participant_organization_membership_backfill'
+          : 'exact_audited_funding_alias',
         resolution_confidence: 1,
         reviewed_at: now,
         metadata: {
@@ -142,21 +191,64 @@ async function main() {
         updated_at: now,
       }, { onConflict: 'investor_id' });
       if (membershipError) throw membershipError;
-      const { error: participantError } = await db.from('funding_evidence_participants').update({
-        investor_organization_id: organizationId,
-        evidence: {
-          ...(plan.participant.evidence || {}),
-          organization_resolution: {
-            version: 'funding-outcome-organization-repair-v1',
-            method: plan.action,
-            confidence: 1,
-            reviewed_at: now,
+      membershipByInvestor.set(plan.profile.id, { investor_id: plan.profile.id, organization_id: organizationId });
+      if (plan.action !== 'backfill_membership_from_participant') {
+        const { error: participantError } = await db.from('funding_evidence_participants').update({
+          investor_organization_id: organizationId,
+          evidence: {
+            ...(plan.participant.evidence || {}),
+            organization_resolution: {
+              version: 'funding-outcome-organization-repair-v1',
+              method: plan.action,
+              confidence: 1,
+              reviewed_at: now,
+            },
           },
+          updated_at: now,
+        }).eq('id', plan.participant.id);
+        if (participantError) throw participantError;
+      }
+      plan.applied_organization_id = organizationId;
+    }
+
+    // Link exact firm-name investor profiles whose name/firm equal a reviewed org's
+    // normalized_name (not short aliases) — predicted-side duplicates like Insight Partners.
+    const linkedInvestorIds = new Set(membershipByInvestor.keys());
+    const organizationByNormalized = new Map(organizations.map((row) => [row.normalized_name, row]));
+    for (const investor of investors) {
+      if (linkedInvestorIds.has(investor.id) || investor.is_individual === true) continue;
+      const nameNorm = normalizeEntityName(investor.name);
+      const firmNorm = normalizeEntityName(investor.firm);
+      if (!nameNorm || nameNorm !== firmNorm) continue;
+      const organization = organizationByNormalized.get(nameNorm);
+      if (!organization) continue;
+      const allowedAliases = aliasesByOrganization.get(organization.id) || new Set();
+      if (!profileMatchesOrganization(investor, allowedAliases)) continue;
+      const now = new Date().toISOString();
+      const { error: membershipError } = await db.from('investor_organization_memberships').upsert({
+        investor_id: investor.id,
+        organization_id: organization.id,
+        resolution_method: 'exact_firm_alias_prediction_side',
+        resolution_confidence: 1,
+        reviewed_at: now,
+        metadata: {
+          source: 'audited_funding_outcome',
+          preserved_historical_investor_row: true,
+          prediction_side_link: true,
         },
         updated_at: now,
-      }).eq('id', plan.participant.id);
-      if (participantError) throw participantError;
-      plan.applied_organization_id = organizationId;
+      }, { onConflict: 'investor_id' });
+      if (membershipError) throw membershipError;
+      membershipByInvestor.set(investor.id, { investor_id: investor.id, organization_id: organization.id });
+      linkedInvestorIds.add(investor.id);
+      allPlans.push({
+        participant: { id: null, investor_name_raw: investor.firm || investor.name, investor_id: investor.id },
+        profile: investor,
+        organization_id: organization.id,
+        action: 'link_prediction_side_firm',
+        reason: 'exact non-individual firm profile matches reviewed organization normalized_name',
+        applied_organization_id: organization.id,
+      });
     }
   }
 
@@ -164,12 +256,13 @@ async function main() {
     mode: apply ? 'apply' : 'dry-run',
     audited_events: auditedEventIds.size,
     missing_organization_links: targetParticipants.length,
-    safe_links: plans.filter(row => row.action !== 'withhold').length,
-    withheld: plans.filter(row => row.action === 'withhold').length,
-    plans: plans.map(plan => ({
-      participant_id: plan.participant.id,
-      investor_name: plan.participant.investor_name_raw,
-      investor_id: plan.participant.investor_id,
+    membership_backfills: membershipBackfillPlans.filter((row) => row.action !== 'withhold').length,
+    safe_links: allPlans.filter(row => row.action !== 'withhold').length,
+    withheld: allPlans.filter(row => row.action === 'withhold').length,
+    plans: allPlans.map(plan => ({
+      participant_id: plan.participant?.id || null,
+      investor_name: plan.participant?.investor_name_raw || plan.profile?.name || null,
+      investor_id: plan.participant?.investor_id || plan.profile?.id || null,
       profile: plan.profile ? { name: plan.profile.name, firm: plan.profile.firm, is_individual: plan.profile.is_individual } : null,
       organization: plan.organization_id ? organizationById.get(plan.organization_id)?.canonical_name || null : plan.create_organization?.canonical_name || null,
       action: plan.action,
