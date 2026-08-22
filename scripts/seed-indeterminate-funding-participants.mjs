@@ -930,6 +930,15 @@ const rejectEventIds = [
   'd301b505-b55a-46b1-be3a-affaf6ff18ec',
   // Werize $28M total-capital headline (duplicate wrong amount vs $7M pre-Series C)
   '274ebaa2-d803-485f-8113-d7bc395a506e',
+  // Post-#52 junk / non-venture gap events (triage untrusted_observed)
+  'cc044243-85af-4eab-96af-59b5e930613a', // Malwarebytes product review, not a raise
+  '03d7a650-172e-4f4e-98c4-da791365382d', // Thrive Holdings "set to raise" rumor
+  'deffd4cd-0a84-4534-a32d-710f222114c8', // Swiggy AoA shareholder vote, not funding
+  '9c080e40-c50b-428f-abb6-ff10de7913dc', // Tencent block trade selldown
+  'a6212e52-1784-4bb0-a478-b5194dc46f25', // OpenPayd Nasdaq listing path, not VC round
+  'e2c33bac-1080-4c7e-aea9-e0a6a38cbcb0', // VC roundup (SiteVue line only)
+  'e4a56afe-5b03-4c0b-8f72-8cd221ca4b0c', // VC roundup (Alloy line only)
+  '5b4f513a-88d0-448c-a07b-7d1d7d322513', // Meridian Google News duplicate (issuer wires exist)
 ];
 
 async function seedEvent(eventId, seed, investors) {
