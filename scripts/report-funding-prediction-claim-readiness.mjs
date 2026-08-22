@@ -7,6 +7,12 @@ const require = createRequire(import.meta.url);
 const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 const { classifyFundingEvidence, isServeGradeStartupIdentity, normalizeEntityName } = require('../server/lib/fundingEvidenceLedger.js');
+const {
+  predictionIdentityKeys,
+  participantIdentityKeys,
+  participantPrimaryKey,
+  identityKeysOverlap,
+} = require('../server/lib/fundingHitIdentity.js');
 
 const HORIZONS = [30, 90, 180, 365];
 const DAY_MS = 86_400_000;
@@ -123,19 +129,12 @@ function eventTime(event) {
   return new Date(event.occurred_at || event.announced_at);
 }
 
-function participantKey(row) {
-  return row.investor_organization_id ? `organization:${row.investor_organization_id}`
-    : row.investor_id ? `investor:${row.investor_id}` : null;
-}
-
-function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organizationByInvestor) {
+function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organizationByInvestor, investorById) {
   const predictedAt = new Date(set.predicted_at);
   const horizonEnd = new Date(predictedAt.getTime() + horizon * DAY_MS);
   const mature = asOf >= horizonEnd;
-  const predictedKeys = new Set(set.predictions.flatMap(row => {
-    const organizationId = organizationByInvestor.get(row.investor_id);
-    return [`investor:${row.investor_id}`, organizationId ? `organization:${organizationId}` : null].filter(Boolean);
-  }));
+  const identityCtx = { organizationByInvestor, investorById };
+  const predictedKeys = new Set(set.predictions.flatMap((row) => predictionIdentityKeys(row, identityCtx)));
   const eligibleEvents = events.filter(event => {
     const at = eventTime(event);
     const discoveredAt = new Date(event.discovered_at || event.created_at);
@@ -145,8 +144,10 @@ function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organiz
   const sourceOutcomes = eligibleEvents.map(event => {
     const namedParticipants = (participantsByEvent.get(event.id) || []).filter(row =>
       row.participation_relation && row.participant_role !== 'unknown' && String(row.investor_name_raw || '').trim());
-    const participants = namedParticipants.filter(row => participantKey(row));
-    const hitParticipants = participants.filter(row => predictedKeys.has(participantKey(row)));
+    // Firm-level identity: org, investor id, or cleaned firm label (duplicate profiles share labels).
+    const participants = namedParticipants.filter((row) => participantIdentityKeys(row, identityCtx).length > 0);
+    const hitParticipants = participants.filter((row) =>
+      identityKeysOverlap(participantIdentityKeys(row, identityCtx), predictedKeys));
     return {
       event,
       participants,
@@ -157,10 +158,12 @@ function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organiz
   });
   const roundGroups = groupBy(sourceOutcomes, row => row.event.canonical_round_key || `event:${row.event.id}`);
   const eventOutcomes = [...roundGroups.values()].map(sources => {
-    const participants = [...new Map(sources.flatMap(row => row.participants).map(row => [participantKey(row), row])).values()];
+    const participants = [...new Map(sources.flatMap(row => row.participants)
+      .map((row) => [participantPrimaryKey(row, identityCtx), row])).values()];
     const namedParticipants = [...new Map(sources.flatMap(row => row.namedParticipants)
       .map(row => [String(row.investor_name_raw || '').trim().toLowerCase(), row])).values()];
-    const hitParticipants = participants.filter(row => predictedKeys.has(participantKey(row)));
+    const hitParticipants = participants.filter((row) =>
+      identityKeysOverlap(participantIdentityKeys(row, identityCtx), predictedKeys));
     return {
       event_ids: sources.map(row => row.event.id),
       participants,
@@ -176,8 +179,10 @@ function evaluateSetAtHorizon(set, horizon, events, participantsByEvent, organiz
     && eventOutcomes.every(row => row.participant_list_complete && row.namedParticipants.length > 0);
   const indeterminate = funded && !confirmedHit && !auditableMiss;
   const audited = confirmedHit || auditableMiss;
-  const distinctActualKeys = new Set(eventOutcomes.flatMap(row => row.participants.map(participantKey)).filter(Boolean));
-  const distinctHitKeys = new Set(eventOutcomes.flatMap(row => row.hitParticipants.map(participantKey)).filter(Boolean));
+  const distinctActualKeys = new Set(eventOutcomes.flatMap((row) => row.participants
+    .map((participant) => participantPrimaryKey(participant, identityCtx)).filter(Boolean)));
+  const distinctHitKeys = new Set(eventOutcomes.flatMap((row) => row.hitParticipants
+    .map((participant) => participantPrimaryKey(participant, identityCtx)).filter(Boolean)));
   return {
     ...set,
     horizon_days: horizon,
@@ -252,9 +257,11 @@ async function main() {
   const allPredictionSets = buildPredictionSets(snapshots, impressions);
   const predictedStartupIds = [...new Set(allPredictionSets.map(row => row.startup_id))];
   const predictedInvestorIds = [...new Set(allPredictionSets.flatMap(row => row.predictions.map(prediction => prediction.investor_id)))];
+  const participantInvestorIds = [...new Set(participants.map((row) => row.investor_id).filter(Boolean))];
+  const investorIds = [...new Set([...predictedInvestorIds, ...participantInvestorIds])];
   const [startups, investors] = await Promise.all([
     rowsByIds('startup_uploads', 'id,name,description,source_type,website,company_domain', predictedStartupIds),
-    rowsByIds('investors', 'id,name,firm', predictedInvestorIds),
+    rowsByIds('investors', 'id,name,firm', investorIds),
   ]);
   const startupById = new Map(startups.map(row => [row.id, row]));
   const investorById = new Map(investors.map(row => [row.id, row]));
@@ -268,7 +275,7 @@ async function main() {
   const participantsByEvent = groupBy(participants, row => row.funding_event_id);
   const eventsByStartup = groupBy(events.filter(row => row.startup_id), row => row.startup_id);
   const rows = predictionSets.flatMap(set => HORIZONS.map(horizon => evaluateSetAtHorizon(
-    set, horizon, eventsByStartup.get(set.startup_id) || [], participantsByEvent, organizationByInvestor,
+    set, horizon, eventsByStartup.get(set.startup_id) || [], participantsByEvent, organizationByInvestor, investorById,
   )));
   const confirmedOutcomes = rows.filter(row => row.funded).map(row => ({
     cohort_key: row.cohort_key,

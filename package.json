@@ -134,6 +134,7 @@
     "funding:audit:candidates": "node scripts/shadow-audit-funding-candidate-ranks.mjs",
     "funding:audit:candidates:summary": "node scripts/shadow-audit-funding-candidate-ranks.mjs --summary",
     "funding:claim-readiness": "node scripts/report-funding-prediction-claim-readiness.mjs",
+    "funding:hit5:startup-report": "node scripts/report-hit5-startup-prediction-outcomes.mjs",
     "funding:reconcile:historical": "node scripts/reconcile-historical-funding-matches.mjs",
     "funding:reconcile:historical:summary": "node scripts/reconcile-historical-funding-matches.mjs --summary",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",

@@ -71,6 +71,9 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(isPlausibleInvestorEntityName('SAFE'), false);
   assert.equal(isPlausibleInvestorEntityName('Japan Government'), false);
   assert.equal(isPlausibleInvestorEntityName('GPUs'), false);
+  assert.equal(stripInvestorHeadlineNoise('Monashees to Build an AI Investment Advisor'), 'Monashees');
+  assert.equal(stripInvestorHeadlineNoise('Firms Including Mirae Asset'), 'Mirae Asset');
+  assert.equal(isPlausibleInvestorEntityName('500 new users per day'), false);
 });
 
 test('resolves country-possessive sovereign wealth fund names', () => {
