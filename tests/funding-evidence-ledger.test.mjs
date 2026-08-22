@@ -60,6 +60,17 @@ test('strips RSS/headline publisher suffixes and possessive person prefixes', ()
   assert.equal(isPlausibleInvestorEntityName('Singapore'), false);
   assert.equal(isPlausibleInvestorEntityName('GIC'), true);
   assert.equal(isPlausibleInvestorEntityName('Temasek'), true);
+  // Long-tail roster / legal / marketing debris
+  assert.equal(stripInvestorHeadlineNoise('Franklin Resources Inc also participating'), 'Franklin Resources');
+  assert.equal(stripInvestorHeadlineNoise('Northzone For AI-Native Private Social Platform'), 'Northzone');
+  assert.equal(stripInvestorHeadlineNoise('Balderton & Others - BW Disrupt'), 'Balderton');
+  assert.equal(stripInvestorHeadlineNoise('Bessemer Venture Partners LP'), 'Bessemer Venture Partners');
+  assert.equal(stripInvestorHeadlineNoise('Kleiner Perkins Caufield & Byers'), 'Kleiner Perkins');
+  assert.equal(stripInvestorHeadlineNoise('Sarah Guo of Conviction Partners'), 'Conviction Partners');
+  assert.equal(stripInvestorHeadlineNoise("BNP Paribas' Opera Tech Ventures"), 'Opera Tech Ventures');
+  assert.equal(isPlausibleInvestorEntityName('SAFE'), false);
+  assert.equal(isPlausibleInvestorEntityName('Japan Government'), false);
+  assert.equal(isPlausibleInvestorEntityName('GPUs'), false);
 });
 
 test('resolves country-possessive sovereign wealth fund names', () => {

@@ -52,12 +52,16 @@ const WEAK_NORMALIZED_TOKENS = new Set([
  * - geo prefixes: "India-based TGC Capital"
  * - country possessives on SWFs: "Singapore's GIC" → GIC (never delete the SWF)
  * - trailing VC abbreviation: "Susquehanna Asia VC"
+ * - roster debris: "also participating", "& Others", "For <marketing>"
+ * - person-of-firm: "Sarah Guo of Conviction Partners" → Conviction Partners
+ * - legacy legal tails: "Bessemer Venture Partners LP", "Kleiner Perkins Caufield & Byers"
  * Only strips spaced dashes so "F-Prime" / "Long-Z Investments" stay intact.
  */
 function stripInvestorHeadlineNoise(value) {
   let s = String(value || '')
     .replace(/[\u00A0\u202F\u2007\u2008\u2009\u200A\uFEFF]/g, ' ')
     .replace(/[’‘‛]/g, "'")
+    .replace(/®/g, '')
     .replace(/\s+/g, ' ')
     .trim();
   if (!s) return '';
@@ -73,7 +77,8 @@ function stripInvestorHeadlineNoise(value) {
 
   // "Person’s Firm Name" → Firm Name (only when remainder looks firm-like)
   // Also: "Singapore's GIC" / "Spain's State Research Agency" — country possessive → institution.
-  const possessive = s.match(/^(.+?)['’]s\s+(.+)$/u);
+  // Also: "BNP Paribas' Opera Tech Ventures" (possessive without extra s after terminal s).
+  const possessive = s.match(/^(.+?)(?:'s|')\s+(.+)$/u);
   if (possessive) {
     const subject = possessive[1].trim();
     const remainder = possessive[2].trim();
@@ -93,6 +98,15 @@ function stripInvestorHeadlineNoise(value) {
     }
   }
 
+  // "Person of Firm" attribution → firm ("Sarah Guo of Conviction Partners")
+  const ofFirm = s.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\s+of\s+(.+)$/u);
+  if (ofFirm) {
+    const remainder = ofFirm[2].trim();
+    if (/\b(?:capital|ventures?|partners?|fund|management|group)\b/i.test(remainder) && remainder.length >= 3) {
+      s = remainder;
+    }
+  }
+
   // Numbered Vision Fund vehicles → parent Vision Fund ("SoftBank Vision Fund 2")
   s = s.replace(/\b(Vision Fund)\s+\d+\b/i, '$1').trim();
 
@@ -100,9 +114,15 @@ function stripInvestorHeadlineNoise(value) {
   // Keep hyphenated tokens intact; only strip trailing spaced program labels.
   s = s.replace(/\s+(?:Speedrun|Crypto|Builders?|Fellowship|Accelerator|Scout(?:\s+(?:Fund|Programme|Program))?)$/i, '').trim();
 
-  // Legal entity suffixes glued onto known brands ("Nvidia Corp", "Visa Inc.")
+  // Legal entity suffixes glued onto known brands ("Nvidia Corp", "Visa Inc.", "Bessemer … LP")
   // Do not strip ASA/SA — those are often part of the canonical name (Aker ASA).
-  s = s.replace(/\s*,?\s*\b(?:Corp\.?|Corporation|Inc\.?|Incorporated|Ltd\.?|Limited)\s*$/i, '').trim();
+  // Also drop "Inc also participating" style tails before / with the legal suffix.
+  s = s.replace(/\s+also\s+(?:participating|investing|backing)\b.*$/i, '').trim();
+  s = s.replace(/\s*,?\s*\b(?:Corp\.?|Corporation|Inc\.?|Incorporated|Ltd\.?|Limited|L\.?P\.?)\s*$/i, '').trim();
+  s = s.replace(/\s+also\s+(?:participating|investing|backing)\b.*$/i, '').trim();
+
+  // Legacy expanded names → modern brand
+  s = s.replace(/^Kleiner Perkins Caufield(?:\s+&\s+|\s+and\s+)Byers$/i, 'Kleiner Perkins').trim();
 
   // "Brand by Parent" attribution ("Rainmatter by Zerodha").
   // Keep corporate-venture brands whose official name is "X by Y" (Leaps by Bayer).
@@ -110,14 +130,16 @@ function stripInvestorHeadlineNoise(value) {
     s = s.replace(/\s+by\s+[A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,3}$/u, '').trim();
   }
 
-  // Trailing "joint" debris from broken roster extracts ("BSV Ventures joint")
+  // Trailing "joint" / "& Others" roster debris
   s = s.replace(/\s+joint$/i, '').trim();
+  s = s.replace(/\s*&\s*Others$/i, '').trim();
 
   // Trailing VC abbreviation → Venture Capital ("Susquehanna Asia VC")
   s = s.replace(/\s+VC$/i, ' Venture Capital').trim();
 
-  // Headline marketing debris ("PedalStart To Expand")
+  // Headline marketing debris ("PedalStart To Expand", "Northzone For AI-Native …")
   s = s.replace(/\s+To Expand\b.*$/i, '').trim();
+  s = s.replace(/\s+For\s+(?:AI[- ]Native|user recovery)\b.*$/i, '').trim();
 
   return s.trim();
 }
@@ -263,7 +285,12 @@ function isPlausibleInvestorEntityName(value) {
     && !/^(?:king co[- ]founders?)\b/i.test(raw)
     && !/^(?:growth equity|private equity|venture capital|corporate venture)$/i.test(normalized)
     && !/\b(?:contingent on|learned exclusively|fortune learned)\b/i.test(raw)
-    && !/^(?:uber contingent)\b/i.test(raw);
+    && !/^(?:uber contingent)\b/i.test(raw)
+    // Instrument / hardware / generic labels scraped as investors.
+    && !/^(?:safe|gpus?|angel invest|disruptive)$/i.test(normalized)
+    && !/^(?:japan|china|india|singapore|korea|germany|france)\s+government$/i.test(normalized)
+    && !/\b(?:also participating|also investing|for user recovery|for ai[- ]native)\b/i.test(raw)
+    && !/^(?:figma'?s?\s+ceo|clovia co-founder|nasdaq firm)\b/i.test(raw);
 }
 
 function normalizeRoundType(value) {

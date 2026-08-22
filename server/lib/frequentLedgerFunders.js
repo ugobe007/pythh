@@ -66,6 +66,18 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'gic',
   'mubadala',
   'mubadala capital',
+  // Post-#40 long-tail institutions still missing from pre-match pools.
+  'goldman sachs',
+  'goldman',
+  'kleiner perkins',
+  'bessemer venture partners',
+  'bessemer',
+  'hongshan',
+  'northzone',
+  'balderton capital',
+  'balderton',
+  'citadel',
+  'bain capital',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -123,6 +135,17 @@ const ALIAS_FAMILY = Object.freeze({
   gic: 'gic',
   mubadala: 'mubadala',
   'mubadala capital': 'mubadala',
+  'goldman sachs': 'goldman',
+  goldman: 'goldman',
+  'kleiner perkins': 'kleiner_perkins',
+  'bessemer venture partners': 'bessemer',
+  bessemer: 'bessemer',
+  hongshan: 'hongshan',
+  northzone: 'northzone',
+  'balderton capital': 'balderton',
+  balderton: 'balderton',
+  citadel: 'citadel',
+  'bain capital': 'bain_capital',
 });
 
 function normalizeFunderLabel(value) {
