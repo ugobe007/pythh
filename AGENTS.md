@@ -160,6 +160,11 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
   shows a feature-branch tip but tree matches `main`, the verify script accepts tree equivalence;
   dual Vercel Git + GHA deploys can cause that cosmetic drift.
 
+### Hit@5 roadmap & match→funding audit
+
+- Scheduled waves and metrics interpretation: `docs/HIT5_IMPROVEMENT_ROADMAP.md`
+- One-shot audit after each ops batch: `npm run funding:match-funding-audit`
+
 ### Mac local dev (not Cloud VM)
 
 - **`/workspace` does not exist on your Mac.** Cloud Agent paths are VM-only. On a MacBook the repo
