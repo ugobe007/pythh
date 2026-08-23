@@ -1626,6 +1626,127 @@ const profiles = [
     thesis: 'Growth investor focused on applied AI software companies.',
     source: 'https://georgian.io/', type: 'VC', investorType: 'Growth',
   },
+  // Post-#54 roster unlock — ingest #49 batch participants still not_in_universe.
+  {
+    canonicalName: 'Pivot Ventures', firm: 'Pivot Ventures', url: 'https://www.pivotvc.com/',
+    sectors: ['SaaS', 'Fintech', 'PropTech'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Early-stage venture firm backing software and marketplace founders.',
+    source: 'https://www.pivotvc.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Engineering Capital', firm: 'Engineering Capital', url: 'https://www.engineeringcapital.com/',
+    sectors: ['Developer Tools', 'Infrastructure', 'AI/ML'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Seed-stage investor backing technical founders in infrastructure and dev tools.',
+    source: 'https://www.engineeringcapital.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Harmony Partners', firm: 'Harmony Partners', url: 'https://www.harmonyvp.com/',
+    sectors: ['Enterprise', 'SaaS', 'Developer Tools'], stage: ['Seed', 'Series A', 'Series B'], geography: ['United States'],
+    thesis: 'Growth-stage venture firm partnering with software companies.',
+    source: 'https://www.harmonyvp.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Hirtle Callaghan', firm: 'Hirtle Callaghan', url: 'https://www.hirtlecallaghan.com/',
+    sectors: ['Technology', 'Enterprise', 'Fintech'], stage: ['Series B', 'Series C', 'Growth'], geography: ['Global'],
+    thesis: 'Institutional allocator and growth investor in technology companies.',
+    source: 'https://www.hirtlecallaghan.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Ananda Impact Ventures', firm: 'Ananda Impact Ventures', url: 'https://www.ananda.vc/',
+    sectors: ['Climate Tech', 'Sustainability', 'DeepTech'], stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Impact venture investor backing climate and sustainability technology.',
+    source: 'https://www.ananda.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Desai Ventures', firm: 'Desai Ventures', url: null,
+    sectors: ['Climate Tech', 'DeepTech', 'AI/ML'], stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'Early-stage climate and deeptech investor.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Findus Ventures', firm: 'Findus Ventures', url: null,
+    sectors: ['Climate Tech', 'DeepTech'], stage: ['Seed'], geography: ['Europe'],
+    thesis: 'European seed investor in climate and aerospace technology.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'E2MC', firm: 'E2MC', url: 'https://www.e2mc.space/',
+    sectors: ['Space', 'DeepTech', 'Infrastructure'], stage: ['Seed', 'Series A'], geography: ['Global'],
+    thesis: 'Space economy venture investor.',
+    source: 'https://www.e2mc.space/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Pi Labs', firm: 'Pi Labs', url: 'https://www.pilabs.vc/',
+    sectors: ['PropTech', 'Real Estate', 'SaaS'], stage: ['Seed', 'Series A'], geography: ['Europe', 'Global'],
+    thesis: 'PropTech venture investor.',
+    source: 'https://www.pilabs.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Golub Growth', firm: 'Golub Growth', url: 'https://www.golubgrowth.com/',
+    sectors: ['Enterprise', 'Cybersecurity', 'SaaS'], stage: ['Series C', 'Growth'], geography: ['Global'],
+    thesis: 'Growth equity affiliate of Golub Capital.',
+    source: 'https://www.golubgrowth.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Axon Partners Group', firm: 'Axon Partners Group', url: 'https://www.axonpartnersgroup.com/',
+    sectors: ['DeepTech', 'Climate Tech', 'Hardware'], stage: ['Series B', 'Growth'], geography: ['Europe'],
+    thesis: 'European growth investor in industrial and deeptech.',
+    source: 'https://www.axonpartnersgroup.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'SmartCap', firm: 'SmartCap', url: 'https://www.smartcap.pt/',
+    sectors: ['DeepTech', 'Hardware', 'Climate Tech'], stage: ['Series A', 'Series B'], geography: ['Europe'],
+    thesis: 'Portuguese innovation and venture capital investor.',
+    source: 'https://www.smartcap.pt/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Taiwania Capital', firm: 'Taiwania Capital', url: 'https://www.taiwaniacapital.com/',
+    sectors: ['DeepTech', 'Hardware', 'Semiconductors'], stage: ['Series B', 'Growth'], geography: ['Asia', 'Global'],
+    thesis: 'Taiwan government-linked growth investor.',
+    source: 'https://www.taiwaniacapital.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'CBMM', firm: 'CBMM', url: 'https://www.cbmm.com/',
+    sectors: ['DeepTech', 'Materials', 'Climate Tech'], stage: ['Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Strategic corporate investor in advanced materials and industrial technology.',
+    source: 'https://www.cbmm.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'InsurTech Fund', firm: 'InsurTech Fund', url: 'https://www.insurtechfund.com/',
+    sectors: ['InsurTech', 'Fintech', 'SaaS'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Specialist investor in insurance technology.',
+    source: 'https://www.insurtechfund.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Entropy Ventures', firm: 'Entropy Ventures', url: null,
+    sectors: ['Fintech', 'Enterprise', 'AI/ML'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Early-stage fintech and enterprise software investor.',
+    source: null, type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'AlbionVC', firm: 'AlbionVC', url: 'https://www.albion.vc/',
+    sectors: ['SaaS', 'Healthcare', 'AI/ML'], stage: ['Seed', 'Series A'], geography: ['United Kingdom', 'Europe'],
+    thesis: 'UK early-stage venture investor.',
+    source: 'https://www.albion.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'PROfounders Capital', firm: 'PROfounders Capital', url: 'https://www.profounderscapital.com/',
+    sectors: ['Consumer', 'SaaS', 'Fintech'], stage: ['Seed', 'Series A'], geography: ['United Kingdom', 'Europe'],
+    thesis: 'London-based early-stage investor.',
+    source: 'https://www.profounderscapital.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Ascension', firm: 'Ascension', url: 'https://www.ascension.vc/',
+    sectors: ['Fintech', 'SaaS', 'Impact'], stage: ['Seed', 'Series A'], geography: ['United Kingdom'],
+    thesis: 'UK seed and Series A venture firm.',
+    source: 'https://www.ascension.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Emerge', firm: 'Emerge', url: 'https://www.emerge.vc/',
+    sectors: ['SaaS', 'Fintech', 'Consumer'], stage: ['Seed'], geography: ['United Kingdom', 'Europe'],
+    thesis: 'European seed-stage venture investor.',
+    source: 'https://www.emerge.vc/', type: 'VC', investorType: 'VC',
+  },
 ];
 
 async function allInvestors() {

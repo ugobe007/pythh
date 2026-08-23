@@ -127,6 +127,13 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'goodwater',
   'goodwater capital',
   'designer fund',
+  // Post-#53 never-pre-matched qualified firms (audit topNeverPreMatched).
+  'rtp global',
+  'unicorn india ventures',
+  'unicorn india',
+  'spintop ventures',
+  'blume founders fund',
+  'blume venture',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -242,6 +249,12 @@ const ALIAS_FAMILY = Object.freeze({
   goodwater: 'goodwater',
   'goodwater capital': 'goodwater',
   'designer fund': 'designer_fund',
+  'rtp global': 'rtp_global',
+  'unicorn india ventures': 'unicorn_india',
+  'unicorn india': 'unicorn_india',
+  'spintop ventures': 'spintop',
+  'blume founders fund': 'blume_founders',
+  'blume venture': 'blume_founders',
 });
 
 function normalizeFunderLabel(value) {
