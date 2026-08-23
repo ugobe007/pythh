@@ -729,6 +729,9 @@ for (const job of jobs || []) {
       if (classifyError) throw new Error(`classification: ${classifyError.message}`);
     }
     completed++;
+    if (completed % 25 === 0 || completed === (jobs || []).length) {
+      console.log(`[search] ${completed}/${(jobs || []).length} startups (${startup.name})`);
+    }
   } catch (error) {
     if (apply) {
       await db
