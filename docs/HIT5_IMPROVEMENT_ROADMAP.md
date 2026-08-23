@@ -46,7 +46,7 @@ Run `npm run funding:claim-readiness -- --summary` for live numbers.
 | Step | Command | Cadence |
 |------|---------|---------|
 | Recover URLs | `npm run outcomes:recover-urls -- --apply --limit=150` | With agent |
-| Triage queue clocks | `npm run outcomes:triage-queue -- --apply --park-weak --target=5000` | Daily / pre-agent |
+| Triage queue clocks | `npm run outcomes:triage-queue -- --apply --park-weak --target=5000` | Daily / pre-agent (includes **mature unfunded Hit@5** priority boost) |
 | Inference search | `npm run outcomes:agent -- --apply --limit=400 --delay=400` | GitHub Actions ~20m or manual |
 | Promote issuer hits | `npm run outcomes:promote-ledger -- --apply` | After search |
 | Review high-tier | `npm run outcomes:review -- --list` / `--apply --verify` | Human or agent |

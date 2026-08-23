@@ -45,6 +45,7 @@ const summary = {
   parked_publisher_websites: 0,
   boosted_issuer_ledger: 0,
   boosted_post_match_ledger: 0,
+  boosted_mature_unfunded_hit5: 0,
   progress: null,
 };
 
@@ -197,6 +198,38 @@ if (apply) {
       )
   `);
   summary.boosted_post_match_ledger = boostAnyLedger.rowCount || 0;
+
+  // 9) Mature prediction window, no trusted post-match funding yet — drain Hit@5 unfunded cohort
+  const boostMatureUnfunded = await pool.query(`
+    UPDATE funding_evidence_search_queue q
+    SET priority = GREATEST(coalesce(q.priority, 0), 55000),
+        status = CASE WHEN q.status = 'complete' AND coalesce(q.result_count, 0) = 0 THEN 'pending' ELSE q.status END,
+        updated_at = now(),
+        error_message = CASE
+          WHEN q.error_message ILIKE 'triage:boost_issuer_ledger'
+            OR q.error_message ILIKE 'triage:boost_post_match_ledger'
+            THEN q.error_message
+          ELSE 'triage:boost_mature_unfunded_hit5'
+        END
+    FROM startup_uploads s
+    WHERE q.startup_id = s.id
+      AND q.status IN ('pending', 'complete', 'error')
+      AND s.status = 'approved'
+      AND s.entity_gate = 'qualified'
+      AND s.source_type = 'url'
+      AND coalesce(s.website, '') <> ''
+      AND coalesce(q.priority, 0) > 0
+      AND q.earliest_match_at IS NOT NULL
+      AND q.earliest_match_at < now() - interval '180 days'
+      AND NOT EXISTS (
+        SELECT 1 FROM funding_evidence_events fe
+        WHERE fe.startup_id = q.startup_id
+          AND fe.verification_status IN ('verified', 'corroborated')
+          AND fe.announced_at > q.earliest_match_at
+          AND fe.announced_at <= q.earliest_match_at + interval '180 days'
+      )
+  `);
+  summary.boosted_mature_unfunded_hit5 = boostMatureUnfunded.rowCount || 0;
 }
 
 const { rows: progressRows } = await pool.query(`
