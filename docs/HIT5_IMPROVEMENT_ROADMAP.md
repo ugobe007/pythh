@@ -1,6 +1,6 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-08-23 (post PR #52 merge + Next Wave outcomes agent)  
+**Last updated:** 2026-08-23 (post PR #53 — all-waves acceleration batch)  
 **Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)
 
 This doc ties **pair-level match outcomes** (did this specific investor fund this startup?) to **sealed startup-level Hit@5** (did any of our top-5 predict a funder before the round?). Use it to schedule ops waves and product/engineering work.
@@ -31,7 +31,7 @@ Run `npm run funding:claim-readiness -- --summary` for live numbers.
 | Startup-level hits | 9 | ~12.9% among audited |
 | Mature unfunded | ~658 | Need new post-prediction funding evidence |
 | Outcomes cohort resolved | ~4.84k / 10.9k qualified+URL | Target 5k searched (~162 remaining) |
-| Pair review pending | ~22 rows | `npm run outcomes:review -- --list` |
+| Pair review pending | ~0 rows (Paper/Accel batch verified) | `npm run outcomes:review -- --list` |
 
 **Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` ~833 rows — actual funder often never entered pre-event match pool / top-5. Do **not** retune GOD/fit until candidate inventory is fixed.
 
