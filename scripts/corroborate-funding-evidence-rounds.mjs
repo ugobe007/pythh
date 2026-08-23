@@ -68,9 +68,14 @@ async function main() {
     }
   }
   if (apply) {
+    const total = updates.length;
     for (let offset = 0; offset < updates.length; offset += 12) {
-      await Promise.all(updates.slice(offset, offset + 12).map(async ({ group, event, trust, desiredStatus, evidenceEventIds }) => {
-        const { error } = await db.from('funding_evidence_events').update({
+      const batch = updates.slice(offset, offset + 12);
+      if (total > 12) {
+        console.log(`[corroborate] updating ${Math.min(offset + batch.length, total)}/${total} events…`);
+      }
+      await Promise.all(batch.map(async ({ group, event, trust, desiredStatus, evidenceEventIds }) => {
+        const updatePromise = db.from('funding_evidence_events').update({
           verification_status: desiredStatus,
           metadata: {
             ...(event.metadata || {}),
@@ -85,6 +90,13 @@ async function main() {
           },
           updated_at: new Date().toISOString(),
         }).eq('id', event.id);
+        const timeoutMs = 45_000;
+        const { error } = await Promise.race([
+          updatePromise,
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`supabase_update_timeout_${timeoutMs}ms event=${event.id}`)), timeoutMs);
+          }),
+        ]);
         if (error) throw error;
       }));
     }

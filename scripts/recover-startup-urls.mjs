@@ -178,7 +178,12 @@ const { rows: targets } = await pool.query(
 
 summary.scanned = targets.length;
 
+let recoverIndex = 0;
 for (const row of targets) {
+  recoverIndex += 1;
+  if (recoverIndex % 10 === 0 || recoverIndex === targets.length) {
+    console.log(`[recover-urls] ${recoverIndex}/${targets.length} (${row.name})`);
+  }
   try {
     if (
       !isPlausibleStartupName(row.name) ||
