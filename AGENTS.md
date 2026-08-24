@@ -165,6 +165,24 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - Scheduled waves and metrics interpretation: `docs/HIT5_IMPROVEMENT_ROADMAP.md`
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
 
+### Ops scripts: stuck terminal / hung Wave 2 chain
+
+- **Do not paste the full Wave 2 block into one terminal** (`promote-ledger` → `prediction-linked` →
+  `seed-indeterminate` → `ingest` → `corroborate` → coverage → org-links → audit). If any step hangs,
+  the shell blocks and you cannot type new commands. Run each step separately, or in tmux with logging.
+- **`corroborate-funding-evidence-rounds.mjs --apply` can hang** on a stalled Supabase read/update
+  (often `wait_woken`, ~0% CPU for hours). Apply batches have 45s per-update timeouts (#56), but the
+  initial full-table scan has no timeout. **Unblock:** find the PID with
+  `ps aux | grep corroborate-funding-evidence` and `kill <pid>` (use the numeric PID — do **not**
+  `pkill -f`, which can match your own grep/monitor line).
+- **`outcomes:agent` silence:** `recover-urls` (limit 150–200) can run 20–45+ minutes before
+  `[search]` logs appear. Prefer `npm run outcomes:recover-urls -- --apply --limit=80` first, then
+  agent with `--delay=600+`.
+- **Stuck search queue rows:** `npm run outcomes:release-stuck-queue:apply` (needs main #58 — ESM
+  `main()` wrapper). Check `processing` rows older than 30m.
+- **False “search still running” loop:** `pgrep -f search-startup-funding-evidence.mjs` matches the
+  monitor’s own bash line; grep the process list manually instead.
+
 ### Mac local dev (not Cloud VM)
 
 - **`/workspace` does not exist on your Mac.** Cloud Agent paths are VM-only. On a MacBook the repo
