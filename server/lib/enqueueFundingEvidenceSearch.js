@@ -40,10 +40,13 @@ async function enqueueFundingEvidenceSearch(supabase, startupId, opts = {}) {
       .eq('startup_id', startupId);
     if (countErr) throw new Error(countErr.message);
 
+    // Prospective proof cohort: all URL submits with a real website (not junk gate).
+    // New instant submits may have entity_gate null until batch gate runs — still track outcomes.
     const isQualifiedUrl =
-      startup.entity_gate === 'qualified' &&
+      startup.entity_gate !== 'junk' &&
       startup.source_type === 'url' &&
-      Boolean(String(startup.website || '').trim());
+      Boolean(String(startup.website || '').trim()) &&
+      (startup.entity_gate === 'qualified' || startup.entity_gate == null);
 
     let priority = Math.min(100000, Number(count || 0) + Number(opts.priorityBoost || 0));
     if (isQualifiedUrl) {
