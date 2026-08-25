@@ -8,6 +8,10 @@
  */
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import "dotenv/config";
+import { createRequire } from "node:module";
+
+const requireCjs = createRequire(import.meta.url);
+const { filterRankingsStartups } = requireCjs("../../lib/rankingsEligibility.js");
 
 let _sb: SupabaseClient | null = null;
 
@@ -426,9 +430,9 @@ export async function getRankings(opts: {
     .eq("entity_gate", "qualified")
     .gte("total_god_score", 1)
     .order("total_god_score", { ascending: false })
-    .limit(opts.sector ? 500 : limit);
+    .limit(opts.sector ? 500 : Math.min(limit * 5, 300));
 
-  let rows = (data ?? []) as Record<string, unknown>[];
+  let rows = filterRankingsStartups((data ?? []) as Record<string, unknown>[]);
 
   if (opts.sector) {
     const s = opts.sector.toLowerCase();
@@ -449,7 +453,7 @@ export async function getRankings(opts: {
       entity_gate: String(r.entity_gate ?? ""),
       data_as_of: dataAsOf(r),
     })),
-    total: count ?? 0,
+    total: rows.length,
     sector_filter: opts.sector ?? null,
     data_as_of: new Date().toISOString(),
   };
