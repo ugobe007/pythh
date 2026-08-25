@@ -1,7 +1,8 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-08-23 (post PR #53 — all-waves acceleration batch)  
-**Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)
+**Last updated:** 2026-08-25 (prospective proof cohort spec)  
+**Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)  
+**Proof cohort (URL submits):** `docs/PROOF_COHORT_SPEC.md` · `npm run proof-cohort:report -- --since=2026-08-25`
 
 This doc ties **pair-level match outcomes** (did this specific investor fund this startup?) to **sealed startup-level Hit@5** (did any of our top-5 predict a funder before the round?). Use it to schedule ops waves and product/engineering work.
 

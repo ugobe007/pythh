@@ -163,7 +163,12 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 ### Hit@5 roadmap & match→funding audit
 
 - Scheduled waves and metrics interpretation: `docs/HIT5_IMPROVEMENT_ROADMAP.md`
+- **Prospective proof cohort (URL submits, no signup):** `docs/PROOF_COHORT_SPEC.md` — weekly `npm run proof-cohort:report -- --since=2026-08-25`
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
+
+### GOD scoring deferral (proof cohort)
+
+Do **not** retune GOD/fit weights until the prospective URL cohort has **≥5 startups with verified post-prediction funding pairs** (`proof-cohort:report` → `signup_evidence_met`). Then diagnose cohort misses via `funding:audit:candidate-misses` before changing weights or adding variables.
 
 ### Ops scripts: stuck terminal / hung Wave 2 chain
 

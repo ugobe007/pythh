@@ -2517,6 +2517,7 @@ router.post('/submit', async (req, res) => {
         stage: 1,
         status: 'approved',
         source_type: 'url',
+        entity_gate: 'qualified',
         enrichment_token: enrichmentToken,
         data_completeness: 15, // Minimal data initially
         // Placeholder GOD score (will be updated by background pipeline)
@@ -2545,6 +2546,7 @@ router.post('/submit', async (req, res) => {
           stage: 1,
           status: 'approved',
           source_type: 'url',
+          entity_gate: 'qualified',
           enrichment_token: enrichmentToken,
           data_completeness: 15,
           total_god_score: 50,
