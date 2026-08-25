@@ -255,6 +255,7 @@ export async function seedPortfolio(godThreshold = 70) {
     .from('startup_uploads')
     .select('id, name, stage, total_god_score, valuation_usd, created_at')
     .eq('status', 'approved')
+    .eq('entity_gate', 'qualified')
     .gte('total_god_score', godThreshold)
     .order('total_god_score', { ascending: false });
 

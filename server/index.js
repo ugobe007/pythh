@@ -9769,6 +9769,32 @@ function _calcIrr(entry, current, days) {
   return Math.round((Math.pow(current / entry, 1 / years) - 1) * 10000) / 10000;
 }
 
+const {
+  isPortfolioPublicEligible,
+  buildPortfolioNarrativeFields,
+} = require('../lib/portfolioServeGate');
+
+async function loadStartupGateMeta(supabase, startupIds) {
+  const map = new Map();
+  if (!startupIds.length) return map;
+  const chunkSize = 120;
+  for (let i = 0; i < startupIds.length; i += chunkSize) {
+    const chunk = startupIds.slice(i, i + chunkSize);
+    const { data } = await supabase
+      .from('startup_uploads')
+      .select('id, name, entity_gate, status, description, pitch, tagline')
+      .in('id', chunk);
+    for (const r of data || []) map.set(r.id, r);
+  }
+  return map;
+}
+
+async function filterPublicPortfolioRows(supabase, rows) {
+  const ids = rows.map((r) => r.startup_id).filter(Boolean);
+  const metaMap = await loadStartupGateMeta(supabase, ids);
+  return rows.filter((r) => isPortfolioPublicEligible(r, metaMap.get(r.startup_id)));
+}
+
 async function enrichPortfolioEntries(supabase, rows, { includeExitPropensity = true } = {}) {
   const ids = rows.map((e) => e.startup_id).filter(Boolean);
   const signalMap = new Map();
@@ -9845,8 +9871,9 @@ app.get('/api/portfolio', async (req, res) => {
     const status = req.query.status || null;
     const sort = String(req.query.sort || 'god').toLowerCase();
     const lite = req.query.lite === '1' || req.query.lite === 'true';
-    const excludeQuarantined =
-      req.query.exclude_quarantined === '1' || req.query.exclude_quarantined === 'true';
+    const includeQuarantined =
+      req.query.include_quarantined === '1' || req.query.include_quarantined === 'true';
+    const excludeQuarantined = !includeQuarantined;
 
     let query = supabase.from('portfolio_health').select('*').limit(limit);
 
@@ -9865,7 +9892,11 @@ app.get('/api/portfolio', async (req, res) => {
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
 
-    const rows = data || [];
+    let rows = data || [];
+    if (excludeQuarantined) {
+      rows = rows.filter((r) => r.status !== 'written_off');
+      rows = await filterPublicPortfolioRows(supabase, rows);
+    }
     const entries = await enrichPortfolioEntries(supabase, rows, { includeExitPropensity: !lite });
 
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
@@ -10014,7 +10045,7 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
       supabase
         .from('startup_uploads')
         .select(
-          'exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at, team_score, traction_score, market_score, product_score, description, pitch, total_funding_usd'
+          'name, entity_gate, status, exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at, team_score, traction_score, market_score, product_score, description, pitch, tagline, total_funding_usd'
         )
         .eq('id', startupId)
         .maybeSingle(),
@@ -10027,13 +10058,16 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
         .maybeSingle(),
     ]);
 
+    if (!isPortfolioPublicEligible(entry, su)) {
+      return res.status(404).json({ error: 'Not in portfolio' });
+    }
+
     const merged = su ? { ...entry, ...su } : { ...entry };
 
     // CRM fields ---------------------------------------------------------------
-    const summary = (merged.description || '').trim() || null;
-    const pitch = (merged.pitch || merged.tagline || '').trim() || null;
-    merged.company_summary = summary;
-    merged.value_proposition = pitch && pitch !== summary ? pitch : (merged.tagline || null);
+    const narrative = buildPortfolioNarrativeFields(su || merged);
+    merged.company_summary = narrative.company_summary;
+    merged.value_proposition = narrative.value_proposition;
 
     if (sig) {
       merged.signal_breakdown = {
@@ -10138,6 +10172,7 @@ app.post('/api/admin/portfolio/seed', async (req, res) => {
       .from('startup_uploads')
       .select('id, name, stage, total_god_score, valuation_usd, created_at')
       .eq('status', 'approved')
+      .eq('entity_gate', 'qualified')
       .gte('total_god_score', threshold)
       .order('total_god_score', { ascending: false });
 

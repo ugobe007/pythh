@@ -100,7 +100,7 @@ export default function AdminPortfolioPage() {
     setLoading(true);
     try {
       const [listRes, metricsRes] = await Promise.all([
-        fetch(apiUrl('/api/portfolio?limit=500')),
+        fetch(apiUrl('/api/portfolio?limit=500&include_quarantined=1')),
         fetch(apiUrl('/api/portfolio/metrics')),
       ]);
       const listData = await listRes.json();
