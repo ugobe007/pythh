@@ -294,11 +294,39 @@ export function consumePostSignupPath(): string | null {
   return path;
 }
 
+/** OAuth return for match preview — land on shortlist, not signup again. */
+export function matchPreviewOAuthReturnPath(url: string, startupId?: string | null): string {
+  const normalized = sessionStartupUrl(url);
+  if (!normalized) return '/matches';
+  const params = new URLSearchParams({ url: normalized, oauth_handoff: '1' });
+  if (startupId) params.set('startup_id', startupId);
+  return `/matches?${params.toString()}`;
+}
+
 /** OAuth return target after Google/GitHub on founder gate signup. */
 export function buildFounderGateOAuthReturnPath(startupId?: string | null, url?: string | null): string {
+  const normalized = sessionStartupUrl(url);
+  if (normalized) return matchPreviewOAuthReturnPath(normalized, startupId);
   const params = new URLSearchParams();
   if (startupId) params.set('startup_id', startupId);
-  if (url) params.set('url', url);
   const qs = params.toString();
   return `/signup/founder${qs ? `?${qs}` : ''}`;
+}
+
+/** Complete pending preview gate after OAuth lands on /matches. */
+export async function completePreviewGateIfPending(ctx: {
+  url: string;
+  startupId: string;
+  email?: string | null;
+}): Promise<boolean> {
+  const pending = peekFounderGatePending();
+  if (!pending.pending) return false;
+  const { action } = consumeFounderGatePending();
+  await trackFounderGateCompleted({
+    url: ctx.url,
+    email: ctx.email ?? undefined,
+    startupId: ctx.startupId,
+    gatedAction: action ?? 'save',
+  });
+  return true;
 }
