@@ -1746,7 +1746,7 @@ function heroDomainFromWebsite(website) {
 }
 
 const HERO_PREVIEW_SELECT = `
-  id, name, website, total_god_score,
+  id, name, website, entity_gate, total_god_score,
   team_score, traction_score, market_score, product_score, vision_score,
   startup_signal_scores (
     founder_language_shift, investor_receptivity, news_momentum,
@@ -1883,6 +1883,8 @@ async function buildHeroPreviewEntry(supabase, pick) {
   };
 }
 
+const { filterRankingsStartups } = require('../lib/rankingsEligibility');
+
 app.get('/api/hero-preview', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
@@ -1892,7 +1894,8 @@ app.get('/api/hero-preview', async (req, res) => {
       .eq('status', 'approved')
       .not('total_god_score', 'is', null)
       .gte('total_god_score', 65)
-      .not('name', 'is', null);
+      .not('name', 'is', null)
+      .neq('entity_gate', 'junk');
 
     const [{ data: anchorRows }, { data: rows, error }] = await Promise.all([
       baseQuery().ilike('website', '%intersectpower%').limit(1),
@@ -1901,9 +1904,11 @@ app.get('/api/hero-preview', async (req, res) => {
 
     if (error) throw error;
 
-    const eligible = (rows || []).filter(heroHasSignals);
-    const fallback = eligible.length > 0 ? eligible : (rows || []).slice(0, 12);
-    const anchor = (anchorRows || []).find(heroHasSignals) || (anchorRows || [])[0] || null;
+    const rankedPool = filterRankingsStartups(rows || []);
+    const eligible = rankedPool.filter(heroHasSignals);
+    const fallback = eligible.length > 0 ? eligible : rankedPool.slice(0, 12);
+    const anchorPool = filterRankingsStartups(anchorRows || []);
+    const anchor = anchorPool.find(heroHasSignals) || anchorPool[0] || null;
     const others = fallback
       .filter((row) => !anchor || row.id !== anchor.id)
       .slice(0, 10);

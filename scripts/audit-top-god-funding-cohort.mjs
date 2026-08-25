@@ -54,9 +54,10 @@ async function fetchInvestors(ids) {
 
 async function main() {
   const { data: startups, error: startupError } = await db.from('startup_uploads')
-    .select('id,name,website,description,sectors,source_type,discovery_event_id,total_god_score,status,created_at,extracted_data')
+    .select('id,name,website,description,sectors,source_type,discovery_event_id,total_god_score,status,entity_gate,created_at,extracted_data')
     .not('total_god_score', 'is', null)
     .eq('status', 'approved')
+    .neq('entity_gate', 'junk')
     .gte('total_god_score', minGod)
     .order('total_god_score', { ascending: false })
     .limit(limit);

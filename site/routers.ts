@@ -6,6 +6,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
+const requireCjs = createRequire(import.meta.url);
+const { filterRankingsStartups } = requireCjs("../lib/rankingsEligibility.js");
 import {
   countPipelineRunsForUser,
   createPipelineRun,
@@ -192,29 +195,29 @@ export const appRouter = router({
 
         const sbClient = createClient(sbUrl, sbKey);
         const limit = input.limit ?? 100;
+        const fetchCap = Math.min(Math.max(limit * 5, 200), 1500);
 
-        const [{ count: total }, { data: portfolioRows }, { data, error }] = await Promise.all([
-          sbClient
-            .from("startup_uploads")
-            .select("*", { count: "exact", head: true })
-            .eq("status", "approved")
-            .not("total_god_score", "is", null),
+        const [{ data: portfolioRows }, { data, error }] = await Promise.all([
           sbClient.from("portfolio_health").select("startup_id"),
           sbClient
             .from("startup_uploads")
             .select(
-              "id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit, psychological_multiplier, startup_signal_scores ( founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity, signals_total )"
+              "id, name, website, entity_gate, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit, psychological_multiplier, startup_signal_scores ( founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity, signals_total )"
             )
             .eq("status", "approved")
             .not("total_god_score", "is", null)
             .not("name", "is", null)
+            .neq("entity_gate", "junk")
             .order("total_god_score", { ascending: false })
-            .limit(limit),
+            .limit(fetchCap),
         ]);
 
         const portfolioIds = new Set((portfolioRows ?? []).map((r: { startup_id: string }) => r.startup_id));
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+
+        const eligibleAll = filterRankingsStartups(data ?? []);
+        const eligibleRows = eligibleAll.slice(0, limit);
 
         // Observable signal components (mirrors /api/hero-preview caps) so each
         // startup carries the "main signals picked up" for the live chart.
@@ -226,7 +229,7 @@ export const appRouter = router({
           { key: "founder_language_shift", label: "Founder lang", color: "#22d3ee", cap: 2.0 },
         ] as const;
 
-        const startups = (data ?? []).map((row: Record<string, unknown>) => {
+        const startups = eligibleRows.map((row: Record<string, unknown>) => {
           const sigRaw = row.startup_signal_scores;
           const sig = (Array.isArray(sigRaw) ? sigRaw[0] : sigRaw) as Record<string, number | null> | null;
           const hasSignals = !!(sig && sig.signals_total != null);
@@ -265,7 +268,7 @@ export const appRouter = router({
             psychological_multiplier: number | null;
             signals: Array<{ key: string; label: string; color: string; raw: number; value: number }>;
           }>,
-          total: total ?? 0,
+          total: eligibleAll.length,
         };
     }),
 
@@ -301,7 +304,8 @@ export const appRouter = router({
             { count: "exact" }
           )
           .eq("status", "approved")
-          .not("name", "is", null);
+          .not("name", "is", null)
+          .neq("entity_gate", "junk");
 
         if (input.query?.trim()) {
           q = q.ilike("name", `%${input.query.trim()}%`);
@@ -322,7 +326,7 @@ export const appRouter = router({
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
         return {
-          startups: (data ?? []) as Array<{
+          startups: (filterRankingsStartups(data ?? []) as Array<{
             id: string;
             name: string;
             tagline: string | null;
