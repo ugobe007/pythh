@@ -334,8 +334,8 @@ export default function Matches() {
         style={{ backgroundColor: "oklch(0.09 0.01 264)", color: "oklch(0.9 0.01 264)" }}
       >
         <div className="w-full max-w-md text-center">
-          <div className="mx-auto mb-6 h-12 w-12 rounded-full border-2 border-zinc-800 border-t-emerald-400 animate-spin" />
-          <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">
+          <div className="mx-auto mb-6 h-12 w-12 rounded-full border-2 border-zinc-800 animate-spin" style={{ borderTopColor: 'oklch(0.696 0.17 162.48)' }} />
+          <p className="text-[11px] uppercase tracking-[2px] mb-3" style={{ color: 'oklch(0.696 0.17 162.48)' }}>
             Preparing your shortlist
           </p>
           <h1 className="text-2xl font-bold text-white mb-2">

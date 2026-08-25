@@ -132,7 +132,7 @@ export default function MatchPreview() {
     if (startupUrl) sessionStorage.setItem('pythia_url', startupUrl);
     pinActiveStartup(startup.id, startupUrl, startup.name);
     void trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id, investor });
-    navigate(founderSignupPath({ startupId: startup.id, url: startupUrl }));
+    navigate(founderSignupPath({ startupId: startup.id, url: startupUrl, intent: 'matches' }));
   };
 
   const openPeterPanel = (investor?: GatedInvestorContext | null) => {

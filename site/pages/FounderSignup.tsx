@@ -57,14 +57,10 @@ export default function FounderSignup() {
   // A URL-only signup always belongs to the pre-match funnel. Ignore any
   // older gated action left in sessionStorage; it must not skip founders
   // directly into outreach after Google returns.
-  const fromMatchGate =
-    readQueryParam('intent') === 'matches' || (Boolean(url) && !startupId);
+  const fromMatchGate = readQueryParam('intent') === 'matches' || Boolean(url);
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
-  const oauthReturnPath =
-    fromMatchGate && url
-      ? `/matches?url=${encodeURIComponent(url)}`
-      : buildFounderGateOAuthReturnPath(startupId, url);
+  const oauthReturnPath = buildFounderGateOAuthReturnPath(startupId, url);
 
   const [email, setEmail] = useState(() => sessionStorage.getItem('pythia_email') || '');
   const [error, setError] = useState('');
@@ -106,8 +102,27 @@ export default function FounderSignup() {
       // URL analysis may already have created a startupId, but that must not
       // skip the founder directly into outreach after authentication.
       if (fromMatchGate && url) {
-        if (pendingGate.pending) consumeFounderGatePending();
-        navigate(`/matches?url=${encodeURIComponent(url)}`);
+        if (pendingGate.pending && startupId) {
+          const { action: consumedAction } = consumeFounderGatePending();
+          const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+          await trackFounderGateCompleted({
+            url,
+            email: userEmail || undefined,
+            startupId,
+            gatedAction: resolvedAction,
+          });
+          if (userEmail && startupId) {
+            sendFounderWelcomeEmail({
+              email: userEmail,
+              startupId,
+              source: 'founder_signup_gate_oauth',
+            });
+          }
+        } else if (pendingGate.pending) {
+          consumeFounderGatePending();
+        }
+        consumePostSignupPath();
+        navigate(matchesPathForUrl(url));
         return;
       }
 
