@@ -9,6 +9,7 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { withNetworkRetry } from '../lib/supabaseNetworkRetry.mjs';
 
 const JSON_OUT = process.argv.includes('--json');
 
@@ -34,8 +35,12 @@ async function main() {
 
   const db = createClient(url, key, { auth: { persistSession: false } });
   try {
-    const { data, error } = await db.from('investors').select('id').limit(1);
-    if (error) throw error;
+    const result = await withNetworkRetry('supabase investors', async () => {
+      const r = await db.from('investors').select('id').limit(1);
+      if (r.error) throw r.error;
+      return r;
+    });
+    const data = result.data;
     const payload = {
       ok: true,
       host: new URL(url).host,
