@@ -38,7 +38,7 @@ if (!url || !serviceKey) throw new Error('Missing Supabase service environment')
 if (provider === 'gemini' && !geminiKey) throw new Error('Missing GEMINI_API_KEY for --provider=gemini');
 
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
-const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-2.5-flash';
+const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-3.6-flash';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 

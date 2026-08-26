@@ -62,7 +62,7 @@ const PROVIDER = (() => {
 const MODEL = (() => {
   const a = argv.find((x) => x.startsWith('--model='));
   if (a) return a.split('=').slice(1).join('=');
-  if (PROVIDER === 'gemini') return process.env.GEMINI_PROFILE_MODEL || 'gemini-2.5-flash';
+  if (PROVIDER === 'gemini') return process.env.GEMINI_PROFILE_MODEL || 'gemini-3.6-flash';
   return process.env.VC_PROFILE_MODEL || 'gpt-4o-mini';
 })();
 const MAX_OUTPUT_TOKENS = (() => {
