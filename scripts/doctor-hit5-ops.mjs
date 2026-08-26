@@ -57,6 +57,16 @@ if (!fs.existsSync(envPath)) {
   }
   if (/^GEMINI_API_KEY=.+$/m.test(envText)) ok('GEMINI_API_KEY present');
   else console.log('  WARN GEMINI_API_KEY missing — inference search still works; gemini provider will fail');
+
+  const searchModelMatch = envText.match(/^GEMINI_SEARCH_MODEL=(.*)$/m);
+  const searchModel = (searchModelMatch?.[1] || '').trim().replace(/^["']|["']$/g, '');
+  if (!searchModel) {
+    console.log('  WARN GEMINI_SEARCH_MODEL unset — code defaults to gemini-3.6-flash');
+  } else if (/gemini-2\.5-flash/i.test(searchModel)) {
+    fail('GEMINI_SEARCH_MODEL is gemini-2.5-flash (deprecated) — set gemini-3.6-flash (npm run env:open)');
+  } else {
+    ok(`GEMINI_SEARCH_MODEL=${searchModel}`);
+  }
 }
 
 const nodeV = process.version;
@@ -67,10 +77,22 @@ const probe = spawnSync('node', ['scripts/art-gemini-probe.mjs'], {
   encoding: 'utf8',
   timeout: 30000,
 });
-if (probe.status === 0 && probe.stdout?.includes('OK')) ok('Gemini probe');
-else if (probe.stderr?.includes('missing_api_key')) console.log('  WARN Gemini probe: no API key');
-else if (probe.error) fail(`Gemini probe: ${probe.error.message}`);
-else console.log('  WARN Gemini probe failed — check GEMINI_API_KEY');
+if (probe.status === 0 && probe.stdout?.includes('OK')) ok('Gemini image probe');
+else if (probe.stderr?.includes('missing_api_key')) console.log('  WARN Gemini image probe: no API key');
+else if (probe.error) fail(`Gemini image probe: ${probe.error.message}`);
+else console.log('  WARN Gemini image probe failed — check GEMINI_API_KEY');
+
+const searchProbe = spawnSync('node', ['scripts/gemini-search-probe.mjs'], {
+  cwd: root,
+  encoding: 'utf8',
+  timeout: 30000,
+});
+if (searchProbe.status === 0 && searchProbe.stdout?.includes('OK')) ok('Gemini search probe');
+else if (searchProbe.stderr?.includes('missing_api_key')) console.log('  WARN Gemini search probe: no API key');
+else if (searchProbe.error) fail(`Gemini search probe: ${searchProbe.error.message}`);
+else if (searchProbe.stdout || searchProbe.stderr) {
+  console.log('  WARN Gemini search probe failed — update GEMINI_SEARCH_MODEL=gemini-3.6-flash in .env');
+}
 
 console.log('\nIf all OK, run the wave (one step at a time):\n');
 console.log('  npm run hit5:wave:apply\n');
