@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
+import { supabaseResult } from '../lib/supabaseNetworkRetry.mjs';
 
 const require = createRequire(import.meta.url);
 const { canonicalRoundKey, resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
@@ -359,9 +360,20 @@ const audited = [
   },
 ];
 
+async function allInvestors() {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data } = await supabaseResult(`investors page ${offset}`, () =>
+      db.from('investors').select('id,name,firm').range(offset, offset + 999),
+    );
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows;
+}
+
 async function main() {
-  const { data: investors, error } = await db.from('investors').select('id,name,firm');
-  if (error) throw error;
+  const investors = await allInvestors();
   const preview = [];
   for (const event of audited) {
     const roundKey = canonicalRoundKey({ startupId: event.startupId, startupName: event.startupName, roundType: event.roundType, amountUsd: event.amountUsd, announcedAt: event.announcedAt });
@@ -390,4 +402,11 @@ async function main() {
   console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', events: audited.length, preview }, null, 2));
 }
 
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error.stack || error.message);
+  if (error?.cause) console.error('Cause:', error.cause);
+  if (/fetch failed/i.test(String(error?.message))) {
+    console.error('Hint: transient Supabase/network — run node scripts/supabase-probe.mjs then retry');
+  }
+  process.exitCode = 1;
+});

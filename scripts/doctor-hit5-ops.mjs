@@ -94,6 +94,17 @@ else if (searchProbe.stdout || searchProbe.stderr) {
   console.log('  WARN Gemini search probe failed — update GEMINI_SEARCH_MODEL=gemini-3.6-flash in .env');
 }
 
+const supabaseProbe = spawnSync('node', ['scripts/supabase-probe.mjs'], {
+  cwd: root,
+  encoding: 'utf8',
+  timeout: 30000,
+});
+if (supabaseProbe.status === 0 && supabaseProbe.stdout?.includes('OK')) ok('Supabase probe');
+else if (supabaseProbe.error) fail(`Supabase probe: ${supabaseProbe.error.message}`);
+else if (supabaseProbe.stdout || supabaseProbe.stderr) {
+  console.log('  WARN Supabase probe failed — check Wi‑Fi/VPN and SUPABASE_URL in .env');
+}
+
 console.log('\nIf all OK, run the wave (one step at a time):\n');
 console.log('  npm run hit5:wave:apply\n');
 console.log('Or stepwise:\n');

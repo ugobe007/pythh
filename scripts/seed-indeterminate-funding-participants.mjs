@@ -9,6 +9,7 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
+import { supabaseResult } from '../lib/supabaseNetworkRetry.mjs';
 
 const require = createRequire(import.meta.url);
 const { resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
@@ -1104,10 +1105,11 @@ async function rejectBulkRoundKeys() {
 async function allInvestors() {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await db.from('investors')
-      .select('id,name,firm,url,is_individual,type,status')
-      .range(offset, offset + 999);
-    if (error) throw error;
+    const { data } = await supabaseResult(`investors page ${offset}`, () =>
+      db.from('investors')
+        .select('id,name,firm,url,is_individual,type,status')
+        .range(offset, offset + 999),
+    );
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
@@ -1137,5 +1139,9 @@ async function main() {
 
 main().catch((error) => {
   console.error(error.stack || error.message);
+  if (error?.cause) console.error('Cause:', error.cause);
+  if (/fetch failed/i.test(String(error?.message))) {
+    console.error('Hint: transient Supabase/network — run node scripts/supabase-probe.mjs then retry');
+  }
   process.exitCode = 1;
 });

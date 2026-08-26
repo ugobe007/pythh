@@ -165,6 +165,7 @@
     "funding:ingest:audited:apply": "node scripts/ingest-audited-funding-events.mjs --apply",
     "funding:corroborate:apply": "node scripts/corroborate-funding-evidence-rounds.mjs --apply",
     "hit5:doctor": "node scripts/doctor-hit5-ops.mjs",
+    "hit5:probe:supabase": "node scripts/supabase-probe.mjs",
     "hit5:wave:apply": "node scripts/run-hit5-wave.mjs --apply",
     "funding:participants:scrub": "node scripts/scrub-funding-participant-chronology.mjs",
     "funding:snapshots:backfill:served": "node scripts/backfill-served-prediction-snapshots.mjs",
