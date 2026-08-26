@@ -1137,5 +1137,9 @@ async function main() {
 
 main().catch((error) => {
   console.error(error.stack || error.message);
+  if (error?.cause) console.error('Cause:', error.cause);
+  if (/fetch failed/i.test(String(error?.message))) {
+    console.error('Hint: transient Supabase/network — run node scripts/supabase-probe.mjs then retry');
+  }
   process.exitCode = 1;
 });

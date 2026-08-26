@@ -390,4 +390,11 @@ async function main() {
   console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', events: audited.length, preview }, null, 2));
 }
 
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error.stack || error.message);
+  if (error?.cause) console.error('Cause:', error.cause);
+  if (/fetch failed/i.test(String(error?.message))) {
+    console.error('Hint: transient Supabase/network — run node scripts/supabase-probe.mjs then retry');
+  }
+  process.exitCode = 1;
+});
