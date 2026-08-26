@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { describeSupabaseEnv, isSupabaseRestUrl, looksLikeDatabaseUrl } from '../lib/supabaseEnv.mjs';
 
 const root = process.cwd();
 const pkgPath = path.join(root, 'package.json');
@@ -54,6 +55,25 @@ if (!fs.existsSync(envPath)) {
     const re = new RegExp(`^${key}=.+`, 'm');
     if (!re.test(envText)) fail(`${key} not set in .env`);
     else ok(`${key} present`);
+  }
+
+  const supabaseUrlMatch = envText.match(/^SUPABASE_URL=(.*)$/m);
+  const supabaseUrl = (supabaseUrlMatch?.[1] || '').trim().replace(/^["']|["']$/g, '');
+  if (supabaseUrl && looksLikeDatabaseUrl(supabaseUrl)) {
+    fail('SUPABASE_URL is postgres/pooler — must be https://<ref>.supabase.co (copy Project URL from API settings)');
+  } else if (supabaseUrl && !isSupabaseRestUrl(supabaseUrl)) {
+    console.log(`  WARN SUPABASE_URL does not look like https://*.supabase.co`);
+  } else if (supabaseUrl) {
+    ok(`SUPABASE_URL REST host ${new URL(supabaseUrl).host}`);
+  }
+
+  for (const line of describeSupabaseEnv(Object.fromEntries(
+    envText.split('\n').filter((l) => l.includes('=')).map((l) => {
+      const i = l.indexOf('=');
+      return [l.slice(0, i), l.slice(i + 1)];
+    }),
+  ))) {
+    if (line.includes('WRONG')) fail(line);
   }
   if (/^GEMINI_API_KEY=.+$/m.test(envText)) ok('GEMINI_API_KEY present');
   else console.log('  WARN GEMINI_API_KEY missing — inference search still works; gemini provider will fail');

@@ -3,13 +3,13 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import { supabaseResult } from '../lib/supabaseNetworkRetry.mjs';
+import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
 
 const require = createRequire(import.meta.url);
 const { canonicalRoundKey, resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
 const apply = process.argv.includes('--apply');
-const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-if (!url || !key) throw new Error('SUPABASE_URL and service-role key are required');
+const { url } = resolveSupabaseRestUrl();
+const key = resolveSupabaseServiceKey();
 const db = createClient(url, key, { auth: { persistSession: false } });
 
 const audited = [
