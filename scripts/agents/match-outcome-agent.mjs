@@ -156,10 +156,10 @@ if (!notifyOnly) {
   await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
     ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
   ]);
-  // [3] Search priority>0 (ledger-seeded wire URLs + inference); older clocks first
+  // [3] Search priority>0 — ontology public sources (SEC Form D, NSF/SBIR, USASpending) + news
   await runNodeScript('scripts/search-startup-funding-evidence.mjs', [
     ...(apply ? ['--apply'] : []),
-    '--provider=inference',
+    '--provider=ontology',
     `--limit=${limit}`,
     `--delay=${delay}`,
   ]);

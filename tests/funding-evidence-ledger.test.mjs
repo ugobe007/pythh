@@ -830,7 +830,7 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /--requeue-empty/);
   assert.match(script, /startupMentionedInText/);
   assert.match(script, /extractKnownInvestorMentions/);
-  assert.match(script, /providerArg === 'gemini' \? 'gemini' : 'inference'/);
+  assert.match(script, /providerArg === 'gemini' \? 'gemini' : providerArg === 'ontology' \? 'ontology' : 'inference'/);
   assert.match(script, /inference_engine_free_news_search/);
   assert.match(script, /source_provider: 'inference_engine'/);
   assert.doesNotMatch(script, /throw new Error\('Missing GEMINI_API_KEY'\)/);
@@ -1021,7 +1021,7 @@ test('corroboration requires two independent sources or one reviewed trusted sou
   assert.match(script, /trusted\.length === 0/);
   assert.match(script, /trusted_single_source/);
   assert.match(script, /alreadyCurrent/);
-  assert.match(script, /Promise\.all\(updates\.slice/);
+  assert.match(script, /Promise\.all\(batch\.map/);
   assert.match(script, /canonical_round_key/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
 });

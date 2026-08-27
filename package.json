@@ -112,6 +112,8 @@
     "enrich:rss-news": "node scripts/enrich-from-rss-news.js",
     "outcomes:correlate-funding": "node scripts/correlate-funding-event-investors.mjs",
     "outcomes:search-funding": "node scripts/search-startup-funding-evidence.mjs",
+    "outcomes:search-funding:ontology": "node scripts/search-startup-funding-evidence.mjs --provider=ontology",
+    "funding:lookup-sources": "node scripts/lookup-startup-funding-sources.mjs",
     "outcomes:report": "node scripts/report-match-funding-reconciliation.mjs",
     "outcomes:matched": "node scripts/report-matched-investments.mjs",
     "outcomes:review": "node scripts/review-match-validation-evidence.mjs",

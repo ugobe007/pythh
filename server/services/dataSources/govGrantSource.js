@@ -33,7 +33,8 @@
 
 const TIMEOUT_MS = 12_000;
 
-const SBIR_API     = 'https://www.sbir.gov/api/awards.json';
+// Public awards API (docs: https://www.sbir.gov/api). Legacy /api/awards.json 404s on Drupal.
+const SBIR_API     = 'https://api.www.sbir.gov/public/api/awards';
 const SPENDING_API = 'https://api.usaspending.gov/api/v2/search/spending_by_award/';
 const GRANTS_API   = 'https://apply07.grants.gov/grantsws/OppSearch';  // POST XML
 const SAM_API      = 'https://api.sam.gov/opportunities/v2/search';
@@ -68,9 +69,17 @@ async function fetchJSON(url, opts = {}) {
  * Search SBIR.gov awards by company name.
  */
 async function fetchSbirAwards(companyName) {
-  const url = `${SBIR_API}?company=${encodeURIComponent(companyName)}&rows=20`;
-  const data = await fetchJSON(url);
-  return Array.isArray(data) ? data : (data?.results || []);
+  const url = `${SBIR_API}?firm=${encodeURIComponent(companyName)}&rows=20`;
+  try {
+    const data = await fetchJSON(url);
+    return Array.isArray(data) ? data : (data?.results || data?.awards || []);
+  } catch (err) {
+    // Cloud egress / WAF often returns 403 — fail soft; NSF path covers many SBIR titles.
+    if (process.env.DEBUG_INFERENCE === '1') {
+      console.log(`[govGrantSource] SBIR: ${err.message}`);
+    }
+    return [];
+  }
 }
 
 /**

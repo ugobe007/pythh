@@ -3,7 +3,13 @@
  * Batch search: matched startups → post-prediction funding evidence.
  *
  * Default provider: inference engine (Google News RSS + extractors — no Gemini credits).
- * Optional: --provider=gemini when GEMINI_API_KEY is available.
+ * Optional:
+ *   --provider=gemini     when GEMINI_API_KEY is available
+ *   --provider=ontology   news (inference) + SEC Form D + NSF/SBIR + USASpending
+ *                         (docs/FUNDING_SOURCE_ONTOLOGY.md §6 public channels)
+ *
+ * Ontology equity Form D rows write search_results + ledger events (observed).
+ * Grant rows write search_results + grant ledger events — never equity Hit@5.
  */
 import 'dotenv/config';
 import dns from 'node:dns/promises';
@@ -20,6 +26,11 @@ const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipa
 const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
 const ledger = require('../server/lib/fundingEvidenceLedger.js');
 const { syncQueueEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');
+const {
+  lookupStartupFundingEvents,
+  toLedgerEventRow,
+  toSearchResultRow,
+} = require('../server/lib/fundingSourceLookup.js');
 
 const PUBLISHER_HOST_RE =
   /\b(techcrunch|ventureburn|finsmes|forbes|bloomberg|reuters|axios|medium|substack|youtube|linkedin|twitter|crunchbase|pitchbook|wikipedia|businessinsider|theverge|wired|saastr|pulse2|eu-startups|techinafrica|thefintechtimes|asiatechdaily|venturefizz|techfundingnews|statecollege)\b/i;
@@ -30,7 +41,12 @@ const requeueEmpty = process.argv.includes('--requeue-empty');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 10));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
 const providerArg = process.argv.find((a) => a.startsWith('--provider='))?.split('=')[1];
-const provider = providerArg === 'gemini' ? 'gemini' : 'inference';
+const provider =
+  providerArg === 'gemini' ? 'gemini' : providerArg === 'ontology' ? 'ontology' : 'inference';
+const ontologySourcesArg = process.argv.find((a) => a.startsWith('--sources='))?.split('=')[1];
+const ontologySources = ontologySourcesArg
+  ? ontologySourcesArg.split(',').map((s) => s.trim()).filter(Boolean)
+  : ['sec', 'nsf', 'sbir', 'usaspending'];
 
 const url = resolveSupabaseRestUrl().url;
 const serviceKey = resolveSupabaseServiceKey();
@@ -516,6 +532,92 @@ async function processInferenceJob(startup, job) {
   return { events, pairs };
 }
 
+/**
+ * Ontology public sources → search_results + ledger events.
+ * Equity Form D can later pair via news/promote; grants stay non-dilutive.
+ */
+async function processOntologySources(startup, job) {
+  const { events: found, errors } = await lookupStartupFundingEvents({
+    name: startup.name,
+    website: startup.website,
+    afterDate: job.earliest_match_at,
+    sources: ontologySources,
+  });
+
+  let events = 0;
+  let ledgerWrites = 0;
+  let grants = 0;
+  let formD = 0;
+
+  for (const event of found) {
+    events += 1;
+    if (event.financing_type === 'grant') grants += 1;
+    if (event.evidence_type === 'sec_filing') formD += 1;
+
+    const searchRow = toSearchResultRow(event, { startupId: startup.id });
+    if (apply) {
+      const { error } = await db.from('funding_evidence_search_results').upsert(searchRow, {
+        onConflict: 'startup_id,source_url,investor_name_raw,event_date',
+        ignoreDuplicates: true,
+      });
+      if (error) throw new Error(error.message);
+    }
+
+    const ledgerRow = toLedgerEventRow(event, {
+      startupId: startup.id,
+      startupName: startup.name,
+    });
+    // Attach canonical_round_key when ledger helper is available
+    ledgerRow.canonical_round_key = ledger.canonicalRoundKey({
+      startupId: startup.id,
+      startupName: startup.name,
+      roundType: event.round_type,
+      amountUsd: event.amount_usd,
+      announcedAt: ledgerRow.announced_at,
+    });
+
+    if (apply) {
+      const { error } = await db
+        .from('funding_evidence_events')
+        .upsert(ledgerRow, { onConflict: 'source_event_key' });
+      if (error) throw new Error(error.message);
+      ledgerWrites += 1;
+    } else {
+      ledgerWrites += 1;
+    }
+  }
+
+  return {
+    events,
+    pairs: 0,
+    ledger_writes: ledgerWrites,
+    grants,
+    form_d: formD,
+    ontology_errors: errors,
+    ontology_found: found.length,
+  };
+}
+
+async function processOntologyJob(startup, job) {
+  const website = companyWebsite(startup.website);
+  let news = { events: 0, pairs: 0 };
+  if (website) {
+    news = await processInferenceJob(startup, job);
+  }
+  const ontology = await processOntologySources(startup, job);
+  return {
+    events: (news.events || 0) + (ontology.events || 0),
+    pairs: news.pairs || 0,
+    skipped_no_url: false,
+    ledger_writes: ontology.ledger_writes || 0,
+    grants: ontology.grants || 0,
+    form_d: ontology.form_d || 0,
+    ontology_errors: ontology.ontology_errors || [],
+    ontology_found: ontology.ontology_found || 0,
+    news_skipped_no_url: !website,
+  };
+}
+
 async function processGeminiJob(startup, job) {
   const investorRows = [];
   for (let from = 0; ; from += 1000) {
@@ -630,10 +732,18 @@ const { data: jobs, error: jobError } = await db
   .limit(limit);
 if (jobError) throw new Error(jobError.message);
 
-const searchProvider = provider === 'gemini' ? 'gemini_google_search' : 'inference_engine';
+const searchProvider =
+  provider === 'gemini'
+    ? 'gemini_google_search'
+    : provider === 'ontology'
+      ? 'funding_source_ontology'
+      : 'inference_engine';
 let completed = 0;
 let results = 0;
 let pairs = 0;
+let ontologyLedgerWrites = 0;
+let ontologyGrants = 0;
+let ontologyFormD = 0;
 
 let skippedNoUrl = 0;
 let timestampsSynced = 0;
@@ -660,7 +770,8 @@ for (const job of jobs || []) {
   }
 
   const website = companyWebsite(startup.website);
-  if (!website) {
+  // News search needs a real company URL; ontology Form D / NSF / USASpending use name only.
+  if (!website && provider !== 'ontology') {
     skippedNoUrl += 1;
     if (apply) {
       await db
@@ -692,7 +803,9 @@ for (const job of jobs || []) {
     const outcome =
       provider === 'gemini'
         ? await processGeminiJob(startup, job)
-        : await processInferenceJob(startup, job);
+        : provider === 'ontology'
+          ? await processOntologyJob(startup, job)
+          : await processInferenceJob(startup, job);
     if (outcome.skipped_no_url) {
       skippedNoUrl += 1;
       if (apply) {
@@ -710,6 +823,9 @@ for (const job of jobs || []) {
     }
     results += outcome.events;
     pairs += outcome.pairs;
+    ontologyLedgerWrites += outcome.ledger_writes || 0;
+    ontologyGrants += outcome.grants || 0;
+    ontologyFormD += outcome.form_d || 0;
 
     if (apply) {
       await db
@@ -755,12 +871,16 @@ console.log(
       mode: apply ? 'apply' : 'dry-run',
       provider,
       search_provider: searchProvider,
+      ontology_sources: provider === 'ontology' ? ontologySources : undefined,
       jobs: (jobs || []).length,
       completed,
       skipped_no_url: skippedNoUrl,
       timestamps_synced: timestampsSynced,
       results,
       post_prediction_pairs: pairs,
+      ontology_ledger_writes: provider === 'ontology' ? ontologyLedgerWrites : undefined,
+      ontology_form_d: provider === 'ontology' ? ontologyFormD : undefined,
+      ontology_grants: provider === 'ontology' ? ontologyGrants : undefined,
     },
     null,
     2,
