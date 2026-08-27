@@ -285,6 +285,7 @@ Continuous discovery loop (channel 2): every announcement becomes graph edges (s
 | Source trust tiers | `server/lib/fundingSourceTrust.js` |
 | Participation roles + CO_INVESTED_WITH rule | `server/lib/fundingParticipationOntology.js`, docs |
 | Discovery from web/news | `scripts/search-startup-funding-evidence.mjs`, promote/corroborate/triage scripts |
+| Ontology public lookup (SEC Form D, NSF/SBIR, USASpending) | `server/lib/fundingSourceLookup.js`, `npm run funding:lookup-sources`, `--provider=ontology` |
 | Hit@5 temporal + claim gates | prediction snapshots, claim-readiness reports |
 | Firm vs individual identity | `investor_organizations`, canonicalize / repair scripts |
 | Sector / signal ontology (adjacent) | `lib/signalOntology.js`, `lib/ontologyCrosswalk.js`, `/api/ontology/infer` |
@@ -295,7 +296,8 @@ Continuous discovery loop (channel 2): every announcement becomes graph edges (s
 | --- | --- |
 | No first-class **FundingNeed** object | Normalize from startup + wizard into a JSON column or table |
 | No **OpenVC** ingest | CRM CSV / licensed dump → `stated_*` thesis fields on investors |
-| No **SBIR** ingest | Awards/topics → non-dilutive FundingSource + TOPICAL_FOR matches |
+| ~~No **SBIR** ingest~~ **Partial** | `fundingSourceLookup` + NSF awardee awards (SBIR.gov API often egress-blocked); grants stay `financing_type=grant` |
+| ~~No SEC Form D company lookup~~ **Shipped** | Issuer Form D via EDGAR full-text → ledger `observed` equity events (roster incomplete) |
 | No Dealroom/CB as structured graph import | Optional connectors behind license; never replace ledger SoT |
 | Stated vs observed thesis not split in schema | Add `thesis_stated` / `thesis_observed` JSONB + evidence refs |
 | Match explanations not standardized | Shared `MatchExplanation` DTO on serve + admin |
@@ -316,7 +318,7 @@ Continuous discovery loop (channel 2): every announcement becomes graph edges (s
 | --- | --- | --- |
 | **P0** | This ontology + keep ledger / trust / participation as SoT | Agents cite this doc |
 | **P1** | OpenVC CRM/partnership → stated thesis on investor profiles | Filterable stage/geo/check in matching features |
-| **P2** | SBIR awards + topics ingest | Grant matches for deeptech/robotics/defense cohorts |
+| **P2** | SBIR/NSF awards + SEC Form D lookup (`fundingSourceLookup`, `--provider=ontology`) | Grant + Form D events on ledger for matched startups |
 | **P3** | Observed thesis rollup job from verified participations | `recent_activity`, sector affinity on profiles |
 | **P4** | MatchExplanation payload on serve path | UI shows evidence trail, not score alone |
 | **P5** | Optional Dealroom/CB connectors | Enrichment only; ledger remains authoritative for Hit@5 |
@@ -355,4 +357,4 @@ When adding a source or matcher:
 
 ---
 
-*Last updated: architecture pass for funding-source intelligence. Update this file when a new channel or entity is productionized.*
+*Last updated: P2 public-source lookup (SEC Form D, NSF/SBIR, USASpending) productionized via `fundingSourceLookup` + `--provider=ontology`. Update this file when a new channel or entity is productionized.*

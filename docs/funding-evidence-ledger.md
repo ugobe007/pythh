@@ -7,6 +7,12 @@ does not change GOD scores, candidate generation, or live match ordering.
 Companion architecture (entities, source map, evidence hierarchy, inference):
 [`docs/FUNDING_SOURCE_ONTOLOGY.md`](./FUNDING_SOURCE_ONTOLOGY.md).
 
+Public-source funding-event lookup (SEC Form D, NSF/SBIR, USASpending):
+`server/lib/fundingSourceLookup.js`, `npm run funding:lookup-sources`, and
+`npm run outcomes:search-funding:ontology` (`--provider=ontology`). Grants write
+`financing_type=grant` and do not count as equity Hit@5; Form D is observed equity
+evidence with incomplete participant lists.
+
 ## Evidence chain
 
 1. The existing SSOT RSS scraper writes source-backed `FUNDING` and
