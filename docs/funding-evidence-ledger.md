@@ -4,6 +4,9 @@ This shadow system tests whether PYTHH recommended the investors that later
 participated in a startup's financing, and how far in advance it did so. It
 does not change GOD scores, candidate generation, or live match ordering.
 
+Companion architecture (entities, source map, evidence hierarchy, inference):
+[`docs/FUNDING_SOURCE_ONTOLOGY.md`](./FUNDING_SOURCE_ONTOLOGY.md).
+
 ## Evidence chain
 
 1. The existing SSOT RSS scraper writes source-backed `FUNDING` and

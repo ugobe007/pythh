@@ -164,6 +164,7 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 
 - Scheduled waves and metrics interpretation: `docs/HIT5_IMPROVEMENT_ROADMAP.md`
 - **Prospective proof cohort (URL submits, no signup):** `docs/PROOF_COHORT_SPEC.md` — weekly `npm run proof-cohort:report -- --since=2026-08-25`
+- **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
 
 ### GOD scoring deferral (proof cohort)

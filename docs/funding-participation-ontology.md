@@ -2,6 +2,9 @@
 
 Participation language is evidence, not interchangeable marketing copy.
 
+Product-level companion: `docs/FUNDING_SOURCE_ONTOLOGY.md` (capital providers,
+funding needs, thesis, evidence trail, and multi-source map beyond participation roles).
+
 | Source language | Stored role | Relationship meaning |
 |---|---|---|
 | “X invested in Company” | `participant` | `INVESTED_IN`: X supplied capital to the company in this financing. It does not imply leadership. |
