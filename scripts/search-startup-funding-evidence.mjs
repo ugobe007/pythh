@@ -11,6 +11,7 @@ import net from 'node:net';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
+import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
 
 const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
@@ -31,8 +32,8 @@ const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay=
 const providerArg = process.argv.find((a) => a.startsWith('--provider='))?.split('=')[1];
 const provider = providerArg === 'gemini' ? 'gemini' : 'inference';
 
-const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = resolveSupabaseRestUrl().url;
+const serviceKey = resolveSupabaseServiceKey();
 const geminiKey = process.env.GEMINI_API_KEY || process.env.AISTUDIO_API_KEY;
 if (!url || !serviceKey) throw new Error('Missing Supabase service environment');
 if (provider === 'gemini' && !geminiKey) throw new Error('Missing GEMINI_API_KEY for --provider=gemini');
