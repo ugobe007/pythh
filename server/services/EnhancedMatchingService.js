@@ -16,7 +16,7 @@
  */
 
 const { DynamicMatchEngine } = require('../../lib/dynamicmatch-v2');
-const { enqueueFundingEvidenceSearchAsync } = require('../lib/enqueueFundingEvidenceSearch');
+const { instrumentMatchOutcomesSafe } = require('../lib/instrumentMatchOutcomes');
 
 class EnhancedMatchingService {
   constructor(supabase) {
@@ -144,7 +144,10 @@ class EnhancedMatchingService {
           .upsert(topMatches, { onConflict: 'startup_id,investor_id' });
 
         if (error) throw error;
-        enqueueFundingEvidenceSearchAsync(this.supabase, startupId, { source: 'enhanced_matching' });
+        await instrumentMatchOutcomesSafe(this.supabase, startupId, {
+          source: 'enhanced_matching',
+          modelVersionFallback: 'enhanced-matching',
+        });
       }
 
       return {

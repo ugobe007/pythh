@@ -55,7 +55,7 @@ async function main() {
     JOIN startup_investor_matches m
       ON m.startup_id = su.id AND m.status = 'suggested'
     WHERE su.status = 'approved'
-      AND su.entity_gate = 'qualified'
+      AND (su.entity_gate = 'qualified' OR su.entity_gate IS NULL)
       AND su.source_type = 'url'
       AND su.website IS NOT NULL
       AND length(coalesce(su.description, '')) >= 40

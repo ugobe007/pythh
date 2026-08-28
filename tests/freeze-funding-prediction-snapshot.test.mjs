@@ -182,9 +182,9 @@ test('freezeTopFiveIfAbsent is idempotent and uses min(match.created_at)', async
   assert.equal(upserts.length, 1);
 });
 
-test('instantSubmit preserves match created_at and freezes predictions', () => {
+test('instantSubmit preserves match created_at and instruments predictions', () => {
   const src = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
-  assert.match(src, /freezeTopFiveIfAbsent/);
+  assert.match(src, /instrumentMatchOutcomesSafe/);
   assert.match(src, /Do NOT set created_at/);
   assert.match(src, /Never delete-all/);
   const rowFn = src.match(/function buildInstantMatchRow[\s\S]*?\n\}/);

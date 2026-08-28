@@ -14,8 +14,7 @@ import { createRequire } from 'module';
 import { canonicalizeUrl, extractDomainKey } from './utils/urlCanonicalizer';
 
 const require = createRequire(import.meta.url);
-const { enqueueFundingEvidenceSearchAsync } = require('./lib/enqueueFundingEvidenceSearch.js');
-const { freezeTopFiveIfAbsent } = require('./lib/freezeFundingPredictionSnapshot.js');
+const { instrumentMatchOutcomesSafe } = require('./lib/instrumentMatchOutcomes.js');
 
 // Supabase client
 const supabase = createClient(
@@ -447,17 +446,10 @@ async function saveMatches(startupId: string, matches: any[], debugContext: any)
   
   const saved = data?.length || 0;
   if (saved > 0) {
-    enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'match_worker' });
-    try {
-      await freezeTopFiveIfAbsent({
-        supabase,
-        startupId,
-        predictionKind: 'served_impression',
-        modelVersionFallback: 'match-worker',
-      });
-    } catch (_) {
-      /* non-fatal */
-    }
+    await instrumentMatchOutcomesSafe(supabase, startupId, {
+      source: 'match_worker',
+      modelVersionFallback: 'match-worker',
+    });
   }
   
   debugContext.steps.push({

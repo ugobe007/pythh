@@ -4,7 +4,8 @@
  * drains real startups first toward a 5000-startup resolved cohort.
  *
  * Resolved = queue status complete|error OR has verified match evidence
- * Cohort = approved + entity_gate=qualified + source_type=url + website present
+ * Cohort = approved + (entity_gate=qualified OR null) + source_type=url + website present
+ * Null gates are treated as prospective URL submits (same as enqueueFundingEvidenceSearch).
  *
  * Usage:
  *   npm run outcomes:triage-queue
@@ -60,7 +61,7 @@ if (apply) {
     WHERE q.startup_id = s.id
       AND q.status = 'pending'
       AND s.status = 'approved'
-      AND s.entity_gate = 'qualified'
+      AND (s.entity_gate = 'qualified' OR s.entity_gate IS NULL)
       AND s.source_type = 'url'
       AND coalesce(s.website, '') <> ''
   `);
@@ -78,7 +79,6 @@ if (apply) {
         AND q.status = 'pending'
         AND (
           s.entity_gate IN ('needs_url', 'junk')
-          OR s.entity_gate IS NULL
           OR s.source_type IS DISTINCT FROM 'url'
           OR coalesce(s.website, '') = ''
         )
@@ -215,7 +215,7 @@ if (apply) {
     WHERE q.startup_id = s.id
       AND q.status IN ('pending', 'complete', 'error')
       AND s.status = 'approved'
-      AND s.entity_gate = 'qualified'
+      AND (s.entity_gate = 'qualified' OR s.entity_gate IS NULL)
       AND s.source_type = 'url'
       AND coalesce(s.website, '') <> ''
       AND coalesce(q.priority, 0) > 0
@@ -237,7 +237,7 @@ const { rows: progressRows } = await pool.query(`
     SELECT s.id
     FROM startup_uploads s
     WHERE s.status = 'approved'
-      AND s.entity_gate = 'qualified'
+      AND (s.entity_gate = 'qualified' OR s.entity_gate IS NULL)
       AND s.source_type = 'url'
       AND coalesce(s.website, '') <> ''
       AND EXISTS (SELECT 1 FROM startup_investor_matches m WHERE m.startup_id = s.id)
@@ -261,7 +261,7 @@ const { rows: progressRows } = await pool.query(`
       SELECT count(*)::int FROM funding_evidence_search_queue q
       JOIN startup_uploads s ON s.id = q.startup_id
       WHERE q.status = 'pending'
-        AND s.entity_gate = 'qualified'
+        AND (s.entity_gate = 'qualified' OR s.entity_gate IS NULL)
         AND s.source_type = 'url'
         AND coalesce(s.website, '') <> ''
         AND coalesce(q.priority, 0) >= 20000
