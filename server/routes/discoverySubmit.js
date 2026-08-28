@@ -249,8 +249,10 @@ router.post("/submit", async (req, res) => {
               {
                 name: lastTriedName,
                 website: insertWebsite,
+                company_domain: url_normalized,
                 status: "approved",
                 source_type: "url",
+                entity_gate: "qualified",
                 tagline: `${companyName} — ${url_normalized}`,
                 sectors: ["Technology"],
                 total_god_score: 65,

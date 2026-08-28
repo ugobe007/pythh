@@ -23,8 +23,8 @@ const crypto = require('crypto');
 const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
-const { enqueueFundingEvidenceSearchAsync } = require('../lib/enqueueFundingEvidenceSearch');
-const { freezeTopFiveIfAbsent } = require('../lib/freezeFundingPredictionSnapshot');
+const { instrumentMatchOutcomesSafe } = require('../lib/instrumentMatchOutcomes');
+
 const {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
@@ -1050,6 +1050,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       .update({
         name: enrichedRow.name,
         website: `https://${domain}`,
+        company_domain: domain,
         tagline: enrichedRow.tagline || null,
         description: enrichedRow.description,
         pitch: enrichedRow.pitch,
@@ -1071,6 +1072,9 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
         market_score: scores.market_score,
         product_score: scores.product_score,
         vision_score: scores.vision_score,
+        // Keep proof-cohort / triage eligibility (null gates were parking all URL submits).
+        entity_gate: 'qualified',
+        source_type: 'url',
       })
       .eq('id', startupId);
 
@@ -1185,28 +1189,6 @@ function buildInstantMatchRow(startupId, placeholderStartup, investor, fitResult
   };
 }
 
-async function freezeServedPredictionSafe(supabase, startupId, source) {
-  try {
-    const result = await freezeTopFiveIfAbsent({
-      supabase,
-      startupId,
-      predictionKind: 'served_impression',
-      modelVersionFallback: 'v3.5-instant-submit',
-    });
-    if (result.frozen) {
-      console.log(`  🧊 [PRED] Frozen top-5 for ${startupId} via ${source} @ ${result.predicted_at}`);
-    }
-    return result;
-  } catch (err) {
-    console.warn(`  ⚠️ [PRED] freeze failed (${source}): ${err.message}`);
-    return { frozen: false, reason: 'error', error: err.message };
-  }
-}
-
-/**
- * Scores a shortlist and upserts top N so the first /submit response (and /status) show real matches.
- * Does not delete other rows; background Phase 1 may replace the full set shortly after.
- */
 async function generateSyncTopMatchesForHttpResponse(
   supabase,
   { startupId, placeholderStartup, signalTotal, maxMs }
@@ -1269,8 +1251,12 @@ async function generateSyncTopMatchesForHttpResponse(
     if (upErr) {
       console.warn(`[SYNC] match upsert: ${upErr.message}`);
     } else {
-      enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_sync' });
-      // Hit@5 freeze deferred to BG Phase 3 (enriched sectors/GOD) — sync top-5 was locking generic VCs.
+      // Await enqueue so request teardown cannot drop the queue row. Freeze seals when
+      // serve-grade + 5 firms; BG Phase 1/3 re-instruments if enrichment improves the set.
+      await instrumentMatchOutcomesSafe(supabase, startupId, {
+        source: 'instant_sync',
+        modelVersionFallback: 'v3.5-instant-submit',
+      });
     }
     const ids = rows.map((r) => r.investor_id);
     const { data: joined, error: selErr } = await supabase
@@ -1482,7 +1468,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           console.error(`  🔄 [BG] Fast match batch ${i} upsert error: ${batchErr.message}`);
         }
       }
-      enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase1' });
+      await instrumentMatchOutcomesSafe(supabase, startupId, {
+        source: 'instant_bg_phase1',
+        modelVersionFallback: 'v3.5-instant-submit',
+      });
     }
     
     console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
@@ -1490,6 +1479,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // If pipeline timed out, exit early with fast matches
     if (checkTimeout()) {
       console.warn(`  ⚠️ [BG] Pipeline timeout - returning ${fastMatches.length} fast matches`);
+      if (fastMatches.length > 0) {
+        await instrumentMatchOutcomesSafe(supabase, startupId, {
+          source: 'instant_bg_phase1_timeout',
+          modelVersionFallback: 'v3.5-instant-submit',
+        });
+      }
       await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
       return;
     }
@@ -1756,6 +1751,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       .update({
         name: enrichedRow.name,
         website: `https://${domain}`,
+        company_domain: domain,
         tagline: enrichedRow.tagline || null,
         description: enrichedRow.description,
         pitch: enrichedRow.pitch,
@@ -1777,6 +1773,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         market_score: scores.market_score,
         product_score: scores.product_score,
         vision_score: scores.vision_score,
+        // Keep proof-cohort / triage eligibility (null gates were parking all URL submits).
+        entity_gate: 'qualified',
+        source_type: 'url',
       })
       .eq('id', startupId);
 
@@ -1905,7 +1904,11 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // The score calculation is the most important part - don't skip it
     if (checkTimeout()) {
       console.warn(`  ⚠️ [BG] Pipeline timeout before Phase 3 - but GOD score was saved: ${scores.total_god_score}`);
-      // Score is already saved above (line 874), so we're good
+      // Matches from Phase 1 / sync must still be queued + sealed for proof cohort.
+      await instrumentMatchOutcomesSafe(supabase, startupId, {
+        source: 'instant_bg_pre_phase3_timeout',
+        modelVersionFallback: 'v3.5-instant-submit',
+      });
       await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
       return;
     }
@@ -2039,12 +2042,19 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             console.error(`  🔄 [BG] Batch ${i} upsert error: ${batchErr.message}`);
           }
         }
-        enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase3' });
-        await freezeServedPredictionSafe(supabase, startupId, 'instant_bg_phase3');
+        await instrumentMatchOutcomesSafe(supabase, startupId, {
+          source: 'instant_bg_phase3',
+          modelVersionFallback: 'v3.5-instant-submit',
+        });
       }
       console.log(`  🔄 [BG] PHASE 3: Re-generated ${matches.length} enriched matches (${investors.length} evaluated)`);
     } else {
       console.log(`  🔄 [BG] PHASE 3: Skipped — no enrichment data changed`);
+      // Prior bug: skip path never froze/enqueued → proof cohort 0% instrumented.
+      await instrumentMatchOutcomesSafe(supabase, startupId, {
+        source: 'instant_bg_phase3_skipped',
+        modelVersionFallback: 'v3.5-instant-submit',
+      });
     }
 
     // ── Phase 4: Fire-and-forget LLM signal enrichment for new submissions ──

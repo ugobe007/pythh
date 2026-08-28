@@ -63,15 +63,15 @@ test('enqueue helper skips junk entity_gate', async () => {
   assert.equal(calls[0], 'startup_uploads');
 });
 
-test('instant submit and match worker enqueue funding search after writes', () => {
+test('instant submit and match worker instrument outcomes after writes', () => {
   const instant = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
-  assert.match(instant, /enqueueFundingEvidenceSearchAsync/);
+  assert.match(instant, /instrumentMatchOutcomesSafe/);
 
   const worker = readFileSync(new URL('../server/matchWorker.ts', import.meta.url), 'utf8');
-  assert.match(worker, /enqueueFundingEvidenceSearchAsync/);
+  assert.match(worker, /instrumentMatchOutcomesSafe/);
 
   const enhanced = readFileSync(new URL('../server/services/EnhancedMatchingService.js', import.meta.url), 'utf8');
-  assert.match(enhanced, /enqueueFundingEvidenceSearchAsync/);
+  assert.match(enhanced, /instrumentMatchOutcomesSafe/);
   assert.match(enhanced, /isPollutedInvestorIdentity/);
   assert.match(enhanced, /junk_entity_gate/);
   assert.match(enhanced, /minScore = 50/);
