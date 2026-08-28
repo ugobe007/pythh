@@ -134,6 +134,13 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'spintop ventures',
   'blume founders fund',
   'blume venture',
+  // Repetitive sync top-5 polluters (Hit@5 miss audit) — prefer firm rows via allowlist.
+  'initialized capital',
+  'initialized',
+  'techstars',
+  'blue collective',
+  'ntt group',
+  'ntt',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -255,6 +262,12 @@ const ALIAS_FAMILY = Object.freeze({
   'spintop ventures': 'spintop',
   'blume founders fund': 'blume_founders',
   'blume venture': 'blume_founders',
+  'initialized capital': 'initialized',
+  initialized: 'initialized',
+  techstars: 'techstars',
+  'blue collective': 'blue_collective',
+  'ntt group': 'ntt',
+  ntt: 'ntt',
 });
 
 function normalizeFunderLabel(value) {
@@ -295,12 +308,14 @@ function firmProfileRank(investor) {
   const firm = normalizeFunderLabel(investor.firm);
   if (!name) return -1;
   // Name itself is an allowlisted firm alias.
-  if (ALIAS_FAMILY[name]) return 3;
-  // Name equals firm and firm is allowlisted (canonical org row).
-  if (firm && name === firm && ALIAS_FAMILY[firm]) return 2;
+  if (ALIAS_FAMILY[name]) return 4;
+  // Canonical org row: name equals firm (any firm, not only allowlist).
+  if (firm && name === firm) return 3;
   // Firm matches allowlist but name is a different person/partner label.
   if (firm && ALIAS_FAMILY[firm] && name !== firm) return 0;
-  return 1;
+  // Partner row at a non-allowlisted firm.
+  if (firm && name !== firm) return 0;
+  return 2;
 }
 
 /**
@@ -335,6 +350,31 @@ function pickCanonicalFrequentFunders(investors) {
 
 function collectFrequentLedgerFunderIds(investors) {
   return new Set(pickCanonicalFrequentFunders(investors).map((inv) => String(inv.id)));
+}
+
+/**
+ * Force-include only mega-funders with sector overlap (or documented prior names).
+ * Unconditional inclusion of ~80 firms caused the same generic top-5 on many startups.
+ */
+function pickFrequentFundersForStartup(investors, { expandedSectors = [], priorNameLabels = [] } = {}) {
+  const canonical = pickCanonicalFrequentFunders(investors);
+  const prior = new Set(
+    (priorNameLabels || []).map((v) => normalizeFunderLabel(v)).filter(Boolean),
+  );
+  if (!expandedSectors?.length) {
+    return canonical.filter((inv) => {
+      const labels = [inv.firm, inv.name].map(normalizeFunderLabel).filter(Boolean);
+      return labels.some((l) => prior.has(l));
+    });
+  }
+  const sectorSet = new Set(expandedSectors.map((s) => String(s).toLowerCase()));
+  const { getExpandedInvestorSectors } = require('./sectorTaxonomy');
+  return canonical.filter((inv) => {
+    const labels = [inv.firm, inv.name].map(normalizeFunderLabel).filter(Boolean);
+    if (labels.some((l) => prior.has(l))) return true;
+    const invSectors = getExpandedInvestorSectors(inv.sectors || []);
+    return invSectors.some((s) => sectorSet.has(String(s).toLowerCase()));
+  });
 }
 
 /**
@@ -384,6 +424,7 @@ module.exports = {
   isFrequentLedgerFunder,
   firmProfileRank,
   pickCanonicalFrequentFunders,
+  pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
   selectTopMatchesReservingForced,
 };

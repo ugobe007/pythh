@@ -27,9 +27,10 @@ const { enqueueFundingEvidenceSearchAsync } = require('../lib/enqueueFundingEvid
 const { freezeTopFiveIfAbsent } = require('../lib/freezeFundingPredictionSnapshot');
 const {
   pickCanonicalFrequentFunders,
+  pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
-  selectTopMatchesReservingForced,
 } = require('../lib/frequentLedgerFunders');
+const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -365,12 +366,26 @@ function getRelevantInvestors(startupSectors) {
     }
   }
   
-  // If too few sector matches, include some generic investors
-  if (relevant.length < 50) {
+  // If too few sector matches, backfill with sector-overlapping investors only (not full universe).
+  if (relevant.length < 50 && startupSectors?.length) {
+    const expandedSet = new Set(expandedSectors.map((s) => String(s).toLowerCase()));
+    const byScore = [...(investorCache.data || [])].sort(
+      (a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0),
+    );
+    for (const inv of byScore) {
+      if (seen.has(inv.id)) continue;
+      const invSectors = getExpandedInvestorSectors(inv.sectors || []);
+      if (!invSectors.some((s) => expandedSet.has(String(s).toLowerCase()))) continue;
+      seen.add(inv.id);
+      relevant.push(inv);
+      if (relevant.length >= 120) break;
+    }
+  } else if (relevant.length < 50) {
     for (const inv of investorCache.data) {
       if (!seen.has(inv.id)) {
+        seen.add(inv.id);
         relevant.push(inv);
-        if (relevant.length >= 500) break; // Cap at 500 for performance
+        if (relevant.length >= 80) break;
       }
     }
   }
@@ -404,24 +419,34 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
     candidates.push(inv);
   };
 
-  // Force-include documented prior investors (website/extracted) before sector cut.
   const priorNames = [
     ...(Array.isArray(startup?.extracted_data?.investors) ? startup.extracted_data.investors : []),
     ...(Array.isArray(startup?.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
     ...(Array.isArray(startup?.backed_by) ? startup.backed_by : []),
   ]
-    .map((v) => String(v || '').trim().toLowerCase())
+    .map((v) => String(v || '').trim())
     .filter(Boolean);
+
+  const expandedSectors = startupSectors?.length
+    ? expandRelatedSectors(normalizeSectors(startupSectors))
+    : [];
+
   if (priorNames.length && investorCache.data) {
+    const priorLower = new Set(priorNames.map((v) => v.toLowerCase()));
     for (const inv of investorCache.data) {
       const labels = [inv.firm, inv.name].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
-      if (labels.some((label) => priorNames.includes(label))) push(inv);
+      if (labels.some((label) => priorLower.has(label))) push(inv);
     }
   }
 
-  // Force-include frequent ledger funders (one canonical firm per family).
+  // Sector-relevant frequent ledger funders only (not all ~80 on every startup).
   if (investorCache.data) {
-    for (const inv of pickCanonicalFrequentFunders(investorCache.data)) push(inv);
+    for (const inv of pickFrequentFundersForStartup(investorCache.data, {
+      expandedSectors,
+      priorNameLabels: priorNames,
+    })) {
+      push(inv);
+    }
   }
 
   for (const inv of relevant
@@ -590,7 +615,7 @@ function normalizeInvestorForScoring(i) {
 }
 
 function scoreSectorMatch(startupSectors, investorSectors) {
-  if (!startupSectors?.length || !investorSectors?.length) return 5;
+  if (!startupSectors?.length || !investorSectors?.length) return 0;
   const result = calculateSectorMatchScore(startupSectors, investorSectors, true);
   return result.score > 0 ? result.score : 0;
 }
@@ -598,13 +623,13 @@ function scoreSectorMatch(startupSectors, investorSectors) {
 function scoreStageMatch(startupStage, investorStages) {
   const s = normToken(startupStage);
   const iStages = Array.isArray(investorStages) ? investorStages.map(normToken).filter(Boolean) : [];
-  if (!s || !iStages.length) return 5;
+  if (!s || !iStages.length) return 0;
   const sNorm = s.replace(/[-_\s]/g, '');
   const iNorms = iStages.map(x => x.replace(/[-_\s]/g, ''));
   if (iNorms.some(is => is === sNorm || is.includes(sNorm) || sNorm.includes(is))) {
     return MATCH_CONFIG.STAGE_MATCH;
   }
-  return 5;
+  return 0;
 }
 
 function scoreInvestorQuality(score, tier) {
@@ -1190,7 +1215,10 @@ async function generateSyncTopMatchesForHttpResponse(
       }
     }
     withScores.sort((a, b) => b.result.score - a.result.score);
-    let top = withScores.slice(0, SYNC_RESPONSE_TOP_N);
+    const investorById = new Map(candidates.map((inv) => [String(inv.id), inv]));
+    let top = selectTopMatchesByFirm(withScores, investorById, SYNC_RESPONSE_TOP_N, {
+      getInvestorId: (row) => row.inv?.id,
+    });
 
     // Fallback: if PERSISTENCE_FLOOR filtered everything out (thin profile / new URL),
     // grab best available candidates by raw score so the UI never returns empty.
@@ -1203,7 +1231,9 @@ async function generateSyncTopMatchesForHttpResponse(
         } catch { /* skip */ }
       }
       allScored.sort((a, b) => b.result.score - a.result.score);
-      top = allScored.slice(0, SYNC_RESPONSE_TOP_N);
+      top = selectTopMatchesByFirm(allScored, investorById, SYNC_RESPONSE_TOP_N, {
+        getInvestorId: (row) => row.inv?.id,
+      });
       if (top.length === 0) return out;
     }
     const rows = top.map(({ inv, result }) => buildInstantMatchRow(startupId, placeholderStartup, inv, result));
@@ -1214,7 +1244,7 @@ async function generateSyncTopMatchesForHttpResponse(
       console.warn(`[SYNC] match upsert: ${upErr.message}`);
     } else {
       enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_sync' });
-      await freezeServedPredictionSafe(supabase, startupId, 'instant_sync');
+      // Hit@5 freeze deferred to BG Phase 3 (enriched sectors/GOD) — sync top-5 was locking generic VCs.
     }
     const ids = rows.map((r) => r.investor_id);
     const { data: joined, error: selErr } = await supabase
@@ -1405,10 +1435,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     }
     quickMatches.sort((a, b) => b.match_score - a.match_score);
     const phase1ForceIds = collectFrequentLedgerFunderIds(quickInvestors);
-    fastMatches = selectTopMatchesReservingForced(
+    const phase1InvestorById = new Map(quickInvestors.map((inv) => [String(inv.id), inv]));
+    fastMatches = selectTopMatchesByFirm(
       quickMatches,
-      phase1ForceIds,
+      phase1InvestorById,
       MATCH_CONFIG.TOP_MATCHES_PER_STARTUP,
+      { forceInvestorIds: phase1ForceIds },
     );
     
     // Upsert fast matches so frontend picks them up on next poll (~3s).
@@ -1425,7 +1457,6 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         }
       }
       enqueueFundingEvidenceSearchAsync(supabase, startupId, { source: 'instant_bg_phase1' });
-      await freezeServedPredictionSafe(supabase, startupId, 'instant_bg_phase1');
     }
     
     console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
@@ -1933,10 +1964,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 
       allMatches.sort((a, b) => b.match_score - a.match_score);
       const phase3ForceIds = collectFrequentLedgerFunderIds(investors);
-      const matches = selectTopMatchesReservingForced(
+      const phase3InvestorById = new Map(investors.map((inv) => [String(inv.id), inv]));
+      const matches = selectTopMatchesByFirm(
         allMatches,
-        phase3ForceIds,
+        phase3InvestorById,
         MATCH_CONFIG.TOP_MATCHES_PER_STARTUP,
+        { forceInvestorIds: phase3ForceIds },
       );
       
       if (matches.length > 0) {
