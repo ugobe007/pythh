@@ -160,10 +160,26 @@ function validateGodScoreConfig(config: typeof GOD_SCORE_CONFIG): void {
       `❌ GOD SCORE CONFIG ERROR: vibeBonusCap ${config.vibeBonusCap} outside acceptable range [${ranges.vibeBonusCap.min}, ${ranges.vibeBonusCap.max}]. Target: ${ranges.vibeBonusCap.target}`
     );
   }
+
+  const weightSum =
+    config.componentWeights.team +
+    config.componentWeights.traction +
+    config.componentWeights.market +
+    config.componentWeights.product +
+    config.componentWeights.vision;
+  if (Math.abs(weightSum - 1) > 1e-6) {
+    throw new Error(
+      `❌ GOD SCORE CONFIG ERROR: componentWeights must sum to 1.0 (got ${weightSum.toFixed(4)})`
+    );
+  }
   
   console.log('✅ GOD Score config validated successfully');
   console.log(`   Divisor: ${config.normalizationDivisor} (range: ${ranges.normalizationDivisor.min}-${ranges.normalizationDivisor.max})`);
   console.log(`   Base Boost: ${config.baseBoostMinimum} (range: ${ranges.baseBoostMinimum.min}-${ranges.baseBoostMinimum.max})`);
+  console.log(
+    `   Component weights: team=${config.componentWeights.team} traction=${config.componentWeights.traction} ` +
+      `market=${config.componentWeights.market} product=${config.componentWeights.product} vision=${config.componentWeights.vision}`
+  );
   console.log(`   Expected avg score: ${ranges.averageScoreTarget.min}-${ranges.averageScoreTarget.max}`);
 }
 
@@ -209,7 +225,30 @@ const GOD_SCORE_CONFIG = {
   // Alert thresholds for auto-monitoring
   averageScoreAlertHigh: 70,
   averageScoreAlertLow: 50,
-} as const;
+
+  /**
+   * Live core-component shares (must sum to 1.0). Applied in calculateHotScore after
+   * per-scorer caps: rebalances team/traction/market/product/vision while preserving
+   * total core budget when all buckets are maxed. Signal-informed retune (Aug 2026):
+   * traction↑, team↓, vision↓ — see docs/SIGNAL_INFORMED_GOD.md.
+   */
+  componentWeights: {
+    team: 0.22,
+    traction: 0.30,
+    market: 0.20,
+    product: 0.15,
+    vision: 0.13,
+  },
+
+  /** Max raw points per component bucket after calculateHotScore internal caps. */
+  componentMaxPoints: {
+    team: 6.0, // teamExecution 3.5 + courage 1.5 + age 1.0
+    traction: 3.5,
+    market: 3.5, // market 2.0 + unique insight 1.5
+    product: 2.5,
+    vision: 2.0,
+  },
+};
 
 // Validate config at module load time - throws error if misconfigured
 validateGodScoreConfig(GOD_SCORE_CONFIG);
@@ -726,11 +765,23 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   // - marketTimingScore (0-1.5) → should be signal dimension
   // ============================================================================
 
-  // GOD SCORE = 23 ALGORITHMS ONLY
-  // Total possible: 3 (team exec) + 2 (vision) + 1.5 (courage) + 1.5 (insight) + 1 (age) + 3 (traction) + 2 (market) + 2 (product) = 16
-  // Plus baseBoost (minimum 3.5, can go higher with vibe bonus up to 1.0) = ~17.5 max raw
+  // GOD SCORE = core components (reweighted) + baseBoost + redFlags
+  // componentWeights rebalance team/traction/market/product/vision shares while keeping
+  // the same core budget when every bucket is maxed (signal-informed live retune).
   const redFlagsScore = scoreRedFlags(startup);
-  const rawTotal = baseBoost + teamExecutionScore + productVisionScore + founderCourageScore + marketInsightScore + teamAgeScore + tractionScore + marketScore + productScore + redFlagsScore;
+  const W = GOD_SCORE_CONFIG.componentWeights;
+  const M = GOD_SCORE_CONFIG.componentMaxPoints;
+  const teamRaw = teamExecutionScore + founderCourageScore + teamAgeScore;
+  const marketRaw = marketScore + marketInsightScore;
+  const coreBudget = M.team + M.traction + M.market + M.product + M.vision;
+  const weightedCore =
+    ((Math.min(teamRaw, M.team) / M.team) * W.team +
+      (Math.min(tractionScore, M.traction) / M.traction) * W.traction +
+      (Math.min(marketRaw, M.market) / M.market) * W.market +
+      (Math.min(productScore, M.product) / M.product) * W.product +
+      (Math.min(productVisionScore, M.vision) / M.vision) * W.vision) *
+    coreBudget;
+  const rawTotal = baseBoost + weightedCore + redFlagsScore;
   // ⛔ REMOVED: + velocityScore + capitalEfficiencyScore + marketTimingScore
   // Normalize to 10-point scale using configured divisor (higher divisor = lower scores)
   const total = Math.min((rawTotal / GOD_SCORE_CONFIG.normalizationDivisor) * 10, 10);

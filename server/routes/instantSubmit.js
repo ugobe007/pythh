@@ -75,6 +75,11 @@ const intel = require('../services/submitUrlIntelligence');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { enrichSocialScore } = require('../services/newsSignalService');
 const { signalTotalFromGod, DEFAULT_GOD_SCORE_BLEND } = require('../../lib/signalScoreGodBlend');
+const {
+  loadSignalDimsBeforeGod,
+  mergeSignalDimsIntoStartup,
+  upsertSignalScoresFromPreGod,
+} = require('../../lib/signalInformedGod');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -1001,7 +1006,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       growth_rate_monthly: inferenceData?.growth_rate || aiData?.growth_rate || null,
     };
 
-    const enrichedRow = {
+    let enrichedRow = {
       ...merged,
       name: merged.name || displayName,
       website: `https://${domain}`,
@@ -1020,6 +1025,22 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
         scraped_at: new Date().toISOString(),
       },
     };
+
+    // Load existing market/entity signals BEFORE GOD (no GOD→signal circular prior).
+    let preGodSignals = null;
+    let signalTotal = null;
+    try {
+      preGodSignals = await loadSignalDimsBeforeGod(supabase, { startupUploadId: startupId });
+      if (preGodSignals?.dims) {
+        enrichedRow = mergeSignalDimsIntoStartup(enrichedRow, preGodSignals.dims);
+        signalTotal = preGodSignals.signals_total;
+        console.log(
+          `  [SYNC] signal-before-GOD: ${preGodSignals.signal_count} events → signals_total=${signalTotal}`,
+        );
+      }
+    } catch (sigErr) {
+      console.warn(`  [SYNC] signal-before-GOD failed: ${sigErr.message}`);
+    }
 
     const scores = calculateGODScore(enrichedRow);
     const completenessResult = calculateCompleteness(enrichedRow);
@@ -1058,25 +1079,30 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       console.warn(`[SYNC] newsSignal enrichment failed for ${startupId}: ${e.message}`)
     );
 
-    // Initial Signal row: derived from GOD so the UI always has a number on first paint.
-    const signalTotal = signalTotalFromGod(scores.total_god_score);
-    const factor = signalTotal / 7.0;
-    try {
-      await supabase.from('startup_signal_scores').upsert(
-        {
-          startup_id: startupId,
-          signals_total: signalTotal,
-          founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
-          investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
-          news_momentum: parseFloat((1.1 * factor).toFixed(1)),
-          capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
-          execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
-          as_of: new Date().toISOString(),
-        },
-        { onConflict: 'startup_id' }
-      );
-    } catch (e) {
-      console.warn(`  [SYNC] Signal seed failed: ${e.message}`);
+    // Prefer real pre-GOD signal totals; only invent from GOD when no events exist yet.
+    if (preGodSignals?.dims) {
+      await upsertSignalScoresFromPreGod(supabase, startupId, preGodSignals);
+    } else {
+      signalTotal = signalTotalFromGod(scores.total_god_score);
+      const factor = signalTotal / 7.0;
+      try {
+        await supabase.from('startup_signal_scores').upsert(
+          {
+            startup_id: startupId,
+            signals_total: signalTotal,
+            founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
+            investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
+            news_momentum: parseFloat((1.1 * factor).toFixed(1)),
+            capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
+            execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
+            as_of: new Date().toISOString(),
+            debug: { source: 'god_derived_seed', god_score: scores.total_god_score },
+          },
+          { onConflict: 'startup_id' }
+        );
+      } catch (e) {
+        console.warn(`  [SYNC] Signal seed failed: ${e.message}`);
+      }
     }
 
     console.log(`  ✅ [SYNC] GOD ${scores.total_god_score} in ${Date.now() - syncStart}ms for ${domain}`);
@@ -1515,7 +1541,15 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         completenessResult = { percentage: row.data_completeness ?? 0 };
         dataTier = row.extracted_data?.data_tier || 'B';
         godScore = row.total_god_score ?? DEFAULT_GOD_SCORE_BLEND;
-        signalTotal = signalTotalFromGod(godScore);
+        const { data: existingSig } = await supabase
+          .from('startup_signal_scores')
+          .select('signals_total')
+          .eq('startup_id', startupId)
+          .maybeSingle();
+        signalTotal =
+          typeof existingSig?.signals_total === 'number'
+            ? existingSig.signals_total
+            : signalTotalFromGod(godScore);
         console.log(`  ⚡ [BG] Phase 2 skipped (request sync) — GOD ${scores.total_god_score}`);
       }
     }
@@ -1695,6 +1729,20 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       },
     };
 
+    let preGodSignals = null;
+    try {
+      preGodSignals = await loadSignalDimsBeforeGod(supabase, { startupUploadId: startupId });
+      if (preGodSignals?.dims) {
+        enrichedRow = mergeSignalDimsIntoStartup(enrichedRow, preGodSignals.dims);
+        signalTotal = preGodSignals.signals_total;
+        console.log(
+          `  🔄 [BG] signal-before-GOD: ${preGodSignals.signal_count} events → signals_total=${signalTotal}`,
+        );
+      }
+    } catch (sigErr) {
+      console.warn(`  🔄 [BG] signal-before-GOD failed: ${sigErr.message}`);
+    }
+
     scores = calculateGODScore(enrichedRow);
     console.log(`  🔄 [BG] GOD Score: ${scores.total_god_score} (T${scores.team_score} Tr${scores.traction_score} M${scores.market_score} P${scores.product_score} V${scores.vision_score})`);
 
@@ -1732,26 +1780,33 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       })
       .eq('id', startupId);
 
-    // ── Seed signal score (awaited — ensures score is readable before match gen) ──
+    // ── Seed signal score — prefer independent pre-GOD dims ──
     godScore = scores.total_god_score || DEFAULT_GOD_SCORE_BLEND;
-    signalTotal = signalTotalFromGod(godScore);
-    const factor = signalTotal / 7.0;
-    try {
-      await supabase
-        .from('startup_signal_scores')
-        .upsert({
-          startup_id: startupId,
-          signals_total: signalTotal,
-          founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
-          investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
-          news_momentum: parseFloat((1.1 * factor).toFixed(1)),
-          capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
-          execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
-          as_of: new Date().toISOString(),
-        }, { onConflict: 'startup_id' });
-      console.log(`  ✅ Signal score seeded: ${signalTotal}`);
-    } catch (e) {
-      console.warn(`  ⚠️  Signal seed failed: ${e.message}`);
+    if (preGodSignals?.dims) {
+      await upsertSignalScoresFromPreGod(supabase, startupId, preGodSignals);
+      signalTotal = preGodSignals.signals_total;
+      console.log(`  ✅ Signal score from events (pre-GOD): ${signalTotal}`);
+    } else {
+      signalTotal = signalTotalFromGod(godScore);
+      const factor = signalTotal / 7.0;
+      try {
+        await supabase
+          .from('startup_signal_scores')
+          .upsert({
+            startup_id: startupId,
+            signals_total: signalTotal,
+            founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
+            investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
+            news_momentum: parseFloat((1.1 * factor).toFixed(1)),
+            capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
+            execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
+            as_of: new Date().toISOString(),
+            debug: { source: 'god_derived_seed', god_score: godScore },
+          }, { onConflict: 'startup_id' });
+        console.log(`  ✅ Signal score seeded from GOD: ${signalTotal}`);
+      } catch (e) {
+        console.warn(`  ⚠️  Signal seed failed: ${e.message}`);
+      }
     }
     } // end if (!skipPhase2Fetch)
 

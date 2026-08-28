@@ -40,6 +40,14 @@ const {
   assert.equal(isFrequentLedgerFunder({ name: 'Left Lane Capital', firm: 'Left Lane Capital' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'RTP Global', firm: 'RTP Global' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'Unicorn India Ventures', firm: 'Unicorn India Ventures' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Craft Ventures', firm: 'Craft Ventures' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'First Round Capital', firm: 'First Round Capital' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'New Enterprise Associates', firm: 'NEA' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Susquehanna Asia Venture Capital', firm: 'Susquehanna Asia Venture Capital' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Spark Capital', firm: 'Spark Capital' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'QIA', firm: 'Qatar Investment Authority' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Paradigm', firm: 'Paradigm' }), true);
+  assert.equal(isFrequentLedgerFunder('Craft Ventures'), true);
 }
 
 {
