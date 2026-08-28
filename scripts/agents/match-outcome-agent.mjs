@@ -9,6 +9,9 @@
  *   npm run outcomes:agent -- --apply --skip-recover --limit=100
  *   npm run outcomes:agent -- --notify-only
  *
+ * recover-urls needs DATABASE_URL. If unset (common in GHA with only SUPABASE_*),
+ * recover is auto-skipped so triage → ontology search → promote still run.
+ *
  * After recover-urls prints JSON, triage + search can take 10–40+ minutes with little
  * output — that is NOT a hang. Wait for [search] / final progress JSON. Do not paste
  * JSON fragments into zsh (causes `parse error near '}'`).
@@ -24,7 +27,15 @@ const { sourceTier } = require('../../server/lib/matchEvidenceSourceTier.js');
 
 const apply = process.argv.includes('--apply');
 const notifyOnly = process.argv.includes('--notify-only');
-const skipRecover = process.argv.includes('--skip-recover');
+const skipRecoverFlag = process.argv.includes('--skip-recover');
+/** recover-urls needs DATABASE_URL (Drizzle/pg). GHA often has only SUPABASE_* — skip recover so triage/search keep draining. */
+const skipRecover =
+  skipRecoverFlag || !String(process.env.DATABASE_URL || '').trim();
+const skipRecoverReason = skipRecoverFlag
+  ? '--skip-recover'
+  : !String(process.env.DATABASE_URL || '').trim()
+    ? 'DATABASE_URL unset'
+    : null;
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 400));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 400));
 const recoverLimit = Math.max(
@@ -114,7 +125,7 @@ if (!notifyOnly) {
       '--delay=250',
     ]);
   } else {
-    phase('[1/4] recover-urls skipped (--skip-recover)');
+    phase(`[1/4] recover-urls skipped (${skipRecoverReason}) — triage/search continue`);
   }
 
   // [2] Rectify earliest_match_at + boost qualified cohort / issuer-ledger
@@ -157,6 +168,7 @@ const summary = {
   limit,
   recover_limit: skipRecover ? 0 : recoverLimit,
   skip_recover: skipRecover,
+  skip_recover_reason: skipRecoverReason,
   high_tier_pending: highAfter.length,
   newly_high_tier: newlyHigh.length,
   progress,
