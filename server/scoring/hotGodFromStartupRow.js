@@ -132,6 +132,23 @@ function toScoringProfileFromStartupUpload(startup) {
     reddit_mentions: extracted.web_signals?.reddit?.mention_count ?? 0,
     reddit_positive: extracted.web_signals?.reddit?.positive_count ?? 0,
     reddit_negative: extracted.web_signals?.reddit?.negative_count ?? 0,
+
+    // Signal-informed GOD: psych strengths mapped from pre-GOD signal dims
+    fomo_signal_strength:
+      extracted.fomo_signal_strength ??
+      extracted.psychological_signals?.fomo ??
+      startup.fomo_signal_strength ??
+      0,
+    conviction_signal_strength:
+      extracted.conviction_signal_strength ??
+      extracted.psychological_signals?.conviction ??
+      startup.conviction_signal_strength ??
+      0,
+    urgency_signal_strength:
+      extracted.urgency_signal_strength ??
+      extracted.psychological_signals?.urgency ??
+      startup.urgency_signal_strength ??
+      0,
   };
 }
 

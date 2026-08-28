@@ -1,9 +1,9 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "created_at": "2026-01-29T00:00:00Z",
   "updated_at": "2026-08-28T00:00:00Z",
   "immutable": false,
-  "description": "Reference snapshot of startup GOD display weights. Live scoring uses GOD_SCORE_CONFIG in server/services/startupScoringService.ts (normalizationDivisor 19.5, vibeBonusCap 0.8) — keep this JSON in sync when documenting, but do not treat it as the runtime SSOT.",
+  "description": "Reference snapshot of startup GOD display weights. Live scoring uses GOD_SCORE_CONFIG in server/services/startupScoringService.ts (normalizationDivisor 19.5, vibeBonusCap 0.8) — keep this JSON in sync when documenting, but do not treat it as the runtime SSOT. Signal dims may feed profile features before GOD (lib/signalInformedGod.js) without changing live weights until proof cohort unlocks.",
   "live_ssot": "server/services/startupScoringService.ts#GOD_SCORE_CONFIG",
   "weights": {
     "normalizationDivisor": 19.5,
@@ -35,5 +35,22 @@
     "totalScoreBounds": [0, 100],
     "maxSignalContribution": 10
   },
-  "changelog": "1.1.0 — sync live divisor 19.5; document investor GOD + operator-founder thesis signal. 1.0.0 — initial frozen snapshot."
+  "proposed_signal_informed": {
+    "status": "draft_not_live",
+    "gate": "proof-cohort signup_evidence_met >= 5 AND candidate-miss audit shows ranking dominates generation miss",
+    "doc": "docs/SIGNAL_INFORMED_GOD.md",
+    "componentWeights": {
+      "team": 0.22,
+      "traction": 0.30,
+      "market": 0.20,
+      "product": 0.15,
+      "vision": 0.13
+    },
+    "notes": [
+      "Traction up when capital_convergence / news_momentum feed profile before GOD",
+      "Vision down for thin-evidence rows — reduces thesis-only inflation",
+      "Do not apply until Phase 2 gate clears; live SSOT remains startupScoringService.ts"
+    ]
+  },
+  "changelog": "1.2.0 — signal-before-GOD plumbing + draft proposed weights. 1.1.0 — sync live divisor 19.5; document investor GOD + operator-founder thesis signal. 1.0.0 — initial frozen snapshot."
 }

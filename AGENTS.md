@@ -174,6 +174,8 @@ Do **not** retune **startup** GOD or core match fit weights until the prospectiv
 
 **Allowed without that gate:** filling missing *investor-side data signals* (operator / successful-founder public thesis → investor GOD + stage fit via `lib/operatorFounderInvestors.js`) — that is data completeness, not retuning startup fundability weights.
 
+**Signal-before-GOD (Phase 1, allowed):** load `pythh_signal_events` into scoring-profile features *before* `calculateHotScore` (`lib/signalInformedGod.js`, `docs/SIGNAL_INFORMED_GOD.md`). Do **not** apply `proposed_signal_informed` weights in `god-score-weights.json` until the gate clears — those are draft only. Hit@5 ~12% is still dominated by `candidate_generation_miss`; expand `frequentLedgerFunders` while waiting.
+
 ### Ops scripts: stuck terminal / hung Wave 2 chain
 
 - **Do not paste the full Wave 2 block into one terminal** (`promote-ledger` → `prediction-linked` →
