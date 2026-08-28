@@ -166,6 +166,8 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - Scheduled waves and metrics interpretation: `docs/HIT5_IMPROVEMENT_ROADMAP.md`
 - **Prospective proof cohort (URL submits, no signup):** `docs/PROOF_COHORT_SPEC.md` — weekly `npm run proof-cohort:report -- --since=2026-08-25`
 - Repair dark instrumentation (missing seals/queues): `npm run proof-cohort:instrument:apply -- --since=2026-08-25 --limit=200`
+- Drain unmatched high-GOD URL startups (match latency SLA): `npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25`
+- Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
 

@@ -119,13 +119,20 @@ export async function generateMatches(
       startup = dbStartup;
     }
 
-    // 3. Get all active investors
-    const { data: investors, error: investorsError } = await supabase
-      .from('investors')
-      .select('*')
-      .eq('status', 'active');
+    // 3. Get all active investors (paginate past PostgREST 1000-row default)
+    const investors: any[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error: investorsError } = await supabase
+        .from('investors')
+        .select('*')
+        .eq('status', 'active')
+        .range(offset, offset + 999);
+      if (investorsError) throw new Error(investorsError.message || 'Failed to load investors');
+      investors.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
 
-    if (investorsError || !investors || investors.length === 0) {
+    if (investors.length === 0) {
       throw new Error('No active investors found');
     }
 
