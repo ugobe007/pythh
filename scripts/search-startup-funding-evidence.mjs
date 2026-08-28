@@ -15,6 +15,7 @@ import 'dotenv/config';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import * as cheerio from 'cheerio';
+import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
@@ -58,6 +59,39 @@ const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-3.6-flash';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+function massageConnectionString(connectionString) {
+  const s = String(connectionString || '');
+  if (/sslmode=no-verify/i.test(s)) return s;
+  if (/sslmode=/i.test(s)) return s.replace(/sslmode=[^&]*/i, 'sslmode=no-verify');
+  return s.includes('?') ? `${s}&sslmode=no-verify` : `${s}?sslmode=no-verify`;
+}
+
+/** CHECK (NOT verified OR (verified_at AND verified_by)) — auto-verify needs both. */
+let cachedAutoVerifyReviewerId = null;
+async function resolveAutoVerifyReviewerId() {
+  if (cachedAutoVerifyReviewerId) return cachedAutoVerifyReviewerId;
+  if (process.env.PYTHH_REVIEWER_USER_ID) {
+    cachedAutoVerifyReviewerId = process.env.PYTHH_REVIEWER_USER_ID;
+    return cachedAutoVerifyReviewerId;
+  }
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL or PYTHH_REVIEWER_USER_ID required for issuer-primary auto-verify');
+  }
+  const email = process.env.OWNER_EMAILS?.split(',')[0]?.trim() || 'ugobe07@gmail.com';
+  const pool = new pg.Pool({
+    connectionString: massageConnectionString(process.env.DATABASE_URL),
+    max: 1,
+  });
+  try {
+    const { rows } = await pool.query('SELECT id FROM auth.users WHERE email = $1 LIMIT 1', [email]);
+    if (!rows[0]?.id) throw new Error(`No auth.users row for ${email} — set PYTHH_REVIEWER_USER_ID`);
+    cachedAutoVerifyReviewerId = rows[0].id;
+    return cachedAutoVerifyReviewerId;
+  } finally {
+    await pool.end();
+  }
+}
 
 const FUNDING_WORDS = /\b(rais(?:e|es|ed|ing)|funding|financing|series\s+[a-z]|pre[- ]seed|seed round|investment|invests?\s+in|led\s+by|participation\s+from)\b/i;
 const RUMOR_WORDS = /\b(in talks|plans? to|may invest|considering|could invest|reportedly|rumou?r|seeks? to raise|targets? a raise)\b/i;
@@ -364,6 +398,18 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
     .maybeSingle();
   if (!match) return false;
   if (!apply) return true;
+  const { isIssuerPrimary } = require('../server/lib/matchEvidenceSourceTier.js');
+  const issuerPrimary = isIssuerPrimary(sourceUrl);
+  let autoVerify = {};
+  if (issuerPrimary) {
+    const reviewer = await resolveAutoVerifyReviewerId();
+    autoVerify = {
+      verified: true,
+      review_status: 'verified',
+      verified_at: new Date().toISOString(),
+      verified_by: reviewer,
+    };
+  }
   const { error } = await db.from('match_validation_evidence').upsert(
     {
       match_id: match.id,
@@ -378,8 +424,10 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
       resolution_method: 'name_exact_unique',
       resolution_confidence: 0.9,
       raw_payload: rawPayload,
+      // Issuer-primary wires/blogs can auto-verify; news aggregators stay pending review.
+      ...autoVerify,
     },
-    { onConflict: 'match_id,evidence_type,source_url,event_at', ignoreDuplicates: true },
+    { onConflict: 'match_id,evidence_type,source_url,event_at', ignoreDuplicates: false },
   );
   if (error) throw new Error(error.message);
   return true;
@@ -687,7 +735,12 @@ async function processGeminiJob(startup, job) {
     }
     events++;
     if (investor) {
-      const eventAt = `${event.event_date}T12:00:00Z`;
+      // Date-only Gemini rows lack a time; use end-of-UTC-day so same-calendar-day
+      // predictions (match.created_at earlier that day) still count as pre-announcement.
+      const day = String(event.event_date).slice(0, 10);
+      const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day)
+        ? `${day}T23:59:59.999Z`
+        : `${event.event_date}`;
       const paired = await upsertPairEvidence({
         startup,
         investor,

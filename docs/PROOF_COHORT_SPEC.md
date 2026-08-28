@@ -83,6 +83,28 @@ Then run a **GOD review** (weights, missing variables, `feature_snapshot` gaps) 
 
 ---
 
+## Phase 2 — grow verified pairs (gate: 5 startups)
+
+**Goal:** `signup_evidence_met ≥ 5` (`proof-cohort:report`).
+
+**Ops notes (2026-08-28):**
+- Boost proof-cohort queue to priority **≥70000** so mature-unfunded drains do not starve it.
+- Date-only Gemini events use **end-of-UTC-day** (`T23:59:59.999Z`) so same-day matches still count.
+- Issuer-primary auto-verify must set **both** `verified_at` and `verified_by` (DB check).
+- Reprocess existing search rows after the date fix: `npm run proof-cohort:reprocess-pairs:apply -- --since=2026-08-25`.
+
+**Miss taxonomy seen in cohort (do not retune GOD for these):**
+| Case | Pattern | Action |
+|------|---------|--------|
+| Runable → Nexus | Match before announce; TechCrunch medium tier | `--verify` via `outcomes:review` |
+| Yardstik / Curaa | Actual funders exist in DB but were not matched | `candidate_generation_miss` — rematch for *future* only (no backdating) |
+| Atorie / Adaptyv | Submit or first match **after** announce | Not recoverable as prediction |
+| SiFly / Automated AI Lab | Website = publisher article URL | `outcomes:recover-urls` then rematch |
+
+Do **not** further GOD/fit retunes until the 5-startup gate is met.
+
+---
+
 ## Weekly ops (bounded token budget)
 
 Run on **proof cohort queue** only (priority > 0; URL submits with website):
@@ -92,6 +114,7 @@ npm run proof-cohort:report -- --since=2026-08-25
 npm run outcomes:recover-urls -- --apply --limit=50
 npm run outcomes:triage-queue -- --apply --park-weak --target=5000
 node scripts/search-startup-funding-evidence.mjs --apply --provider=gemini --limit=50 --delay=600
+npm run proof-cohort:reprocess-pairs:apply -- --since=2026-08-25
 npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=100
 npm run outcomes:review -- --list
 # Wave 2: one command at a time (see HIT5_IMPROVEMENT_ROADMAP.md)

@@ -150,6 +150,8 @@
     "proof-cohort:report": "node scripts/report-proof-cohort.mjs",
     "proof-cohort:instrument": "node scripts/instrument-proof-cohort.mjs",
     "proof-cohort:instrument:apply": "node scripts/instrument-proof-cohort.mjs --apply",
+    "proof-cohort:reprocess-pairs": "node scripts/reprocess-search-results-to-pairs.mjs",
+    "proof-cohort:reprocess-pairs:apply": "node scripts/reprocess-search-results-to-pairs.mjs --apply",
     "funding:reconcile:historical": "node scripts/reconcile-historical-funding-matches.mjs",
     "funding:reconcile:historical:summary": "node scripts/reconcile-historical-funding-matches.mjs --summary",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",
