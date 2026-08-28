@@ -160,18 +160,33 @@ async function main() {
     const startup = startupById.get(miss.startup_id);
     if (!startup) continue;
     const startupAtCutoff = { ...startup, feature_cutoff_at: cutoffIso };
-    // Force-include resolved participants even when type=Angel mis-tags a firm row.
-    // Only drop junk / hard-garbage labels.
-    const forceInvestorIds = (miss.missing_investor_ids || [])
+    // Proven ledger participants: always force into the scored pool.
+    // Do NOT apply Angel-type / digit-brand / entity_gate=junk heuristics here —
+    // those blocked real funders (468 Capital, 8VC, EstBAN) and left forced_included: [].
+    const rawMissingIds = Array.isArray(miss.missing_investor_ids)
+      ? miss.missing_investor_ids
+      : [];
+    const forceInvestorIds = rawMissingIds
       .map(String)
       .filter((id) => {
         const inv = investorById.get(id);
-        if (!inv || inv.entity_gate === 'junk') return false;
+        if (!inv?.id) return false;
         const label = String(inv.firm || inv.name || '').trim();
-        return isPlausibleInvestorEntityName(label)
-          && !isGarbageInvestorName(label)
-          && !isHardJunkInvestorName(label);
+        return label.length >= 2;
       });
+
+    const forceRejectDiag = [];
+    for (const id of rawMissingIds.map(String)) {
+      if (forceInvestorIds.includes(id)) continue;
+      const inv = investorById.get(id);
+      forceRejectDiag.push({
+        id,
+        reason: !inv ? 'not_in_investor_fetch' : 'empty_label',
+        name: inv?.name || null,
+        firm: inv?.firm || null,
+        gate: inv?.entity_gate || null,
+      });
+    }
 
     // Ensure forced investors are in the scored pool even if filtered from firmInvestors somehow.
     const poolInvestors = [...firmInvestors];
@@ -220,6 +235,8 @@ async function main() {
     preview.push({
       startup: startup.name,
       missing_investors: miss.missing_investors,
+      force_candidate_ids: forceInvestorIds.length,
+      force_rejected: forceRejectDiag.slice(0, 5),
       forced_included: forcedInSelected.map((s) => s.investor.firm || s.investor.name),
       top_five: selected.slice(0, 5).map(({ investor, match }) => ({
         investor: investor.firm || investor.name,

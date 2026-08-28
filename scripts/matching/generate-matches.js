@@ -466,7 +466,7 @@ function selectTopInvestorCandidates(scored, membershipByInvestor = new Map(), l
   const selected = [];
 
   const tryAdd = (item) => {
-    const organizationId = membershipByInvestor.get(item.investor.id);
+    const organizationId = membershipByInvestor.get(String(item.investor.id));
     const firmKeys = [organizationId ? `organization:${organizationId}` : null, fallbackFirmKey(item.investor)].filter(Boolean);
     if (!firmKeys.length || firmKeys.some(key => seenOrganizations.has(key))) return false;
     firmKeys.forEach(key => seenOrganizations.add(key));
@@ -475,9 +475,27 @@ function selectTopInvestorCandidates(scored, membershipByInvestor = new Map(), l
   };
 
   // Reserve forced funders (ledger participants / prior relationships) before top-N cut.
+  // Forced rows must still enter even when firmKeys collide with a higher-scoring alias —
+  // prefer the forced participant over a same-firm generic row.
   if (forceIds.size) {
     for (const item of ranked) {
       if (!forceIds.has(String(item.investor.id))) continue;
+      const organizationId = membershipByInvestor.get(String(item.investor.id));
+      const firmKeys = [organizationId ? `organization:${organizationId}` : null, fallbackFirmKey(item.investor)].filter(Boolean);
+      // Evict any already-selected same-firm row so the forced funder can take the slot.
+      if (firmKeys.length && selected.length) {
+        const collide = selected.findIndex((s) => {
+          const oid = membershipByInvestor.get(String(s.investor.id));
+          const keys = [oid ? `organization:${oid}` : null, fallbackFirmKey(s.investor)].filter(Boolean);
+          return keys.some((k) => firmKeys.includes(k));
+        });
+        if (collide >= 0 && !forceIds.has(String(selected[collide].investor.id))) {
+          const evicted = selected.splice(collide, 1)[0];
+          const oid = membershipByInvestor.get(String(evicted.investor.id));
+          const keys = [oid ? `organization:${oid}` : null, fallbackFirmKey(evicted.investor)].filter(Boolean);
+          keys.forEach((k) => seenOrganizations.delete(k));
+        }
+      }
       tryAdd(item);
       if (selected.length >= limit) return selected;
     }
