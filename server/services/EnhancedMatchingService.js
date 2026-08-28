@@ -273,16 +273,28 @@ class EnhancedMatchingService {
   }
 
   /**
-   * Get active investors with their preferences
+   * Get active investors with their preferences (paginate past PostgREST 1000-row default).
    */
   async getActiveInvestors() {
-    const { data, error } = await this.supabase
-      .from('investors')
-      .select('id, name, firm, type, sectors, stage, check_size_min, check_size_max, thesis, location')
-      .eq('status', 'active');
-
-    if (error) throw error;
-    return data || [];
+    const pageSize = 1000;
+    const rows = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await this.supabase
+        .from('investors')
+        .select('id, name, firm, type, sectors, stage, check_size_min, check_size_max, investment_thesis, geography_focus, investor_type, is_individual, entity_gate, status')
+        .eq('status', 'active')
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      const batch = data || [];
+      rows.push(...batch);
+      if (batch.length < pageSize) break;
+    }
+    // Normalize legacy `thesis` field name used by calculateThesisFit.
+    return rows.map((row) => ({
+      ...row,
+      thesis: row.investment_thesis || '',
+      location: row.geography_focus || null,
+    }));
   }
 
   /**
@@ -441,8 +453,16 @@ class EnhancedMatchingService {
    */
   calculateSignalFit(startup, investor) {
     const signals = startup.signals;
-    const investorStage = investor.stage?.toLowerCase() || 'seed';
-    const thesis = this.investorThesis[investorStage] || this.investorThesis['seed'];
+    const rawStage = Array.isArray(investor.stage) ? investor.stage[0] : investor.stage;
+    const stageKey = String(rawStage || 'seed')
+      .toLowerCase()
+      .replace(/[_]+/g, '-')
+      .replace(/\s+/g, '-')
+      .trim();
+    const thesis =
+      this.investorThesis[stageKey]
+      || this.investorThesis[stageKey.replace(/-/g, ' ')]
+      || this.investorThesis['seed'];
 
     let score = 0;
     let matchedSignals = 0;
@@ -485,7 +505,7 @@ class EnhancedMatchingService {
    */
   calculateThesisFit(startup, investor) {
     // If investor has explicit thesis keywords, match against startup
-    const thesis = (investor.thesis || '').toLowerCase();
+    const thesis = (investor.investment_thesis || investor.thesis || '').toLowerCase();
     if (!thesis) return 8; // Neutral
 
     const startupText = [
@@ -531,20 +551,40 @@ class EnhancedMatchingService {
   normalizeFundingStage(stage) {
     const stages = {
       'pre-seed': 0,
+      'preseed': 0,
       'angel': 0,
       'seed': 1,
       'series a': 2,
       'series-a': 2,
+      'seriesa': 2,
       'series b': 3,
       'series-b': 3,
+      'seriesb': 3,
       'series c': 4,
       'series-c': 4,
+      'seriesc': 4,
       'series d': 5,
       'series-d': 5,
+      'seriesd': 5,
       'growth': 5,
-      'late': 6
+      'late': 6,
     };
-    return stages[(stage || '').toLowerCase()] ?? 1;
+    if (typeof stage === 'number' && Number.isFinite(stage)) {
+      return Math.max(0, Math.min(6, Math.round(stage)));
+    }
+    const raw = Array.isArray(stage) ? stage[0] : stage;
+    const key = String(raw || '')
+      .toLowerCase()
+      .replace(/[_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!key) return 1;
+    if (stages[key] != null) return stages[key];
+    // Prefer the first recognizable token sequence in multi-stage fields.
+    for (const [name, value] of Object.entries(stages)) {
+      if (key.includes(name)) return value;
+    }
+    return 1;
   }
 
   /**
