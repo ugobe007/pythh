@@ -1,12 +1,14 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "created_at": "2026-01-29T00:00:00Z",
-  "immutable": true,
-  "description": "Original GOD score weights based on VC criteria (YC, Sequoia, Founders Fund, First Round, Seed/Angel, a16z)",
+  "updated_at": "2026-08-28T00:00:00Z",
+  "immutable": false,
+  "description": "Reference snapshot of startup GOD display weights. Live scoring uses GOD_SCORE_CONFIG in server/services/startupScoringService.ts (normalizationDivisor 19.5, vibeBonusCap 0.8) — keep this JSON in sync when documenting, but do not treat it as the runtime SSOT.",
+  "live_ssot": "server/services/startupScoringService.ts#GOD_SCORE_CONFIG",
   "weights": {
-    "normalizationDivisor": 23,
+    "normalizationDivisor": 19.5,
     "baseBoostMinimum": 2.0,
-    "vibeBonusCap": 1.0,
+    "vibeBonusCap": 0.8,
     "finalScoreMultiplier": 10,
     "componentWeights": {
       "team": 0.25,
@@ -16,11 +18,22 @@
       "vision": 0.15
     }
   },
+  "investor_god": {
+    "ssot": "lib/investorGodScore.js",
+    "buckets": {
+      "profile": 25,
+      "focus": 25,
+      "capital": 20,
+      "track": 20,
+      "activity": 10
+    },
+    "operator_founder_signal": "lib/operatorFounderInvestors.js — public thesis themes / known operators fold into profile+focus+track without raising caps"
+  },
   "invariants": {
     "componentWeightSum": 1.0,
     "normalizedFeatureBounds": [0, 1],
     "totalScoreBounds": [0, 100],
     "maxSignalContribution": 10
   },
-  "changelog": "Initial version - original system before signal cascade integration"
+  "changelog": "1.1.0 — sync live divisor 19.5; document investor GOD + operator-founder thesis signal. 1.0.0 — initial frozen snapshot."
 }
