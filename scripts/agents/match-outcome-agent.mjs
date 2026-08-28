@@ -12,7 +12,7 @@ import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
-import pg from 'pg';
+import { fetchCohortProgress, RESOLUTION_TARGET } from '../lib/cohortProgress.mjs';
 
 const require = createRequire(import.meta.url);
 const { sourceTier } = require('../../server/lib/matchEvidenceSourceTier.js');
@@ -21,19 +21,12 @@ const apply = process.argv.includes('--apply');
 const notifyOnly = process.argv.includes('--notify-only');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 400));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 400));
-const TARGET = 5000;
+const TARGET = RESOLUTION_TARGET;
 
 const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !serviceKey) throw new Error('Missing Supabase service environment');
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
-
-function massageConnectionString(connectionString) {
-  const s = String(connectionString || '');
-  if (/sslmode=no-verify/i.test(s)) return s;
-  if (/sslmode=/i.test(s)) return s.replace(/sslmode=[^&]*/i, 'sslmode=no-verify');
-  return s.includes('?') ? `${s}&sslmode=no-verify` : `${s}?sslmode=no-verify`;
-}
 
 async function slackNotify(title, message) {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -62,57 +55,6 @@ async function listHighTierPending(limitRows = 25) {
   return (data || [])
     .filter((row) => sourceTier(row.source_url) === 'high')
     .slice(0, limitRows);
-}
-
-async function cohortProgress() {
-  if (!process.env.DATABASE_URL) return null;
-  const pool = new pg.Pool({
-    connectionString: massageConnectionString(process.env.DATABASE_URL),
-    max: 1,
-  });
-  try {
-    const { rows } = await pool.query(`
-      WITH cohort AS (
-        SELECT s.id
-        FROM startup_uploads s
-        WHERE s.status = 'approved'
-          AND s.entity_gate = 'qualified'
-          AND s.source_type = 'url'
-          AND coalesce(s.website, '') <> ''
-          AND EXISTS (SELECT 1 FROM startup_investor_matches m WHERE m.startup_id = s.id)
-      ),
-      resolved AS (
-        SELECT c.id FROM cohort c
-        WHERE EXISTS (
-          SELECT 1 FROM funding_evidence_search_queue q
-          WHERE q.startup_id = c.id AND q.status IN ('complete', 'error')
-        )
-        OR EXISTS (
-          SELECT 1 FROM match_validation_evidence e
-          WHERE e.startup_id = c.id AND e.verified
-        )
-      )
-      SELECT
-        (SELECT count(*)::int FROM cohort) AS cohort_size,
-        (SELECT count(*)::int FROM resolved) AS resolved_count,
-        (
-          SELECT count(*)::int FROM match_validation_evidence e
-          JOIN startup_investor_matches m ON m.id = e.match_id
-          WHERE e.verified AND e.event_at > m.created_at
-        ) AS verified_pairs
-    `);
-    const row = rows[0] || {};
-    return {
-      target: TARGET,
-      cohort_size: row.cohort_size,
-      resolved_count: row.resolved_count,
-      remaining: Math.max(0, TARGET - Number(row.resolved_count || 0)),
-      pct: Number(((100 * Number(row.resolved_count || 0)) / TARGET).toFixed(1)),
-      verified_pairs: row.verified_pairs,
-    };
-  } finally {
-    await pool.end();
-  }
 }
 
 function runNodeScript(scriptPath, extraArgs = []) {
@@ -173,7 +115,7 @@ if (!notifyOnly) {
 const highAfter = await listHighTierPending(50);
 const beforeIds = new Set(highBefore.map((r) => r.id));
 const newlyHigh = highAfter.filter((r) => !beforeIds.has(r.id));
-const progress = await cohortProgress();
+const progress = await fetchCohortProgress({ target: TARGET });
 
 const SITE_ORIGIN = (
   process.env.APP_URL ||

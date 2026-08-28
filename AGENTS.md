@@ -106,14 +106,15 @@ Resolve **which matched investors actually funded** a startup (pair-level, not s
 
 **Live loop (preferred):**
 1. URL submit → matches written (clock preserved) → **freeze top-5 snapshot if absent** → **auto-enqueued** (qualified+url boosted; junk skipped; weak parked)
-2. GitHub Actions every ~20m / `npm run outcomes:agent -- --apply --limit=400`:
+2. **Automated drain to 5000:** `npm run outcomes:resolution-loop -- --apply --limit=100 --max-waves=50` — runs each wave separately: release stuck queue → `outcomes:agent` → rematch missing participants → (every 3 waves) seed investor profiles + indeterminate rosters + coverage resolve + org links + prediction-linked participants → (every 5 waves) audited ingest + corroborate + audit. Stops at target, `--max-waves`, or stall (no progress for `--stall-waves`). Writes `reports/resolution-loop-*.json`.
+3. GitHub Actions every ~20m / `npm run outcomes:agent -- --apply --limit=400`:
    - `outcomes:recover-urls` — find missing/publisher websites (required for scoring + matching + search)
    - `outcomes:triage-queue` — rectify `earliest_match_at` to min(match.created_at), boost cohort, park weak, scrub Accel pollution, boost post-match ledger
    - inference / ontology search (priority>0; SEC Form D + NSF/SBIR + USASpending + news; seeds from `funding_evidence_events` wire URLs; parks missing/publisher URLs for news-only; older clocks first)
    - `outcomes:promote-ledger` (issuer-primary → auto-verify clean hits; never sets queue clock to announce date)
-3. Progress target: **5000** qualified+url startups searched/resolved — agent prints `progress.resolved_count`
-4. Admin UI **Browser:** `https://pythh.ai/admin/match-outcomes` (local: `http://localhost:5173/admin/match-outcomes`)
-5. Or CLI: `npm run outcomes:review -- --list` / `--apply --verify --id=<uuid>`
+4. Progress target: **5000** qualified+url startups searched/resolved — agent prints `progress.resolved_count`
+5. Admin UI **Browser:** `https://pythh.ai/admin/match-outcomes` (local: `http://localhost:5173/admin/match-outcomes`)
+6. Or CLI: `npm run outcomes:review -- --list` / `--apply --verify --id=<uuid>`
 
 Prediction clock: `funding_evidence_search_queue.earliest_match_at` **must** stay `min(startup_investor_matches.created_at)`. Triage + enqueue + search sync this; promote-ledger must not overwrite it with funding announce dates.
 
