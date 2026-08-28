@@ -152,6 +152,8 @@
     "proof-cohort:instrument:apply": "node scripts/instrument-proof-cohort.mjs --apply",
     "proof-cohort:reprocess-pairs": "node scripts/reprocess-search-results-to-pairs.mjs",
     "proof-cohort:reprocess-pairs:apply": "node scripts/reprocess-search-results-to-pairs.mjs --apply",
+    "funding:force-match-search-funders": "node scripts/force-match-from-search-results.mjs",
+    "funding:force-match-search-funders:apply": "node scripts/force-match-from-search-results.mjs --apply",
     "funding:reconcile:historical": "node scripts/reconcile-historical-funding-matches.mjs",
     "funding:reconcile:historical:summary": "node scripts/reconcile-historical-funding-matches.mjs --summary",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",

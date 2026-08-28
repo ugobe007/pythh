@@ -98,8 +98,13 @@ Then run a **GOD review** (weights, missing variables, `feature_snapshot` gaps) 
 |------|---------|--------|
 | Runable → Nexus | Match before announce; TechCrunch medium tier | `--verify` via `outcomes:review` |
 | Yardstik / Curaa | Actual funders exist in DB but were not matched | `candidate_generation_miss` — rematch for *future* only (no backdating) |
-| Atorie / Adaptyv | Submit or first match **after** announce | Not recoverable as prediction |
+| Deep Cogito | Submitted ~19m before announce; **0 matches** until EnhancedMatching was broken | Ops latency + matcher bug — unrecoverable for that round |
+| Atorie / Adaptyv (article scrape) | Submit or first match **after** announce | Not recoverable as prediction |
 | SiFly / Automated AI Lab | Website = publisher article URL | `outcomes:recover-urls` then rematch |
+
+**Matcher fix (Phase 2):** `EnhancedMatchingService.getActiveInvestors` used non-existent `investors.thesis` / `location` columns — matching high-GOD URL companies failed silently until fixed to `investment_thesis` + `geography_focus` (and array-safe stage normalization).
+
+**Force-include generation misses (future Hit@5 only):** `npm run funding:force-match-search-funders:apply -- --startup=Yardstik`
 
 Do **not** further GOD/fit retunes until the 5-startup gate is met.
 
