@@ -33,6 +33,19 @@ test('match worker and enhanced matching await instrumentMatchOutcomesSafe', () 
   assert.match(enhanced, /instrumentMatchOutcomesSafe/);
 });
 
+test('instantSubmit and EnhancedMatching paginate investor loads past PostgREST 1000-cap', () => {
+  const instant = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
+  assert.match(instant, /Loading investors into cache/);
+  assert.match(instant, /\.range\(offset, offset \+ pageSize - 1\)/);
+  assert.match(instant, /PostgREST's 1000-row default/);
+  const enhanced = readFileSync(new URL('../server/services/EnhancedMatchingService.js', import.meta.url), 'utf8');
+  assert.match(enhanced, /paginate past PostgREST/);
+  assert.match(enhanced, /\.range\(offset, offset \+ pageSize - 1\)/);
+  const drain = readFileSync(new URL('../scripts/drain-unmatched-url-matches.mjs', import.meta.url), 'utf8');
+  assert.match(drain, /proof-cohort:drain-unmatched/);
+  assert.match(drain, /EnhancedMatchingService/);
+});
+
 test('proof-cohort backfill script sets gate and freezes', () => {
   const backfill = readFileSync(new URL('../scripts/instrument-proof-cohort.mjs', import.meta.url), 'utf8');
   assert.match(backfill, /proof_cohort_backfill/);

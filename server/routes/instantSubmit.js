@@ -306,15 +306,24 @@ async function getInvestors(supabase) {
   
   try {
     console.log(`  📦 Loading investors into cache...`);
-    const { data: investors, error } = await supabase
-      .from('investors')
-      .select(
-        'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, title, is_individual, capital_type, investor_score, investor_tier, signals, email, email_best_guess, email_candidates, email_status, email_has_mx',
-      )
-      .eq('status', 'active')
-      .eq('entity_gate', 'qualified');
-    
-    if (error) throw error;
+    // Paginate past PostgREST's 1000-row default — ~5.5k active+qualified firms.
+    // A silent 1000-cap caused structural candidate_generation_miss (Deep Cogito window).
+    const pageSize = 1000;
+    const investors = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from('investors')
+        .select(
+          'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, title, is_individual, capital_type, investor_score, investor_tier, signals, email, email_best_guess, email_candidates, email_status, email_has_mx, entity_gate, status',
+        )
+        .eq('status', 'active')
+        .eq('entity_gate', 'qualified')
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      const batch = data || [];
+      investors.push(...batch);
+      if (batch.length < pageSize) break;
+    }
     
     // Build sector index with NORMALIZED sectors for better matching
     // Uses centralized taxonomy for cross-matching
