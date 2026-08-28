@@ -118,6 +118,7 @@
     "outcomes:matched": "node scripts/report-matched-investments.mjs",
     "outcomes:review": "node scripts/review-match-validation-evidence.mjs",
     "outcomes:agent": "node scripts/agents/match-outcome-agent.mjs",
+    "outcomes:resolution-loop": "node scripts/agents/resolution-loop-agent.mjs",
     "outcomes:recover-urls": "node scripts/recover-startup-urls.mjs",
     "outcomes:promote-ledger": "node scripts/promote-ledger-funding-evidence.mjs",
     "outcomes:triage-queue": "node scripts/triage-funding-evidence-queue.mjs",
