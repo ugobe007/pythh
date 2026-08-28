@@ -168,13 +168,15 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
 
-### GOD scoring deferral (proof cohort)
+### GOD scoring (proof cohort + live weights)
 
-Do **not** retune **startup** GOD or core match fit weights until the prospective URL cohort has **≥5 startups with verified post-prediction funding pairs** (`proof-cohort:report` → `signup_evidence_met`). Then diagnose cohort misses via `funding:audit:candidate-misses` before changing weights or adding variables.
+**Default gate:** do **not** further retune **startup** GOD or core match fit weights until the prospective URL cohort has **≥5 startups with verified post-prediction funding pairs** (`proof-cohort:report` → `signup_evidence_met`). Diagnose cohort misses via `funding:audit:candidate-misses` before changing weights again.
 
 **Allowed without that gate:** filling missing *investor-side data signals* (operator / successful-founder public thesis → investor GOD + stage fit via `lib/operatorFounderInvestors.js`) — that is data completeness, not retuning startup fundability weights.
 
-**Signal-before-GOD (Phase 1, allowed):** load `pythh_signal_events` into scoring-profile features *before* `calculateHotScore` (`lib/signalInformedGod.js`, `docs/SIGNAL_INFORMED_GOD.md`). Do **not** apply `proposed_signal_informed` weights in `god-score-weights.json` until the gate clears — those are draft only. Hit@5 ~12% is still dominated by `candidate_generation_miss`; expand `frequentLedgerFunders` while waiting.
+**Signal-before-GOD (live):** load `pythh_signal_events` into scoring-profile features *before* `calculateHotScore` (`lib/signalInformedGod.js`, `docs/SIGNAL_INFORMED_GOD.md`).
+
+**Signal-informed componentWeights (live, user override 2026-08-28):** team 0.22 / traction 0.30 / market 0.20 / product 0.15 / vision 0.13 in `GOD_SCORE_CONFIG` (`startupScoringService.ts`). Hit@5 remains dominated by `candidate_generation_miss` — keep expanding `frequentLedgerFunders` from never-pre-matched qualified firms.
 
 ### Ops scripts: stuck terminal / hung Wave 2 chain
 

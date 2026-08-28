@@ -1,6 +1,6 @@
 # Signal-informed GOD scoring
 
-**Status:** Phase 1 shipped (feature plumbing). Live **weight retune deferred** until proof cohort unlocks (AGENTS.md).
+**Status:** Phase 1 (feature plumbing) + Phase 2 weights **live** (user-directed override of proof-cohort gate, 2026-08-28).
 
 ## Why Hit@5 is still ~12.7%
 
@@ -8,9 +8,24 @@ Sealed Hit@5 among audited funded startups is **not** primarily a GOD weight pro
 
 | Layer | Metric | Role |
 |-------|--------|------|
-| Ops drain | 2941/5000 resolved | Evidence search coverage |
+| Ops drain | ~2941/5000 resolved | Evidence search coverage |
 | Product claim | ~12.7% Hit@5 @180d | Sealed top-5 vs later funders |
-| Proof cohort | **0/5** verified pairs since 2026-08-25 | Gates startup GOD weight retune |
+| Proof cohort | **0/5** verified pairs since 2026-08-25 | Originally gated weight retune; overridden for live apply |
+
+## Matching is not GOD↔GOD
+
+Startup GOD and investor GOD are **separate** scores. Match score (`calculateMatchScore` in `server/routes/instantSubmit.js`) is a multi-factor fit:
+
+| Component | Cap | Meaning |
+|-----------|-----|---------|
+| Sector fit | 40 | Taxonomy overlap |
+| Stage fit | 20 | Stage label overlap |
+| Investor quality | 20 | From investor GOD / tier (not equality to startup GOD) |
+| Startup quality | 25 | Thresholded from startup `total_god_score` |
+| Signal bonus | 10 | Independent `signals_total` |
+| Faith alignment | 15 | Investor thesis themes × startup sectors |
+
+Then stage/tech-VC adjustments, recency, prior relationship, firm dedup, and force-include via `frequentLedgerFunders`.
 
 ## What was wrong with signals
 
@@ -23,7 +38,7 @@ scrape → GOD score → invent signals_total FROM GOD → match
 
 Market/entity signals arrived **after** ranking, and `applyGodBlendToSignalDimensions` shrinks event sums toward a GOD prior — so signals could not inform fundability.
 
-## Phase 1 (this PR) — architecture
+## Phase 1 — architecture (shipped)
 
 ```
 scrape / inference / news enrich
@@ -42,33 +57,30 @@ Code:
 - `server/scoring/hotGodFromStartupRow.js` — maps psych strengths into profile
 - `server/routes/instantSubmit.js` — sync + Phase 2 load signals **before** GOD
 
-**Not changed:** `GOD_SCORE_CONFIG` in `startupScoringService.ts` (live SSOT weights).
+## Phase 2 — weight retune (live)
 
-## Phase 2 — weight retune (gated)
+Live `GOD_SCORE_CONFIG.componentWeights`:
 
-Unlock when:
-1. `npm run proof-cohort:report` → `signup_evidence_met ≥ 5`
-2. Cohort miss audit shows ranking issues dominate generation misses
+| Component | Share | Rationale |
+|-----------|-------|-----------|
+| team | 0.22 | Slightly down vs equal team-heavy inflation |
+| traction | 0.30 | Up — capital/news evidence should move fundability |
+| market | 0.20 | Unchanged |
+| product | 0.15 | Unchanged |
+| vision | 0.13 | Down — thin thesis-only rows |
 
-Then experiment (before/after on prospective stream only):
+Applied in `calculateHotScore` via `weightedCore` (normalize each bucket to its max, multiply by weight, scale by core budget). Base boost + red flags remain additive outside the rebalance.
 
-| Proposal | Rationale |
-|----------|-----------|
-| Raise traction component share when `capital_convergence` + `news_momentum` present | Funded outcomes correlate with capital/news evidence |
-| Cap vision share for thin evidence rows | Over-scoring thesis-only companies |
-| Keep investor GOD operator-founder / faith as data fill (already allowed) | Investor nuances |
-| Expand `frequentLedgerFunders` for `topNeverPreMatched` firms | Fixes Hit@5 generation miss faster than GOD weights |
-
-Draft proposals live under `proposed_signal_informed` in `server/config/god-score-weights.json` — **not live**.
+Also expand `frequentLedgerFunders` from `funding:audit:candidate-misses` → never-pre-matched qualified firms still missing from the allowlist.
 
 ## What to run after merge
 
 ```bash
-# New URL submits automatically use signal-before-GOD when events exist
-# Batch rescore (optional, after weight unlock):
+# New URL submits use signal-before-GOD + live weights automatically
+# Optional batch rescore:
 # node scripts/recalculate-scores.ts
 
-# Still the highest Hit@5 lever today:
+# Highest Hit@5 lever remains generation coverage:
 npm run funding:audit:candidate-misses
-# → expand frequentLedgerFunders from topNeverPreMatched
+# → expand frequentLedgerFunders from gaps in topNeverPreMatched
 ```
