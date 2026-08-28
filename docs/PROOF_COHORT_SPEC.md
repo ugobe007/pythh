@@ -29,11 +29,22 @@ We are **not** signing up founders yet — there is no evidence funnel to compel
 On match write (instant submit / background match worker):
 
 1. **Matches** — `startup_investor_matches` rows; **never** rewrite `created_at` on upsert.
-2. **Seal** — `freezeTopFiveIfAbsent` → `funding_prediction_snapshots` (`cohort_key=served-first-top5`, `predicted_at = min(match.created_at)`).
-3. **Outcomes queue** — `enqueueFundingEvidenceSearch` → `funding_evidence_search_queue` with `earliest_match_at` synced from matches.
+2. **Seal** — `instrumentMatchOutcomes` → `freezeTopFiveIfAbsent` → `funding_prediction_snapshots` (`cohort_key=served-first-top5`, `predicted_at = min(match.created_at)`).
+3. **Outcomes queue** — awaited `enqueueFundingEvidenceSearch` → `funding_evidence_search_queue` with `earliest_match_at` synced from matches.
 4. **Search** — continual loop (Gemini preferred when billed; inference fallback).
 
 **Instrumentation OK** = has matches + sealed snapshot + queue row.
+
+**Must not skip:** BG Phase 3 "no enrichment changed" and request-timeout exits previously skipped freeze/enqueue. Those paths now call `instrumentMatchOutcomesSafe`. Fire-and-forget enqueue alone is insufficient on serverless teardown.
+
+**Backfill (repair historical dark cohort):**
+```bash
+npm run proof-cohort:instrument -- --since=2026-08-25
+npm run proof-cohort:instrument:apply -- --since=2026-08-25 --limit=200
+npm run proof-cohort:report -- --since=2026-08-25
+```
+
+Sets `entity_gate=qualified` when null (URL + website), enqueues, and freezes serve-grade top-5.
 
 ---
 

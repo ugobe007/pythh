@@ -148,6 +148,8 @@
     "funding:hit5:gap-unlocks": "node scripts/list-hit5-mature-gap-unlocks.mjs",
     "funding:match-funding-audit": "node scripts/report-match-funding-audit.mjs",
     "proof-cohort:report": "node scripts/report-proof-cohort.mjs",
+    "proof-cohort:instrument": "node scripts/instrument-proof-cohort.mjs",
+    "proof-cohort:instrument:apply": "node scripts/instrument-proof-cohort.mjs --apply",
     "funding:reconcile:historical": "node scripts/reconcile-historical-funding-matches.mjs",
     "funding:reconcile:historical:summary": "node scripts/reconcile-historical-funding-matches.mjs --summary",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",
