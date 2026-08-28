@@ -102,7 +102,7 @@ Then run a **GOD review** (weights, missing variables, `feature_snapshot` gaps) 
 | Atorie / Adaptyv (article scrape) | Submit or first match **after** announce | Not recoverable as prediction |
 | SiFly / Automated AI Lab | Website = publisher article URL | `outcomes:recover-urls` then rematch |
 
-**Matcher fix (Phase 2):** `EnhancedMatchingService.getActiveInvestors` used non-existent `investors.thesis` / `location` columns — matching high-GOD URL companies failed silently until fixed to `investment_thesis` + `geography_focus` (and array-safe stage normalization).
+**Matcher fix (Phase 2):** `EnhancedMatchingService.getActiveInvestors` used non-existent `investors.thesis` / `location` columns — matching high-GOD URL companies failed until fixed to `investment_thesis` + `geography_focus` (and array-safe stage normalization). Also **paginate** past PostgREST’s 1000-row default (pool is ~6.6k active investors); the 1000-cap was a structural `candidate_generation_miss` source.
 
 **Force-include generation misses (future Hit@5 only):** `npm run funding:force-match-search-funders:apply -- --startup=Yardstik`
 
