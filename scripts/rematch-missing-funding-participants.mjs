@@ -135,9 +135,9 @@ async function main() {
     isEligibleFirm(row)
     && String(row.status || 'active') === 'active'
     && row.entity_gate !== 'junk');
-  const investorById = new Map(investors.map((r) => [r.id, r]));
+  const investorById = new Map(investors.map((r) => [String(r.id), r]));
   const memberships = await fetchMemberships(investors.map((r) => r.id));
-  const membershipByInvestor = new Map(memberships.map((r) => [r.investor_id, r.organization_id]));
+  const membershipByInvestor = new Map(memberships.map((r) => [String(r.investor_id), r.organization_id]));
 
   let historicalFeatures = new Map();
   try {
@@ -146,7 +146,7 @@ async function main() {
     console.warn(`Historical features unavailable: ${err.message}`);
   }
   for (const investor of firmInvestors) {
-    const organizationId = membershipByInvestor.get(investor.id);
+    const organizationId = membershipByInvestor.get(String(investor.id));
     investor.historical_features = historicalFeatures.get(
       organizationId ? `organization:${organizationId}` : `investor:${investor.id}`,
     ) || null;
@@ -160,11 +160,17 @@ async function main() {
     const startup = startupById.get(miss.startup_id);
     if (!startup) continue;
     const startupAtCutoff = { ...startup, feature_cutoff_at: cutoffIso };
+    // Force-include resolved participants even when type=Angel mis-tags a firm row.
+    // Only drop junk / hard-garbage labels.
     const forceInvestorIds = (miss.missing_investor_ids || [])
       .map(String)
       .filter((id) => {
         const inv = investorById.get(id);
-        return inv && isEligibleFirm(inv) && inv.entity_gate !== 'junk';
+        if (!inv || inv.entity_gate === 'junk') return false;
+        const label = String(inv.firm || inv.name || '').trim();
+        return isPlausibleInvestorEntityName(label)
+          && !isGarbageInvestorName(label)
+          && !isHardJunkInvestorName(label);
       });
 
     // Ensure forced investors are in the scored pool even if filtered from firmInvestors somehow.
@@ -174,7 +180,7 @@ async function main() {
       if (poolIds.has(id)) continue;
       const inv = investorById.get(id);
       if (!inv) continue;
-      const organizationId = membershipByInvestor.get(inv.id);
+      const organizationId = membershipByInvestor.get(String(inv.id));
       inv.historical_features = historicalFeatures.get(
         organizationId ? `organization:${organizationId}` : `investor:${inv.id}`,
       ) || null;

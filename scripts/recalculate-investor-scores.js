@@ -6,12 +6,14 @@
  * enabling unified ranking across the platform.
  *
  * Score components (0-100 total):
- *   Profile Completeness  (0-25): bio, thesis, geography, social proof
- *   Investment Focus      (0-25): sectors, stage, investment type/thesis
+ *   Profile Completeness  (0-25): bio, thesis, geography, social proof, public thesis themes
+ *   Investment Focus      (0-25): sectors, stage, investment type (incl. operator_angel)
  *   Capital Readiness     (0-20): check size, fund size, leads_rounds
- *   Track Record          (0-20): investments, exits, notable_investments
+ *   Track Record          (0-20): investments, exits, notable_investments, operator founders
  *   Activity & Velocity   (0-10): last_investment_date recency, deployment_velocity_index
  *
+ * Operator / successful-founder public thesis (blog/LinkedIn themes) folds into
+ * profile/focus/track via lib/operatorFounderInvestors.js — see lib/investorGodScore.js.
  * Tier thresholds (0-100):
  *   Elite:    ≥ 70  (top ~3-5%)
  *   Strong:   ≥ 50  (next ~30%)
@@ -23,6 +25,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { calculateInvestorScore } = require('../lib/investorGodScore');
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -32,150 +35,7 @@ const supabase = createClient(
 const DRY_RUN = process.argv.includes('--dry-run');
 const BATCH_SIZE = 200;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// INVESTOR GOD SCORE v4 — 0-100 scale
-// ─────────────────────────────────────────────────────────────────────────────
-
-function calculateInvestorScore(investor) {
-  const signals = [];
-
-  // ── PROFILE COMPLETENESS (0-25) ──────────────────────────────────────────
-  let profileScore = 0;
-
-  const bio = investor.bio || '';
-  if (bio.length > 200) { profileScore += 8; signals.push('Detailed bio'); }
-  else if (bio.length > 50) { profileScore += 5; signals.push('Has bio'); }
-  else if (bio.length > 0) { profileScore += 2; }
-
-  if (investor.name && investor.firm) { profileScore += 4; }
-  else if (investor.name || investor.firm) { profileScore += 2; }
-
-  const geos = investor.geography_focus || [];
-  if (geos.length >= 1) { profileScore += 5; signals.push('Geography defined'); }
-
-  const thesis = investor.investment_thesis || '';
-  if (thesis.length > 200) { profileScore += 6; signals.push('Deep thesis'); }
-  else if (thesis.length > 50) { profileScore += 4; signals.push('Has thesis'); }
-  else if (thesis.length > 0) { profileScore += 2; }
-
-  // Social proof
-  let socialCount = 0;
-  if (investor.linkedin_url) socialCount++;
-  if (investor.twitter_url) socialCount++;
-  if (investor.is_verified) { socialCount++; signals.push('Verified'); }
-  profileScore += Math.min(socialCount * 2, 4);
-
-  profileScore = Math.min(Math.round(profileScore), 25);
-
-  // ── INVESTMENT FOCUS (0-25) ───────────────────────────────────────────────
-  let focusScore = 0;
-
-  const sectors = investor.sectors || [];
-  if (sectors.length >= 1 && sectors.length <= 3) { focusScore += 10; signals.push(`Focus: ${sectors.slice(0,2).join(', ')}`); }
-  else if (sectors.length <= 6) { focusScore += 7; }
-  else if (sectors.length > 6) { focusScore += 4; }
-
-  const stages = investor.stage || [];
-  if (stages.length >= 1 && stages.length <= 2) { focusScore += 9; }
-  else if (stages.length <= 4) { focusScore += 6; }
-  else if (stages.length > 0) { focusScore += 3; }
-
-  const invType = (investor.type || '').toLowerCase();
-  if (invType === 'vc') { focusScore += 5; }
-  else if (invType === 'angel') { focusScore += 4; }
-  else if (['pe','cvc','family office','accelerator','corporate vc'].includes(invType)) { focusScore += 3; }
-  else if (invType) { focusScore += 2; }
-
-  focusScore = Math.min(Math.round(focusScore), 25);
-
-  // ── CAPITAL READINESS (0-20) ──────────────────────────────────────────────
-  let capitalScore = 0;
-
-  const minCheck = investor.check_size_min || 0;
-  const maxCheck = investor.check_size_max || 0;
-  if (minCheck > 0 && maxCheck > 0) { capitalScore += 8; signals.push(`Check: $${(minCheck/1e6).toFixed(1)}M–$${(maxCheck/1e6).toFixed(1)}M`); }
-  else if (minCheck > 0 || maxCheck > 0) { capitalScore += 4; }
-
-  // Fund size — prefer fund_size_estimate_usd (from enrichment), fallback to active_fund_size
-  const fundSize = investor.fund_size_estimate_usd || investor.active_fund_size || 0;
-  if (fundSize >= 1_000_000_000) { capitalScore += 7; signals.push('Mega fund $1B+'); }
-  else if (fundSize >= 500_000_000) { capitalScore += 6; signals.push('Large fund $500M+'); }
-  else if (fundSize >= 100_000_000) { capitalScore += 5; }
-  else if (fundSize >= 20_000_000) { capitalScore += 3; }
-  else if (fundSize > 0) { capitalScore += 2; }
-
-  if (investor.leads_rounds) { capitalScore += 5; signals.push('Leads rounds'); }
-  else if (investor.follows_rounds) { capitalScore += 2; }
-
-  capitalScore = Math.min(Math.round(capitalScore), 20);
-
-  // ── TRACK RECORD (0-20) ───────────────────────────────────────────────────
-  let trackScore = 0;
-
-  const investments = investor.total_investments || 0;
-  if (investments >= 100) { trackScore += 8; signals.push('100+ investments'); }
-  else if (investments >= 50) { trackScore += 6; }
-  else if (investments >= 20) { trackScore += 4; }
-  else if (investments >= 5) { trackScore += 2; }
-
-  const exits = investor.successful_exits || 0;
-  if (exits >= 10) { trackScore += 8; signals.push('10+ exits'); }
-  else if (exits >= 5) { trackScore += 5; }
-  else if (exits >= 1) { trackScore += 2; }
-
-  // notable_investments is an array or JSON in DB — presence = signal
-  const notable = investor.notable_investments;
-  const notableCount = Array.isArray(notable) ? notable.length
-    : (notable && typeof notable === 'object' ? Object.keys(notable).length : 0);
-  if (notableCount >= 5) { trackScore += 4; signals.push(`${notableCount} notable investments`); }
-  else if (notableCount >= 1) { trackScore += 2; }
-
-  trackScore = Math.min(Math.round(trackScore), 20);
-
-  // ── ACTIVITY & VELOCITY (0-10) ────────────────────────────────────────────
-  // Rewards recently-active investors. Fills the "activity=0" gap that existed
-  // in v3 because last_investment_date was only 18.7% populated.
-  let activityScore = 0;
-
-  const lastInvDate = investor.last_investment_date;
-  if (lastInvDate) {
-    const daysSince = Math.floor((Date.now() - new Date(lastInvDate).getTime()) / 86_400_000);
-    if (daysSince <= 60)   { activityScore += 8; signals.push('Invested <60 days ago'); }
-    else if (daysSince <= 180) { activityScore += 6; signals.push('Invested <6 months ago'); }
-    else if (daysSince <= 365) { activityScore += 4; }
-    else if (daysSince <= 730) { activityScore += 2; }
-    // >2 years = 0 activity credit
-  }
-
-  // deployment_velocity_index (0-100) from enrich-investor-deployment.js
-  const velocity = investor.deployment_velocity_index || 0;
-  if (velocity >= 70) { activityScore += 2; signals.push('High deployment velocity'); }
-  else if (velocity >= 40) { activityScore += 1; }
-
-  activityScore = Math.min(Math.round(activityScore), 10);
-
-  // ── TOTAL & TIER ──────────────────────────────────────────────────────────
-  const total = Math.min(profileScore + focusScore + capitalScore + trackScore + activityScore, 100);
-
-  let tier;
-  if (total >= 70) tier = 'elite';
-  else if (total >= 50) tier = 'strong';
-  else if (total >= 30) tier = 'solid';
-  else tier = 'emerging';
-
-  return {
-    total: Math.round(total),
-    breakdown: {
-      profile:    profileScore,
-      focus:      focusScore,
-      capital:    capitalScore,
-      track:      trackScore,
-      activity:   activityScore,
-    },
-    tier,
-    signals,
-  };
-}
+// calculateInvestorScore lives in lib/investorGodScore.js (operator-founder thesis aware)
 
 async function main() {
   console.log(`\n🏦 INVESTOR SCORE RECALCULATION v3 ${DRY_RUN ? '(DRY RUN)' : ''}`);
@@ -187,9 +47,9 @@ async function main() {
   while (true) {
     const { data, error } = await supabase.from('investors')
       .select([
-        'id, name, firm, bio, sectors, stage, type',
+        'id, name, firm, bio, sectors, stage, type, is_individual, capital_type',
         'check_size_min, check_size_max, active_fund_size, fund_size_estimate_usd',
-        'investment_thesis, geography_focus',
+        'investment_thesis, geography_focus, signals, blog_url',
         'total_investments, successful_exits, notable_investments',
         'leads_rounds, follows_rounds',
         'last_investment_date, deployment_velocity_index',

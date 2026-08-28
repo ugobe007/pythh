@@ -256,10 +256,21 @@ Priority: ★★★★★ = build / wire soon; ★★★★ = valuable; commerci
 | **1. Investor Sources** | VC/CVC sites, angels, FOs, accelerators, OpenVC | `investors`, orgs, memberships, `stated_*` thesis |
 | **2. Transaction Sources** | Announcements, CB/Dealroom, SEC, portfolios, press | `funding_evidence_events`, participants, sources |
 | **3. Non-dilutive Sources** | SBIR/STTR, NSF, NIH, DOE, DOD, NASA, state/ED programs | Grant events + `provider_type=government_grant` |
-| **4. Investor Intent Sources** | Partner interviews, blogs, podcasts, thesis pages, new fund announcements | `activity_signal`, `stated_*` refresh |
+| **4. Investor Intent Sources** | Partner interviews, blogs, podcasts, thesis pages, new fund announcements, **operator-founder LinkedIn/blog posts** | `activity_signal`, `stated_*` refresh, `investors.signals.top_themes` |
 | **5. Company Evidence Sources** | Startup site, founders, product, customers, patents, jobs, news, prior financing | Startup features → FundingNeed |
 
 Continuous discovery loop (channel 2): every announcement becomes graph edges (see §3). Scale across many events → **observable** thesis.
+
+**Operator / successful-founder intent (channel 4):** Hot startups are often shared among operators who already built winners (Altman, Chesky, Dorsey, Zuckerberg, Gil, …). They invest personally, write public thesis posts, and co-invest with friends. Pythh encodes this as:
+
+| Layer | Behavior |
+| --- | --- |
+| Detection | `lib/operatorFounderInvestors.js` — known aliases + `operator_angel` type + founder-exit bio + faith themes |
+| Investor GOD | `lib/investorGodScore.js` — public thesis themes / blog content fold into profile+focus+track (bucket caps unchanged) |
+| Match fit | `lib/stageInvestorFit.js` — early-stage boost for operator founders (alongside partner-angel) |
+| Still missing | LinkedIn post scrape into faith backfill (today: blog_url / site / thesis only via `backfill-faith-signals.ts`) |
+
+Do **not** fold operator-founder network into **startup** GOD — that score is company fundability. This signal is investor quality + match affinity.
 
 ### 6.2 Exact entry points (implementer checklist)
 

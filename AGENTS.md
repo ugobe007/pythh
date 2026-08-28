@@ -169,7 +169,9 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 
 ### GOD scoring deferral (proof cohort)
 
-Do **not** retune GOD/fit weights until the prospective URL cohort has **≥5 startups with verified post-prediction funding pairs** (`proof-cohort:report` → `signup_evidence_met`). Then diagnose cohort misses via `funding:audit:candidate-misses` before changing weights or adding variables.
+Do **not** retune **startup** GOD or core match fit weights until the prospective URL cohort has **≥5 startups with verified post-prediction funding pairs** (`proof-cohort:report` → `signup_evidence_met`). Then diagnose cohort misses via `funding:audit:candidate-misses` before changing weights or adding variables.
+
+**Allowed without that gate:** filling missing *investor-side data signals* (operator / successful-founder public thesis → investor GOD + stage fit via `lib/operatorFounderInvestors.js`) — that is data completeness, not retuning startup fundability weights.
 
 ### Ops scripts: stuck terminal / hung Wave 2 chain
 
