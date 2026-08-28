@@ -17,7 +17,7 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import pg from 'pg';
-import { namesLikelySameStartup } from './lib/startupUrlIdentity.mjs';
+import { namesLikelySameStartup, shouldParkWebsiteTaken } from './lib/startupUrlIdentity.mjs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -168,17 +168,15 @@ async function findWebsiteOwner(pool, website, host, excludeId) {
   return rows;
 }
 
-async function parkDuplicateOrphan(db, pool, orphan, owner) {
-  const note = `url_recover:duplicate_of=${owner.id}:${owner.name}`;
+async function parkOrphanGate(db, orphan, { gate, note }) {
   await db
     .from('startup_uploads')
     .update({
-      entity_gate: 'junk',
+      entity_gate: gate,
       updated_at: new Date().toISOString(),
     })
     .eq('id', orphan.id);
 
-  // Soft-park search queue so outcomes:agent stops retrying this orphan
   const { data: qRow } = await db
     .from('funding_evidence_search_queue')
     .select('startup_id, status')
@@ -195,6 +193,11 @@ async function parkDuplicateOrphan(db, pool, orphan, owner) {
       })
       .eq('startup_id', orphan.id);
   }
+}
+
+async function parkDuplicateOrphan(db, pool, orphan, owner) {
+  const note = `url_recover:duplicate_of=${owner.id}:${owner.name}`;
+  await parkOrphanGate(db, orphan, { gate: 'junk', note });
 
   // Boost the canonical owner if it has matches
   if (owner.match_n > 0) {
@@ -254,6 +257,7 @@ const summary = {
   skipped_junk_name: 0,
   skipped_website_taken: 0,
   parked_duplicates: 0,
+  parked_website_taken: 0,
   failed: 0,
   timestamps_synced: 0,
   samples: [],
@@ -268,6 +272,7 @@ const { rows: targets } = await pool.query(
   FROM startup_uploads s
   WHERE s.status = 'approved'
     AND s.entity_gate IS DISTINCT FROM 'junk'
+    AND s.entity_gate IS DISTINCT FROM 'url_blocked'
     AND (
       s.website IS NULL OR btrim(s.website) = ''
       OR s.entity_gate = 'needs_url'
@@ -373,6 +378,34 @@ for (const row of targets) {
     }
 
     if (!applied) {
+      const parkDecision = shouldParkWebsiteTaken({
+        name: row.name,
+        takenByWebsite: takenBy?.website,
+        takenByOwnerName: takenBy?.owner_name,
+      });
+
+      if (parkDecision?.park) {
+        const sample = {
+          id: row.id,
+          name: row.name,
+          match_n: row.match_n,
+          action: 'park_website_taken',
+          park_reason: parkDecision.reason,
+          park_gate: parkDecision.gate,
+          taken_by: takenBy,
+          tried: tried.slice(0, 6),
+        };
+        if (apply) {
+          const note = `url_recover:${parkDecision.reason}:${takenBy?.owner_id || 'unknown'}`;
+          await parkOrphanGate(db, row, { gate: parkDecision.gate, note });
+          summary.samples.push({ ...sample, parked: true });
+        } else {
+          summary.samples.push({ ...sample, mode: 'dry-run' });
+        }
+        summary.parked_website_taken += 1;
+        continue;
+      }
+
       summary.skipped_website_taken += 1;
       if (takenBy && summary.samples.length < 25) {
         summary.samples.push({
