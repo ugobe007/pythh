@@ -5,6 +5,10 @@
  * Targets approved startups with matches and no usable company URL.
  * Probes name-based domains + DuckDuckGo HTML; rejects publisher/investor domains.
  *
+ * When a recovered URL is already claimed by another startup_uploads row
+ * (startup_uploads_website_unique), try the next candidate. If names match the
+ * owner, park the orphan as a duplicate so it stops clogging the recover queue.
+ *
  * Usage:
  *   npm run outcomes:recover-urls -- --limit=50
  *   npm run outcomes:recover-urls -- --apply --limit=100
@@ -13,6 +17,7 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import pg from 'pg';
+import { namesLikelySameStartup } from './lib/startupUrlIdentity.mjs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -79,14 +84,10 @@ async function probeDomain(host) {
       signal: AbortSignal.timeout(8000),
       headers: { 'user-agent': 'PythhUrlRecovery/1.0 (+https://pythh.ai)' },
     });
-    if (![200, 301, 302, 303, 307, 308].includes(res.status) && res.status !== 200) {
-      // accept 200 only for content check; redirects already followed
-    }
     if (!res.ok && res.status !== 401 && res.status !== 403) return null;
     const finalHost = new URL(res.url).hostname.toLowerCase().replace(/^www\./, '');
     if (PUBLISHER_RE.test(finalHost)) return null;
     const html = (await res.text()).slice(0, 50000).toLowerCase();
-    // Require some company-ish signal or just a live site with title
     if (html.includes('<html') || html.includes('<!doctype')) {
       return `https://${finalHost}`;
     }
@@ -133,6 +134,107 @@ function candidateHosts(name) {
   return tlds.map((tld) => `${slug}.${tld}`);
 }
 
+/**
+ * Find another startup_uploads row that already owns this website / host.
+ * Matches https://host, http://host, host, and www. variants.
+ */
+async function findWebsiteOwner(pool, website, host, excludeId) {
+  const variants = [
+    website,
+    `http://${host}`,
+    `https://www.${host}`,
+    `http://www.${host}`,
+    host,
+    `www.${host}`,
+  ];
+  const { rows } = await pool.query(
+    `
+    SELECT id, name, website, company_domain, entity_gate, source_type,
+           (SELECT count(*)::int FROM startup_investor_matches m WHERE m.startup_id = s.id) AS match_n
+    FROM startup_uploads s
+    WHERE s.id <> $1::uuid
+      AND (
+        lower(regexp_replace(coalesce(s.website, ''), '^https?://(www\\.)?', '', 'i')) = lower($2)
+        OR lower(coalesce(s.company_domain, '')) = lower($2)
+        OR s.website = ANY($3::text[])
+      )
+    ORDER BY
+      CASE WHEN s.entity_gate = 'qualified' THEN 0 ELSE 1 END,
+      match_n DESC NULLS LAST
+    LIMIT 5
+  `,
+    [excludeId, host, variants],
+  );
+  return rows;
+}
+
+async function parkDuplicateOrphan(db, pool, orphan, owner) {
+  const note = `url_recover:duplicate_of=${owner.id}:${owner.name}`;
+  await db
+    .from('startup_uploads')
+    .update({
+      entity_gate: 'junk',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', orphan.id);
+
+  // Soft-park search queue so outcomes:agent stops retrying this orphan
+  const { data: qRow } = await db
+    .from('funding_evidence_search_queue')
+    .select('startup_id, status')
+    .eq('startup_id', orphan.id)
+    .maybeSingle();
+  if (qRow) {
+    await db
+      .from('funding_evidence_search_queue')
+      .update({
+        status: 'error',
+        priority: 0,
+        error_message: note,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('startup_id', orphan.id);
+  }
+
+  // Boost the canonical owner if it has matches
+  if (owner.match_n > 0) {
+    const earliest = (
+      await pool.query(
+        `SELECT min(created_at) AS earliest FROM startup_investor_matches WHERE startup_id = $1`,
+        [owner.id],
+      )
+    ).rows[0]?.earliest;
+    const { data: ownerQ } = await db
+      .from('funding_evidence_search_queue')
+      .select('startup_id, status, priority')
+      .eq('startup_id', owner.id)
+      .maybeSingle();
+    if (ownerQ) {
+      await db
+        .from('funding_evidence_search_queue')
+        .update({
+          priority: Math.max(Number(ownerQ.priority) || 0, 25000),
+          status: ownerQ.status === 'processing' ? 'processing' : 'pending',
+          earliest_match_at: earliest ? new Date(earliest).toISOString() : undefined,
+          updated_at: new Date().toISOString(),
+          error_message: 'url_recover:canonical_boost',
+        })
+        .eq('startup_id', owner.id);
+    } else if (earliest) {
+      await db.from('funding_evidence_search_queue').insert({
+        startup_id: owner.id,
+        status: 'pending',
+        priority: 25000,
+        earliest_match_at: new Date(earliest).toISOString(),
+        updated_at: new Date().toISOString(),
+        error_message: 'url_recover:canonical_enqueued',
+      });
+    }
+  }
+
+  return note;
+}
+
 const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !serviceKey || !process.env.DATABASE_URL) {
@@ -150,6 +252,8 @@ const summary = {
   scanned: 0,
   recovered: 0,
   skipped_junk_name: 0,
+  skipped_website_taken: 0,
+  parked_duplicates: 0,
   failed: 0,
   timestamps_synced: 0,
   samples: [],
@@ -195,35 +299,105 @@ for (const row of targets) {
     }
 
     const tried = [];
-    let found = null;
+    const candidates = [];
 
     for (const host of candidateHosts(row.name)) {
       tried.push(host);
-      found = await probeDomain(host);
-      if (found) break;
+      const found = await probeDomain(host);
+      if (found) candidates.push(found);
       await sleep(80);
     }
 
-    if (!found) {
+    if (candidates.length === 0) {
       const ddg = await duckDuckGoCandidates(row.name);
       for (const cand of ddg) {
         const host = new URL(cand).hostname.replace(/^www\./, '');
         tried.push(host);
-        found = await probeDomain(host);
-        if (found) break;
+        const found = await probeDomain(host);
+        if (found) candidates.push(found);
       }
     }
 
-    if (!found) {
+    const uniqueCandidates = [...new Set(candidates)];
+    if (uniqueCandidates.length === 0) {
       summary.failed += 1;
       continue;
     }
 
-    const host = new URL(found).hostname.replace(/^www\./, '');
-    const sample = { id: row.id, name: row.name, website: found, match_n: row.match_n, tried: tried.slice(0, 6) };
+    let applied = null;
+    let parked = null;
+    let takenBy = null;
+
+    for (const found of uniqueCandidates) {
+      const host = new URL(found).hostname.replace(/^www\./, '');
+      const owners = await findWebsiteOwner(pool, found, host, row.id);
+      const owner = owners[0] || null;
+
+      if (owner) {
+        takenBy = { website: found, owner_id: owner.id, owner_name: owner.name, owner_match_n: owner.match_n };
+        // Only park the orphan when the URL owner is the stronger (or equal) canonical.
+        // Never junk a high-match orphan just because a thin duplicate already holds the domain.
+        if (
+          namesLikelySameStartup(row.name, owner.name) &&
+          Number(owner.match_n || 0) >= Number(row.match_n || 0)
+        ) {
+          parked = { website: found, owner };
+          break;
+        }
+        // Wrong company owns this domain, or a weaker same-name row — try next candidate
+        continue;
+      }
+
+      // Website free — claim it
+      applied = { website: found, host };
+      break;
+    }
+
+    if (parked) {
+      const sample = {
+        id: row.id,
+        name: row.name,
+        website: parked.website,
+        match_n: row.match_n,
+        duplicate_of: { id: parked.owner.id, name: parked.owner.name, match_n: parked.owner.match_n },
+        tried: tried.slice(0, 6),
+      };
+      if (apply) {
+        await parkDuplicateOrphan(db, pool, row, parked.owner);
+        summary.samples.push({ ...sample, parked: true });
+      } else {
+        summary.samples.push({ ...sample, mode: 'dry-run', action: 'park_duplicate' });
+      }
+      summary.parked_duplicates += 1;
+      continue;
+    }
+
+    if (!applied) {
+      summary.skipped_website_taken += 1;
+      if (takenBy && summary.samples.length < 25) {
+        summary.samples.push({
+          id: row.id,
+          name: row.name,
+          match_n: row.match_n,
+          action: 'skip_website_taken',
+          taken_by: takenBy,
+          tried: tried.slice(0, 6),
+          mode: apply ? 'apply' : 'dry-run',
+        });
+      }
+      continue;
+    }
+
+    const sample = {
+      id: row.id,
+      name: row.name,
+      website: applied.website,
+      match_n: row.match_n,
+      tried: tried.slice(0, 6),
+    };
 
     if (!apply) {
-      summary.samples.push({ ...sample, mode: 'dry-run' });
+      summary.samples.push({ ...sample, mode: 'dry-run', action: 'recover' });
       summary.recovered += 1;
       continue;
     }
@@ -231,16 +405,28 @@ for (const row of targets) {
     const { error } = await db
       .from('startup_uploads')
       .update({
-        website: found,
-        company_domain: host,
+        website: applied.website,
+        company_domain: applied.host,
         source_type: 'url',
         entity_gate: 'qualified',
         updated_at: new Date().toISOString(),
       })
       .eq('id', row.id);
-    if (error) throw new Error(error.message);
 
-    // Ensure queue row exists / boost + rectify timestamp
+    if (error) {
+      // Race: another writer claimed the URL between our check and update
+      if (/startup_uploads_website_unique|duplicate key/i.test(error.message)) {
+        summary.skipped_website_taken += 1;
+        summary.samples.push({
+          ...sample,
+          action: 'skip_website_taken_race',
+          error: error.message,
+        });
+        continue;
+      }
+      throw new Error(error.message);
+    }
+
     const earliest = row.earliest_match ? new Date(row.earliest_match).toISOString() : null;
     const { data: qRow } = await db
       .from('funding_evidence_search_queue')
@@ -274,7 +460,7 @@ for (const row of targets) {
     if (sync.ok && sync.earliest_match_at) summary.timestamps_synced += 1;
 
     summary.recovered += 1;
-    summary.samples.push({ ...sample, applied: true });
+    summary.samples.push({ ...sample, applied: true, action: 'recover' });
     await sleep(delay);
   } catch (err) {
     summary.errors.push({ id: row.id, name: row.name, error: String(err?.message || err) });
