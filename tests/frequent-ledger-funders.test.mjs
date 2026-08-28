@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   isFrequentLedgerFunder,
   pickCanonicalFrequentFunders,
+  pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
   selectTopMatchesReservingForced,
   firmProfileRank,
@@ -42,9 +43,21 @@ const {
 }
 
 {
-  assert.equal(firmProfileRank({ name: 'General Catalyst', firm: 'General Catalyst', investor_score: 60 }), 3);
+  assert.equal(firmProfileRank({ name: 'General Catalyst', firm: 'General Catalyst', investor_score: 60 }), 4);
+  assert.equal(firmProfileRank({ name: 'Initialized Capital', firm: 'Initialized Capital', investor_score: 60 }), 4);
   assert.equal(firmProfileRank({ name: 'Niko Bonatsos', firm: 'General Catalyst', investor_score: 80 }), 0);
   assert.equal(firmProfileRank({ name: 'Hemant Taneja (General Catalyst)', firm: 'General Catalyst', investor_score: 90 }), -1);
+}
+
+{
+  const all = [
+    { id: 'init', name: 'Initialized Capital', firm: 'Initialized Capital', sectors: ['SaaS'], investor_score: 70 },
+    { id: 'seq', name: 'Sequoia Capital', firm: 'Sequoia Capital', sectors: ['Healthcare'], investor_score: 90 },
+  ];
+  const emptySectors = pickFrequentFundersForStartup(all, { expandedSectors: [] });
+  assert.equal(emptySectors.length, 0);
+  const priorOnly = pickFrequentFundersForStartup(all, { priorNameLabels: ['Sequoia Capital'] });
+  assert.deepEqual(priorOnly.map((r) => r.id), ['seq']);
 }
 
 {
