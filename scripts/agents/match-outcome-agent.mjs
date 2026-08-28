@@ -6,7 +6,12 @@
  *
  * Usage:
  *   npm run outcomes:agent -- --apply --limit=400 --delay=400
+ *   npm run outcomes:agent -- --apply --skip-recover --limit=100
  *   npm run outcomes:agent -- --notify-only
+ *
+ * After recover-urls prints JSON, triage + search can take 10–40+ minutes with little
+ * output — that is NOT a hang. Wait for [search] / final progress JSON. Do not paste
+ * JSON fragments into zsh (causes `parse error near '}'`).
  */
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -19,14 +24,26 @@ const { sourceTier } = require('../../server/lib/matchEvidenceSourceTier.js');
 
 const apply = process.argv.includes('--apply');
 const notifyOnly = process.argv.includes('--notify-only');
+const skipRecover = process.argv.includes('--skip-recover');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 400));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 400));
+const recoverLimit = Math.max(
+  1,
+  Number(
+    process.argv.find((a) => a.startsWith('--recover-limit='))?.split('=')[1] ||
+      Math.min(Math.max(limit, 50), 80),
+  ),
+);
 const TARGET = RESOLUTION_TARGET;
 
 const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !serviceKey) throw new Error('Missing Supabase service environment');
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+function phase(msg) {
+  console.log(`\n⏱  ${new Date().toISOString()} — ${msg}`);
+}
 
 async function slackNotify(title, message) {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -88,24 +105,35 @@ function runNodeScript(scriptPath, extraArgs = []) {
 const highBefore = await listHighTierPending(50);
 
 if (!notifyOnly) {
-  // [1] Recover missing/publisher websites — scoring + matching + search need a real URL
-  await runNodeScript('scripts/recover-startup-urls.mjs', [
-    ...(apply ? ['--apply'] : []),
-    `--limit=${Math.min(Math.max(limit, 50), 150)}`,
-    '--delay=250',
-  ]);
+  if (!skipRecover) {
+    // [1] Recover missing/publisher websites — scoring + matching + search need a real URL
+    phase(`[1/4] recover-urls (limit=${recoverLimit}) — then triage/search continue; do not Ctrl+C on recover JSON`);
+    await runNodeScript('scripts/recover-startup-urls.mjs', [
+      ...(apply ? ['--apply'] : []),
+      `--limit=${recoverLimit}`,
+      '--delay=250',
+    ]);
+  } else {
+    phase('[1/4] recover-urls skipped (--skip-recover)');
+  }
+
   // [2] Rectify earliest_match_at + boost qualified cohort / issuer-ledger
+  phase('[2/4] triage-queue (can take several minutes; silent is normal)');
   await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
     ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
   ]);
+
   // [3] Search priority>0 — ontology public sources (SEC Form D, NSF/SBIR, USASpending) + news
+  phase(`[3/4] ontology search (limit=${limit}, delay=${delay}ms) — wait for [search] lines`);
   await runNodeScript('scripts/search-startup-funding-evidence.mjs', [
     ...(apply ? ['--apply'] : []),
     '--provider=ontology',
     `--limit=${limit}`,
     `--delay=${delay}`,
   ]);
+
   // Verify issuer-primary hits found/seeded by search
+  phase('[4/4] promote-ledger');
   await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
     ...(apply ? ['--apply', '--reject-low-pending'] : []),
     `--limit=${Math.max(limit, 100)}`,
@@ -127,6 +155,8 @@ const SITE_ORIGIN = (
 const summary = {
   mode: notifyOnly ? 'notify-only' : apply ? 'apply' : 'dry-run',
   limit,
+  recover_limit: skipRecover ? 0 : recoverLimit,
+  skip_recover: skipRecover,
   high_tier_pending: highAfter.length,
   newly_high_tier: newlyHigh.length,
   progress,
@@ -146,4 +176,5 @@ if (newlyHigh.length || (notifyOnly && highAfter.length)) {
   );
 }
 
+phase('match-outcome agent complete');
 console.log(JSON.stringify(summary, null, 2));

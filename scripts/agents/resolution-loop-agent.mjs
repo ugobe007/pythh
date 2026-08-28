@@ -55,6 +55,11 @@ const hit5WaveEvery = Math.max(
   Number(argv.find((a) => a.startsWith('--hit5-wave-every='))?.split('=')[1] || 5),
 );
 const coreOnly = argv.includes('--core-only');
+const skipRecover = argv.includes('--skip-recover');
+const recoverEvery = Math.max(
+  0,
+  Number(argv.find((a) => a.startsWith('--recover-every='))?.split('=')[1] || 3),
+);
 const stepTimeoutMs = Math.max(
   30_000,
   Number(argv.find((a) => a.startsWith('--step-timeout-ms='))?.split('=')[1] || 45 * 60 * 1000),
@@ -212,7 +217,15 @@ async function runCoreWave(waveNumber) {
     await runNpmScript(
       `[wave ${waveNumber}] match outcome agent (recover → triage → search → promote)`,
       'outcomes:agent',
-      [...applyArgs, `--limit=${limit}`, `--delay=${delay}`],
+      [
+        ...applyArgs,
+        `--limit=${limit}`,
+        `--delay=${delay}`,
+        // Recover is slow and re-scans the same orphans; run every N waves (or never with --skip-recover).
+        ...((skipRecover || (recoverEvery > 0 && waveNumber % recoverEvery !== 1))
+          ? ['--skip-recover']
+          : [`--recover-limit=${Math.min(limit, 80)}`]),
+      ],
       { allowFail: false },
     ),
   );
@@ -354,7 +367,8 @@ async function main() {
   };
 
   console.log('\n🔄 Resolution Loop Agent');
-  console.log(`   target=${target} limit=${limit} max_waves=${maxWaves} mode=${report.mode}\n`);
+  console.log(`   target=${target} limit=${limit} max_waves=${maxWaves} mode=${report.mode}`);
+  console.log('   After recover JSON, triage+search continue — do NOT Ctrl+C or paste JSON into zsh.\n');
 
   if (dryRun && !apply) {
     console.log('Dry-run: one preview wave without --apply on mutating steps.\n');
