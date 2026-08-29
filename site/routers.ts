@@ -326,7 +326,7 @@ export const appRouter = router({
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
         return {
-          startups: (filterRankingsStartups(data ?? []) as Array<{
+          startups: filterRankingsStartups(data ?? []) as Array<{
             id: string;
             name: string;
             tagline: string | null;
