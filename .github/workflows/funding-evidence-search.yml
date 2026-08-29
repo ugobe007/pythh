@@ -26,6 +26,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # recover-urls needs DATABASE_URL (session pooler). If the secret is empty, the agent
+      # auto-skips recover and still runs triage → ontology search → promote (Supabase only).
+      # Set secrets.DATABASE_URL to also recover missing/publisher websites each cron tick.
       - name: Continual match-outcome loop (recover URLs → triage → promote → search)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}

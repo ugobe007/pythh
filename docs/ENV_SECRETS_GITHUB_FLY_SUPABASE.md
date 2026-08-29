@@ -38,12 +38,13 @@ Workflows under `.github/workflows/` read these names.
 |--------|--------|
 | `SUPABASE_SERVICE_KEY` **or** `SUPABASE_SERVICE_ROLE_KEY` | Admin API access for workflows (`enrich-vcs`, `god-golden`, `god-score-health-check`, `automated-scraper`, `cleanup`, `god-score-monitor`, …) |
 | `OPENAI_API_KEY` | `god-score-recalculation`, `automated-scraper` |
+| `DATABASE_URL` | Optional but recommended for `funding-evidence-search.yml` → `outcomes:recover-urls`. Without it the agent auto-skips recover and still runs triage/search/promote via Supabase. |
 
 ### Naming inconsistency
 
 Some workflows only reference `SUPABASE_URL` / `SUPABASE_ANON_KEY` (no `VITE_` fallback), e.g. `god-score-monitor`, `god-score-recalculation`, `automated-scraper`. Easiest approach: define **both** `SUPABASE_*` and `VITE_*` with the same values, or standardize names and update workflows.
 
-**Not used in GitHub today:** `DATABASE_URL` / `DATABASE_SSL` unless you add a workflow that runs `dq:runbook` or direct SQL against Postgres.
+**Also optional:** `DATABASE_SSL` for scripts that talk to Postgres directly.
 
 ---
 
