@@ -221,6 +221,26 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'unconventional ventures fund',
   'goldcrest capital',
   'fin capital',
+  // Post-#80 never-pre-matched qualified firms still missing from force-include.
+  'mac',
+  'mac venture capital',
+  'mac ventures',
+  'ivycap ventures',
+  'ivycap',
+  'kima',
+  'kima ventures',
+  'radical',
+  'radical ventures',
+  'greenfield partners',
+  'greenfield',
+  'anthology fund',
+  'anthology',
+  'og venture partners',
+  'og ventures',
+  'ian alpha fund',
+  'ian alpha',
+  'tether',
+  'singular',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -427,6 +447,25 @@ const ALIAS_FAMILY = Object.freeze({
   'unconventional ventures fund': 'unconventional',
   'goldcrest capital': 'goldcrest',
   'fin capital': 'fin_capital',
+  mac: 'mac_vc',
+  'mac venture capital': 'mac_vc',
+  'mac ventures': 'mac_vc',
+  'ivycap ventures': 'ivycap',
+  ivycap: 'ivycap',
+  kima: 'kima',
+  'kima ventures': 'kima',
+  radical: 'radical',
+  'radical ventures': 'radical',
+  'greenfield partners': 'greenfield',
+  greenfield: 'greenfield',
+  'anthology fund': 'anthology',
+  anthology: 'anthology',
+  'og venture partners': 'og_vp',
+  'og ventures': 'og_vp',
+  'ian alpha fund': 'ian_alpha',
+  'ian alpha': 'ian_alpha',
+  tether: 'tether',
+  singular: 'singular',
 });
 
 function normalizeFunderLabel(value) {
@@ -533,6 +572,8 @@ function pickFrequentFundersForStartup(investors, { expandedSectors = [], priorN
     const labels = [inv.firm, inv.name].map(normalizeFunderLabel).filter(Boolean);
     if (labels.some((l) => prior.has(l))) return true;
     const invSectors = getExpandedInvestorSectors(inv.sectors || []);
+    // Incomplete sector tags must not recreate candidate_generation_miss for allowlisted firms.
+    if (!invSectors.length) return true;
     return invSectors.some((s) => sectorSet.has(String(s).toLowerCase()));
   });
 }
