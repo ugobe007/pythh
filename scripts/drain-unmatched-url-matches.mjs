@@ -9,6 +9,8 @@
  * Usage:
  *   npm run proof-cohort:drain-unmatched -- --since=2026-08-25 --min-god=80
  *   npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25
+ *
+ * Requires latest main (PR #78). If npm says "Missing script", run: git pull origin main
  */
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
@@ -19,11 +21,35 @@ import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supaba
 const require = createRequire(import.meta.url);
 const { EnhancedMatchingService } = require('../server/services/EnhancedMatchingService.js');
 
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(`proof-cohort:drain-unmatched — match high-GOD URL startups with 0 matches
+
+Usage:
+  npm run proof-cohort:drain-unmatched -- --since=2026-08-25 --min-god=80
+  npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25
+
+Flags:
+  --apply              write matches (default dry-run)
+  --since=YYYY-MM-DD   cohort start (default 2026-08-25)
+  --min-god=N          minimum total_god_score (default 70)
+  --limit=N            max startups to process (default 25)
+  --max-matches=N      matches to persist per startup (default 50)
+
+If npm says Missing script, you need latest main:
+  git pull origin main
+`);
+  process.exit(0);
+}
+
 const apply = process.argv.includes('--apply');
 const sinceArg = process.argv.find((a) => a.startsWith('--since='))?.split('=')[1] || '2026-08-25';
 const minGod = Math.max(0, Number(process.argv.find((a) => a.startsWith('--min-god='))?.split('=')[1] || 70));
 const limit = Math.min(100, Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 25)));
 const maxMatches = Math.min(100, Math.max(10, Number(process.argv.find((a) => a.startsWith('--max-matches='))?.split('=')[1] || 50)));
+
+console.error(
+  `[drain-unmatched] mode=${apply ? 'apply' : 'dry-run'} since=${sinceArg} min-god=${minGod} limit=${limit}`,
+);
 
 const PUBLISHER_RE =
   /\b(techcrunch|ventureburn|finsmes|forbes|bloomberg|reuters|axios|medium|substack|youtube|linkedin|twitter|crunchbase|pitchbook|pehub|prnewswire|thefintechtimes|eu-startups|entrackr)\b/i;
