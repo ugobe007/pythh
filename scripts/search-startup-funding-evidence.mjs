@@ -408,16 +408,49 @@ async function loadMatchedInvestors(startupId) {
   return investors;
 }
 
+function firmStem(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .replace(/(ventures?|capital|partners?|partner|fund|group|llc|inc|lp)$/g, '');
+}
+
 async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourceTitle, sourceProvider, rawPayload }) {
-  const { data: match } = await db
+  let matchInvestorId = investor.id;
+  let match = null;
+  const { data: direct } = await db
     .from('startup_investor_matches')
-    .select('id')
+    .select('id, investor_id')
     .eq('startup_id', startup.id)
     .eq('investor_id', investor.id)
     .lt('created_at', eventAt)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  match = direct;
+  // Firm-alias fallback when search resolved a duplicate investor row.
+  if (!match) {
+    const target = firmStem(investor.firm || investor.name);
+    if (target.length >= 4) {
+      const { data: early } = await db
+        .from('startup_investor_matches')
+        .select('id, created_at, investor_id, investors(id,name,firm)')
+        .eq('startup_id', startup.id)
+        .lt('created_at', eventAt)
+        .order('created_at', { ascending: true })
+        .limit(200);
+      for (const row of early || []) {
+        const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+        const stem = firmStem(inv?.firm || inv?.name);
+        if (stem.length < 4) continue;
+        if (stem === target || target.includes(stem) || stem.includes(target)) {
+          match = row;
+          matchInvestorId = row.investor_id;
+          break;
+        }
+      }
+    }
+  }
   if (!match) return false;
   if (!apply) return true;
   const { isIssuerPrimary } = require('../server/lib/matchEvidenceSourceTier.js');
@@ -440,16 +473,21 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
     {
       match_id: match.id,
       startup_id: startup.id,
-      investor_id: investor.id,
+      investor_id: matchInvestorId,
       evidence_type: 'funding',
       event_at: eventAt,
       source_url: sourceUrl,
       source_provider: sourceProvider,
       source_record_type: 'web_search',
-      source_record_id: `${startup.id}:${sourceUrl}:${investor.id}`,
+      source_record_id: `${startup.id}:${sourceUrl}:${matchInvestorId}`,
       resolution_method: 'name_exact_unique',
-      resolution_confidence: 0.9,
-      raw_payload: rawPayload,
+      resolution_confidence: matchInvestorId === investor.id ? 0.9 : 0.85,
+      raw_payload: {
+        ...(rawPayload || {}),
+        ...(matchInvestorId !== investor.id
+          ? { firm_alias_from_investor_id: investor.id, source_title: sourceTitle || null }
+          : { source_title: sourceTitle || null }),
+      },
       // Issuer-primary wires/blogs can auto-verify; news aggregators stay pending review.
       ...autoVerify,
     },
@@ -925,9 +963,9 @@ for (const job of jobs || []) {
       if (classifyError) throw new Error(`classification: ${classifyError.message}`);
     }
     completed++;
-    if (completed % 25 === 0 || completed === (jobs || []).length) {
-      console.log(`[search] ${completed}/${(jobs || []).length} startups (${startup.name})`);
-    }
+    console.log(
+      `[search] ${completed}/${(jobs || []).length} startups (${startup.name}) events=${outcome.events} pairs=${outcome.pairs}`,
+    );
   } catch (error) {
     if (apply) {
       await db

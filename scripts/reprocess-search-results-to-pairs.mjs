@@ -82,6 +82,7 @@ async function main() {
     since: sinceArg,
     candidates: rows.length,
     paired: 0,
+    paired_via_firm_alias: 0,
     verified: 0,
     skipped_no_pre_match: 0,
     samples: [],
@@ -89,22 +90,61 @@ async function main() {
 
   let reviewer = null;
 
-  for (const row of rows) {
-    const eventAt = eventAtFromDate(row.event_date);
-    const { data: match } = await db
+  /** Strip legal/vehicle suffixes so "Susquehanna Venture Capital" ≈ "Susquehanna". */
+  function firmStem(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+      .replace(/(ventures?|capital|partners?|partner|fund|group|llc|inc|lp)$/g, '');
+  }
+
+  async function findPreMatch(row, eventAt) {
+    const { data: direct } = await db
       .from('startup_investor_matches')
-      .select('id, created_at')
+      .select('id, created_at, investor_id')
       .eq('startup_id', row.startup_id)
       .eq('investor_id', row.investor_id)
       .lt('created_at', eventAt)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (direct) return { match: direct, via: 'investor_id', paired_investor_id: row.investor_id };
 
-    if (!match) {
+    // Firm-alias fallback: search may resolve a duplicate investor row while an
+    // earlier match already exists under a sibling firm label (same stem).
+    const target = firmStem(row.investor_name_raw);
+    if (target.length < 4) return null;
+    const { rows: early } = await pool.query(
+      `
+      SELECT m.id, m.created_at, m.investor_id, COALESCE(i.firm, i.name) AS firm
+      FROM startup_investor_matches m
+      JOIN investors i ON i.id = m.investor_id
+      WHERE m.startup_id = $1 AND m.created_at < $2::timestamptz
+      ORDER BY m.created_at ASC
+      `,
+      [row.startup_id, eventAt],
+    );
+    for (const e of early) {
+      const stem = firmStem(e.firm);
+      if (stem.length < 4) continue;
+      if (stem === target || target.includes(stem) || stem.includes(target)) {
+        return { match: e, via: 'firm_alias', paired_investor_id: e.investor_id };
+      }
+    }
+    return null;
+  }
+
+  for (const row of rows) {
+    const eventAt = eventAtFromDate(row.event_date);
+    const found = await findPreMatch(row, eventAt);
+
+    if (!found) {
       summary.skipped_no_pre_match += 1;
       continue;
     }
+
+    const { match, via, paired_investor_id } = found;
+    if (via === 'firm_alias') summary.paired_via_firm_alias = (summary.paired_via_firm_alias || 0) + 1;
 
     const issuer = isIssuerPrimary(row.source_url);
     summary.paired += 1;
@@ -116,6 +156,7 @@ async function main() {
         eventAt,
         match_at: match.created_at,
         issuer_primary: issuer,
+        via,
         source_url: row.source_url,
       });
     }
@@ -127,16 +168,21 @@ async function main() {
     const payload = {
       match_id: match.id,
       startup_id: row.startup_id,
-      investor_id: row.investor_id,
+      investor_id: paired_investor_id,
       evidence_type: 'funding',
       event_at: eventAt,
       source_url: row.source_url,
       source_provider: row.source_provider || 'gemini_google_search',
       source_record_type: 'web_search',
-      source_record_id: `${row.startup_id}:${row.source_url}:${row.investor_id}`,
+      source_record_id: `${row.startup_id}:${row.source_url}:${paired_investor_id}`,
       resolution_method: 'name_exact_unique',
-      resolution_confidence: 0.9,
-      raw_payload: row.raw_payload || {},
+      resolution_confidence: via === 'firm_alias' ? 0.85 : 0.9,
+      raw_payload: {
+        ...(row.raw_payload || {}),
+        ...(via === 'firm_alias'
+          ? { firm_alias_from_investor_id: row.investor_id, firm_alias_via: via }
+          : {}),
+      },
       ...(issuer
         ? {
             verified: true,
