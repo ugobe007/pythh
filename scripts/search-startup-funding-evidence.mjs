@@ -412,7 +412,7 @@ function firmStem(value) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '')
-    .replace(/(ventures?|capital|partners?|partner|fund|group|llc|inc|lp)$/g, '');
+    .replace(/(?:ventures?|capital|partners?|partner|fund|group|llc|inc|lp)$/g, '');
 }
 
 async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourceTitle, sourceProvider, rawPayload }) {
@@ -431,7 +431,7 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
   // Firm-alias fallback when search resolved a duplicate investor row.
   if (!match) {
     const target = firmStem(investor.firm || investor.name);
-    if (target.length >= 4) {
+    if (target.length >= 8) {
       const { data: early } = await db
         .from('startup_investor_matches')
         .select('id, created_at, investor_id, investors(id,name,firm)')
@@ -442,8 +442,8 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
       for (const row of early || []) {
         const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
         const stem = firmStem(inv?.firm || inv?.name);
-        if (stem.length < 4) continue;
-        if (stem === target || target.includes(stem) || stem.includes(target)) {
+        if (stem.length < 8) continue;
+        if (stem === target) {
           match = row;
           matchInvestorId = row.investor_id;
           break;

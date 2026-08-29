@@ -95,7 +95,7 @@ async function main() {
     return String(value || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '')
-      .replace(/(ventures?|capital|partners?|partner|fund|group|llc|inc|lp)$/g, '');
+      .replace(/(?:ventures?|capital|partners?|partner|fund|group|llc|inc|lp)$/g, '');
   }
 
   async function findPreMatch(row, eventAt) {
@@ -113,7 +113,7 @@ async function main() {
     // Firm-alias fallback: search may resolve a duplicate investor row while an
     // earlier match already exists under a sibling firm label (same stem).
     const target = firmStem(row.investor_name_raw);
-    if (target.length < 4) return null;
+    if (target.length < 8) return null;
     const { rows: early } = await pool.query(
       `
       SELECT m.id, m.created_at, m.investor_id, COALESCE(i.firm, i.name) AS firm
@@ -126,8 +126,8 @@ async function main() {
     );
     for (const e of early) {
       const stem = firmStem(e.firm);
-      if (stem.length < 4) continue;
-      if (stem === target || target.includes(stem) || stem.includes(target)) {
+      if (stem.length < 8) continue;
+      if (stem === target) {
         return { match: e, via: 'firm_alias', paired_investor_id: e.investor_id };
       }
     }
