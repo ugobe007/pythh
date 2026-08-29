@@ -113,6 +113,8 @@
     "outcomes:correlate-funding": "node scripts/correlate-funding-event-investors.mjs",
     "outcomes:search-funding": "node scripts/search-startup-funding-evidence.mjs",
     "outcomes:search-funding:ontology": "node scripts/search-startup-funding-evidence.mjs --provider=ontology",
+    "proof-cohort:search": "node scripts/search-startup-funding-evidence.mjs --cohort-since=2026-08-25 --min-god=55 --require-snapshot --skip-junk-names",
+    "proof-cohort:search:gemini": "node scripts/search-startup-funding-evidence.mjs --provider=gemini --cohort-since=2026-08-25 --min-god=55 --require-snapshot --skip-junk-names",
     "funding:lookup-sources": "node scripts/lookup-startup-funding-sources.mjs",
     "outcomes:report": "node scripts/report-match-funding-reconciliation.mjs",
     "outcomes:matched": "node scripts/report-matched-investments.mjs",

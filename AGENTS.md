@@ -8,6 +8,16 @@ run/test the app and the gotchas discovered during setup. Standard commands live
 `PYTHH_AI_CURSOR_COPILOT_HANDOFF.md` and root `package.json` scripts — prefer those; only the
 caveats below are non-obvious.
 
+### Pull requests (automate — do not wait)
+
+User preference (**2026-08-29**): **automate PRs**. For every branch with commits:
+
+1. **Push** then **create or update** the PR the same turn (ManagePullRequest / equivalent).
+2. Open PRs **ready for review** (`draft: false`) — do **not** leave them as drafts unless the
+   user explicitly asks for a draft.
+3. Update the PR body when ops evidence or scope changes; include artifact paths when relevant.
+4. Do **not** merge unless the user explicitly asks to merge.
+
 ### Services (dev)
 
 | Service | Command | Port | Notes |
@@ -167,6 +177,7 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - **Prospective proof cohort (URL submits, no signup):** `docs/PROOF_COHORT_SPEC.md` — weekly `npm run proof-cohort:report -- --since=2026-08-25`
 - Repair dark instrumentation (missing seals/queues): `npm run proof-cohort:instrument:apply -- --since=2026-08-25 --limit=200`
 - Drain unmatched high-GOD URL startups (match latency SLA): `npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25`
+- Targeted funding search (skip junk names, sealed + GOD≥55): `npm run proof-cohort:search:gemini -- --apply --limit=25 --delay=600`
 - Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
