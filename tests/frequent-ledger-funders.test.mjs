@@ -48,6 +48,11 @@ const {
   assert.equal(isFrequentLedgerFunder({ name: 'QIA', firm: 'Qatar Investment Authority' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'Paradigm', firm: 'Paradigm' }), true);
   assert.equal(isFrequentLedgerFunder('Craft Ventures'), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'MaC Venture Capital', firm: 'MaC' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Kima Ventures', firm: 'Kima' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Radical Ventures', firm: 'Radical' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'IvyCap Ventures', firm: 'IvyCap Ventures' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Tether', firm: 'Tether' }), true);
 }
 
 {
@@ -66,6 +71,16 @@ const {
   assert.equal(emptySectors.length, 0);
   const priorOnly = pickFrequentFundersForStartup(all, { priorNameLabels: ['Sequoia Capital'] });
   assert.deepEqual(priorOnly.map((r) => r.id), ['seq']);
+}
+
+{
+  // Allowlisted firm with empty sectors still force-includes when startup has sectors.
+  const all = [
+    { id: 'tcv', name: 'TCV', firm: 'TCV', sectors: [], investor_score: 70, is_individual: false },
+    { id: 'other', name: 'Random Fund', firm: 'Random Fund', sectors: [], investor_score: 90, is_individual: false },
+  ];
+  const picked = pickFrequentFundersForStartup(all, { expandedSectors: ['SaaS', 'AI/ML'] });
+  assert.deepEqual(picked.map((r) => r.id), ['tcv']);
 }
 
 {

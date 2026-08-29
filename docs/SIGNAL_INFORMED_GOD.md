@@ -71,7 +71,7 @@ Live `GOD_SCORE_CONFIG.componentWeights`:
 
 Applied in `calculateHotScore` via `weightedCore` (normalize each bucket to its max, multiply by weight, scale by core budget). Base boost + red flags remain additive outside the rebalance.
 
-Also expand `frequentLedgerFunders` from `funding:audit:candidate-misses` → never-pre-matched qualified firms still missing from the allowlist.
+Also expand `frequentLedgerFunders` from `funding:audit:candidate-misses` → never-pre-matched qualified firms still missing from the allowlist. Allowlisted firms with **empty sector tags** still force-include when the startup has sectors (incomplete tags were recreating generation misses).
 
 ## What to run after merge
 

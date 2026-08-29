@@ -9,8 +9,9 @@
  *   npm run outcomes:agent -- --apply --skip-recover --limit=100
  *   npm run outcomes:agent -- --notify-only
  *
- * recover-urls needs DATABASE_URL. If unset (common in GHA with only SUPABASE_*),
- * recover is auto-skipped so triage → ontology search → promote still run.
+ * recover / triage / promote need DATABASE_URL (pg). Search can run on Supabase alone
+ * (reviewer via PYTHH_REVIEWER_USER_ID or auth.admin). If DATABASE_URL is unset
+ * (common in GHA), those pg steps are auto-skipped so ontology search still drains.
  *
  * After recover-urls prints JSON, triage + search can take 10–40+ minutes with little
  * output — that is NOT a hang. Wait for [search] / final progress JSON. Do not paste
@@ -28,14 +29,16 @@ const { sourceTier } = require('../../server/lib/matchEvidenceSourceTier.js');
 const apply = process.argv.includes('--apply');
 const notifyOnly = process.argv.includes('--notify-only');
 const skipRecoverFlag = process.argv.includes('--skip-recover');
-/** recover-urls needs DATABASE_URL (Drizzle/pg). GHA often has only SUPABASE_* — skip recover so triage/search keep draining. */
-const skipRecover =
-  skipRecoverFlag || !String(process.env.DATABASE_URL || '').trim();
+const hasDatabaseUrl = Boolean(String(process.env.DATABASE_URL || '').trim());
+/** recover-urls / triage / promote need DATABASE_URL. GHA often has only SUPABASE_*. */
+const skipRecover = skipRecoverFlag || !hasDatabaseUrl;
 const skipRecoverReason = skipRecoverFlag
   ? '--skip-recover'
-  : !String(process.env.DATABASE_URL || '').trim()
+  : !hasDatabaseUrl
     ? 'DATABASE_URL unset'
     : null;
+const skipPgSteps = !hasDatabaseUrl;
+const skipPgReason = skipPgSteps ? 'DATABASE_URL unset' : null;
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 400));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 400));
 const recoverLimit = Math.max(
@@ -125,14 +128,18 @@ if (!notifyOnly) {
       '--delay=250',
     ]);
   } else {
-    phase(`[1/4] recover-urls skipped (${skipRecoverReason}) — triage/search continue`);
+    phase(`[1/4] recover-urls skipped (${skipRecoverReason})`);
   }
 
   // [2] Rectify earliest_match_at + boost qualified cohort / issuer-ledger
-  phase('[2/4] triage-queue (can take several minutes; silent is normal)');
-  await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
-    ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
-  ]);
+  if (!skipPgSteps) {
+    phase('[2/4] triage-queue (can take several minutes; silent is normal)');
+    await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
+      ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
+    ]);
+  } else {
+    phase(`[2/4] triage-queue skipped (${skipPgReason}) — search still runs on existing priorities`);
+  }
 
   // [3] Search priority>0 — ontology public sources (SEC Form D, NSF/SBIR, USASpending) + news
   phase(`[3/4] ontology search (limit=${limit}, delay=${delay}ms) — wait for [search] lines`);
@@ -144,11 +151,15 @@ if (!notifyOnly) {
   ]);
 
   // Verify issuer-primary hits found/seeded by search
-  phase('[4/4] promote-ledger');
-  await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
-    ...(apply ? ['--apply', '--reject-low-pending'] : []),
-    `--limit=${Math.max(limit, 100)}`,
-  ]);
+  if (!skipPgSteps) {
+    phase('[4/4] promote-ledger');
+    await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
+      ...(apply ? ['--apply', '--reject-low-pending'] : []),
+      `--limit=${Math.max(limit, 100)}`,
+    ]);
+  } else {
+    phase(`[4/4] promote-ledger skipped (${skipPgReason}) — set GHA secret DATABASE_URL to enable`);
+  }
 }
 
 const highAfter = await listHighTierPending(50);
@@ -169,6 +180,8 @@ const summary = {
   recover_limit: skipRecover ? 0 : recoverLimit,
   skip_recover: skipRecover,
   skip_recover_reason: skipRecoverReason,
+  skip_pg_steps: skipPgSteps,
+  skip_pg_reason: skipPgReason,
   high_tier_pending: highAfter.length,
   newly_high_tier: newlyHigh.length,
   progress,

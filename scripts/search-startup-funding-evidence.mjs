@@ -75,10 +75,32 @@ async function resolveAutoVerifyReviewerId() {
     cachedAutoVerifyReviewerId = process.env.PYTHH_REVIEWER_USER_ID;
     return cachedAutoVerifyReviewerId;
   }
+  const email = process.env.OWNER_EMAILS?.split(',')[0]?.trim() || 'ugobe07@gmail.com';
+
+  // Prefer Supabase Auth admin (works in GHA without DATABASE_URL).
+  try {
+    for (let page = 1; page <= 5; page += 1) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) throw error;
+      const users = data?.users || [];
+      const hit = users.find((u) => String(u.email || '').toLowerCase() === email.toLowerCase());
+      if (hit?.id) {
+        cachedAutoVerifyReviewerId = hit.id;
+        return cachedAutoVerifyReviewerId;
+      }
+      if (users.length < 200) break;
+    }
+  } catch (err) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error(
+        `Could not resolve reviewer via auth.admin (${err.message}). Set PYTHH_REVIEWER_USER_ID or DATABASE_URL.`,
+      );
+    }
+  }
+
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL or PYTHH_REVIEWER_USER_ID required for issuer-primary auto-verify');
   }
-  const email = process.env.OWNER_EMAILS?.split(',')[0]?.trim() || 'ugobe07@gmail.com';
   const pool = new pg.Pool({
     connectionString: massageConnectionString(process.env.DATABASE_URL),
     max: 1,
@@ -402,13 +424,17 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
   const issuerPrimary = isIssuerPrimary(sourceUrl);
   let autoVerify = {};
   if (issuerPrimary) {
-    const reviewer = await resolveAutoVerifyReviewerId();
-    autoVerify = {
-      verified: true,
-      review_status: 'verified',
-      verified_at: new Date().toISOString(),
-      verified_by: reviewer,
-    };
+    try {
+      const reviewer = await resolveAutoVerifyReviewerId();
+      autoVerify = {
+        verified: true,
+        review_status: 'verified',
+        verified_at: new Date().toISOString(),
+        verified_by: reviewer,
+      };
+    } catch {
+      // Fail open: save as pending when reviewer lookup fails
+    }
   }
   const { error } = await db.from('match_validation_evidence').upsert(
     {

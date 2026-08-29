@@ -38,7 +38,7 @@ Workflows under `.github/workflows/` read these names.
 |--------|--------|
 | `SUPABASE_SERVICE_KEY` **or** `SUPABASE_SERVICE_ROLE_KEY` | Admin API access for workflows (`enrich-vcs`, `god-golden`, `god-score-health-check`, `automated-scraper`, `cleanup`, `god-score-monitor`, …) |
 | `OPENAI_API_KEY` | `god-score-recalculation`, `automated-scraper` |
-| `DATABASE_URL` | Optional but recommended for `funding-evidence-search.yml` → `outcomes:recover-urls`. Without it the agent auto-skips recover and still runs triage/search/promote via Supabase. |
+| `DATABASE_URL` | **Required for full Funding Evidence Search.** Triage + promote use Postgres. Without it the agent skips recover/triage/promote and still runs ontology search via Supabase. Set the session-pooler URI. Optional: `PYTHH_REVIEWER_USER_ID` for issuer auto-verify. |
 
 ### Naming inconsistency
 

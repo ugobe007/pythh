@@ -26,9 +26,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # recover-urls needs DATABASE_URL (session pooler). If the secret is empty, the agent
-      # auto-skips recover and still runs triage → ontology search → promote (Supabase only).
-      # Set secrets.DATABASE_URL to also recover missing/publisher websites each cron tick.
+      # recover / triage / promote need DATABASE_URL (session pooler). If the secret is empty,
+      # the agent auto-skips those pg steps and still runs ontology search via Supabase.
+      # Set secrets.DATABASE_URL (and optionally PYTHH_REVIEWER_USER_ID) for the full loop.
       - name: Continual match-outcome loop (recover URLs → triage → promote → search)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
@@ -36,6 +36,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHH_REVIEWER_USER_ID: ${{ secrets.PYTHH_REVIEWER_USER_ID }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           BATCH_LIMIT: ${{ inputs.limit || '400' }}
         run: npm run outcomes:agent -- --apply --limit="$BATCH_LIMIT" --delay=400
