@@ -92,11 +92,12 @@ Then run a **GOD review** (weights, missing variables, `feature_snapshot` gaps) 
 - Date-only Gemini events use **end-of-UTC-day** (`T23:59:59.999Z`) so same-day matches still count.
 - Issuer-primary auto-verify must set **both** `verified_at` and `verified_by` (DB check).
 - Reprocess existing search rows after the date fix: `npm run proof-cohort:reprocess-pairs:apply -- --since=2026-08-25`.
+- **Firm-alias pre-match (2026-08-29):** `proof-cohort:reprocess-pairs` and search `upsertPairEvidence` fall back to an earlier match whose firm stem matches the search funder when the resolved `investor_id` was only force-matched *after* the round (duplicate investor rows). Example: Runable → Susquehanna.
 
 **Miss taxonomy seen in cohort (do not retune GOD for these):**
 | Case | Pattern | Action |
 |------|---------|--------|
-| Runable → Nexus | Match before announce; TechCrunch medium tier | `--verify` via `outcomes:review` |
+| Runable → Nexus / Susquehanna | Match before announce; TechCrunch medium tier | `--verify` via `outcomes:review` (Susquehanna needed firm-alias) |
 | Yardstik / Curaa | Actual funders exist in DB but were not matched | `candidate_generation_miss` — rematch for *future* only (no backdating) |
 | Deep Cogito | Submitted ~19m before announce; **0 matches** until EnhancedMatching was broken | Ops latency + matcher bug — unrecoverable for that round |
 | Atorie / Adaptyv (article scrape) | Submit or first match **after** announce | Not recoverable as prediction |
