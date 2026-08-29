@@ -424,13 +424,17 @@ async function upsertPairEvidence({ startup, investor, eventAt, sourceUrl, sourc
   const issuerPrimary = isIssuerPrimary(sourceUrl);
   let autoVerify = {};
   if (issuerPrimary) {
-    const reviewer = await resolveAutoVerifyReviewerId();
-    autoVerify = {
-      verified: true,
-      review_status: 'verified',
-      verified_at: new Date().toISOString(),
-      verified_by: reviewer,
-    };
+    try {
+      const reviewer = await resolveAutoVerifyReviewerId();
+      autoVerify = {
+        verified: true,
+        review_status: 'verified',
+        verified_at: new Date().toISOString(),
+        verified_by: reviewer,
+      };
+    } catch {
+      // Fail open: save as pending when reviewer lookup fails
+    }
   }
   const { error } = await db.from('match_validation_evidence').upsert(
     {
