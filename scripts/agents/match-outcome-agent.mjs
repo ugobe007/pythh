@@ -9,8 +9,9 @@
  *   npm run outcomes:agent -- --apply --skip-recover --limit=100
  *   npm run outcomes:agent -- --notify-only
  *
- * recover-urls needs DATABASE_URL. If unset (common in GHA with only SUPABASE_*),
- * recover is auto-skipped so triage → ontology search → promote still run.
+ * recover-urls / triage / promote need DATABASE_URL (raw SQL). If unset (common in GHA
+ * with only SUPABASE_*), those steps are auto-skipped so ontology search still runs.
+ * Set DATABASE_URL + PYTHH_REVIEWER_USER_ID for the full pipeline.
  *
  * After recover-urls prints JSON, triage + search can take 10–40+ minutes with little
  * output — that is NOT a hang. Wait for [search] / final progress JSON. Do not paste
@@ -28,7 +29,7 @@ const { sourceTier } = require('../../server/lib/matchEvidenceSourceTier.js');
 const apply = process.argv.includes('--apply');
 const notifyOnly = process.argv.includes('--notify-only');
 const skipRecoverFlag = process.argv.includes('--skip-recover');
-/** recover-urls needs DATABASE_URL (Drizzle/pg). GHA often has only SUPABASE_* — skip recover so triage/search keep draining. */
+/** recover-urls / triage / promote need DATABASE_URL (Drizzle/pg). GHA often has only SUPABASE_* — skip those steps so search keeps draining. */
 const skipRecover =
   skipRecoverFlag || !String(process.env.DATABASE_URL || '').trim();
 const skipRecoverReason = skipRecoverFlag
@@ -36,6 +37,7 @@ const skipRecoverReason = skipRecoverFlag
   : !String(process.env.DATABASE_URL || '').trim()
     ? 'DATABASE_URL unset'
     : null;
+const skipPgScripts = !String(process.env.DATABASE_URL || '').trim();
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 400));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 400));
 const recoverLimit = Math.max(
@@ -125,14 +127,18 @@ if (!notifyOnly) {
       '--delay=250',
     ]);
   } else {
-    phase(`[1/4] recover-urls skipped (${skipRecoverReason}) — triage/search continue`);
+    phase(`[1/4] recover-urls skipped (${skipRecoverReason}) — search continues`);
   }
 
-  // [2] Rectify earliest_match_at + boost qualified cohort / issuer-ledger
-  phase('[2/4] triage-queue (can take several minutes; silent is normal)');
-  await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
-    ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
-  ]);
+  if (!skipPgScripts) {
+    // [2] Rectify earliest_match_at + boost qualified cohort / issuer-ledger
+    phase('[2/4] triage-queue (can take several minutes; silent is normal)');
+    await runNodeScript('scripts/triage-funding-evidence-queue.mjs', [
+      ...(apply ? ['--apply', '--park-weak', `--target=${TARGET}`] : [`--target=${TARGET}`]),
+    ]);
+  } else {
+    phase('[2/4] triage-queue skipped (DATABASE_URL unset) — search continues');
+  }
 
   // [3] Search priority>0 — ontology public sources (SEC Form D, NSF/SBIR, USASpending) + news
   phase(`[3/4] ontology search (limit=${limit}, delay=${delay}ms) — wait for [search] lines`);
@@ -143,12 +149,16 @@ if (!notifyOnly) {
     `--delay=${delay}`,
   ]);
 
-  // Verify issuer-primary hits found/seeded by search
-  phase('[4/4] promote-ledger');
-  await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
-    ...(apply ? ['--apply', '--reject-low-pending'] : []),
-    `--limit=${Math.max(limit, 100)}`,
-  ]);
+  if (!skipPgScripts) {
+    // [4] Verify issuer-primary hits found/seeded by search
+    phase('[4/4] promote-ledger');
+    await runNodeScript('scripts/promote-ledger-funding-evidence.mjs', [
+      ...(apply ? ['--apply', '--reject-low-pending'] : []),
+      `--limit=${Math.max(limit, 100)}`,
+    ]);
+  } else {
+    phase('[4/4] promote-ledger skipped (DATABASE_URL unset)');
+  }
 }
 
 const highAfter = await listHighTierPending(50);
@@ -169,6 +179,7 @@ const summary = {
   recover_limit: skipRecover ? 0 : recoverLimit,
   skip_recover: skipRecover,
   skip_recover_reason: skipRecoverReason,
+  skip_pg_scripts: skipPgScripts,
   high_tier_pending: highAfter.length,
   newly_high_tier: newlyHigh.length,
   progress,
