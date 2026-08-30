@@ -991,7 +991,14 @@ for (const job of jobs || []) {
   try {
     const outcome =
       provider === 'gemini'
-        ? await processGeminiJob(startup, job)
+        ? await processGeminiJob(startup, job).catch(async (err) => {
+            const msg = String(err?.message || err);
+            if (/\b429\b|credits? are depleted|RESOURCE_EXHAUSTED/i.test(msg)) {
+              console.warn(`[search] Gemini credits/429 for ${startup.name} — falling back to inference`);
+              return processInferenceJob(startup, job);
+            }
+            throw err;
+          })
         : provider === 'ontology'
           ? await processOntologyJob(startup, job)
           : await processInferenceJob(startup, job);
