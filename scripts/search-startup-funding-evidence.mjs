@@ -995,7 +995,8 @@ for (const job of jobs || []) {
             const msg = String(err?.message || err);
             if (/\b429\b|credits? are depleted|RESOURCE_EXHAUSTED/i.test(msg)) {
               console.warn(`[search] Gemini credits/429 for ${startup.name} — falling back to inference`);
-              return processInferenceJob(startup, job);
+              const inferenceOutcome = await processInferenceJob(startup, job);
+              return { ...inferenceOutcome, fallback_to_inference: true };
             }
             throw err;
           })
@@ -1029,7 +1030,7 @@ for (const job of jobs || []) {
         .update({
           status: 'complete',
           last_searched_at: new Date().toISOString(),
-          search_provider: searchProvider,
+          search_provider: outcome.fallback_to_inference ? 'inference_engine' : searchProvider,
           result_count: outcome.events,
           earliest_match_at: job.earliest_match_at,
           error_message: null,
