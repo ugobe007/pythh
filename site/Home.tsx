@@ -125,8 +125,14 @@ function readCachedPlatformStats(): PlatformStats | null {
 
 function usePlatformStats() {
   const [stats, setStats] = useState<PlatformStats | null>(() => readCachedPlatformStats());
-  const [ready, setReady] = useState(() => readCachedPlatformStats() != null);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
+    // Hydrate from session cache after mount so SSR/first paint never touches sessionStorage.
+    const cached = readCachedPlatformStats();
+    if (cached) {
+      setStats(cached);
+      setReady(true);
+    }
     let cancelled = false;
     fetch("/api/platform-stats", {
       credentials: "same-origin",
