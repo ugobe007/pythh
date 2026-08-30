@@ -25,7 +25,8 @@ Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, `LINKEDI
 
 | Workflow | Schedule (UTC) | Script / job |
 |----------|----------------|--------------|
-| [automated-scraper.yml](../.github/workflows/automated-scraper.yml) | Every 12h | SSOT RSS scraper + ML ontology + RSS enrich |
+| [automated-scraper.yml](../.github/workflows/automated-scraper.yml) | Every 12h | SSOT RSS scraper + ML ontology + RSS enrich (**resumed** — portfolio open book from 2025-11-25) |
+| [high-volume-discovery.yml](../.github/workflows/high-volume-discovery.yml) | Every 6h | High-volume RSS discovery → `discovered_startups` + `scraper_runs` |
 | [god-score-recalculation.yml](../.github/workflows/god-score-recalculation.yml) | Every 2h | Fleet recalc + `validate-portfolio-scores.mjs` |
 | [god-score-monitor.yml](../.github/workflows/god-score-monitor.yml) | Every 2h :05 | Score monitor |
 | [god-score-health-check.yml](../.github/workflows/god-score-health-check.yml) | Every 6h | Health check |
@@ -34,6 +35,7 @@ Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, `LINKEDI
 | [batch-platform-daily.yml](../.github/workflows/batch-platform-daily.yml) | 03:00 | Holding review worker |
 | | 04:00 | Oracle signal backfill |
 | | 05:00 | RSS enrich (M&A + funding) |
+| | 05:30 | Event resolver (uploads + **discovered** promotion) |
 | | 06:00 | Portfolio monitor (+ post-funding rescore) |
 | | 06:30 | Portfolio digest email (+ score guardrails) |
 | | 06:30 | Portfolio score validate (`validate-portfolio-scores.mjs`, fails CI if corrupt) |

@@ -1,8 +1,10 @@
 name: Automated Startup Discovery
 
 on:
-  # Closed-corpus mode (July 2026): automated discovery is intentionally paused.
-  # Keep the manual trigger so an operator can run a controlled discovery batch later.
+  schedule:
+    # Resume open discovery for the virtual portfolio book (inception 2025-11-25).
+    # Was paused as closed-corpus (July 2026); portfolio recording requires continuous RSS.
+    - cron: '0 */12 * * *' # every 12 hours
   workflow_dispatch:
     inputs:
       run_type:
@@ -26,8 +28,8 @@ env:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
+    timeout-minutes: 45
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,7 +41,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Create logs directory
         run: mkdir -p logs
@@ -54,7 +56,7 @@ jobs:
           EOF
           echo "✅ Created .env.bak file"
 
-      - name: Run Automated Scraper
+      - name: Run SSOT RSS scraper
         id: scraper
         continue-on-error: true
         if: ${{ github.event.inputs.run_type != 'inference_only' }}
@@ -68,10 +70,14 @@ jobs:
           echo '{"status": "success", "timestamp": "'$(date -Iseconds)'"}' > logs/scraper-results.json
         env:
           DEBUG: true
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
 
       - name: Run Inference Pipeline
         id: inference
         continue-on-error: true
+        if: ${{ github.event.inputs.run_type != 'rss_only' && github.event.inputs.run_type != 'discovery_only' }}
         run: |
           echo "🧠 Starting ML ontology agent..." | tee -a logs/inference.log
           node scripts/ml-ontology-agent.js 2>&1 | tee -a logs/inference.log || {
@@ -102,7 +108,6 @@ jobs:
       - name: Ensure log files exist
         if: always()
         run: |
-          # Create placeholder files if scripts didn't create them
           touch logs/scraper.log logs/inference.log
           if [ ! -f logs/scraper-results.json ]; then
             echo '{"status": "not_run", "reason": "Script did not produce output"}' > logs/scraper-results.json
@@ -144,7 +149,7 @@ jobs:
           if [ -f logs/scraper.log ]; then
             echo "### Recent Scraper Logs" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -30 logs/scraper.log >> $GITHUB_STEP_SUMMARY
+            tail -40 logs/scraper.log >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 

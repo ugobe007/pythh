@@ -1,0 +1,20 @@
+# High-volume RSS discovery → discovered_startups (+ scraper_runs ledger).
+# Replaces dead Fly/PM2 cron (last successful run 2026-08-20).
+name: High-Volume Discovery
+
+on:
+  schedule:
+    - cron: '15 */6 * * *' # every 6 hours
+  workflow_dispatch:
+
+concurrency:
+  group: high-volume-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/high-volume-discovery.js
+      timeout_minutes: 60

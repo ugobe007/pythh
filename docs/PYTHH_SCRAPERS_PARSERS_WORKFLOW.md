@@ -122,7 +122,8 @@ Additional Node scripts for targeted sources (e.g. VC blogs, HN, funding-specifi
 | Trigger | Example |
 |---------|---------|
 | **npm scripts** | `npm run scrape` → `simple-rss-scraper.js`; `npm run enrich:rss-news` → `enrich-from-rss-news.js` |
-| **GitHub Actions** | `.github/workflows/automated-scraper.yml` — runs `ssot-rss-scraper.js` on a schedule (~12h) plus optional inference steps |
+| **GitHub Actions** | `.github/workflows/automated-scraper.yml` — SSOT RSS every **12h** (+ enrich); `.github/workflows/high-volume-discovery.yml` — high-volume discovery every **6h**. Portfolio open book from **2025-11-25**. |
+
 | **PM2 / cron** | `ecosystem.config.js` (and related docs) for long-running or scheduled processes on hosts |
 
 ---
