@@ -140,7 +140,11 @@ npm run funding:match-fund-lag:cohort
 
 `funding:match-fund-lag` histograms match→fund days (0–30 / 30–60 / **60–90** / 90–180 / 180+) and sealed cohort age vs that window. Keep searching sealed clocks — many true positives land in 60–90d.
 
+(`proof-cohort:search` / `:gemini` skip Capital/place-name junk and require a sealed snapshot + GOD≥55.)
+
 Do **not** force-match after announcement — that breaks the gate clock.
+
+**Deprioritize:** full 10.9k qualified+URL drain, 400-job inference batches, chained Wave 2 in one terminal.
 
 ---
 
