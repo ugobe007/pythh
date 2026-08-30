@@ -149,6 +149,8 @@
     "funding:hit5:pending-triage": "node scripts/triage-hit5-pending-horizons.mjs",
     "funding:hit5:gap-unlocks": "node scripts/list-hit5-mature-gap-unlocks.mjs",
     "funding:match-funding-audit": "node scripts/report-match-funding-audit.mjs",
+    "funding:match-fund-lag": "node scripts/report-match-fund-lag.mjs",
+    "funding:match-fund-lag:cohort": "node scripts/report-match-fund-lag.mjs --cohort-since=2026-08-25",
     "proof-cohort:report": "node scripts/report-proof-cohort.mjs",
     "proof-cohort:instrument": "node scripts/instrument-proof-cohort.mjs",
     "proof-cohort:instrument:apply": "node scripts/instrument-proof-cohort.mjs --apply",

@@ -182,6 +182,7 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
+- Match→fund lag buckets (60–90d window + sealed aging): `npm run funding:match-fund-lag` / `npm run funding:match-fund-lag:cohort`
 
 ### GOD scoring (proof cohort + live weights)
 
