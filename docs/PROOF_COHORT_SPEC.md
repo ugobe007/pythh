@@ -134,11 +134,13 @@ npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=100
 npm run outcomes:review -- --list
 # Wave 2: one command at a time (see HIT5_IMPROVEMENT_ROADMAP.md)
 npm run funding:match-funding-audit
+npm run funding:match-fund-lag
+npm run funding:match-fund-lag:cohort
 ```
 
-(`proof-cohort:search` / `:gemini` skip Capital/place-name junk and require a sealed snapshot + GOD≥55.)
+`funding:match-fund-lag` histograms match→fund days (0–30 / 30–60 / **60–90** / 90–180 / 180+) and sealed cohort age vs that window. Keep searching sealed clocks — many true positives land in 60–90d.
 
-**Deprioritize:** full 10.9k qualified+URL drain, 400-job inference batches, chained Wave 2 in one terminal.
+Do **not** force-match after announcement — that breaks the gate clock.
 
 ---
 
