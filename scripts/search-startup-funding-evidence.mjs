@@ -851,7 +851,7 @@ if (requeueEmpty && apply) {
 }
 
 const JUNK_NAME_RE =
-  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron)$';
+  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron|Development|Sports|Party|Globe|More|Owner|Management|Travel|Pitch|Forge)$';
 
 async function loadJobs() {
   const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot || skipJunkNames);
