@@ -73,8 +73,14 @@ jobs:
     secrets: inherit
     with:
       run: >-
-        node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8;
-        node scripts/event-resolver.js --apply --source discovered --limit 300 --concurrency 8;
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8;
+          node scripts/event-resolver.js --apply --source discovered --limit 300 --concurrency 8;
+        else
+          node scripts/event-resolver.js --apply --hours 36 --limit 200;
+          node scripts/event-resolver.js --apply --source discovered --limit 300 --concurrency 8;
+          node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8;
+        fi
       timeout_minutes: 60
 
   # Bridges resolver-linked investors into the signal pipeline, then refreshes
