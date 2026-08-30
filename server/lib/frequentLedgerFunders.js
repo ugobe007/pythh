@@ -241,6 +241,31 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'ian alpha',
   'tether',
   'singular',
+  // Proof-cohort near-miss funders (Yardstik / Breedr / Deep Cogito / REGENT) —
+  // never pre-matched before announce; force-include for future seals only.
+  'missionog',
+  'harbert growth partners',
+  'harbert',
+  'rally ventures',
+  'rally',
+  'great north ventures',
+  'great north',
+  'grotech ventures',
+  'grotech',
+  'crosslink capital',
+  'crosslink',
+  'outsiders fund',
+  'outsiders',
+  'partech',
+  'partech impact',
+  'south park commons',
+  'tq ventures',
+  'tq',
+  'lockheed martin ventures',
+  'lockheed martin',
+  'caffeinated capital',
+  'caffeinated',
+  'dcvc',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */

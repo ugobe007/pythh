@@ -851,7 +851,7 @@ if (requeueEmpty && apply) {
 }
 
 const JUNK_NAME_RE =
-  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron|Development|Sports|Party|Globe|More|Owner|Management|Travel|Pitch|Forge|Foundation|Avenue|Street|Music|Theft|Password|HarmonyOS|Susquehanna)$';
+  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron|Development|Sports|Party|Globe|More|Owner|Management|Travel|Pitch|Forge|Foundation|Avenue|Street|Music|Theft|Password|HarmonyOS|Susquehanna|Rules|Lab|Weeks|Better|Always|Markers|Max|Bucket|Live|Revier|Heidelberg)$';
 
 async function loadJobs() {
   const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot || skipJunkNames);
@@ -898,7 +898,7 @@ async function loadJobs() {
     }
     if (skipJunkNames) {
       where.push(`s.name !~* '${JUNK_NAME_RE}'`);
-      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2)'`);
+      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews)'`);
       where.push(`NULLIF(TRIM(s.website), '') IS NOT NULL`);
     }
     params.push(limit);

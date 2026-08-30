@@ -160,6 +160,8 @@
     "funding:force-match-search-funders:apply": "node scripts/force-match-from-search-results.mjs --apply",
     "proof-cohort:drain-unmatched": "node scripts/drain-unmatched-url-matches.mjs",
     "proof-cohort:drain-unmatched:apply": "node scripts/drain-unmatched-url-matches.mjs --apply",
+    "proof-cohort:mark-publisher-junk": "node scripts/mark-publisher-scrape-junk.mjs",
+    "proof-cohort:mark-publisher-junk:apply": "node scripts/mark-publisher-scrape-junk.mjs --apply --since=2026-08-25",
     "funding:reconcile:historical": "node scripts/reconcile-historical-funding-matches.mjs",
     "funding:reconcile:historical:summary": "node scripts/reconcile-historical-funding-matches.mjs --summary",
     "funding:audit:investor-profiles": "node scripts/audit-funding-investor-profile-fragmentation.mjs",
