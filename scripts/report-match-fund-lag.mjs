@@ -46,7 +46,7 @@ const pool = new pg.Pool({
 });
 
 const cohortFilter = cohortSince
-  ? `AND s.created_at >= $1::timestamptz AND s.source_type = 'url'`
+  ? `AND s.status = 'approved' AND s.source_type = 'url' AND coalesce(s.website, '') <> '' AND s.entity_gate IS DISTINCT FROM 'junk' AND s.created_at >= $1::timestamptz`
   : '';
 const params = cohortSince ? [cohortSince] : [];
 
@@ -114,7 +114,7 @@ WITH seals AS (
   FROM funding_prediction_snapshots f
   JOIN startup_uploads s ON s.id = f.startup_id
   WHERE f.cohort_key = 'served-first-top5'
-    ${cohortSince ? `AND s.created_at >= $1::timestamptz AND s.source_type = 'url'` : ''}
+    ${cohortSince ? `AND s.status = 'approved' AND s.source_type = 'url' AND coalesce(s.website, '') <> '' AND s.entity_gate IS DISTINCT FROM 'junk' AND s.created_at >= $1::timestamptz` : ''}
   ORDER BY f.startup_id, f.predicted_at ASC
 )
 SELECT
