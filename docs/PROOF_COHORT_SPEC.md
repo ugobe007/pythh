@@ -133,10 +133,13 @@ npm run proof-cohort:reprocess-pairs:apply -- --since=2026-08-25
 npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=100
 npm run outcomes:review -- --list
 # Wave 2: one command at a time (see HIT5_IMPROVEMENT_ROADMAP.md)
+npm run proof-cohort:mark-publisher-junk:apply
 npm run funding:match-funding-audit
 npm run funding:match-fund-lag
 npm run funding:match-fund-lag:cohort
 ```
+
+`proof-cohort:mark-publisher-junk` sets `entity_gate=junk` on URL submits whose website is a publisher article (VentureBurn / PE Hub / …) so they stop crowding the unmatched/search queues. Real company domains are untouched.
 
 `funding:match-fund-lag` histograms match→fund days (0–30 / 30–60 / **60–90** / 90–180 / 180+) and sealed cohort age vs that window. Keep searching sealed clocks — many true positives land in 60–90d.
 
