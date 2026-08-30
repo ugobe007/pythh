@@ -556,7 +556,7 @@ function HeroSection({
             <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
           )}
           <p className="text-[10px] mt-3" style={{ color: DIM }}>
-            Get 5 ranked investor matches in about 60 seconds · Free account · No credit card
+            Qualify investors · Draft outreach · Book meetings · You approve every send
           </p>
         </form>
         </div>

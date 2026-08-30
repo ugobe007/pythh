@@ -16,21 +16,22 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'Find my best investors';
+export const HERO_PRIMARY_CTA = 'Automate your raise';
 
+/** Locked public subline — raise automation without claiming send-before-approval. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your startup URL. Create a free account to reveal five matched investors and save your results.';
+  'Paste your URL — Oracle qualifies investors, drafts outreach, and books meetings. Nothing is sent without your approval.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
-      headline: 'Find five investors who fit your startup.',
+      headline: 'You build the company. Pythh runs the raise.',
       subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
-    headline: 'Find five investors who fit your startup.',
+    headline: 'You build the company. Pythh runs the raise.',
     subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };
