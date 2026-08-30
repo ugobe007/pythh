@@ -7,6 +7,11 @@
  *   --provider=gemini     when GEMINI_API_KEY is available
  *   --provider=ontology   news (inference) + SEC Form D + NSF/SBIR + USASpending
  *                         (docs/FUNDING_SOURCE_ONTOLOGY.md §6 public channels)
+ *   --name=Acme           only this startup (ILIKE)
+ *   --cohort-since=2026-08-25  restrict to proof-cohort URL submits
+ *   --min-god=55          skip low GOD when selecting jobs (needs DATABASE_URL)
+ *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
+ *   --skip-junk-names     demote Capital/place-name queue noise (default with --cohort-since)
  *
  * Ontology equity Form D rows write search_results + ledger events (observed).
  * Grant rows write search_results + grant ledger events — never equity Hit@5.
@@ -39,6 +44,7 @@ const PUBLISHER_HOST_RE =
 const apply = process.argv.includes('--apply');
 const seed = process.argv.includes('--seed');
 const requeueEmpty = process.argv.includes('--requeue-empty');
+const requireSnapshot = process.argv.includes('--require-snapshot');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 10));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
 const providerArg = process.argv.find((a) => a.startsWith('--provider='))?.split('=')[1];
@@ -48,6 +54,12 @@ const ontologySourcesArg = process.argv.find((a) => a.startsWith('--sources='))?
 const ontologySources = ontologySourcesArg
   ? ontologySourcesArg.split(',').map((s) => s.trim()).filter(Boolean)
   : ['sec', 'nsf', 'sbir', 'usaspending'];
+const nameFilter = process.argv.find((a) => a.startsWith('--name='))?.split('=')[1] || null;
+const cohortSince = process.argv.find((a) => a.startsWith('--cohort-since='))?.split('=')[1] || null;
+const minGod = Number(process.argv.find((a) => a.startsWith('--min-god='))?.split('=')[1] || 0);
+const skipJunkNames =
+  process.argv.includes('--skip-junk-names') ||
+  (Boolean(cohortSince) && !process.argv.includes('--no-skip-junk-names'));
 
 const url = resolveSupabaseRestUrl().url;
 const serviceKey = resolveSupabaseServiceKey();
@@ -838,16 +850,76 @@ if (requeueEmpty && apply) {
   console.log(`requeued ${(data || []).length} zero-result startups`);
 }
 
-const { data: jobs, error: jobError } = await db
-  .from('funding_evidence_search_queue')
-  .select('startup_id,earliest_match_at,attempts,priority')
-  .in('status', ['pending', 'error'])
-  .gt('priority', 0) // triage parks weak identities at priority 0
-  .order('priority', { ascending: false })
-  // Older prediction clocks have a longer post-match window → more likely non-zero hits
-  .order('earliest_match_at', { ascending: true })
-  .limit(limit);
-if (jobError) throw new Error(jobError.message);
+const JUNK_NAME_RE =
+  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron)$';
+
+async function loadJobs() {
+  const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot || skipJunkNames);
+  if (!needsPg) {
+    const { data, error } = await db
+      .from('funding_evidence_search_queue')
+      .select('startup_id,earliest_match_at,attempts,priority')
+      .in('status', ['pending', 'error'])
+      .gt('priority', 0)
+      .order('priority', { ascending: false })
+      .order('earliest_match_at', { ascending: true })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL required for --name/--cohort-since/--min-god/--require-snapshot/--skip-junk-names');
+  }
+  const pool = new pg.Pool({
+    connectionString: massageConnectionString(process.env.DATABASE_URL),
+    max: 1,
+  });
+  try {
+    const params = [];
+    const where = [`q.status IN ('pending', 'error')`, `COALESCE(q.priority, 0) > 0`];
+    if (nameFilter) {
+      params.push(`%${nameFilter}%`);
+      where.push(`s.name ILIKE $${params.length}`);
+    }
+    if (cohortSince) {
+      params.push(cohortSince);
+      where.push(`s.created_at >= $${params.length}::timestamptz`);
+      where.push(`s.source_type = 'url'`);
+    }
+    if (minGod > 0) {
+      params.push(minGod);
+      where.push(`COALESCE(s.total_god_score, 0) >= $${params.length}`);
+    }
+    if (requireSnapshot) {
+      where.push(`EXISTS (
+        SELECT 1 FROM funding_prediction_snapshots f
+        WHERE f.startup_id = s.id AND f.cohort_key = 'served-first-top5'
+      )`);
+    }
+    if (skipJunkNames) {
+      where.push(`s.name !~* '${JUNK_NAME_RE}'`);
+      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2)'`);
+      where.push(`NULLIF(TRIM(s.website), '') IS NOT NULL`);
+    }
+    params.push(limit);
+    const { rows } = await pool.query(
+      `
+      SELECT q.startup_id, q.earliest_match_at, q.attempts, q.priority
+      FROM funding_evidence_search_queue q
+      JOIN startup_uploads s ON s.id = q.startup_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY q.priority DESC NULLS LAST, q.earliest_match_at ASC NULLS LAST
+      LIMIT $${params.length}
+      `,
+      params,
+    );
+    return rows;
+  } finally {
+    await pool.end();
+  }
+}
+
+const jobs = await loadJobs();
 
 const searchProvider =
   provider === 'gemini'
@@ -988,6 +1060,13 @@ console.log(
       mode: apply ? 'apply' : 'dry-run',
       provider,
       search_provider: searchProvider,
+      filters: {
+        name: nameFilter || undefined,
+        cohort_since: cohortSince || undefined,
+        min_god: minGod || undefined,
+        require_snapshot: requireSnapshot || undefined,
+        skip_junk_names: skipJunkNames || undefined,
+      },
       ontology_sources: provider === 'ontology' ? ontologySources : undefined,
       jobs: (jobs || []).length,
       completed,
@@ -1003,3 +1082,4 @@ console.log(
     2,
   ),
 );
+

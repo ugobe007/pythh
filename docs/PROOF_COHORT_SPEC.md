@@ -128,13 +128,15 @@ Run on **proof cohort queue** only (priority > 0; URL submits with website):
 npm run proof-cohort:report -- --since=2026-08-25
 npm run outcomes:recover-urls -- --apply --limit=50
 npm run outcomes:triage-queue -- --apply --park-weak --target=5000
-node scripts/search-startup-funding-evidence.mjs --apply --provider=gemini --limit=50 --delay=600
+npm run proof-cohort:search:gemini -- --apply --limit=25 --delay=600
 npm run proof-cohort:reprocess-pairs:apply -- --since=2026-08-25
 npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=100
 npm run outcomes:review -- --list
 # Wave 2: one command at a time (see HIT5_IMPROVEMENT_ROADMAP.md)
 npm run funding:match-funding-audit
 ```
+
+(`proof-cohort:search` / `:gemini` skip Capital/place-name junk and require a sealed snapshot + GOD≥55.)
 
 **Deprioritize:** full 10.9k qualified+URL drain, 400-job inference batches, chained Wave 2 in one terminal.
 
