@@ -99,15 +99,43 @@ function formatVelocitySub(n: number): string {
   return `${n.toLocaleString()} new this week`;
 }
 
+const PLATFORM_STATS_SESSION_KEY = "pythh_platform_stats_v1";
+
+function readCachedPlatformStats(): PlatformStats | null {
+  try {
+    const raw = sessionStorage.getItem(PLATFORM_STATS_SESSION_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as PlatformStats;
+    if (!d || !(Number(d.startups) > 0)) return null;
+    return {
+      startups: Number(d.startups) || 0,
+      startups_total: Number(d.startups_total) || Number(d.startups) || 0,
+      investors: Number(d.investors) || 0,
+      matches: Number(d.matches) || 0,
+      matches_new_7d: Number(d.matches_new_7d) || 0,
+      matches_new_30d: Number(d.matches_new_30d) || 0,
+      signals: Number(d.signals) || 0,
+      funded_startups: Number(d.funded_startups) || 0,
+      computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function usePlatformStats() {
-  const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [ready, setReady] = useState(false);
+  const [stats, setStats] = useState<PlatformStats | null>(() => readCachedPlatformStats());
+  const [ready, setReady] = useState(() => readCachedPlatformStats() != null);
   useEffect(() => {
-    fetch("/api/platform-stats")
+    let cancelled = false;
+    fetch("/api/platform-stats", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!d) return;
-        setStats({
+        if (!d || cancelled) return;
+        const next: PlatformStats = {
           startups: Number(d.startups) || 0,
           startups_total: Number(d.startups_total) || Number(d.startups) || 0,
           investors: Number(d.investors) || 0,
@@ -117,10 +145,22 @@ function usePlatformStats() {
           signals: Number(d.signals) || 0,
           funded_startups: Number(d.funded_startups) || 0,
           computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
-        });
+        };
+        if (!(next.startups > 0)) return;
+        setStats(next);
+        try {
+          sessionStorage.setItem(PLATFORM_STATS_SESSION_KEY, JSON.stringify(next));
+        } catch {
+          /* ignore quota / private mode */
+        }
       })
       .catch(() => {})
-      .finally(() => setReady(true));
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   return { stats, ready };
 }
@@ -417,9 +457,11 @@ function HeroSection({
     headlineExperiment,
   );
 
+  const showHeroStats = startupCount > 0 && investorCount > 0;
+
   return (
     <section
-      className="relative pt-16 pb-14 lg:pb-16 overflow-hidden"
+      className="relative pt-16 pb-12 lg:pb-14 overflow-hidden"
       style={{
         backgroundColor: PAGE,
         backgroundImage:
@@ -435,8 +477,8 @@ function HeroSection({
         }}
       />
 
-      <div className="container relative z-10 max-w-5xl mx-auto px-6 py-8 lg:py-12 text-center">
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-5">
+      <div className="container relative z-10 max-w-5xl mx-auto px-6 py-6 lg:py-8 text-center">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-4">
           <span
             className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase px-3 py-1.5 rounded-full"
             style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
@@ -446,11 +488,11 @@ function HeroSection({
           </span>
         </div>
 
-        {platformStatsReady && startupCount > 0 ? (
+        {showHeroStats ? (
           <StatStrip
             cols={4}
             compact
-            className="mb-9"
+            className="mb-6"
             items={[
               {
                 value: investorCount.toLocaleString(),
@@ -483,13 +525,13 @@ function HeroSection({
               },
             ]}
           />
-        ) : (
+        ) : !platformStatsReady ? (
           <div
-            className="h-24 rounded-lg animate-pulse mb-9"
-            style={{ backgroundColor: "oklch(0.14 0.01 264)", border: `1px solid ${BORDER}` }}
+            className="h-24 rounded-lg animate-pulse mb-6"
+            style={{ backgroundColor: "oklch(0.18 0.01 264)", border: `1px solid ${BORDER}` }}
             aria-label="Loading live platform statistics"
           />
-        )}
+        ) : null}
 
         <div className="max-w-3xl mx-auto">
         <h1
@@ -573,9 +615,18 @@ function HeroSection({
             <ArrowRight size={12} aria-hidden />
           </a>
         )}
-        {platformStatsReady && startupCount > 0 && investorCount > 0 && (
+        {showHeroStats && (
           <p className="text-[10px] leading-relaxed mt-2 mx-auto max-w-[62ch]" style={{ color: DIM }}>
-            Live platform totals: tracked companies · investor profiles · pre-computed startup–investor pairings.
+            Live platform totals:{" "}
+            <span style={{ color: TEXT }}>{startupCount.toLocaleString()}</span> startups ·{" "}
+            <span style={{ color: TEXT }}>{investorCount.toLocaleString()}</span> investors ·{" "}
+            <span style={{ color: TEXT }}>{formatMatchFull(matchCount)}</span> matches
+            {fundedStartupCount > 0 && (
+              <>
+                {" · "}
+                <span style={{ color: TEXT }}>{fundedStartupCount.toLocaleString()}</span> funded
+              </>
+            )}
           </p>
         )}
       </div>
