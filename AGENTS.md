@@ -171,6 +171,16 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
   shows a feature-branch tip but tree matches `main`, the verify script accepts tree equivalence;
   dual Vercel Git + GHA deploys can cause that cosmetic drift.
 
+### Scrapers & discovery (portfolio open book)
+
+- **Portfolio inception:** **2025-11-25** — anything after that date is in-book for the virtual portfolio / recording window.
+- **Fly API** still runs `simple-rss-scraper` every ~4h (discovered_startups + `rss_sources.last_scraped`).
+- **GHA Automated Startup Discovery** (`automated-scraper.yml`) — SSOT RSS → `startup_events` every **12h** (re-enabled; was paused as closed-corpus).
+- **GHA High-Volume Discovery** (`high-volume-discovery.yml`) — every **6h** → `discovered_startups` + `scraper_runs`.
+- **Event resolver** daily promotes `discovered` → uploads (not uploads-only).
+- Local smoke: `RSS_MAX_SOURCES=10 npm run scrape:ssot` · `npm run scrape:high-volume:smoke`
+- **Signal Art Daily** may fail while Gemini prepaid credits are depleted — unrelated to discovery scrapers.
+
 ### Hit@5 roadmap & match→funding audit
 
 - Scheduled waves and metrics interpretation: `docs/HIT5_IMPROVEMENT_ROADMAP.md`

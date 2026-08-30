@@ -346,15 +346,16 @@ async function scrapeRssFeeds() {
     setOntologyEntities([]);
   }
   
-  // Get active RSS sources
+  // Get active RSS sources (oldest-scraped first). Cap via RSS_MAX_SOURCES for smoke runs.
+  const maxSources = Math.max(0, Number(process.env.RSS_MAX_SOURCES || 200));
   const { data: sources } = await supabase
     .from('rss_sources')
     .select('id, name, url, category')
     .eq('active', true)
     .order('last_scraped', { ascending: true, nullsFirst: true })
-    .limit(200);
+    .limit(maxSources || 200);
   
-  console.log(`Found ${sources?.length || 0} active RSS sources\n`);
+  console.log(`Found ${sources?.length || 0} active RSS sources (cap ${maxSources || 200})\n`);
   
   let skippedBackoff = 0;
   

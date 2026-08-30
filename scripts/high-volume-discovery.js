@@ -27,11 +27,15 @@ const {
 } = require('../lib/inference-extractor');
 const { classifyEvent } = require('../lib/event-classifier');
 
+const { insertDiscovered, setSupabase } = require('../lib/startupInsertGate');
+const { isValidStartupName } = require('../lib/startupNameValidator');
+
 // Supabase client
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 );
+setSupabase(supabase);
 
 const parser = new Parser({
   timeout: 30000,
@@ -751,27 +755,19 @@ function extractEntitiesWithInference(title, content, source) {
 // ============================================================================
 // DATABASE OPERATIONS
 // ============================================================================
-async function saveStartup(startup, sourceUrl, articleTitle) {
+async function saveStartup(startup, sourceUrl, articleTitle, sourceName) {
   if (!startup.name || startup.name.length < 2) return null;
   
   // Skip known non-startups
   const skipNames = ['google', 'apple', 'microsoft', 'amazon', 'meta', 'openai', 'anthropic', 'nvidia'];
   if (skipNames.includes(startup.name.toLowerCase())) return null;
+
+  const nameCheck = isValidStartupName(startup.name);
+  if (!nameCheck.isValid) return null;
   
   try {
-    // Check if exists
-    const { data: existing } = await supabase
-      .from('discovered_startups')
-      .select('id')
-      .ilike('name', startup.name)
-      .maybeSingle();
-    
-    if (existing) return null;
-
-    // Insert with correct column names
-    const { data, error } = await supabase
-      .from('discovered_startups')
-      .insert({
+    const result = await insertDiscovered(
+      {
         name: startup.name,
         description: startup.description || articleTitle,
         sectors: startup.sector ? [startup.sector] : ['Other'],
@@ -779,22 +775,23 @@ async function saveStartup(startup, sourceUrl, articleTitle) {
         funding_amount: startup.amount_raised ? String(startup.amount_raised) : null,
         article_url: sourceUrl,
         article_title: articleTitle,
-        source: 'high_volume_discovery',
+        rss_source: sourceName || 'high_volume_discovery',
         metadata: {
-          discovered_at: new Date().toISOString()
-        }
-      })
-      .select('id')
-      .single();
+          discovered_via: 'high_volume_discovery',
+          discovered_at: new Date().toISOString(),
+        },
+      },
+      { checkDuplicates: true },
+    );
 
-    if (error) {
-      if (!error.message?.includes('duplicate')) {
-        console.error(`  DB error for ${startup.name}:`, error.message);
+    if (!result.ok) {
+      if (result.error && !/invalid_name|duplicate/i.test(result.error)) {
+        console.error(`  DB error for ${startup.name}:`, result.error);
       }
       return null;
     }
-    
-    return data?.id;
+    if (result.skipped) return null;
+    return result.id || true;
   } catch (err) {
     return null;
   }
@@ -869,7 +866,7 @@ async function scrapeFeed(source) {
       
       // Save startups
       for (const startup of entities.startups) {
-        const saved = await saveStartup(startup, link, title);
+        const saved = await saveStartup(startup, link, title, source.name);
         if (saved) results.startups++;
       }
       
@@ -922,13 +919,25 @@ async function main() {
   let totalStartups = 0;
   let totalInvestors = 0;
   let sourceErrors = 0;
+
+  const maxStartupSources = Math.max(0, Number(process.env.DISCOVERY_MAX_STARTUP_SOURCES || 0));
+  const maxInvestorSources = Math.max(0, Number(process.env.DISCOVERY_MAX_INVESTOR_SOURCES || 0));
+  const startupSources =
+    maxStartupSources > 0 ? STARTUP_SOURCES.slice(0, maxStartupSources) : STARTUP_SOURCES;
+  const investorSources =
+    maxInvestorSources > 0 ? INVESTOR_SOURCES.slice(0, maxInvestorSources) : INVESTOR_SOURCES;
+  if (maxStartupSources > 0 || maxInvestorSources > 0) {
+    console.log(
+      `⚙️  Source caps: startups=${startupSources.length}/${STARTUP_SOURCES.length} investors=${investorSources.length}/${INVESTOR_SOURCES.length}\n`,
+    );
+  }
   
   // Process startup sources
   console.log('━'.repeat(70));
   console.log('📡 SCRAPING STARTUP SOURCES');
   console.log('━'.repeat(70));
   
-  for (const source of STARTUP_SOURCES) {
+  for (const source of startupSources) {
     try {
       process.stdout.write(`  ${source.name.padEnd(30)}... `);
       const results = await scrapeFeed(source);
@@ -949,7 +958,7 @@ async function main() {
   console.log('💼 SCRAPING INVESTOR SOURCES');
   console.log('━'.repeat(70));
   
-  for (const source of INVESTOR_SOURCES) {
+  for (const source of investorSources) {
     try {
       process.stdout.write(`  ${source.name.padEnd(30)}... `);
       const results = await scrapeFeed(source);
@@ -998,7 +1007,7 @@ async function main() {
       scraper_name: 'high_volume_discovery',
       started_at: new Date(startTime).toISOString(),
       finished_at: new Date().toISOString(),
-      sources_scraped: STARTUP_SOURCES.length + INVESTOR_SOURCES.length,
+      sources_scraped: startupSources.length + investorSources.length,
       articles_found: 0,
       startups_discovered: startupsAfter - startupsBefore,
       errors: sourceErrors,
@@ -1017,7 +1026,7 @@ async function main() {
       output: {
         startups_added: startupsAfter - startupsBefore,
         investors_added: investorsAfter - investorsBefore,
-        sources_scraped: STARTUP_SOURCES.length + INVESTOR_SOURCES.length,
+        sources_scraped: startupSources.length + investorSources.length,
         errors: sourceErrors,
         duration_seconds: parseFloat(duration)
       }

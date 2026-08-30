@@ -65,21 +65,16 @@ jobs:
       run: node scripts/enrich-from-rss-news.js --limit 1500 --gate-exclude-junk
       timeout_minutes: 60
 
-  # Closed-corpus mode: scheduled runs enrich existing startup_uploads only.
-  # The full discovery/reconciliation sequence remains available through workflow_dispatch.
+  # Open discovery: reconcile uploads + promote fresh discovered_startups
+  # (portfolio book records from inception 2025-11-25 onward).
   event-resolver:
     if: github.event.schedule == '30 5 * * *' || github.event.inputs.job == 'event-resolver'
     uses: ./.github/workflows/reusable-node-batch.yml
     secrets: inherit
     with:
       run: >-
-        if [ "${{ github.event_name }}" = "schedule" ]; then
-          node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8;
-        else
-          node scripts/event-resolver.js --apply --hours 36 --limit 200;
-          node scripts/event-resolver.js --apply --source discovered --limit 150 --concurrency 8;
-          node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8;
-        fi
+        node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8;
+        node scripts/event-resolver.js --apply --source discovered --limit 300 --concurrency 8;
       timeout_minutes: 60
 
   # Bridges resolver-linked investors into the signal pipeline, then refreshes
