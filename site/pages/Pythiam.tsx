@@ -334,7 +334,7 @@ export default function PythiamPage() {
                   className="font-display font-bold tabular-nums leading-none tracking-tight"
                   style={{
                     color: G,
-                    fontSize: "clamp(4.5rem, 12vw, 7.5rem)",
+                    fontSize: "clamp(2.75rem, 6vw, 4rem)",
                     letterSpacing: "-0.06em",
                   }}
                 >
