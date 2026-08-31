@@ -69,16 +69,16 @@ function themesFromText(text) {
 function normalizeSector(s) {
   const x = String(s || '').trim().toLowerCase();
   if (!x) return null;
-  if (/\b(?:ai|ml|machine|llm|genai)\b/.test(x)) return 'AI/ML';
-  if (/\b(?:crypto|web3|blockchain)\b/.test(x)) return 'Crypto/Web3';
-  if (/\b(?:fintech|payment|bank|insur)\b/.test(x)) return 'FinTech';
-  if (/\b(?:health|bio|pharma|life science)\b/.test(x) && !/\bmedia\b/.test(x)) return 'Health/Bio';
-  if (/\b(?:climate|energy|clean|carbon)\b/.test(x)) return 'Climate/Energy';
-  if (/\b(?:saas|enterprise|b2b|software)\b/.test(x)) return 'Enterprise/SaaS';
-  if (/\b(?:robot|hardware|semi|chip)\b/.test(x)) return 'Hardware/Robotics';
-  if (/\b(?:space|aero|defense|defence)\b/.test(x)) return 'Defense/Space';
-  if (/\b(?:consumer|marketplace|e-?comm)\b/.test(x)) return 'Consumer';
-  if (/\b(?:devtool|developer|infra|cloud|data)\b/.test(x)) return 'DevTools/Infra';
+  if (/\b(?:ai|ml|machine|llm|genai)/.test(x)) return 'AI/ML';
+  if (/\b(?:crypto|web3|blockchain)/.test(x)) return 'Crypto/Web3';
+  if (/\b(?:fintech|payment|bank|insur)/.test(x)) return 'FinTech';
+  if (/\b(?:health|bio|pharma|life science)/.test(x) && !/\bmedia\b/.test(x)) return 'Health/Bio';
+  if (/\b(?:climate|energy|clean|carbon)/.test(x)) return 'Climate/Energy';
+  if (/\b(?:saas|enterprise|b2b|software)/.test(x)) return 'Enterprise/SaaS';
+  if (/\b(?:robot|hardware|semi|chip)/.test(x)) return 'Hardware/Robotics';
+  if (/\b(?:space|aero|defense|defence)/.test(x)) return 'Defense/Space';
+  if (/\b(?:consumer|marketplace|e-?comm)/.test(x)) return 'Consumer';
+  if (/\b(?:devtool|developer|infra|cloud|data)/.test(x)) return 'DevTools/Infra';
   if (/\bmedia\b/.test(x)) return 'Media';
   return s;
 }
