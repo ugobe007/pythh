@@ -84,6 +84,9 @@ npm run funding:discover:missing-fos
 
 # Institutional VCs only (firm-suffix / high confidence)
 npm run funding:discover:missing-vcs -- --days=60 --min-events=2
+
+# Person-shaped angels only (review carefully — many Title-Case firms are false positives)
+npm run funding:discover:missing-angels
 ```
 
 Classifier: `lib/capitalProviderClassifier.js` (name + evidence phrase → `provider_type`).  
@@ -91,11 +94,12 @@ Report JSON: `reports/missing-capital-providers-YYYY-MM-DD.json`.
 
 **Next ops steps (do not auto-insert junk):**
 
-1. Review `family_offices` + `high_confidence_vcs` in the report  
-2. Seed curated batch: `npm run funding:seed:discovered-providers` (dry-run) then `:apply`  
-3. `npm run funding:coverage:investors:resolve:apply` to link ledger participants  
+1. Review `family_offices` + `high_confidence_vcs` + angel candidates in the report  
+2. Seed curated firm batch: `npm run funding:seed:discovered-providers` (dry-run) then `:apply`  
+3. Seed curated angels: `npm run funding:seed:discovered-angels` then `:apply` (identity-only)  
+4. `npm run funding:coverage:investors:resolve:apply` to link ledger participants  
 
-Skip bank-wealth desks (e.g. Morgan Stanley Wealth), person-shaped angels, and parse debris until reviewed.
+Skip bank-wealth desks (e.g. Morgan Stanley Wealth), firm-like Title Case mislabeled as angels (Karaoke Club, Scenic Management), startup-founder false leads, and parse debris until reviewed.
 
 ### 2.3 FundingNeed attributes (normalized)
 

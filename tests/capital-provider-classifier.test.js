@@ -51,6 +51,23 @@ test('person-shaped name → angel', () => {
   assert.equal(r.provider_type, 'angel');
 });
 
+test('firm-like Title Case is NOT a person angel', () => {
+  for (const n of [
+    'Karaoke Club',
+    'Scenic Management',
+    'Tribute Technology',
+    'Enterprise Ireland',
+    'Puma Investments',
+    'Truist Financial',
+    'Eightco Holdings',
+    'Vanderbilt University',
+    'Webb Investment Network',
+  ]) {
+    assert.equal(looksLikePersonName(n), false, n);
+    assert.notEqual(classifyCapitalProvider(n).provider_type, 'angel', n);
+  }
+});
+
 test('Oman wealth fund → sovereign', () => {
   const r = classifyCapitalProvider('Oman wealth fund');
   assert.equal(r.provider_type, 'sovereign');
