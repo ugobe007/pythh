@@ -204,7 +204,7 @@ async function main() {
         .from('investors')
         .insert({
           name: p.name,
-          firm: 'Angel Investor',
+          firm: p.name,
           title: p.title || null,
           type: 'Angel',
           investor_type: 'Angel',
@@ -234,7 +234,7 @@ async function main() {
           entity_gate: 'qualified',
           type: 'Angel',
           investor_type: 'Angel',
-          firm: 'Angel Investor',
+          firm: p.name,
           title: p.title || undefined,
           is_individual: true,
           is_verified: true,
