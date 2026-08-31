@@ -1,28 +1,24 @@
 /**
  * /pythiam — Pythiam Ventures LP page
- * Visual-first: signal array, GOD scores, portfolio proof — math not magic.
+ * Editorial LP surface: brand, thesis, MOIC proof, engine — math not magic.
  */
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
 import {
-  BarChart3,
   Brain,
   Filter,
-  Layers,
   Radar,
   Shield,
   Target,
   TrendingUp,
-  Zap,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-import StatStrip from "@/components/design/StatStrip";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
 import PythhEngineVisual from "@/components/PythhEngineVisual";
 import PortfolioGodStrip from "@/components/PortfolioGodStrip";
-import { G, MUTED, DIM, BORDER, CARD, PAGE, CYAN, GOLD } from "@/lib/designTokens";
+import { G, MUTED, DIM, BORDER, CARD, PAGE, CYAN, GOLD, TEXT, G_SUBTLE } from "@/lib/designTokens";
 
 interface TrackRecord {
   oracle?: {
@@ -39,13 +35,6 @@ interface TrackRecord {
     moic_note?: string | null;
     entry_god_threshold?: number;
   };
-  by_god_tier?: Array<{
-    tier: string;
-    picks: number;
-    funded: number;
-    verified_funded: number;
-    funded_rate_pct: number;
-  }>;
   featured_pick?: PerformerPick | null;
   top_performers?: PerformerPick[];
 }
@@ -91,9 +80,7 @@ interface FundValue {
   deployed_usd?: number;
   gain_pct?: number;
   win_rate_pct?: number;
-  realized_value_usd?: number;
   projected_moic?: number;
-  projected_value_usd?: number;
 }
 
 interface SignalMarquee {
@@ -110,7 +97,6 @@ interface SignalProof {
   tier_100m_now?: number;
   unicorn_hit_rate_pct?: number;
   median_lead_months?: number;
-  caught_early_unicorns?: number;
   marquee?: SignalMarquee[];
 }
 
@@ -131,10 +117,10 @@ interface PortfolioAnalytics {
 const FUND_TERMS = [
   { label: "Fund", value: "Pythiam Ventures Fund I" },
   { label: "Target size", value: "$8MM" },
-  { label: "Stage focus", value: "Seed" },
-  { label: "Sector focus", value: "AI and B2B software" },
+  { label: "Stage", value: "Seed" },
+  { label: "Sector", value: "AI and B2B software" },
   { label: "Geography", value: "United States" },
-  { label: "Structure", value: "2% / 20% standard · LP deck on request" },
+  { label: "Structure", value: "2% / 20% · LP deck on request" },
 ];
 
 /** Canonical LP thesis — see docs/PYTHIA_FUND_THESIS.md */
@@ -150,27 +136,13 @@ const ENGINE_LAYERS = [
   { icon: Shield, title: "Portfolio monitoring", desc: "Post-investment signal refresh and health tiers without waiting for quarterly updates." },
 ];
 
-const FUND_EDGE = (stats: { startups?: number; investors?: number } | null) => [
+const FUND_EDGE = (stats: { startups?: number } | null) => [
   { traditional: "Sort inbound decks and warm intros", pythiam: `Surface companies from a ${stats?.startups ? formatCompact(stats.startups) + "+" : "11k+"} pipeline before they raise` },
   { traditional: "Subjective gut on 'interesting' companies", pythiam: "GOD score + signal dimensions — auditable selection bar" },
   { traditional: "Crunchbase lag — learn after rounds close", pythiam: "Trajectory signals on hiring, product, capital convergence ahead of press" },
   { traditional: "Analyst bandwidth caps at dozens of names", pythiam: `Platform scores ${stats?.startups ? formatCompact(stats.startups) + "+" : "11k+"} continuously; humans focus on top tier` },
   { traditional: "Portfolio updates when founders email", pythiam: "Automated signal monitoring on holdings" },
   { traditional: "Network as the only moat", pythiam: "Network plus proprietary data engine that compounds each scrape cycle" },
-];
-
-const LP_PILLARS = (stats: { investors?: number; matches?: number } | null) => [
-  { icon: Zap, title: "Deal flow", body: "100+ RSS feeds, submissions, enrichment — ranked to thesis before competitors see the round." },
-  { icon: BarChart3, title: "Selection", body: "GOD scores spread honestly after calibration — we know which names cleared a real bar." },
-  { icon: Layers, title: "Timing", body: "Signal scores tell us when a company enters a fundraise window, not just whether it's good." },
-  { icon: Target, title: "Co-investors", body: `${stats?.investors ? formatCompact(stats.investors) : "6.4k"}+ investor profiles scored — who is deploying, adjacent, and where syndicates exist.` },
-];
-
-const ENGINE_STATS = [
-  { value: "24", label: "Scoring algorithms", sub: "tier-1 VC selection criteria", color: G },
-  { value: "40+", label: "Signal types", sub: "classified in real time", color: CYAN },
-  { value: "RT", label: "Continuous scoring", sub: "not quarterly snapshots", color: GOLD },
-  { value: "0–100", label: "GOD composite", sub: "one auditable bar", color: G },
 ];
 
 function formatCompact(n: number): string {
@@ -182,28 +154,34 @@ function formatCompact(n: number): string {
   return n.toLocaleString();
 }
 
-function SectionBlock({
+function MetricLine({
+  value,
   label,
-  title,
-  subtitle,
-  children,
-  className = "",
+  sub,
+  color = TEXT,
 }: {
+  value: string;
   label: string;
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  className?: string;
+  sub?: string;
+  color?: string;
 }) {
   return (
-    <section className={`py-8 border-t ${className}`} style={{ borderColor: BORDER }}>
-      <SectionLabel className="mb-2">{label}</SectionLabel>
-      <h2 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">{title}</h2>
-      {subtitle && (
-        <p className="text-sm leading-relaxed mb-5 max-w-3xl" style={{ color: MUTED }}>{subtitle}</p>
-      )}
-      {children}
-    </section>
+    <div className="min-w-0">
+      <div
+        className="font-display font-bold tabular-nums tracking-tight"
+        style={{ color, fontSize: "clamp(1.5rem, 3vw, 2rem)", letterSpacing: "-0.03em" }}
+      >
+        {value}
+      </div>
+      <div className="text-xs font-medium mt-1" style={{ color: TEXT }}>
+        {label}
+      </div>
+      {sub ? (
+        <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+          {sub}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -211,7 +189,6 @@ export default function PythiamPage() {
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
   const [platformStats, setPlatformStats] = useState<{ startups: number; investors: number; matches: number } | null>(null);
   const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
-  const [showTierTable, setShowTierTable] = useState(false);
 
   useEffect(() => {
     fetch("/api/portfolio/track-record")
@@ -239,48 +216,34 @@ export default function PythiamPage() {
   const followOn = analytics?.follow_on;
   const sig = analytics?.signal;
   const vel = analytics?.velocity;
-
   const oracle = trackRecord?.oracle;
   const featuredPick = trackRecord?.featured_pick ?? trackRecord?.top_performers?.[0];
-  /** Prefer a press-verified pick with real MOIC uplift for the proof callout */
   const moicHighlight =
     [...(trackRecord?.top_performers ?? [])]
       .filter((p) => p.verified && p.moic != null && p.moic > 1)
       .sort((a, b) => (b.moic ?? 0) - (a.moic ?? 0))[0] ??
     (featuredPick && featuredPick.moic != null && featuredPick.moic > 1 ? featuredPick : null);
   const fundEdge = FUND_EDGE(platformStats);
-  const lpPillars = LP_PILLARS(platformStats);
-  const heroStats = [
-    {
-      label: "Verified MOIC",
-      value: oracle?.verified_avg_moic != null ? `${oracle.verified_avg_moic}×` : "—",
-      sub: "press-confirmed raises only",
-      accent: true,
-      featured: true,
-      color: G,
-    },
-    {
-      label: "Seed Fund TVPI",
-      value: seed?.tvpi != null ? `${seed.tvpi.toFixed(2)}×` : "—",
-      sub: seed?.avg_moic != null ? `avg MOIC ${seed.avg_moic}×` : "virtual Fund I book",
-      color: GOLD,
-    },
-    {
-      label: "Verified funded",
-      value: oracle?.verified_funded_picks != null ? String(oracle.verified_funded_picks) : "—",
-      sub: oracle?.verified_funded_rate_pct != null ? `${oracle.verified_funded_rate_pct}% of picks` : "press-confirmed raises",
-      accent: true,
-    },
-    {
-      label: "Best MOIC",
-      value: oracle?.best_moic != null ? `${oracle.best_moic}×` : "—",
-      sub: "per-position capped · scoreboard",
-      color: CYAN,
-    },
-  ];
+
+  const verifiedMoic = oracle?.verified_avg_moic;
+  const avgMoic = oracle?.avg_moic ?? seed?.avg_moic;
+  const seedTvpi = seed?.tvpi;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
+    <div className="min-h-screen relative overflow-x-hidden" style={{ backgroundColor: PAGE, color: TEXT }}>
+      {/* Atmosphere — soft emerald wash, not flat black */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[70vh] opacity-90"
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 50% at 15% 10%, oklch(0.696 0.17 162.48 / 0.14), transparent 55%),
+            radial-gradient(ellipse 60% 40% at 90% 0%, oklch(0.769 0.188 70.08 / 0.06), transparent 50%),
+            linear-gradient(180deg, oklch(0.11 0.015 162) 0%, ${PAGE} 100%)
+          `,
+        }}
+      />
+
       <Helmet>
         <title>Pythiam Ventures — $8MM seed fund for US AI and B2B software</title>
         <meta
@@ -294,33 +257,41 @@ export default function PythiamPage() {
 
       <SharedNavbar activePath="/pythiam" />
 
-      <main className="container max-w-6xl pt-20 pb-12">
-        {/* Hero — copy + live engine visual */}
-        <section className="py-10 lg:py-12">
-          <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-            <div className="lg:col-span-5 order-2 lg:order-1">
-              <SectionLabel className="mb-3">Pythiam Ventures</SectionLabel>
-              <h1 className="text-3xl md:text-4xl lg:text-[2.85rem] font-bold tracking-tight text-white leading-[1.08] mb-3">
+      <main className="relative">
+        {/* ─── Hero ─── */}
+        <section className="container max-w-6xl pt-24 pb-14 lg:pt-28 lg:pb-20">
+          <div className="grid lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+            <div className="lg:col-span-5 order-2 lg:order-1 animate-fade-in-up">
+              <p
+                className="font-display font-bold tracking-tight mb-5"
+                style={{
+                  color: G,
+                  fontSize: "clamp(1.75rem, 4vw, 2.35rem)",
+                  letterSpacing: "-0.04em",
+                  lineHeight: 1.05,
+                }}
+              >
+                Pythiam Ventures
+              </p>
+              <h1
+                className="font-display font-bold tracking-tight mb-4"
+                style={{
+                  color: TEXT,
+                  fontSize: "clamp(2.4rem, 5.5vw, 3.6rem)",
+                  letterSpacing: "-0.045em",
+                  lineHeight: 1.02,
+                }}
+              >
                 Math, not{" "}
                 <span style={{ color: G }}>magic.</span>
               </h1>
-              <p className="text-lg font-medium text-white mb-4 leading-snug">
+              <p className="text-base md:text-lg leading-snug mb-6 max-w-[34ch]" style={{ color: MUTED }}>
                 A venture fund built on signal science.
               </p>
-              <p
-                className="text-base leading-relaxed mb-5 border-l-2 pl-4"
-                style={{ color: MUTED, borderColor: G }}
-              >
+              <p className="text-sm md:text-[15px] leading-relaxed mb-8 max-w-[42ch]" style={{ color: MUTED }}>
                 {FUND_THESIS}
               </p>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: DIM }}>
-                Pythiam is powered by{" "}
-                <span className="text-white font-medium">Pythh</span> —{" "}
-                <span style={{ color: G }}>24 algorithms</span> and{" "}
-                <span style={{ color: CYAN }}>40+ signal types</span>, scoring and matching startups
-                in real time. Our portfolio is a reflection of that math.
-              </p>
-              <div className="flex flex-wrap gap-3 mb-8">
+              <div className="flex flex-wrap gap-3">
                 <StrokeButton
                   href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
                   showArrow
@@ -330,523 +301,462 @@ export default function PythiamPage() {
                 <StrokeButton href="/portfolio" showArrow muted>
                   Oracle scoreboard
                 </StrokeButton>
-                <StrokeButton href="/methodology" muted size="sm">
-                  Methodology
-                </StrokeButton>
               </div>
-
-              {oracle || seed ? (
-                <StatStrip items={heroStats} cols={2} compact className="border rounded-lg" />
-              ) : (
-                <div className="h-28 rounded-lg animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
-              )}
             </div>
 
-            <div className="lg:col-span-7 order-1 lg:order-2">
+            <div className="lg:col-span-7 order-1 lg:order-2 animate-fade-in-up delay-100" style={{ animationFillMode: "both" }}>
               <PythhEngineVisual />
             </div>
           </div>
         </section>
 
-        {/* Portfolio = our math */}
-        <section className="py-8 border-t" style={{ borderColor: BORDER }}>
-          <SectionLabel className="mb-2">Proof</SectionLabel>
-          <h2 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">
-            The portfolio is the math made visible
-          </h2>
-          <p className="text-sm leading-relaxed mb-5 max-w-2xl" style={{ color: MUTED }}>
-            Each Oracle entry logged a GOD score at selection. MOIC marks to press-verified rounds —
-            public scoreboard, no narrative override.
-          </p>
-          <PortfolioGodStrip />
-          {moicHighlight && moicHighlight.moic != null && (
-            <div className="mt-5 p-4 border grid sm:grid-cols-[1fr_auto] gap-4 items-center" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <SectionLabel>Top MOIC pick</SectionLabel>
-                  {moicHighlight.verified && (
-                    <span
-                      className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border"
-                      style={{ color: G, borderColor: G }}
-                    >
-                      Press verified
-                    </span>
-                  )}
+        {/* ─── MOIC band — one composition, not a card grid ─── */}
+        <section
+          className="border-y relative"
+          style={{
+            borderColor: BORDER,
+            background: `linear-gradient(90deg, ${G_SUBTLE} 0%, transparent 40%, transparent 100%), ${CARD}`,
+          }}
+        >
+          <div className="container max-w-6xl py-12 md:py-16 animate-fade-in-up delay-200" style={{ animationFillMode: "both" }}>
+            <div className="flex flex-col lg:flex-row lg:items-end gap-10 lg:gap-16">
+              <div className="lg:min-w-[280px]">
+                <SectionLabel className="mb-3">Live book · Fund I</SectionLabel>
+                <div
+                  className="font-display font-bold tabular-nums leading-none tracking-tight"
+                  style={{
+                    color: G,
+                    fontSize: "clamp(4.5rem, 12vw, 7.5rem)",
+                    letterSpacing: "-0.06em",
+                  }}
+                >
+                  {verifiedMoic != null ? `${verifiedMoic}×` : "—"}
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1">{moicHighlight.name}</h3>
-                <p className="text-xs mb-2" style={{ color: MUTED }}>
-                  {moicHighlight.tagline || moicHighlight.sector || "Oracle entry"} · GOD {moicHighlight.entry_god_score ?? "—"} at entry
+                <p className="mt-3 text-sm font-medium" style={{ color: TEXT }}>
+                  Verified MOIC
                 </p>
-                {moicHighlight.latest_funding?.amount_usd ? (
-                  <p className="text-xs leading-relaxed mb-1" style={{ color: MUTED }}>
-                    {formatFundingUsd(moicHighlight.latest_funding.amount_usd)}
-                    {moicHighlight.latest_funding.lead_investor
-                      ? ` from ${moicHighlight.latest_funding.lead_investor}`
-                      : ""}
-                    {moicHighlight.latest_funding.headline ? ` — ${moicHighlight.latest_funding.headline}` : ""}
-                  </p>
-                ) : null}
-                <p className="text-xs leading-relaxed" style={{ color: DIM }}>
-                  Oracle entry logged before the round — MOIC from the virtual Fund I check, marked to confirmed capital.
+                <p className="text-[11px] font-mono mt-1 max-w-[28ch]" style={{ color: DIM }}>
+                  Press-confirmed raises only
+                  {oracle?.moic_note ? ` · ${oracle.moic_note}` : ""}
                 </p>
               </div>
-              <div className="text-right sm:pl-6 sm:border-l" style={{ borderColor: BORDER }}>
-                <div className="text-3xl font-display font-bold tabular-nums" style={{ color: GOLD }}>
-                  {moicHighlight.moic.toFixed(2)}×
+
+              <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-8 lg:border-l lg:pl-12" style={{ borderColor: BORDER }}>
+                <MetricLine
+                  value={avgMoic != null ? `${avgMoic}×` : "—"}
+                  label="Avg MOIC"
+                  sub="incl. signal marks"
+                  color={GOLD}
+                />
+                <MetricLine
+                  value={seedTvpi != null ? `${seedTvpi.toFixed(2)}×` : "—"}
+                  label="Seed TVPI"
+                  sub="virtual Fund I"
+                  color={G}
+                />
+                <MetricLine
+                  value={oracle?.verified_funded_picks != null ? String(oracle.verified_funded_picks) : "—"}
+                  label="Verified funded"
+                  sub={oracle?.verified_funded_rate_pct != null ? `${oracle.verified_funded_rate_pct}% of picks` : undefined}
+                  color={TEXT}
+                />
+                <MetricLine
+                  value={oracle?.best_moic != null ? `${oracle.best_moic}×` : "—"}
+                  label="Best MOIC"
+                  sub="per-position cap"
+                  color={GOLD}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="container max-w-6xl pb-16">
+          {/* ─── Proof ─── */}
+          <section className="py-14 md:py-16">
+            <SectionLabel className="mb-3">Proof</SectionLabel>
+            <h2
+              className="font-display font-bold tracking-tight mb-3 max-w-[18ch]"
+              style={{ fontSize: "clamp(1.75rem, 3.5vw, 2.5rem)", letterSpacing: "-0.035em", color: TEXT }}
+            >
+              The portfolio is the math made visible
+            </h2>
+            <p className="text-sm leading-relaxed mb-8 max-w-xl" style={{ color: MUTED }}>
+              Every Oracle entry logged a GOD score at selection. MOIC marks to press-verified rounds —
+              public scoreboard, no narrative override.
+            </p>
+            <PortfolioGodStrip />
+
+            {moicHighlight && moicHighlight.moic != null && (
+              <div className="mt-10 grid lg:grid-cols-12 gap-8 items-end">
+                <div className="lg:col-span-7">
+                  <p className="text-[10px] font-mono uppercase tracking-[0.16em] mb-3" style={{ color: G }}>
+                    Top MOIC pick
+                    {moicHighlight.verified ? " · press verified" : ""}
+                  </p>
+                  <h3
+                    className="font-display font-bold tracking-tight mb-2"
+                    style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}
+                  >
+                    {moicHighlight.name}
+                  </h3>
+                  <p className="text-sm mb-3" style={{ color: MUTED }}>
+                    {moicHighlight.tagline || moicHighlight.sector || "Oracle entry"}
+                    {" · "}
+                    GOD {moicHighlight.entry_god_score ?? "—"} at entry
+                  </p>
+                  {moicHighlight.latest_funding?.amount_usd ? (
+                    <p className="text-sm leading-relaxed max-w-xl" style={{ color: MUTED }}>
+                      {formatFundingUsd(moicHighlight.latest_funding.amount_usd)}
+                      {moicHighlight.latest_funding.lead_investor
+                        ? ` from ${moicHighlight.latest_funding.lead_investor}`
+                        : ""}
+                      {moicHighlight.latest_funding.headline
+                        ? ` — ${moicHighlight.latest_funding.headline}`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>MOIC</div>
-                {moicHighlight.irr_annualized != null && moicHighlight.irr_annualized > 0 && (
-                  <div className="text-xs font-mono mt-1" style={{ color: CYAN }}>
-                    {Math.round(moicHighlight.irr_annualized)}% IRR
+                <div className="lg:col-span-5 lg:text-right">
+                  <div
+                    className="font-display font-bold tabular-nums leading-none"
+                    style={{
+                      color: GOLD,
+                      fontSize: "clamp(3.5rem, 8vw, 5.5rem)",
+                      letterSpacing: "-0.05em",
+                    }}
+                  >
+                    {moicHighlight.moic.toFixed(1)}×
+                  </div>
+                  <p className="text-[10px] font-mono uppercase tracking-[0.16em] mt-2" style={{ color: DIM }}>
+                    MOIC
+                    {moicHighlight.irr_annualized != null && moicHighlight.irr_annualized > 0
+                      ? ` · ${Math.round(moicHighlight.irr_annualized)}% IRR`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ─── Fund books ─── */}
+          {(seed || followOn) && (
+            <section className="py-12 border-t" style={{ borderColor: BORDER }}>
+              <SectionLabel className="mb-3">Fund books</SectionLabel>
+              <h2
+                className="font-display font-bold tracking-tight mb-10"
+                style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", letterSpacing: "-0.03em" }}
+              >
+                Seed and follow-on, marked live
+              </h2>
+              <div className="grid md:grid-cols-2 gap-12 md:gap-16">
+                {seed && (
+                  <div>
+                    <div className="flex items-baseline justify-between gap-4 mb-6">
+                      <h3 className="text-sm font-semibold" style={{ color: TEXT }}>
+                        Seed Fund I
+                      </h3>
+                      <div className="text-right">
+                        <span className="font-display font-bold tabular-nums text-3xl" style={{ color: G }}>
+                          {(seed.avg_moic ?? seed.tvpi ?? 0).toFixed(2)}×
+                        </span>
+                        <span className="text-[10px] font-mono ml-2" style={{ color: DIM }}>
+                          MOIC
+                        </span>
+                        {seed.tvpi != null && (
+                          <div className="text-xs font-mono mt-1" style={{ color: MUTED }}>
+                            {seed.tvpi.toFixed(2)}× TVPI
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <dl className="grid grid-cols-3 gap-4">
+                      <div>
+                        <dt className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>
+                          Value
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums">{formatValuation(seed.current_value_usd)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>
+                          Gain
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums" style={{ color: seed.gain_pct && seed.gain_pct > 0 ? G : TEXT }}>
+                          {seed.gain_pct != null ? `+${seed.gain_pct}%` : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>
+                          Win rate
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums">
+                          {seed.win_rate_pct != null ? `${seed.win_rate_pct}%` : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="text-[11px] font-mono mt-5" style={{ color: DIM }}>
+                      {seed.positions ?? 0} positions · {formatValuation(seed.cost_basis_usd)} cost basis
+                    </p>
+                  </div>
+                )}
+                {followOn && (
+                  <div className="md:border-l md:pl-16" style={{ borderColor: BORDER }}>
+                    <div className="flex items-baseline justify-between gap-4 mb-6">
+                      <h3 className="text-sm font-semibold" style={{ color: TEXT }}>
+                        Follow-on Sidecar
+                      </h3>
+                      <div className="text-right">
+                        <span className="font-display font-bold tabular-nums text-3xl" style={{ color: CYAN }}>
+                          {(followOn.avg_moic ?? followOn.tvpi ?? 0).toFixed(2)}×
+                        </span>
+                        <span className="text-[10px] font-mono ml-2" style={{ color: DIM }}>
+                          MOIC
+                        </span>
+                        {followOn.tvpi != null && (
+                          <div className="text-xs font-mono mt-1" style={{ color: MUTED }}>
+                            {followOn.tvpi.toFixed(2)}× TVPI
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <dl className="grid grid-cols-3 gap-4">
+                      <div>
+                        <dt className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>
+                          Value
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums">{formatValuation(followOn.current_value_usd)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>
+                          Gain
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums" style={{ color: followOn.gain_pct && followOn.gain_pct > 0 ? G : TEXT }}>
+                          {followOn.gain_pct != null ? `+${followOn.gain_pct}%` : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>
+                          Projected
+                        </dt>
+                        <dd className="text-sm font-semibold tabular-nums" style={{ color: GOLD }}>
+                          {followOn.projected_moic != null ? `${followOn.projected_moic}×` : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="text-[11px] font-mono mt-5" style={{ color: DIM }}>
+                      {followOn.positions ?? 0} later-stage · {formatValuation(followOn.deployed_usd)} deployed
+                    </p>
                   </div>
                 )}
               </div>
-            </div>
-          )}
-        </section>
 
-        {/* LP SNAPSHOT — live fund performance from the portfolio engine */}
-        {analytics && (sig || seed) && (
-          <section className="py-8 border-t" style={{ borderColor: BORDER }}>
-            <SectionLabel className="mb-2">Fund I · LP snapshot</SectionLabel>
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">
-              MOIC and TVPI — the book, live
-            </h2>
-            <p className="text-sm leading-relaxed mb-5 max-w-3xl" style={{ color: MUTED }}>
-              Lead with multiples LPs can audit. Verified MOIC marks only to press-confirmed raises;
-              Seed Fund TVPI is the virtual Fund I book. Predictive hit rate (unicorns flagged early)
-              sits underneath — every figure traceable to a timestamped pick.
-            </p>
-
-            {/* MOIC / TVPI headline */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-              {[
-                {
-                  value: oracle?.verified_avg_moic != null ? `${oracle.verified_avg_moic}×` : "—",
-                  label: "Verified MOIC",
-                  sub: "press-confirmed only",
-                  color: G,
-                },
-                {
-                  value: oracle?.avg_moic != null ? `${oracle.avg_moic}×` : seed?.avg_moic != null ? `${seed.avg_moic}×` : "—",
-                  label: "Avg MOIC",
-                  sub: "incl. signal-inferred",
-                  color: GOLD,
-                },
-                {
-                  value: seed?.tvpi != null ? `${seed.tvpi.toFixed(2)}×` : "—",
-                  label: "Seed TVPI",
-                  sub: "Fund I virtual book",
-                  color: G,
-                },
-                {
-                  value: followOn?.avg_moic != null ? `${followOn.avg_moic}×` : "—",
-                  label: "Follow-on MOIC",
-                  sub: followOn?.positions != null ? `${followOn.positions} late-stage` : "sidecar",
-                  color: CYAN,
-                },
-                {
-                  value: oracle?.best_moic != null ? `${oracle.best_moic}×` : "—",
-                  label: "Best MOIC",
-                  sub: "capped per position",
-                  color: GOLD,
-                },
-              ].map(({ value, label, sub, color }) => (
-                <div key={label} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                  <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>{value}</div>
-                  <div className="text-xs font-medium text-white mb-0.5">{label}</div>
-                  <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
-                </div>
-              ))}
-            </div>
-            {oracle?.moic_note ? (
-              <p className="text-[11px] font-mono mb-6" style={{ color: DIM }}>{oracle.moic_note}</p>
-            ) : null}
-
-            {/* Predictive track record — secondary to MOIC */}
-            {sig && (
-              <>
-                <SectionLabel className="mb-2">Predictive hit rate</SectionLabel>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-                  {[
-                    { value: String(sig.unicorns_now ?? "—"), label: "Unicorns flagged", sub: "$1B+ today", color: G },
-                    { value: sig.unicorn_hit_rate_pct != null ? `${sig.unicorn_hit_rate_pct}%` : "—", label: "Unicorn hit rate", sub: `of ${sig.flagged ?? 0} flagged`, color: G },
-                    { value: String(sig.tier_500m_now ?? "—"), label: "Now $500M+", sub: "verified", color: CYAN },
-                    { value: String(sig.tier_100m_now ?? "—"), label: "Now $100M+", sub: "verified", color: CYAN },
-                    { value: sig.median_lead_months != null ? `${sig.median_lead_months}mo` : "—", label: "Median lead", sub: "before step-up", color: GOLD },
-                  ].map(({ value, label, sub, color }) => (
-                    <div key={label} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                      <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>{value}</div>
-                      <div className="text-xs font-medium text-white mb-0.5">{label}</div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Two funds */}
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              {seed && (
-                <div className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                  <div className="flex items-baseline justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white">Seed Fund I</h3>
-                    <div className="text-right">
-                      <div className="text-2xl font-display font-bold tabular-nums" style={{ color: G }}>
-                        {(seed.avg_moic ?? seed.tvpi ?? 0).toFixed(2)}×
-                        <span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>MOIC</span>
-                      </div>
-                      {seed.tvpi != null && (
-                        <div className="text-xs font-mono tabular-nums" style={{ color: MUTED }}>
-                          {seed.tvpi.toFixed(2)}× TVPI
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <div className="text-base font-bold tabular-nums text-white">{formatValuation(seed.current_value_usd)}</div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>current value</div>
-                    </div>
-                    <div>
-                      <div className="text-base font-bold tabular-nums" style={{ color: seed.gain_pct && seed.gain_pct > 0 ? G : "white" }}>
-                        {seed.gain_pct != null ? `+${seed.gain_pct}%` : "—"}
-                      </div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>net gain</div>
-                    </div>
-                    <div>
-                      <div className="text-base font-bold tabular-nums text-white">{seed.win_rate_pct != null ? `${seed.win_rate_pct}%` : "—"}</div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>win rate</div>
-                    </div>
-                  </div>
-                  <p className="text-[11px] font-mono mt-3" style={{ color: DIM }}>
-                    {seed.positions ?? 0} positions · {formatValuation(seed.cost_basis_usd)} cost basis · cohort locked
-                  </p>
-                </div>
+              {sig && (
+                <p className="text-[11px] font-mono mt-10 pt-6 border-t" style={{ color: DIM, borderColor: BORDER }}>
+                  Predictive · {sig.unicorns_now ?? "—"} unicorns flagged
+                  {sig.unicorn_hit_rate_pct != null ? ` · ${sig.unicorn_hit_rate_pct}% hit rate` : ""}
+                  {sig.tier_500m_now != null ? ` · ${sig.tier_500m_now} now $500M+` : ""}
+                  {sig.median_lead_months != null ? ` · ${sig.median_lead_months}mo median lead` : ""}
+                  {vel?.momentum_uplift_pct != null
+                    ? ` · +${vel.momentum_uplift_pct}% momentum premium (not in realized MOIC)`
+                    : ""}
+                </p>
               )}
-              {followOn && (
-                <div className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                  <div className="flex items-baseline justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white">Follow-on Sidecar</h3>
-                    <div className="text-right">
-                      <div className="text-2xl font-display font-bold tabular-nums" style={{ color: CYAN }}>
-                        {(followOn.avg_moic ?? followOn.tvpi ?? 0).toFixed(2)}×
-                        <span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>MOIC</span>
-                      </div>
-                      {followOn.tvpi != null && (
-                        <div className="text-xs font-mono tabular-nums" style={{ color: MUTED }}>
-                          {followOn.tvpi.toFixed(2)}× TVPI
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <div className="text-base font-bold tabular-nums text-white">{formatValuation(followOn.current_value_usd)}</div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>current value</div>
-                    </div>
-                    <div>
-                      <div className="text-base font-bold tabular-nums" style={{ color: followOn.gain_pct && followOn.gain_pct > 0 ? G : "white" }}>
-                        {followOn.gain_pct != null ? `+${followOn.gain_pct}%` : "—"}
-                      </div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>net gain</div>
-                    </div>
-                    <div>
-                      <div className="text-base font-bold tabular-nums" style={{ color: GOLD }}>
-                        {followOn.projected_moic != null ? `${followOn.projected_moic}×` : "—"}
-                      </div>
-                      <div className="text-[10px] font-mono" style={{ color: DIM }}>projected</div>
-                    </div>
-                  </div>
-                  <p className="text-[11px] font-mono mt-3" style={{ color: DIM }}>
-                    {followOn.positions ?? 0} later-stage doubles · {formatValuation(followOn.deployed_usd)} deployed
-                  </p>
-                </div>
-              )}
-            </div>
 
-            {/* Marquee — companies caught early */}
-            {sig?.marquee && sig.marquee.length > 0 && (
-              <>
-                <SectionLabel className="mb-2">Marquee companies caught early</SectionLabel>
-                <div className="overflow-x-auto border" style={{ borderColor: BORDER }}>
+              {sig?.marquee && sig.marquee.length > 0 && (
+                <div className="mt-10 overflow-x-auto">
+                  <p className="text-[10px] font-mono uppercase tracking-[0.14em] mb-4" style={{ color: DIM }}>
+                    Caught early
+                  </p>
                   <table className="w-full text-sm min-w-[440px]">
                     <thead>
-                      <tr style={{ backgroundColor: CARD }}>
-                        <th className="text-left p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: DIM }}>Company</th>
-                        <th className="text-right p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: DIM }}>At first flag</th>
-                        <th className="text-right p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: G }}>Now</th>
-                        <th className="text-right p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: DIM }}>Lead</th>
+                      <tr>
+                        <th className="text-left pb-3 font-mono text-[10px] uppercase tracking-widest font-normal" style={{ color: DIM }}>
+                          Company
+                        </th>
+                        <th className="text-right pb-3 font-mono text-[10px] uppercase tracking-widest font-normal" style={{ color: DIM }}>
+                          At flag
+                        </th>
+                        <th className="text-right pb-3 font-mono text-[10px] uppercase tracking-widest font-normal" style={{ color: G }}>
+                          Now
+                        </th>
+                        <th className="text-right pb-3 font-mono text-[10px] uppercase tracking-widest font-normal" style={{ color: DIM }}>
+                          Lead
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sig.marquee.slice(0, 8).map((m) => {
+                      {sig.marquee.slice(0, 6).map((m) => {
                         const grew = (m.current_valuation_usd ?? 0) > (m.first_flag_valuation_usd ?? 0);
                         return (
                           <tr key={m.name} style={{ borderTop: `1px solid ${BORDER}` }}>
-                            <td className="p-2.5 text-white">{m.name}</td>
-                            <td className="p-2.5 text-right tabular-nums" style={{ color: MUTED }}>{formatValuation(m.first_flag_valuation_usd)}</td>
-                            <td className="p-2.5 text-right tabular-nums font-medium" style={{ color: grew ? G : "white" }}>{formatValuation(m.current_valuation_usd)}</td>
-                            <td className="p-2.5 text-right font-mono text-xs" style={{ color: DIM }}>{m.lead_months ? `${m.lead_months}mo` : "at flag"}</td>
+                            <td className="py-3" style={{ color: TEXT }}>
+                              {m.name}
+                            </td>
+                            <td className="py-3 text-right tabular-nums" style={{ color: MUTED }}>
+                              {formatValuation(m.first_flag_valuation_usd)}
+                            </td>
+                            <td className="py-3 text-right tabular-nums font-medium" style={{ color: grew ? G : TEXT }}>
+                              {formatValuation(m.current_valuation_usd)}
+                            </td>
+                            <td className="py-3 text-right font-mono text-xs" style={{ color: DIM }}>
+                              {m.lead_months ? `${m.lead_months}mo` : "at flag"}
+                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* Momentum footnote */}
-            {vel && (
-              <p className="text-[11px] font-mono mt-4" style={{ color: DIM }}>
-                Momentum · {vel.accelerating_count ?? 0}/{vel.positions_scored ?? 0} accelerating
-                {vel.hot_count != null ? ` · ${vel.hot_count} hot` : ""}
-                {vel.momentum_uplift_pct != null ? ` · +${vel.momentum_uplift_pct}% forward signal premium (never mixed into realized MOIC)` : ""}
-              </p>
-            )}
+              <div className="mt-8">
+                <StrokeButton href="/portfolio" showArrow muted size="sm">
+                  Full Oracle scoreboard
+                </StrokeButton>
+              </div>
+            </section>
+          )}
 
-            <div className="mt-5">
-              <StrokeButton href="/portfolio" showArrow muted size="sm">
-                Full Oracle scoreboard
-              </StrokeButton>
+          {/* ─── Operating model ─── */}
+          <section className="py-14 border-t" style={{ borderColor: BORDER }}>
+            <SectionLabel className="mb-3">Operating model</SectionLabel>
+            <h2
+              className="font-display font-bold tracking-tight mb-8 max-w-[22ch]"
+              style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", letterSpacing: "-0.03em" }}
+            >
+              How Pythh makes Pythiam successful
+            </h2>
+            <div className="space-y-0">
+              {fundEdge.map((row, i) => (
+                <div
+                  key={i}
+                  className="grid md:grid-cols-2 gap-3 md:gap-10 py-4"
+                  style={{ borderTop: `1px solid ${BORDER}` }}
+                >
+                  <p className="text-sm" style={{ color: DIM }}>
+                    {row.traditional}
+                  </p>
+                  <p className="text-sm" style={{ color: TEXT }}>
+                    {row.pythiam}
+                  </p>
+                </div>
+              ))}
             </div>
           </section>
-        )}
 
-        {/* Engine stats strip */}
-        <section className="py-6 border-t" style={{ borderColor: BORDER }}>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {ENGINE_STATS.map(({ value, label, sub, color }) => (
-              <div key={label} className="p-4 border text-center" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>
-                  {value}
+          {/* ─── Stack ─── */}
+          <section className="py-14 border-t" style={{ borderColor: BORDER }}>
+            <SectionLabel className="mb-3">Stack</SectionLabel>
+            <h2
+              className="font-display font-bold tracking-tight mb-3"
+              style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", letterSpacing: "-0.03em" }}
+            >
+              Six production layers
+            </h2>
+            <p className="text-sm mb-10 max-w-lg" style={{ color: MUTED }}>
+              All live on pythh.ai — 24 algorithms, 40+ signal types, continuous GOD scoring.
+            </p>
+            <ol className="grid sm:grid-cols-2 gap-x-12 gap-y-8">
+              {ENGINE_LAYERS.map(({ icon: Icon, title, desc }, i) => (
+                <li key={title} className="flex gap-4">
+                  <span className="font-mono text-[11px] tabular-nums pt-1 shrink-0" style={{ color: G }}>
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Icon size={14} style={{ color: G }} />
+                      <h3 className="text-sm font-semibold" style={{ color: TEXT }}>
+                        {title}
+                      </h3>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
+                      {desc}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          {/* ─── Terms ─── */}
+          <section className="py-14 border-t" style={{ borderColor: BORDER }}>
+            <SectionLabel className="mb-3">Fund I</SectionLabel>
+            <h2
+              className="font-display font-bold tracking-tight mb-10"
+              style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", letterSpacing: "-0.03em" }}
+            >
+              Terms at a glance
+            </h2>
+            <dl className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-8">
+              {FUND_TERMS.map(({ label, value }) => (
+                <div key={label}>
+                  <dt className="text-[10px] font-mono uppercase tracking-[0.14em] mb-2" style={{ color: DIM }}>
+                    {label}
+                  </dt>
+                  <dd className="text-base font-medium" style={{ color: TEXT }}>
+                    {value}
+                  </dd>
                 </div>
-                <div className="text-xs font-medium text-white mb-0.5">{label}</div>
-                <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </dl>
+          </section>
 
-        {/* Four pillars */}
-        <section className="py-8 border-t" style={{ borderColor: BORDER }}>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {lpPillars.map(({ icon: Icon, title, body }) => (
-              <div key={title} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                <Icon size={16} className="mb-2" style={{ color: G }} />
-                <h3 className="text-sm font-semibold text-white mb-1.5">{title}</h3>
-                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Traditional vs Pythiam */}
-        <section className="py-8 border-t" style={{ borderColor: BORDER }}>
-          <SectionLabel className="mb-2">Operating model</SectionLabel>
-          <h2 className="text-xl md:text-2xl font-bold text-white mb-4 tracking-tight">
-            How Pythh makes Pythiam successful
-          </h2>
-          <div className="overflow-x-auto border" style={{ borderColor: BORDER }}>
-            <table className="w-full text-sm min-w-[520px]">
-              <thead>
-                <tr style={{ backgroundColor: CARD }}>
-                  <th className="text-left p-3 font-mono text-[10px] uppercase tracking-widest w-1/2" style={{ color: DIM }}>
-                    Traditional VC
-                  </th>
-                  <th className="text-left p-3 font-mono text-[10px] uppercase tracking-widest w-1/2" style={{ color: G }}>
-                    Pythiam + Pythh
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {fundEdge.map((row, i) => (
-                  <tr key={i} style={{ borderTop: `1px solid ${BORDER}` }}>
-                    <td className="p-3 align-top text-xs" style={{ color: DIM }}>{row.traditional}</td>
-                    <td className="p-3 align-top text-xs text-white">{row.pythiam}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Two-column: thesis + track record */}
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 border-t pt-8" style={{ borderColor: BORDER }}>
-          <SectionBlock
-            label="Platform"
-            title="What Pythh is"
-            subtitle="Intent detection — language → intent → action. Not a database of what already happened."
-            className="border-t-0 pt-0"
+          {/* ─── LP CTA ─── */}
+          <section
+            className="my-6 py-14 px-6 md:px-10 relative overflow-hidden"
+            style={{
+              background: `
+                radial-gradient(ellipse 70% 80% at 100% 50%, oklch(0.696 0.17 162.48 / 0.12), transparent 60%),
+                ${CARD}
+              `,
+              borderTop: `1px solid ${BORDER}`,
+              borderBottom: `1px solid ${BORDER}`,
+            }}
           >
-            <div className="text-sm leading-relaxed space-y-3" style={{ color: MUTED }}>
-              <p>
-                Crunchbase records the past. Pythh reads hiring, product velocity, funding language, and news momentum —
-                often months before rounds close. For Pythiam:{" "}
-                <span className="text-white">pre-scored deal flow matched to our thesis</span>, ranked by signal quality and timing.
-              </p>
-              <p className="font-mono text-xs" style={{ color: DIM }}>
-                discovery → entity gate → GOD score → signals → trajectory → match → monitor
-              </p>
+            <div className="grid lg:grid-cols-12 gap-10 items-center">
+              <div className="lg:col-span-7">
+                <SectionLabel className="mb-3">For LPs</SectionLabel>
+                <h2
+                  className="font-display font-bold tracking-tight mb-4 max-w-[16ch]"
+                  style={{ fontSize: "clamp(1.75rem, 3.5vw, 2.5rem)", letterSpacing: "-0.035em" }}
+                >
+                  Invest in the fund. Invest in the engine.
+                </h2>
+                <p className="text-sm leading-relaxed max-w-md mb-6" style={{ color: MUTED }}>
+                  Returns come from information advantage — engineered, measured, and audited.
+                  Verified MOIC on press-confirmed raises. Public scoreboard.
+                </p>
+                <ul className="space-y-2">
+                  {[
+                    "Verified MOIC on press-confirmed raises",
+                    "24 algorithms · 40+ signal types · real-time scoring",
+                    "Public Oracle scoreboard — portfolio as proof",
+                  ].map((item) => (
+                    <li key={item} className="flex gap-2 text-sm" style={{ color: MUTED }}>
+                      <span style={{ color: G }}>·</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="lg:col-span-5 lg:text-right">
+                <StrokeButton
+                  href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
+                  showArrow
+                  size="lg"
+                >
+                  Request LP materials
+                </StrokeButton>
+                <p className="text-[11px] font-mono mt-4" style={{ color: DIM }}>
+                  hello@pythh.ai · Signal science for capital
+                </p>
+              </div>
             </div>
-          </SectionBlock>
-
-          <SectionBlock
-            label="Scoreboard"
-            title="Oracle track record"
-            subtitle="Verified MOIC on press-confirmed raises — the math in production."
-            className="border-t-0 pt-0 lg:border-l lg:pl-10"
-          >
-            {oracle ? (
-              <>
-                <StatStrip
-                  cols={3}
-                  compact
-                  className="mb-3"
-                  items={[
-                    {
-                      label: "Verified MOIC",
-                      value: oracle.verified_avg_moic != null ? `${oracle.verified_avg_moic}×` : "—",
-                      sub: "press-confirmed raises",
-                      accent: true,
-                      featured: true,
-                      color: G,
-                    },
-                    {
-                      label: "Avg MOIC",
-                      value: oracle.avg_moic != null ? `${oracle.avg_moic}×` : "—",
-                      sub: "incl. signal marks",
-                      color: GOLD,
-                    },
-                    {
-                      label: "Verified funded",
-                      value: String(oracle.verified_funded_picks ?? 0),
-                      sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks`,
-                      accent: true,
-                    },
-                  ]}
-                />
-                {trackRecord?.by_god_tier?.length ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowTierTable((v) => !v)}
-                      className="text-xs font-mono mb-2 bg-transparent border-0 cursor-pointer p-0"
-                      style={{ color: G }}
-                    >
-                      {showTierTable ? "Hide" : "Show"} GOD tier breakdown →
-                    </button>
-                    {showTierTable && (
-                      <div className="overflow-x-auto border mb-3" style={{ borderColor: BORDER }}>
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr style={{ backgroundColor: CARD }}>
-                              <th className="text-left p-2 font-mono" style={{ color: DIM }}>GOD</th>
-                              <th className="text-right p-2 font-mono" style={{ color: DIM }}>Picks</th>
-                              <th className="text-right p-2 font-mono" style={{ color: DIM }}>Funded</th>
-                              <th className="text-right p-2 font-mono" style={{ color: G }}>Verified</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {trackRecord.by_god_tier.map((row) => (
-                              <tr key={row.tier} style={{ borderTop: `1px solid ${BORDER}` }}>
-                                <td className="p-2 text-white">{row.tier}</td>
-                                <td className="p-2 text-right" style={{ color: MUTED }}>{row.picks}</td>
-                                <td className="p-2 text-right" style={{ color: MUTED }}>{row.funded}</td>
-                                <td className="p-2 text-right font-medium" style={{ color: G }}>{row.verified_funded}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                ) : null}
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-mono" style={{ color: DIM }}>
-                  <span>Exited {oracle.successful_exits ?? 0}</span>
-                  <span>Median raise {oracle.median_days_to_funding ?? "—"}d</span>
-                  <span>Best MOIC {oracle.best_moic != null ? `${oracle.best_moic}×` : "—"}</span>
-                  <span>Picks {oracle.total_picks ?? "—"}</span>
-                </div>
-                {oracle.moic_note ? (
-                  <p className="text-[10px] font-mono mt-2" style={{ color: DIM }}>{oracle.moic_note}</p>
-                ) : null}
-              </>
-            ) : (
-              <div className="h-24 rounded animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
-            )}
-          </SectionBlock>
+          </section>
         </div>
-
-        {/* Platform stack */}
-        <SectionBlock label="Stack" title="Six production layers" subtitle="All live on pythh.ai today.">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {ENGINE_LAYERS.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="p-3 border" style={{ backgroundColor: CARD, borderColor: BORDER }}>
-                <Icon size={14} className="mb-2" style={{ color: G }} />
-                <h3 className="text-xs font-semibold text-white mb-1">{title}</h3>
-                <p className="text-[11px] leading-relaxed" style={{ color: MUTED }}>{desc}</p>
-              </div>
-            ))}
-          </div>
-        </SectionBlock>
-
-        {/* Fund terms */}
-        <SectionBlock label="Fund I" title="Terms at a glance" subtitle="Full LP deck available on request.">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {FUND_TERMS.map(({ label, value }) => (
-              <div key={label} className="p-3 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>{label}</div>
-                <div className="text-sm text-white">{value}</div>
-              </div>
-            ))}
-          </div>
-        </SectionBlock>
-
-        {/* LP CTA */}
-        <section className="border-t py-10" style={{ borderColor: BORDER }}>
-          <div className="grid lg:grid-cols-2 gap-8 items-start">
-            <div>
-              <SectionLabel className="mb-2">For LPs</SectionLabel>
-              <h2 className="text-xl font-bold text-white mb-2 tracking-tight">
-                Invest in the fund. Invest in the engine.
-              </h2>
-              <p className="text-sm mb-4 leading-relaxed" style={{ color: MUTED }}>
-                Venture returns come from information advantage — and that advantage can be engineered,
-                measured, and audited. Not guessed.
-              </p>
-              <ul className="space-y-2.5">
-                {[
-                  "24 algorithms · 40+ signal types · real-time scoring",
-                  "One comparable GOD score across every dimension",
-                  "Public Oracle scoreboard — portfolio as proof of math",
-                  "Compounding moat: every scrape cycle improves the next decision",
-                ].map((item) => (
-                  <li key={item} className="flex gap-2 text-sm leading-relaxed" style={{ color: MUTED }}>
-                    <span className="shrink-0 font-mono" style={{ color: G }}>·</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="lg:text-right lg:pt-4">
-              <StrokeButton
-                href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
-                showArrow
-                size="lg"
-              >
-                Request LP materials
-              </StrokeButton>
-              <p className="text-[11px] font-mono mt-4" style={{ color: DIM }}>
-                hello@pythh.ai · Signal science for capital
-              </p>
-            </div>
-          </div>
-        </section>
       </main>
 
-      <footer className="border-t py-6" style={{ borderColor: BORDER }}>
+      <footer className="border-t py-8 relative" style={{ borderColor: BORDER }}>
         <div className="container flex flex-col sm:flex-row items-center justify-between gap-3 max-w-6xl">
           <span className="text-[11px] font-mono" style={{ color: DIM }}>
             © 2026 Pythiam Ventures · Powered by Pythh
@@ -859,7 +769,7 @@ export default function PythiamPage() {
               { href: "/about", label: "About" },
             ].map(({ href, label }) => (
               <Link key={href} href={href}>
-                <span className="text-[11px] font-mono cursor-pointer transition-colors" style={{ color: DIM }}>
+                <span className="text-[11px] font-mono cursor-pointer transition-colors hover:opacity-80" style={{ color: DIM }}>
                   {label}
                 </span>
               </Link>
