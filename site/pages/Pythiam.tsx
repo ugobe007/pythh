@@ -311,14 +311,8 @@ export default function PythiamPage() {
               className="lg:col-span-5 animate-fade-in-up delay-100 flex lg:justify-end"
               style={{ animationFillMode: "both" }}
             >
-              <div
-                className="w-full max-w-md lg:max-w-[380px] origin-top-right"
-                style={{
-                  transform: "scale(0.92)",
-                  transformOrigin: "top right",
-                }}
-              >
-                <PythhEngineVisual />
+              <div className="w-full max-w-sm lg:max-w-[340px]">
+                <PythhEngineVisual className="text-[0.9em]" />
               </div>
             </div>
           </div>
