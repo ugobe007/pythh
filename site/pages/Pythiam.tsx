@@ -262,7 +262,7 @@ export default function PythiamPage() {
         <section className="container max-w-6xl pt-24 pb-10 lg:pt-28 lg:pb-12">
           <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
             <div
-              className="lg:col-span-5 order-2 lg:order-1 animate-fade-in-up"
+              className="lg:col-span-5 animate-fade-in-up"
               style={{ animationFillMode: "both" }}
             >
               <p
@@ -307,7 +307,7 @@ export default function PythiamPage() {
               </div>
             </div>
 
-            <div className="lg:col-span-7 order-1 lg:order-2 animate-fade-in-up delay-100" style={{ animationFillMode: "both" }}>
+            <div className="lg:col-span-7 animate-fade-in-up delay-100" style={{ animationFillMode: "both" }}>
               <PythhEngineVisual />
             </div>
           </div>
