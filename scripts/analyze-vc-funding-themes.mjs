@@ -69,16 +69,17 @@ function themesFromText(text) {
 function normalizeSector(s) {
   const x = String(s || '').trim().toLowerCase();
   if (!x) return null;
-  if (/ai|ml|machine|llm|genai/.test(x)) return 'AI/ML';
-  if (/fintech|payment|bank|insur|crypto/.test(x)) return 'FinTech';
-  if (/health|bio|med|pharma|life science/.test(x)) return 'Health/Bio';
-  if (/climate|energy|clean|carbon/.test(x)) return 'Climate/Energy';
-  if (/saas|enterprise|b2b|software/.test(x)) return 'Enterprise/SaaS';
-  if (/crypto|web3|blockchain/.test(x)) return 'Crypto/Web3';
-  if (/robot|hardware|semi|chip/.test(x)) return 'Hardware/Robotics';
-  if (/space|aero|defense|defence/.test(x)) return 'Defense/Space';
-  if (/consumer|marketplace|e-?comm/.test(x)) return 'Consumer';
-  if (/devtool|developer|infra|cloud|data/.test(x)) return 'DevTools/Infra';
+  if (/\b(?:ai|ml|machine|llm|genai)\b/.test(x)) return 'AI/ML';
+  if (/\b(?:crypto|web3|blockchain)\b/.test(x)) return 'Crypto/Web3';
+  if (/\b(?:fintech|payment|bank|insur)\b/.test(x)) return 'FinTech';
+  if (/\b(?:health|bio|pharma|life science)\b/.test(x) && !/\bmedia\b/.test(x)) return 'Health/Bio';
+  if (/\b(?:climate|energy|clean|carbon)\b/.test(x)) return 'Climate/Energy';
+  if (/\b(?:saas|enterprise|b2b|software)\b/.test(x)) return 'Enterprise/SaaS';
+  if (/\b(?:robot|hardware|semi|chip)\b/.test(x)) return 'Hardware/Robotics';
+  if (/\b(?:space|aero|defense|defence)\b/.test(x)) return 'Defense/Space';
+  if (/\b(?:consumer|marketplace|e-?comm)\b/.test(x)) return 'Consumer';
+  if (/\b(?:devtool|developer|infra|cloud|data)\b/.test(x)) return 'DevTools/Infra';
+  if (/\bmedia\b/.test(x)) return 'Media';
   return s;
 }
 
@@ -86,7 +87,7 @@ function roundBucket(r) {
   const s = String(r || '').toLowerCase();
   if (/pre.?seed|angel/.test(s)) return 'pre-seed/angel';
   if (/seed/.test(s)) return 'seed';
-  if (/series.?a|a\b/.test(s) && !/series.?[b-z]/.test(s)) return 'series-a';
+  if (/series.?a/.test(s) && !/series.?[b-z]/.test(s)) return 'series-a';
   if (/series.?b/.test(s)) return 'series-b';
   if (/series.?[c-z]|growth|late/.test(s)) return 'series-c+';
   if (/other|unknown|^$/.test(s)) return 'unknown';
@@ -324,9 +325,9 @@ async function main() {
   const themeRank = topN(themeCounts, 12);
   const implications = [];
 
-  const aiShare = (themeCounts.ai_ml || 0) / Math.max(1, headlinePool.length + outcomes.length);
-  const revShare = (themeCounts.revenue_growth || 0) / Math.max(1, headlinePool.length + outcomes.length);
-  const teamShare = (themeCounts.team_founder || 0) / Math.max(1, headlinePool.length + outcomes.length);
+  const aiShare = (themeCounts.ai_ml || 0) / Math.max(1, headlinePool.length + outcomesDeduped.length);
+  const revShare = (themeCounts.revenue_growth || 0) / Math.max(1, headlinePool.length + outcomesDeduped.length);
+  const teamShare = (themeCounts.team_founder || 0) / Math.max(1, headlinePool.length + outcomesDeduped.length);
 
   if (revShare >= 0.12 || (componentMeans.traction != null && componentMeans.traction >= (componentMeans.vision || 0))) {
     implications.push({
