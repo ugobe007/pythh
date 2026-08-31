@@ -92,8 +92,10 @@ Report JSON: `reports/missing-capital-providers-YYYY-MM-DD.json`.
 **Next ops steps (do not auto-insert junk):**
 
 1. Review `family_offices` + `high_confidence_vcs` in the report  
-2. Seed curated profiles (`scripts/seed-missing-funding-investor-profiles.mjs`) with `type: 'Family Office'` or `'VC'`  
+2. Seed curated batch: `npm run funding:seed:discovered-providers` (dry-run) then `:apply`  
 3. `npm run funding:coverage:investors:resolve:apply` to link ledger participants  
+
+Skip bank-wealth desks (e.g. Morgan Stanley Wealth), person-shaped angels, and parse debris until reviewed.
 
 ### 2.3 FundingNeed attributes (normalized)
 
