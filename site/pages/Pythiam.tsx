@@ -259,9 +259,12 @@ export default function PythiamPage() {
 
       <main className="relative">
         {/* ─── Hero ─── */}
-        <section className="container max-w-6xl pt-24 pb-14 lg:pt-28 lg:pb-20">
-          <div className="grid lg:grid-cols-12 gap-12 lg:gap-14 items-center">
-            <div className="lg:col-span-5 order-2 lg:order-1 animate-fade-in-up">
+        <section className="container max-w-6xl pt-24 pb-10 lg:pt-28 lg:pb-12">
+          <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+            <div
+              className="lg:col-span-5 order-2 lg:order-1 animate-fade-in-up"
+              style={{ animationFillMode: "both" }}
+            >
               <p
                 className="font-display font-bold tracking-tight mb-5"
                 style={{
@@ -341,7 +344,7 @@ export default function PythiamPage() {
                 </p>
               </div>
 
-              <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-8 lg:border-l lg:pl-12" style={{ borderColor: BORDER }}>
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 lg:gap-x-10 lg:border-l lg:pl-12 pt-2" style={{ borderColor: BORDER }}>
                 <MetricLine
                   value={avgMoic != null ? `${avgMoic}×` : "—"}
                   label="Avg MOIC"
