@@ -11,13 +11,6 @@ interface PreviewSignal {
   color: string;
 }
 
-interface PreviewDimension {
-  label: string;
-  score: number;
-  max: number;
-  color: string;
-}
-
 interface PreviewEntry {
   startup: {
     id: string;
@@ -25,12 +18,10 @@ interface PreviewEntry {
     domain: string | null;
     godScore: number;
     godLabel: string;
-    dimensions: PreviewDimension[];
   };
   signals: PreviewSignal[];
 }
 
-const DIM_COLORS = [PURPLE, CYAN, G, CYAN, PURPLE];
 const FALLBACK_SIGNALS: PreviewSignal[] = [
   { label: "Execution velocity", value: 0.82, raw: 8.2, color: G },
   { label: "Investor receptivity", value: 0.71, raw: 7.1, color: CYAN },
@@ -38,13 +29,6 @@ const FALLBACK_SIGNALS: PreviewSignal[] = [
   { label: "Capital convergence", value: 0.65, raw: 6.5, color: PURPLE },
   { label: "Founder language", value: 0.74, raw: 7.4, color: CYAN },
 ];
-
-const FALLBACK_DIMS = ["TEAM", "TRACTION", "MARKET", "PRODUCT", "VISION"].map((label, i) => ({
-  label,
-  score: [17, 14, 18, 15, 16][i],
-  max: 20,
-  color: DIM_COLORS[i],
-}));
 
 const FALLBACK_GOD = { score: 84, label: "Elite · Investment-grade", name: "oracle-pick" };
 
@@ -75,9 +59,6 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
 
   const startup = entry?.startup;
   const signals = entry?.signals?.length ? entry.signals : FALLBACK_SIGNALS;
-  const dims = startup?.dimensions?.length
-    ? startup.dimensions
-    : FALLBACK_DIMS;
   const godScore = startup?.godScore ?? FALLBACK_GOD.score;
   const godLabel = startup?.godLabel ?? FALLBACK_GOD.label;
   const displayName = startup?.domain ?? startup?.name ?? "live startup";
@@ -153,34 +134,6 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
               </div>
             ))}
           </div>
-
-          <div className="px-4 py-2 border-b" style={{ borderColor: BORDER }}>
-            <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
-              GOD score · 5-dimension composite
-            </span>
-          </div>
-          {dims.map(({ label, score, max, color }) => (
-            <div
-              key={label}
-              className="flex items-center gap-2 px-4 py-2 border-b"
-              style={{ borderColor: "oklch(0.11 0.01 264)" }}
-            >
-              <span className="text-[10px] font-mono w-14 shrink-0" style={{ color: DIM }}>{label}</span>
-              <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.14 0.01 264)" }}>
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: animated ? `${(score / max) * 100}%` : "0%",
-                    backgroundColor: color,
-                    transition: "width 0.85s ease-out 0.15s",
-                  }}
-                />
-              </div>
-              <span className="text-[10px] font-mono font-bold w-5 text-right shrink-0" style={{ color }}>
-                {animated ? score : "—"}
-              </span>
-            </div>
-          ))}
 
           <div className="grid grid-cols-2">
             <div className="px-4 py-4 border-r" style={{ borderColor: BORDER }}>
