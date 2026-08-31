@@ -33,8 +33,10 @@ interface TrackRecord {
     funded_rate_pct?: number;
     successful_exits?: number;
     median_days_to_funding?: number | null;
+    avg_moic?: number | null;
     verified_avg_moic?: number | null;
     best_moic?: number | null;
+    moic_note?: string | null;
     entry_god_threshold?: number;
   };
   by_god_tier?: Array<{
@@ -240,9 +242,29 @@ export default function PythiamPage() {
 
   const oracle = trackRecord?.oracle;
   const featuredPick = trackRecord?.featured_pick ?? trackRecord?.top_performers?.[0];
+  /** Prefer a press-verified pick with real MOIC uplift for the proof callout */
+  const moicHighlight =
+    [...(trackRecord?.top_performers ?? [])]
+      .filter((p) => p.moic != null && p.moic > 1)
+      .sort((a, b) => (b.moic ?? 0) - (a.moic ?? 0))[0] ??
+    (featuredPick && featuredPick.moic != null && featuredPick.moic > 1 ? featuredPick : null);
   const fundEdge = FUND_EDGE(platformStats);
   const lpPillars = LP_PILLARS(platformStats);
   const heroStats = [
+    {
+      label: "Verified MOIC",
+      value: oracle?.verified_avg_moic != null ? `${oracle.verified_avg_moic}×` : "—",
+      sub: "press-confirmed raises only",
+      accent: true,
+      featured: true,
+      color: G,
+    },
+    {
+      label: "Seed Fund TVPI",
+      value: seed?.tvpi != null ? `${seed.tvpi.toFixed(2)}×` : "—",
+      sub: seed?.avg_moic != null ? `avg MOIC ${seed.avg_moic}×` : "virtual Fund I book",
+      color: GOLD,
+    },
     {
       label: "Verified funded",
       value: oracle?.verified_funded_picks != null ? String(oracle.verified_funded_picks) : "—",
@@ -250,19 +272,10 @@ export default function PythiamPage() {
       accent: true,
     },
     {
-      label: "Oracle picks",
-      value: oracle?.total_picks != null ? String(oracle.total_picks) : "—",
-      sub: `GOD ≥ ${oracle?.entry_god_threshold ?? 70} at entry`,
-    },
-    {
-      label: "Scored startups",
-      value: platformStats ? formatCompact(platformStats.startups) : "—",
-      sub: "approved & GOD-rated",
-    },
-    {
-      label: "Mapped investors",
-      value: platformStats ? formatCompact(platformStats.investors) : "—",
-      sub: "thesis + stage profiles",
+      label: "Best MOIC",
+      value: oracle?.best_moic != null ? `${oracle.best_moic}×` : "—",
+      sub: "per-position capped · scoreboard",
+      color: CYAN,
     },
   ];
 
@@ -322,7 +335,7 @@ export default function PythiamPage() {
                 </StrokeButton>
               </div>
 
-              {oracle || platformStats ? (
+              {oracle || platformStats || seed ? (
                 <StatStrip items={heroStats} cols={2} compact className="border rounded-lg" />
               ) : (
                 <div className="h-28 rounded-lg animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
@@ -342,16 +355,16 @@ export default function PythiamPage() {
             The portfolio is the math made visible
           </h2>
           <p className="text-sm leading-relaxed mb-5 max-w-2xl" style={{ color: MUTED }}>
-            Each Oracle entry logged a GOD score at selection. No narrative override — the scoreboard
-            is public, press-verified, and updated as signals change.
+            Each Oracle entry logged a GOD score at selection. MOIC marks to press-verified rounds —
+            public scoreboard, no narrative override.
           </p>
           <PortfolioGodStrip />
-          {featuredPick && featuredPick.moic != null && featuredPick.moic > 1 && (
+          {moicHighlight && moicHighlight.moic != null && (
             <div className="mt-5 p-4 border grid sm:grid-cols-[1fr_auto] gap-4 items-center" style={{ borderColor: BORDER, backgroundColor: CARD }}>
               <div>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <SectionLabel>Highlighted pick</SectionLabel>
-                  {featuredPick.verified && (
+                  <SectionLabel>Top MOIC pick</SectionLabel>
+                  {moicHighlight.verified && (
                     <span
                       className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border"
                       style={{ color: G, borderColor: G }}
@@ -360,31 +373,31 @@ export default function PythiamPage() {
                     </span>
                   )}
                 </div>
-                <h3 className="text-lg font-bold text-white mb-1">{featuredPick.name}</h3>
+                <h3 className="text-lg font-bold text-white mb-1">{moicHighlight.name}</h3>
                 <p className="text-xs mb-2" style={{ color: MUTED }}>
-                  {featuredPick.tagline || featuredPick.sector || "Oracle entry"} · GOD {featuredPick.entry_god_score ?? "—"} at entry
+                  {moicHighlight.tagline || moicHighlight.sector || "Oracle entry"} · GOD {moicHighlight.entry_god_score ?? "—"} at entry
                 </p>
-                {featuredPick.latest_funding?.amount_usd ? (
+                {moicHighlight.latest_funding?.amount_usd ? (
                   <p className="text-xs leading-relaxed mb-1" style={{ color: MUTED }}>
-                    {formatFundingUsd(featuredPick.latest_funding.amount_usd)}
-                    {featuredPick.latest_funding.lead_investor
-                      ? ` from ${featuredPick.latest_funding.lead_investor}`
+                    {formatFundingUsd(moicHighlight.latest_funding.amount_usd)}
+                    {moicHighlight.latest_funding.lead_investor
+                      ? ` from ${moicHighlight.latest_funding.lead_investor}`
                       : ""}
-                    {featuredPick.latest_funding.headline ? ` — ${featuredPick.latest_funding.headline}` : ""}
+                    {moicHighlight.latest_funding.headline ? ` — ${moicHighlight.latest_funding.headline}` : ""}
                   </p>
                 ) : null}
                 <p className="text-xs leading-relaxed" style={{ color: DIM }}>
-                  Oracle entry logged before the round — the math in production, not a backtest narrative.
+                  Oracle entry logged before the round — MOIC from the virtual Fund I check, marked to confirmed capital.
                 </p>
               </div>
               <div className="text-right sm:pl-6 sm:border-l" style={{ borderColor: BORDER }}>
                 <div className="text-3xl font-display font-bold tabular-nums" style={{ color: GOLD }}>
-                  {featuredPick.moic.toFixed(2)}×
+                  {moicHighlight.moic.toFixed(2)}×
                 </div>
                 <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>MOIC</div>
-                {featuredPick.irr_annualized != null && featuredPick.irr_annualized > 0 && (
+                {moicHighlight.irr_annualized != null && moicHighlight.irr_annualized > 0 && (
                   <div className="text-xs font-mono mt-1" style={{ color: CYAN }}>
-                    {Math.round(featuredPick.irr_annualized)}% IRR
+                    {Math.round(moicHighlight.irr_annualized)}% IRR
                   </div>
                 )}
               </div>
@@ -397,31 +410,79 @@ export default function PythiamPage() {
           <section className="py-8 border-t" style={{ borderColor: BORDER }}>
             <SectionLabel className="mb-2">Fund I · LP snapshot</SectionLabel>
             <h2 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">
-              Performance at a glance
+              MOIC and TVPI — the book, live
             </h2>
             <p className="text-sm leading-relaxed mb-5 max-w-3xl" style={{ color: MUTED }}>
-              Live from the portfolio engine. The defensible story isn&apos;t the MOIC — it&apos;s the predictive
-              hit rate: companies flagged early that went on to be worth billions, every figure traceable to a
-              timestamped pick and a press-verified round.
+              Lead with multiples LPs can audit. Verified MOIC marks only to press-confirmed raises;
+              Seed Fund TVPI is the virtual Fund I book. Predictive hit rate (unicorns flagged early)
+              sits underneath — every figure traceable to a timestamped pick.
             </p>
 
-            {/* Predictive track record headline */}
+            {/* MOIC / TVPI headline */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+              {[
+                {
+                  value: oracle?.verified_avg_moic != null ? `${oracle.verified_avg_moic}×` : "—",
+                  label: "Verified MOIC",
+                  sub: "press-confirmed only",
+                  color: G,
+                },
+                {
+                  value: oracle?.avg_moic != null ? `${oracle.avg_moic}×` : seed?.avg_moic != null ? `${seed.avg_moic}×` : "—",
+                  label: "Avg MOIC",
+                  sub: "incl. signal-inferred",
+                  color: GOLD,
+                },
+                {
+                  value: seed?.tvpi != null ? `${seed.tvpi.toFixed(2)}×` : "—",
+                  label: "Seed TVPI",
+                  sub: "Fund I virtual book",
+                  color: G,
+                },
+                {
+                  value: followOn?.avg_moic != null ? `${followOn.avg_moic}×` : "—",
+                  label: "Follow-on MOIC",
+                  sub: followOn?.positions != null ? `${followOn.positions} late-stage` : "sidecar",
+                  color: CYAN,
+                },
+                {
+                  value: oracle?.best_moic != null ? `${oracle.best_moic}×` : "—",
+                  label: "Best MOIC",
+                  sub: "capped per position",
+                  color: GOLD,
+                },
+              ].map(({ value, label, sub, color }) => (
+                <div key={label} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                  <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>{value}</div>
+                  <div className="text-xs font-medium text-white mb-0.5">{label}</div>
+                  <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
+                </div>
+              ))}
+            </div>
+            {oracle?.moic_note ? (
+              <p className="text-[11px] font-mono mb-6" style={{ color: DIM }}>{oracle.moic_note}</p>
+            ) : null}
+
+            {/* Predictive track record — secondary to MOIC */}
             {sig && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-                {[
-                  { value: String(sig.unicorns_now ?? "—"), label: "Unicorns flagged", sub: "$1B+ today", color: G },
-                  { value: sig.unicorn_hit_rate_pct != null ? `${sig.unicorn_hit_rate_pct}%` : "—", label: "Unicorn hit rate", sub: `of ${sig.flagged ?? 0} flagged`, color: G },
-                  { value: String(sig.tier_500m_now ?? "—"), label: "Now $500M+", sub: "verified", color: CYAN },
-                  { value: String(sig.tier_100m_now ?? "—"), label: "Now $100M+", sub: "verified", color: CYAN },
-                  { value: sig.median_lead_months != null ? `${sig.median_lead_months}mo` : "—", label: "Median lead", sub: "before step-up", color: GOLD },
-                ].map(({ value, label, sub, color }) => (
-                  <div key={label} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-                    <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>{value}</div>
-                    <div className="text-xs font-medium text-white mb-0.5">{label}</div>
-                    <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
-                  </div>
-                ))}
-              </div>
+              <>
+                <SectionLabel className="mb-2">Predictive hit rate</SectionLabel>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                  {[
+                    { value: String(sig.unicorns_now ?? "—"), label: "Unicorns flagged", sub: "$1B+ today", color: G },
+                    { value: sig.unicorn_hit_rate_pct != null ? `${sig.unicorn_hit_rate_pct}%` : "—", label: "Unicorn hit rate", sub: `of ${sig.flagged ?? 0} flagged`, color: G },
+                    { value: String(sig.tier_500m_now ?? "—"), label: "Now $500M+", sub: "verified", color: CYAN },
+                    { value: String(sig.tier_100m_now ?? "—"), label: "Now $100M+", sub: "verified", color: CYAN },
+                    { value: sig.median_lead_months != null ? `${sig.median_lead_months}mo` : "—", label: "Median lead", sub: "before step-up", color: GOLD },
+                  ].map(({ value, label, sub, color }) => (
+                    <div key={label} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                      <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>{value}</div>
+                      <div className="text-xs font-medium text-white mb-0.5">{label}</div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
             {/* Two funds */}
@@ -430,9 +491,17 @@ export default function PythiamPage() {
                 <div className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
                   <div className="flex items-baseline justify-between mb-3">
                     <h3 className="text-sm font-semibold text-white">Seed Fund I</h3>
-                    <span className="text-2xl font-display font-bold tabular-nums" style={{ color: G }}>
-                      {(seed.tvpi ?? seed.avg_moic ?? 0).toFixed(2)}×<span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>TVPI</span>
-                    </span>
+                    <div className="text-right">
+                      <div className="text-2xl font-display font-bold tabular-nums" style={{ color: G }}>
+                        {(seed.avg_moic ?? seed.tvpi ?? 0).toFixed(2)}×
+                        <span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>MOIC</span>
+                      </div>
+                      {seed.tvpi != null && (
+                        <div className="text-xs font-mono tabular-nums" style={{ color: MUTED }}>
+                          {seed.tvpi.toFixed(2)}× TVPI
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
@@ -459,9 +528,17 @@ export default function PythiamPage() {
                 <div className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
                   <div className="flex items-baseline justify-between mb-3">
                     <h3 className="text-sm font-semibold text-white">Follow-on Sidecar</h3>
-                    <span className="text-2xl font-display font-bold tabular-nums" style={{ color: CYAN }}>
-                      {(followOn.tvpi ?? followOn.avg_moic ?? 0).toFixed(2)}×<span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>TVPI</span>
-                    </span>
+                    <div className="text-right">
+                      <div className="text-2xl font-display font-bold tabular-nums" style={{ color: CYAN }}>
+                        {(followOn.avg_moic ?? followOn.tvpi ?? 0).toFixed(2)}×
+                        <span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>MOIC</span>
+                      </div>
+                      {followOn.tvpi != null && (
+                        <div className="text-xs font-mono tabular-nums" style={{ color: MUTED }}>
+                          {followOn.tvpi.toFixed(2)}× TVPI
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
@@ -618,7 +695,7 @@ export default function PythiamPage() {
           <SectionBlock
             label="Scoreboard"
             title="Oracle track record"
-            subtitle="Press-verified raises vs early signals — the math in production."
+            subtitle="Verified MOIC on press-confirmed raises — the math in production."
             className="border-t-0 pt-0 lg:border-l lg:pl-10"
           >
             {oracle ? (
@@ -628,9 +705,26 @@ export default function PythiamPage() {
                   compact
                   className="mb-3"
                   items={[
-                    { label: "Verified funded", value: String(oracle.verified_funded_picks ?? 0), sub: `${oracle.verified_funded_rate_pct ?? 0}%`, accent: true },
-                    { label: "Total picks", value: String(oracle.total_picks ?? "—"), sub: "Oracle entries" },
-                    { label: "Signal funded", value: String(Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0))), sub: `${oracle.funded_rate_pct ?? 0}% detection` },
+                    {
+                      label: "Verified MOIC",
+                      value: oracle.verified_avg_moic != null ? `${oracle.verified_avg_moic}×` : "—",
+                      sub: "press-confirmed raises",
+                      accent: true,
+                      featured: true,
+                      color: G,
+                    },
+                    {
+                      label: "Avg MOIC",
+                      value: oracle.avg_moic != null ? `${oracle.avg_moic}×` : "—",
+                      sub: "incl. signal marks",
+                      color: GOLD,
+                    },
+                    {
+                      label: "Verified funded",
+                      value: String(oracle.verified_funded_picks ?? 0),
+                      sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks`,
+                      accent: true,
+                    },
                   ]}
                 />
                 {trackRecord?.by_god_tier?.length ? (
@@ -672,9 +766,12 @@ export default function PythiamPage() {
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-mono" style={{ color: DIM }}>
                   <span>Exited {oracle.successful_exits ?? 0}</span>
                   <span>Median raise {oracle.median_days_to_funding ?? "—"}d</span>
-                  <span>Avg MOIC {oracle.avg_moic ? `${oracle.avg_moic}×` : "—"}</span>
-                  <span>Verified MOIC {oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—"}</span>
+                  <span>Best MOIC {oracle.best_moic != null ? `${oracle.best_moic}×` : "—"}</span>
+                  <span>Picks {oracle.total_picks ?? "—"}</span>
                 </div>
+                {oracle.moic_note ? (
+                  <p className="text-[10px] font-mono mt-2" style={{ color: DIM }}>{oracle.moic_note}</p>
+                ) : null}
               </>
             ) : (
               <div className="h-24 rounded animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
