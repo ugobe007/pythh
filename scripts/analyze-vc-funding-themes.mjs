@@ -11,16 +11,51 @@
  * Usage:
  *   node scripts/analyze-vc-funding-themes.mjs
  *   node scripts/analyze-vc-funding-themes.mjs --days=45 --out=reports/vc-funding-themes.json
+ *   node scripts/analyze-vc-funding-themes.mjs --min-god=55 --exclude-sectors=Gaming,Media
+ *   node scripts/analyze-vc-funding-themes.mjs --include-junk-names   # keep parser junk in cohort
  */
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import { createClient } from '@supabase/supabase-js';
 
-const DAYS = Number((process.argv.find((a) => a.startsWith('--days=')) || '--days=45').split('=')[1]) || 45;
+const require = createRequire(import.meta.url);
+const { evaluateStartupNameForPipeline } = require('../lib/startupNameGate.js');
+const { isValidStartupName } = require('../lib/startupNameValidator.js');
+
+function parseArg(prefix, fallback = null) {
+  const hit = process.argv.find((a) => a.startsWith(`${prefix}=`));
+  if (!hit) return fallback;
+  const raw = hit.slice(prefix.length + 1).trim();
+  if (raw === '') return fallback;
+  return raw;
+}
+
+function parseNumberArg(prefix, fallback = null) {
+  const raw = parseArg(prefix, null);
+  if (raw == null) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseListArg(prefix) {
+  const raw = parseArg(prefix, '');
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+const DAYS = parseNumberArg('--days', 45) || 45;
 const OUT =
-  (process.argv.find((a) => a.startsWith('--out=')) || '').split('=')[1] ||
-  `reports/vc-funding-themes-${new Date().toISOString().slice(0, 10)}.json`;
+  parseArg('--out') || `reports/vc-funding-themes-${new Date().toISOString().slice(0, 10)}.json`;
+const MIN_GOD = parseNumberArg('--min-god', null);
+const EXCLUDE_SECTORS = parseListArg('--exclude-sectors');
+const FILTER_JUNK_NAMES = !process.argv.includes('--include-junk-names');
 
 const sb = createClient(
   process.env.SUPABASE_URL,
@@ -94,6 +129,61 @@ function roundBucket(r) {
   return s.slice(0, 24) || 'unknown';
 }
 
+function sectorTokens(sectors) {
+  const tokens = new Set();
+  for (const raw of sectors || []) {
+    const s = String(raw || '').trim();
+    if (!s) continue;
+    tokens.add(s.toLowerCase());
+    const normalized = normalizeSector(s);
+    if (normalized) tokens.add(String(normalized).toLowerCase());
+  }
+  return tokens;
+}
+
+function sectorMatchesExclude(sectors, excludeSet) {
+  if (!excludeSet.size) return false;
+  const tokens = sectorTokens(sectors);
+  for (const token of tokens) {
+    for (const ex of excludeSet) {
+      if (token === ex || token.includes(ex)) return true;
+    }
+  }
+  return false;
+}
+
+/** @returns {{ reason: string, detail?: string } | null} */
+function cohortFilterReason(outcome, startup) {
+  const name = String(startup?.name || outcome.startup_name || '').trim();
+  if (FILTER_JUNK_NAMES) {
+    const gate = evaluateStartupNameForPipeline(name);
+    if (!gate.ok) return { reason: 'junk_name', detail: gate.reason };
+    const valid = isValidStartupName(name);
+    if (!valid.isValid) return { reason: 'junk_name', detail: valid.reason || 'invalid_name' };
+  }
+  if (MIN_GOD != null) {
+    const god = startup?.total_god_score;
+    if (god == null || Number(god) < MIN_GOD) {
+      return { reason: 'min_god', detail: god == null ? 'null' : String(god) };
+    }
+  }
+  if (EXCLUDE_SECTORS.size > 0 && sectorMatchesExclude(startup?.sectors, EXCLUDE_SECTORS)) {
+    return {
+      reason: 'excluded_sector',
+      detail: (startup?.sectors || []).join('|') || 'none',
+    };
+  }
+  return null;
+}
+
+function formatFilterBanner() {
+  const parts = [];
+  if (FILTER_JUNK_NAMES) parts.push('junk_names=drop');
+  if (MIN_GOD != null) parts.push(`min_god=${MIN_GOD}`);
+  if (EXCLUDE_SECTORS.size) parts.push(`exclude_sectors=${[...EXCLUDE_SECTORS].join(',')}`);
+  return parts.length ? parts.join(' · ') : 'none (full funded cohort)';
+}
+
 async function fetchAll(table, select, filterFn) {
   const page = 1000;
   let from = 0;
@@ -113,7 +203,8 @@ async function fetchAll(table, select, filterFn) {
 }
 
 async function main() {
-  console.log(`\n══ VC funding theme analysis (last ${DAYS}d since ${sinceDate}) ══\n`);
+  console.log(`\n══ VC funding theme analysis (last ${DAYS}d since ${sinceDate}) ══`);
+  console.log(`Funded cohort filters: ${formatFilterBanner()}\n`);
 
   const events = await fetchAll(
     'startup_events',
@@ -182,13 +273,17 @@ async function main() {
     console.warn('vc_intelligence skip:', e.message);
   }
 
+  const pressThemeCounts = {};
+  const pressRoundCounts = {};
+  const pressWhyExamples = {};
   const sectorCounts = {};
-  const roundCounts = {};
-  const themeCounts = {};
-  const whyExamples = {};
+  const cohortRoundCounts = {};
+  const cohortThemeCounts = {};
   const godBySector = {};
   const componentAvgs = { team: [], traction: [], market: [], product: [], vision: [], total: [] };
   const deals = [];
+  const filterStats = { junk_name: 0, min_god: 0, excluded_sector: 0 };
+  const filteredSamples = { junk_name: [], min_god: [], excluded_sector: [] };
 
   const headlinePool = [
     ...events.map((e) => ({
@@ -216,27 +311,44 @@ async function main() {
   for (const h of headlinePool) {
     const themes = themesFromText(`${h.title} ${h.subject || ''}`);
     for (const th of themes) {
-      bump(themeCounts, th);
-      if (!whyExamples[th]) whyExamples[th] = [];
-      if (whyExamples[th].length < 5) {
-        whyExamples[th].push({ title: h.title, url: h.url, publisher: h.publisher });
+      bump(pressThemeCounts, th);
+      if (!pressWhyExamples[th]) pressWhyExamples[th] = [];
+      if (pressWhyExamples[th].length < 5) {
+        pressWhyExamples[th].push({ title: h.title, url: h.url, publisher: h.publisher });
       }
     }
-    bump(roundCounts, roundBucket(h.round));
+    bump(pressRoundCounts, roundBucket(h.round));
   }
 
+  let cohortKept = 0;
   for (const o of outcomesDeduped) {
     const s = startupsById.get(o.startup_id);
+    const filterHit = cohortFilterReason(o, s);
+    if (filterHit) {
+      bump(filterStats, filterHit.reason);
+      const samples = filteredSamples[filterHit.reason];
+      if (samples && samples.length < 8) {
+        samples.push({
+          name: s?.name || o.startup_name,
+          god: s?.total_god_score ?? null,
+          sectors: s?.sectors || [],
+          detail: filterHit.detail,
+        });
+      }
+      continue;
+    }
+    cohortKept += 1;
+
     const title = o.features_at_time?.source_title || o.startup_name;
     const themes = themesFromText(
       `${title} ${o.startup_name} ${(s?.tagline || '')} ${(s?.description || '').slice(0, 280)}`,
     );
-    for (const th of themes) bump(themeCounts, th);
+    for (const th of themes) bump(cohortThemeCounts, th);
 
     const sectors = (s?.sectors || []).map(normalizeSector).filter(Boolean);
     const primary = sectors[0] || 'Unknown';
     bump(sectorCounts, primary);
-    bump(roundCounts, roundBucket(o.funding_round || o.features_at_time?.stage));
+    bump(cohortRoundCounts, roundBucket(o.funding_round || o.features_at_time?.stage));
 
     if (!godBySector[primary]) godBySector[primary] = { n: 0, total: 0, traction: 0, market: 0, team: 0 };
     if (s?.total_god_score != null) {
@@ -256,7 +368,7 @@ async function main() {
     }
 
     deals.push({
-      name: o.startup_name,
+      name: s?.name || o.startup_name,
       date: o.outcome_date,
       round: o.funding_round,
       amount: o.funding_amount,
@@ -322,12 +434,13 @@ async function main() {
 
   // Calibration implications vs live weights
   const liveWeights = { team: 0.22, traction: 0.30, market: 0.20, product: 0.15, vision: 0.13 };
-  const themeRank = topN(themeCounts, 12);
+  const pressThemeRank = topN(pressThemeCounts, 12);
+  const cohortThemeRank = topN(cohortThemeCounts, 12);
   const implications = [];
 
-  const aiShare = (themeCounts.ai_ml || 0) / Math.max(1, headlinePool.length + outcomesDeduped.length);
-  const revShare = (themeCounts.revenue_growth || 0) / Math.max(1, headlinePool.length + outcomesDeduped.length);
-  const teamShare = (themeCounts.team_founder || 0) / Math.max(1, headlinePool.length + outcomesDeduped.length);
+  const aiShare = (pressThemeCounts.ai_ml || 0) / Math.max(1, headlinePool.length);
+  const revShare = (pressThemeCounts.revenue_growth || 0) / Math.max(1, headlinePool.length);
+  const teamShare = (pressThemeCounts.team_founder || 0) / Math.max(1, headlinePool.length);
 
   if (revShare >= 0.12 || (componentMeans.traction != null && componentMeans.traction >= (componentMeans.vision || 0))) {
     implications.push({
@@ -361,7 +474,7 @@ async function main() {
   });
   implications.push({
     area: 'Signals.capital_convergence',
-    observation: `Rounds mix: ${JSON.stringify(Object.fromEntries(topN(roundCounts, 6).map((x) => [x.key, x.count])))}`,
+    observation: `Cohort rounds mix: ${JSON.stringify(Object.fromEntries(topN(cohortRoundCounts, 6).map((x) => [x.key, x.count])))}`,
     suggestion: 'Weight seed/Series A velocity higher in signal→GOD bridge than late-stage vanity raises.',
     live: null,
   });
@@ -370,28 +483,41 @@ async function main() {
     generated_at: new Date().toISOString(),
     window_days: DAYS,
     since: sinceDate,
+    cohort_filters: {
+      junk_names: FILTER_JUNK_NAMES,
+      min_god: MIN_GOD,
+      exclude_sectors: [...EXCLUDE_SECTORS],
+    },
     counts: {
       startup_events_funding: events.length,
       raise_like_headlines: raiseLike.length,
       funding_outcomes: outcomes.length,
       funding_outcomes_deduped: outcomesDeduped.length,
+      funded_cohort_kept: cohortKept,
+      funded_cohort_filtered: outcomesDeduped.length - cohortKept,
+      filter_stats: filterStats,
       startups_joined: startupsById.size,
       vc_intelligence_rows: vcIntel.length,
       headline_pool: headlinePool.length,
     },
     themes: {
-      top: themeRank,
-      examples: whyExamples,
+      press_top: pressThemeRank,
+      press_examples: pressWhyExamples,
+      cohort_top: cohortThemeRank,
     },
     sectors: {
       top: topN(sectorCounts, 15),
       god_by_sector: sectorGod,
     },
-    rounds: topN(roundCounts, 10),
+    rounds: {
+      press: topN(pressRoundCounts, 10),
+      cohort: topN(cohortRoundCounts, 10),
+    },
     funded_cohort_god_components: componentMeans,
     live_god_weights: liveWeights,
     vc_intel_themes: topN(vcThemeCounts, 10),
     vc_intel_samples: vcSamples,
+    filtered_out_samples: filteredSamples,
     implications,
     sample_deals: deals.slice(0, 40),
   };
@@ -401,12 +527,19 @@ async function main() {
   console.log(`Wrote ${OUT}\n`);
 
   console.log('Counts:', report.counts);
-  console.log('\nTop themes:');
-  for (const t of themeRank) console.log(`  ${t.count.toString().padStart(4)}  ${t.key}`);
-  console.log('\nTop sectors (funded outcomes):');
+  if (report.counts.funded_cohort_filtered > 0) {
+    console.log('Filtered out:', filterStats);
+  }
+  console.log('\nTop themes (press headlines):');
+  for (const t of pressThemeRank) console.log(`  ${t.count.toString().padStart(4)}  ${t.key}`);
+  if (cohortKept > 0) {
+    console.log('\nTop themes (clean funded cohort):');
+    for (const t of cohortThemeRank) console.log(`  ${t.count.toString().padStart(4)}  ${t.key}`);
+  }
+  console.log('\nTop sectors (clean funded cohort):');
   for (const s of report.sectors.top) console.log(`  ${s.count.toString().padStart(4)}  ${s.key}`);
-  console.log('\nRounds:');
-  for (const r of report.rounds) console.log(`  ${r.count.toString().padStart(4)}  ${r.key}`);
+  console.log('\nRounds (clean funded cohort):');
+  for (const r of report.rounds.cohort) console.log(`  ${r.count.toString().padStart(4)}  ${r.key}`);
   console.log('\nFunded cohort GOD component means:', componentMeans);
   console.log('\nCalibration implications:');
   for (const i of implications) {
