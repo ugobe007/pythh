@@ -13,6 +13,12 @@
 
 **Tagline:** A venture fund built on signal science.
 
+### Fund thesis (locked)
+
+> **Pythiam Ventures is launching an $8MM seed fund in the United States to back US AI and B2B software companies, using Pythh’s signal engine — 11k+ scored startups and Oracle picks with a ~44% verified-funded hit rate.**
+
+See [PYTHIA_FUND_THESIS.md](./PYTHIA_FUND_THESIS.md) for VC Lab component map and refresh checklist.
+
 ---
 
 ## What Pythh is
@@ -133,12 +139,13 @@ Pythiam is not buying software — **we built the software**. The fund and the p
 | Term | Detail |
 |------|--------|
 | **Fund name** | Pythiam Ventures Fund I |
-| **Target fund size** | Raising — full terms in LP deck (contact hello@pythh.ai) |
-| **Stage focus** | Pre-seed & Seed |
-| **Sector focus** | AI/ML · Fintech · Developer Tools · SaaS |
-| **Geography** | US-centric · global English-language signal coverage |
+| **Target fund size** | **$8MM** |
+| **Stage focus** | **Seed** |
+| **Sector focus** | AI and B2B software (AI/ML · FinTech · Developer Tools · SaaS) |
+| **Geography** | United States · English-language signal coverage |
 | **GP / team** | Pythh founding team — bios in LP materials |
 | **Management fee / carry** | 2% / 20% standard · available on request |
+| **Thesis** | [PYTHIA_FUND_THESIS.md](./PYTHIA_FUND_THESIS.md) |
 
 ### Oracle track record (live, May 2026)
 

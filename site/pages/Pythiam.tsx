@@ -128,12 +128,16 @@ interface PortfolioAnalytics {
 
 const FUND_TERMS = [
   { label: "Fund", value: "Pythiam Ventures Fund I" },
-  { label: "Target size", value: "Raising — terms on request" },
-  { label: "Stage focus", value: "Pre-seed & Seed" },
-  { label: "Sector focus", value: "AI/ML · Fintech · Developer Tools · SaaS" },
-  { label: "Geography", value: "US-centric · global signal coverage" },
+  { label: "Target size", value: "$8MM" },
+  { label: "Stage focus", value: "Seed" },
+  { label: "Sector focus", value: "AI and B2B software" },
+  { label: "Geography", value: "United States" },
   { label: "Structure", value: "2% / 20% standard · LP deck on request" },
 ];
+
+/** Canonical LP thesis — see docs/PYTHIA_FUND_THESIS.md */
+const FUND_THESIS =
+  "Pythiam Ventures is launching an $8MM seed fund in the United States to back US AI and B2B software companies, using Pythh’s signal engine — 11k+ scored startups and Oracle picks with a ~44% verified-funded hit rate.";
 
 const ENGINE_LAYERS = [
   { icon: Filter, title: "Entity resolution gate", desc: "Name validation, URL checks, junk filtering before scoring." },
@@ -265,13 +269,14 @@ export default function PythiamPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
-        <title>Pythiam Ventures — Math, not magic. Signal-native venture fund.</title>
+        <title>Pythiam Ventures — $8MM seed fund for US AI and B2B software</title>
         <meta
           name="description"
-          content="Pythiam Ventures is powered by Pythh — 24 algorithms, 40+ signal types, real-time GOD scoring. Our portfolio reflects our math, not magic."
+          content="Pythiam Ventures is launching an $8MM seed fund in the United States to back US AI and B2B software companies, using Pythh’s signal engine — 11k+ scored startups and Oracle picks with a ~44% verified-funded hit rate."
         />
-        <meta property="og:title" content="Pythiam Ventures — Powered by Pythh" />
+        <meta property="og:title" content="Pythiam Ventures — $8MM seed · US AI & B2B software" />
         <meta property="og:url" content="https://pythh.ai/pythiam" />
+        <meta property="og:description" content="A venture fund built on signal science. Powered by Pythh." />
       </Helmet>
 
       <SharedNavbar activePath="/pythiam" />
@@ -289,16 +294,18 @@ export default function PythiamPage() {
               <p className="text-lg font-medium text-white mb-4 leading-snug">
                 A venture fund built on signal science.
               </p>
-              <p className="text-base leading-relaxed mb-5" style={{ color: MUTED }}>
-                Pythiam is powered by{" "}
-                <span className="text-white font-medium">Pythh</span> — an advanced system that identifies,
-                scores, and matches startups using{" "}
-                <span style={{ color: G }}>24 algorithms</span> and{" "}
-                <span style={{ color: CYAN }}>40+ signal types</span>, in real time.
+              <p
+                className="text-base leading-relaxed mb-5 border-l-2 pl-4"
+                style={{ color: MUTED, borderColor: G }}
+              >
+                {FUND_THESIS}
               </p>
-              <p className="text-sm leading-relaxed mb-6 border-l-2 pl-4" style={{ color: MUTED, borderColor: G }}>
-                Our portfolio is a reflection of our math — our signal science. Every Oracle pick cleared
-                a quantitative bar before it entered the book.
+              <p className="text-sm leading-relaxed mb-6" style={{ color: DIM }}>
+                Pythiam is powered by{" "}
+                <span className="text-white font-medium">Pythh</span> —{" "}
+                <span style={{ color: G }}>24 algorithms</span> and{" "}
+                <span style={{ color: CYAN }}>40+ signal types</span>, scoring and matching startups
+                in real time. Our portfolio is a reflection of that math.
               </p>
               <div className="flex flex-wrap gap-3 mb-8">
                 <StrokeButton
