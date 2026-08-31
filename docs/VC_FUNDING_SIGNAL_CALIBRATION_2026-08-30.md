@@ -93,6 +93,7 @@ Example thesis (Coyote): healthcare/wellness + behavioral health; prioritizes te
 3. **AI sector prior:** split **applied AI with revenue/users** vs **infra mega-raise**; only the former should move GOD hard.  
 4. **Parser hygiene:** many FUNDING false positives (`Raised on AI`, geographic subjects); tighten `source-quality` + frame subject for raise headlines — improves signal purity for scoring.  
 5. **Sector tags on `startup_uploads`:** Gaming/Climate co-tags pollute joins (e.g. Vals AI); sector ontology cleanup needed before sector→weight automation.
+6. **Megacorp parents as startups:** `Alphabet` (Google parent, abc.xyz) was `entity_gate=qualified` with GOD 81 and entered funded-cohort + matching. Block via brand ontology + name gate. **Alphabet Ventures** = GV (Google Ventures) — already investor-track. After name-gate ship: `npm run entity-gate:execute` so existing Alphabet* rows flip to `junk` and `EnhancedMatchingService` skips them.
 
 ## Clean funded cohort (recommended)
 

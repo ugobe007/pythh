@@ -97,6 +97,10 @@ notOk(isValidStartupName('One Two Three Four Five Six Seven').isValid, '7 words 
 console.log('\n2b. isValidStartupName — RSS/VC headline junk (must reject)');
 notOk(isValidStartupName('Sequoia Capital Andreessen Horowitz').isValid, 'VC name soup');
 notOk(isValidStartupName('Google Wiz').isValid, 'megacorp + token');
+notOk(isValidStartupName('Alphabet').isValid, 'Google parent holding company');
+notOk(isValidStartupName('Alphabet Inc').isValid, 'Alphabet Inc legal name');
+notOk(isValidStartupName("Alphabet Inc.'s").isValid, 'Alphabet Inc possessive fragment');
+notOk(isValidStartupName('Alphabet Ventures').isValid, 'Alphabet Ventures = GV, not a startup');
 notOk(isValidStartupName('YC Demo Day TechCrunch').isValid, 'YC + media event');
 notOk(isValidStartupName('South America').isValid, 'geographic region');
 notOk(isValidStartupName('Shopify Guillermo Rauch CEO').isValid, '… CEO tail');
