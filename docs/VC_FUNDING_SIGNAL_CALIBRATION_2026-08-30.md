@@ -94,10 +94,34 @@ Example thesis (Coyote): healthcare/wellness + behavioral health; prioritizes te
 4. **Parser hygiene:** many FUNDING false positives (`Raised on AI`, geographic subjects); tighten `source-quality` + frame subject for raise headlines — improves signal purity for scoring.  
 5. **Sector tags on `startup_uploads`:** Gaming/Climate co-tags pollute joins (e.g. Vals AI); sector ontology cleanup needed before sector→weight automation.
 
-## How to re-run
+## Clean funded cohort (recommended)
+
+Press headlines stay unfiltered; the **funded cohort** join can be sliced for calibration:
+
+| Filter | Purpose |
+|--------|---------|
+| `--min-god=N` | Drop low-GOD ledger rows (noise / weak joins) |
+| `--exclude-sectors=Gaming,Media` | Drop sector-tag pollution from RSS inference |
+| default junk-name drop | Uses `startupNameGate` + `isValidStartupName` (Boil, That, Company, …) |
+| `--include-junk-names` | Opt out of name filtering |
+
+```bash
+# Clean slice (Gaming out, GOD≥55, junk names dropped)
+npm run analyze:vc-funding-themes:clean
+
+# Same flags explicitly
+npm run analyze:vc-funding-themes -- --min-god=55 --exclude-sectors=Gaming
+
+# Full unfiltered cohort (legacy behavior)
+npm run analyze:vc-funding-themes -- --days=45 --include-junk-names
+```
+
+**Interpretation:** With clean filters, expect a smaller cohort (~60–80 deals vs ~400+ deduped) and higher GOD means (total ~70–75, traction ~75–80). Use this slice for GOD calibration; use unfiltered press themes for “what VCs are talking about.”
+
+## How to re-run (full pipeline)
 
 ```bash
 RSS_MAX_SOURCES=80 npm run scrape:ssot
 npm run intel:scrape-vc -- --limit=40 --stale-days=3
-node scripts/analyze-vc-funding-themes.mjs --days=45 --out=reports/vc-funding-themes-$(date -u +%F).json
+npm run analyze:vc-funding-themes:clean -- --out=reports/vc-funding-themes-$(date -u +%F).json
 ```
