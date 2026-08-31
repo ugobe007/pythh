@@ -328,7 +328,7 @@ async function findInvestor(name, firm) {
     const rows = [...(byName || []), ...(byFirm || [])];
     const exact = rows.find(
       (r) =>
-        r.is_individual !== true &&
+        r.is_individual === false &&
         (String(r.name || '').toLowerCase() === t.toLowerCase() ||
           String(r.firm || '').toLowerCase() === t.toLowerCase()),
     );
