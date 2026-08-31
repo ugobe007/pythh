@@ -147,16 +147,22 @@ Pythiam is not buying software — **we built the software**. The fund and the p
 | **Management fee / carry** | 2% / 20% standard · available on request |
 | **Thesis** | [PYTHIA_FUND_THESIS.md](./PYTHIA_FUND_THESIS.md) |
 
-### Oracle track record (live, May 2026)
+### Oracle track record (live)
 
-| Metric | Value |
+Refresh from `/api/portfolio/track-record` + `/api/portfolio/analytics` before LP sends.
+
+| Metric | Value (as of 2026-08-31) |
 |--------|-------|
-| Oracle picks (GOD ≥ 70) | 54 total · 47 at threshold |
-| Verified funded | 24 picks · 44.4% verified rate |
-| Signal-funded detection | 36 total · 66.7% funded rate |
-| Median days to funding | 149 days from Oracle entry |
-| Verified avg MOIC | 116× (includes signal-inferred valuations) |
-| Best MOIC | Addi · 5.07× press-verified · top performer in book |
+| Oracle picks (GOD ≥ 70) | 114 total |
+| Verified funded | 80 picks · 70.2% verified rate |
+| Verified avg MOIC | **4.2×** (press-confirmed raises only) |
+| Avg MOIC | 4.81× (includes signal-inferred valuations) |
+| Best MOIC | 50× (per-position cap) · e.g. Deepgram, Elliptic |
+| Seed Fund I TVPI | **2.76×** · avg MOIC 4.81× |
+| Follow-on sidecar MOIC | 1.76× · 38 positions |
+| Median days to funding | 6 days from Oracle entry (live book) |
+
+Surface: [pythh.ai/pythiam](https://pythh.ai/pythiam) · full scoreboard [pythh.ai/portfolio](https://pythh.ai/portfolio)
 
 ---
 
