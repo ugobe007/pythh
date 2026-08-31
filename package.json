@@ -179,6 +179,8 @@
     "funding:discover:missing-providers": "node scripts/discover-missing-capital-providers.mjs",
     "funding:discover:missing-fos": "node scripts/discover-missing-capital-providers.mjs --provider-type=family_office",
     "funding:discover:missing-vcs": "node scripts/discover-missing-capital-providers.mjs --provider-type=vc",
+    "funding:seed:discovered-providers": "node scripts/seed-discovered-capital-providers.mjs",
+    "funding:seed:discovered-providers:apply": "node scripts/seed-discovered-capital-providers.mjs --apply",
     "funding:audit:candidate-misses": "node scripts/audit-candidate-generation-misses.mjs",
     "funding:repair": "node scripts/repair-funding-ledger-derived-fields.mjs",
     "funding:participants": "node scripts/enrich-funding-ledger-participants.mjs",
