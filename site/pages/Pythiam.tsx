@@ -260,38 +260,38 @@ export default function PythiamPage() {
       <main className="relative">
         {/* ─── Hero ─── */}
         <section className="container max-w-6xl pt-24 pb-10 lg:pt-28 lg:pb-12">
-          <div className="grid lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+          <div className="grid lg:grid-cols-12 gap-10 lg:gap-10 items-center">
             <div
-              className="lg:col-span-5 animate-fade-in-up"
+              className="lg:col-span-7 animate-fade-in-up"
               style={{ animationFillMode: "both" }}
             >
               <p
                 className="font-display font-bold tracking-tight mb-5"
                 style={{
                   color: G,
-                  fontSize: "clamp(1.75rem, 4vw, 2.35rem)",
-                  letterSpacing: "-0.04em",
-                  lineHeight: 1.05,
+                  fontSize: "clamp(2.1rem, 4.8vw, 3rem)",
+                  letterSpacing: "-0.045em",
+                  lineHeight: 1.02,
                 }}
               >
                 Pythiam Ventures
               </p>
               <h1
-                className="font-display font-bold tracking-tight mb-4"
+                className="font-display font-bold tracking-tight mb-5"
                 style={{
                   color: TEXT,
-                  fontSize: "clamp(2.4rem, 5.5vw, 3.6rem)",
-                  letterSpacing: "-0.045em",
-                  lineHeight: 1.02,
+                  fontSize: "clamp(3.1rem, 7.5vw, 5rem)",
+                  letterSpacing: "-0.05em",
+                  lineHeight: 0.98,
                 }}
               >
                 Math, not{" "}
                 <span style={{ color: G }}>magic.</span>
               </h1>
-              <p className="text-base md:text-lg leading-snug mb-6 max-w-[34ch]" style={{ color: MUTED }}>
+              <p className="text-lg md:text-xl leading-snug mb-6 max-w-[28ch]" style={{ color: MUTED }}>
                 A venture fund built on signal science.
               </p>
-              <p className="text-sm md:text-[15px] leading-relaxed mb-8 max-w-[42ch]" style={{ color: MUTED }}>
+              <p className="text-[15px] md:text-base leading-relaxed mb-8 max-w-[46ch]" style={{ color: MUTED }}>
                 {FUND_THESIS}
               </p>
               <div className="flex flex-wrap gap-3">
@@ -307,8 +307,19 @@ export default function PythiamPage() {
               </div>
             </div>
 
-            <div className="lg:col-span-7 animate-fade-in-up delay-100" style={{ animationFillMode: "both" }}>
-              <PythhEngineVisual />
+            <div
+              className="lg:col-span-5 animate-fade-in-up delay-100 flex lg:justify-end"
+              style={{ animationFillMode: "both" }}
+            >
+              <div
+                className="w-full max-w-md lg:max-w-[380px] origin-top-right"
+                style={{
+                  transform: "scale(0.92)",
+                  transformOrigin: "top right",
+                }}
+              >
+                <PythhEngineVisual />
+              </div>
             </div>
           </div>
         </section>
