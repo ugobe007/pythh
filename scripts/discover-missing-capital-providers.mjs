@@ -202,14 +202,14 @@ async function main() {
           .order('created_at', { ascending: false }),
     );
     const leadRe =
-      /\b(?:led by|co-led by|led the round|backing from|participation from|joined by)\s+([A-Z][\w&.''\-\s]{1,60}?)(?:\s+(?:and|,|with|to|in|for)\b|$)/g;
+      /\b(?:led by|co-led by|led the round|backing from|participation from|joined by)\s+([A-Z][\w&.''\-\s,]+?)(?:\s+(?:with|to|in|for)\b|$)/g;
     for (const e of raiseEvents) {
       const text = `${e.source_title || ''} ${e.object || ''}`;
       let m;
       leadRe.lastIndex = 0;
       while ((m = leadRe.exec(text)) !== null) {
         const chunk = m[1].replace(/\s+/g, ' ').trim();
-        // Split "A and B" loosely
+        // Split "A and B, C and D" on "and" and comma
         for (const part of chunk.split(/\s+and\s+|,\s*/i)) {
           bump(part, {
             eventId: e.id,
