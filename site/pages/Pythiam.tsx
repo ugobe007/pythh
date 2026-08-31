@@ -245,7 +245,7 @@ export default function PythiamPage() {
   /** Prefer a press-verified pick with real MOIC uplift for the proof callout */
   const moicHighlight =
     [...(trackRecord?.top_performers ?? [])]
-      .filter((p) => p.moic != null && p.moic > 1)
+      .filter((p) => p.verified && p.moic != null && p.moic > 1)
       .sort((a, b) => (b.moic ?? 0) - (a.moic ?? 0))[0] ??
     (featuredPick && featuredPick.moic != null && featuredPick.moic > 1 ? featuredPick : null);
   const fundEdge = FUND_EDGE(platformStats);
@@ -335,7 +335,7 @@ export default function PythiamPage() {
                 </StrokeButton>
               </div>
 
-              {oracle || platformStats || seed ? (
+              {oracle || seed ? (
                 <StatStrip items={heroStats} cols={2} compact className="border rounded-lg" />
               ) : (
                 <div className="h-28 rounded-lg animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
