@@ -71,6 +71,30 @@ Use a closed enum for matching filters; map free text at ingest:
 
 Participation **roles** on equity rounds stay in [`funding-participation-ontology.md`](./funding-participation-ontology.md): `lead`, `co_lead`, `participant`, `follow_on`, `strategic`, `unknown`.
 
+### 2.2.1 Discover missing VCs & Family Offices from funding news
+
+Family offices are increasingly active in equity rounds alongside VCs. Many names appear in `funding_evidence_participants` with `investor_id = null` and are not yet in `investors`.
+
+```bash
+# All missing capital providers (90d window)
+npm run funding:discover:missing-providers
+
+# Family offices only
+npm run funding:discover:missing-fos
+
+# Institutional VCs only (firm-suffix / high confidence)
+npm run funding:discover:missing-vcs -- --days=60 --min-events=2
+```
+
+Classifier: `lib/capitalProviderClassifier.js` (name + evidence phrase → `provider_type`).  
+Report JSON: `reports/missing-capital-providers-YYYY-MM-DD.json`.
+
+**Next ops steps (do not auto-insert junk):**
+
+1. Review `family_offices` + `high_confidence_vcs` in the report  
+2. Seed curated profiles (`scripts/seed-missing-funding-investor-profiles.mjs`) with `type: 'Family Office'` or `'VC'`  
+3. `npm run funding:coverage:investors:resolve:apply` to link ledger participants  
+
 ### 2.3 FundingNeed attributes (normalized)
 
 | Field | Example |
