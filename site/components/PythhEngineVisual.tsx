@@ -88,6 +88,7 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
 
   // Pause rotation when the tab is hidden
   useEffect(() => {
+    pausedRef.current = document.visibilityState === "hidden";
     const onVis = () => {
       pausedRef.current = document.visibilityState === "hidden";
     };
@@ -103,7 +104,7 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
       setIndex((i) => (i + 1) % pool.length);
     }, ROTATE_MS);
     return () => window.clearInterval(id);
-  }, [pool.length]);
+  }, [pool.length, index]);
 
   // Replay scan + bar animation whenever the active startup changes
   useEffect(() => {
