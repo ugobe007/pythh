@@ -59,7 +59,7 @@ async function fetchInvestors() {
       .range(offset, offset + 199);
 
     if (!ALL) {
-      q = q.or('email.is.null,email_status.eq.pending,email_status.eq.inferred,email_status.is.null');
+      q = q.or('email.is.null,email_status.eq.pending,email_status.is.null');
     }
 
     const { data, error } = await q;
@@ -120,6 +120,15 @@ async function main() {
       if (!contact || contact.rejected) {
         stats.rejected++;
         console.log(`skip (${contact?.reason || 'not_found'})`);
+        
+        if (!DRY_RUN) {
+          const { error } = await db.from('investors').update({
+            email_status: 'not_found',
+            email_enriched_at: new Date().toISOString(),
+          }).eq('id', inv.id);
+          if (error) console.error(`  write error: ${error.message}`);
+        }
+        
         await sleep(DELAY_MS);
         continue;
       }
@@ -127,6 +136,15 @@ async function main() {
       if ((contact.hunterConfidence || 0) < MIN_CONFIDENCE && contact.source !== 'verified_on_file') {
         stats.rejected++;
         console.log(`skip (low_confidence:${contact.hunterConfidence || 0})`);
+        
+        if (!DRY_RUN) {
+          const { error } = await db.from('investors').update({
+            email_status: 'low_confidence',
+            email_enriched_at: new Date().toISOString(),
+          }).eq('id', inv.id);
+          if (error) console.error(`  write error: ${error.message}`);
+        }
+        
         await sleep(DELAY_MS);
         continue;
       }

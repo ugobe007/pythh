@@ -68,8 +68,9 @@ async function fetchStartups() {
 
   return (data || [])
     .filter((s) => {
-      const cached = s.extracted_data?.outreach_contact?.email;
-      if (cached) return false;
+      const outreach = s.extracted_data?.outreach_contact;
+      if (outreach?.email) return false;
+      if (outreach?.enrichment_failed) return false;
       if (!FILL_SUBMITTED && s.submitted_email?.trim()) return false;
       return true;
     })
@@ -105,6 +106,17 @@ async function main() {
       if (!contact || contact.rejected) {
         stats.rejected++;
         console.log(`skip (${contact?.reason || 'not_found'})`);
+        
+        if (!DRY_RUN) {
+          const extracted = { ...(startup.extracted_data || {}), outreach_contact: { 
+            enrichment_failed: true,
+            enriched_at: new Date().toISOString(),
+            failure_reason: contact?.reason || 'not_found',
+          }};
+          const { error } = await db.from('startup_uploads').update({ extracted_data: extracted }).eq('id', startup.id);
+          if (error) console.error(`  write error: ${error.message}`);
+        }
+        
         await sleep(DELAY_MS);
         continue;
       }
