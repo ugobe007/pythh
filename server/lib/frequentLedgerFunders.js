@@ -266,6 +266,82 @@ const FREQUENT_LEDGER_FUNDER_ALIASES = Object.freeze([
   'caffeinated capital',
   'caffeinated',
   'dcvc',
+  // Post-Wave4 Hit@5 miss actuals + audit not_in_universe (2026-09-01).
+  'alkeon',
+  'alkeon capital',
+  'lux capital',
+  'lux',
+  '8vc',
+  'atomico',
+  'scale venture partners',
+  'scale venture',
+  'crv',
+  'charles river ventures',
+  'upfront ventures',
+  'upfront',
+  'susa ventures',
+  'susa',
+  'golub growth',
+  'golub',
+  'battery ventures',
+  'battery',
+  'f-prime',
+  'f-prime capital',
+  'summit partners',
+  'summit',
+  'female founders fund',
+  'amex ventures',
+  'servicenow ventures',
+  'mongodb ventures',
+  'databricks ventures',
+  'capitalg',
+  'capital g',
+  'bmw i ventures',
+  'bmw i',
+  'flex capital',
+  'harmony partners',
+  'engineering capital',
+  'smash capital',
+  'sinewave ventures',
+  'peakspan capital',
+  'peakspan',
+  'sofinnova partners',
+  'sofinnova',
+  'aglae ventures',
+  'aglae',
+  'alven',
+  'eniac',
+  'wipro ventures',
+  'wipro',
+  'operator collective',
+  'bonfire ventures',
+  'bonfire',
+  '776 ventures',
+  '776',
+  'decheng capital',
+  'decheng',
+  'bain capital ventures',
+  'bcv',
+  'firstmark capital',
+  'firstmark',
+  'starwood capital',
+  'dfj growth',
+  'dfj',
+  'bam elevate',
+  'allianz life ventures',
+  'allianz',
+  'citi ventures',
+  'sorenson capital',
+  'sorenson',
+  'basecase capital',
+  'basecase',
+  'market one capital',
+  'triple a venture capital',
+  'blume founders fund',
+  'blume founders',
+  'yl ventures',
+  'redshift capital',
+  'redshift',
 ]);
 
 /** Alias → family key for de-duplicating multiple investor rows. */
@@ -514,6 +590,81 @@ const ALIAS_FAMILY = Object.freeze({
   'caffeinated capital': 'caffeinated',
   caffeinated: 'caffeinated',
   dcvc: 'dcvc',
+  alkeon: 'alkeon',
+  'alkeon capital': 'alkeon',
+  'lux capital': 'lux',
+  lux: 'lux',
+  '8vc': '8vc',
+  atomico: 'atomico',
+  'scale venture partners': 'scale_venture',
+  'scale venture': 'scale_venture',
+  crv: 'crv',
+  'charles river ventures': 'crv',
+  'upfront ventures': 'upfront',
+  upfront: 'upfront',
+  'susa ventures': 'susa',
+  susa: 'susa',
+  'golub growth': 'golub',
+  golub: 'golub',
+  'battery ventures': 'battery',
+  battery: 'battery',
+  'f-prime': 'f_prime',
+  'f-prime capital': 'f_prime',
+  'summit partners': 'summit',
+  summit: 'summit',
+  'female founders fund': 'female_founders',
+  'amex ventures': 'amex_ventures',
+  'servicenow ventures': 'servicenow_ventures',
+  'mongodb ventures': 'mongodb_ventures',
+  'databricks ventures': 'databricks_ventures',
+  capitalg: 'capitalg',
+  'capital g': 'capitalg',
+  'bmw i ventures': 'bmw_i',
+  'bmw i': 'bmw_i',
+  'flex capital': 'flex_capital',
+  'harmony partners': 'harmony',
+  'engineering capital': 'engineering_capital',
+  'smash capital': 'smash',
+  'sinewave ventures': 'sinewave',
+  'peakspan capital': 'peakspan',
+  peakspan: 'peakspan',
+  'sofinnova partners': 'sofinnova',
+  sofinnova: 'sofinnova',
+  'aglae ventures': 'aglae',
+  aglae: 'aglae',
+  alven: 'alven',
+  eniac: 'eniac',
+  'wipro ventures': 'wipro',
+  wipro: 'wipro',
+  'operator collective': 'operator_collective',
+  'bonfire ventures': 'bonfire',
+  bonfire: 'bonfire',
+  '776 ventures': '776',
+  '776': '776',
+  'decheng capital': 'decheng',
+  decheng: 'decheng',
+  'bain capital ventures': 'bcv',
+  bcv: 'bcv',
+  'firstmark capital': 'firstmark',
+  firstmark: 'firstmark',
+  'starwood capital': 'starwood',
+  'dfj growth': 'dfj',
+  dfj: 'dfj',
+  'bam elevate': 'bam_elevate',
+  'allianz life ventures': 'allianz',
+  allianz: 'allianz',
+  'citi ventures': 'citi_ventures',
+  'sorenson capital': 'sorenson',
+  sorenson: 'sorenson',
+  'basecase capital': 'basecase',
+  basecase: 'basecase',
+  'market one capital': 'market_one',
+  'triple a venture capital': 'triple_a',
+  'blume founders fund': 'blume_founders',
+  'blume founders': 'blume_founders',
+  'yl ventures': 'yl_ventures',
+  'redshift capital': 'redshift',
+  redshift: 'redshift',
 });
 
 function normalizeFunderLabel(value) {
@@ -600,6 +751,32 @@ function collectFrequentLedgerFunderIds(investors) {
 }
 
 /**
+ * Keep matches at/above persistence floor, plus allowlisted frequent-ledger funders
+ * that scored below the floor so force-reserve can still persist them.
+ *
+ * @param {object[]} allScoredRows - every scored row (including below floor)
+ * @param {object[]} investors - universe used to resolve forced IDs
+ * @param {number} floor
+ * @param {{ getScore?: (row: object) => number, getId?: (row: object) => string }} [opts]
+ */
+function applyPersistenceFloorWithForcedLedger(allScoredRows, investors, floor, opts = {}) {
+  const getScore = opts.getScore || ((row) => Number(row.match_score ?? row.result?.score ?? 0));
+  const getId = opts.getId || ((row) => row.investor_id || row.inv?.id);
+  const forceIds = collectFrequentLedgerFunderIds(investors);
+  const kept = [];
+  const seen = new Set();
+  for (const row of allScoredRows || []) {
+    const id = String(getId(row) || '');
+    if (!id || seen.has(id)) continue;
+    if (getScore(row) >= floor || forceIds.has(id)) {
+      kept.push(row);
+      seen.add(id);
+    }
+  }
+  return kept;
+}
+
+/**
  * Force-include only mega-funders with sector overlap (or documented prior names).
  * Unconditional inclusion of ~80 firms caused the same generic top-5 on many startups.
  */
@@ -675,5 +852,6 @@ module.exports = {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
+  applyPersistenceFloorWithForcedLedger,
   selectTopMatchesReservingForced,
 };

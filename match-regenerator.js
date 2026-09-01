@@ -20,6 +20,7 @@ const { applyInvestorRecencyAdjustment } = require('./lib/matchInvestorRecency')
 const { isNonInvestorAggregator } = require('./lib/investorAggregatorBlocklist');
 const {
   collectFrequentLedgerFunderIds,
+  applyPersistenceFloorWithForcedLedger,
 } = require('./server/lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('./lib/matchTopSelection');
 
@@ -1005,7 +1006,12 @@ async function regenerateMatches() {
       
       // ✅ RANK-FIRST: filter low floor, reserve frequent ledger funders, then top N.
       // Prevents candidate_generation_miss for mega-funders that score below the cut.
-      const aboveFloor = scoredMatches.filter(m => m.match_score >= PERSISTENCE_FLOOR);
+      const aboveFloor = applyPersistenceFloorWithForcedLedger(
+        scoredMatches,
+        investors,
+        PERSISTENCE_FLOOR,
+        { getScore: (row) => row.match_score, getId: (row) => row.investor_id },
+      );
       const frequentForceIds = collectFrequentLedgerFunderIds(investors);
       const topMatches = selectTopMatchesByFirm(
         aboveFloor,

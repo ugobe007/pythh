@@ -29,6 +29,7 @@ const {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
+  applyPersistenceFloorWithForcedLedger,
 } = require('../lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
@@ -1219,12 +1220,16 @@ async function generateSyncTopMatchesForHttpResponse(
       ? signalTotal
       : signalTotalFromGod(placeholderStartup.total_god_score);
 
+    const syncForceIds = collectFrequentLedgerFunderIds(candidates);
     const withScores = [];
     for (const inv of candidates) {
       if (Date.now() > wall) break;
       try {
         const result = calculateMatchScore(placeholderStartup, inv, sig, inv.signals || null);
-        if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+        if (
+          result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR
+          || syncForceIds.has(String(inv.id))
+        ) {
           withScores.push({ inv, result });
         }
       } catch {
@@ -1235,6 +1240,7 @@ async function generateSyncTopMatchesForHttpResponse(
     const investorById = new Map(candidates.map((inv) => [String(inv.id), inv]));
     let top = selectTopMatchesByFirm(withScores, investorById, SYNC_RESPONSE_TOP_N, {
       getInvestorId: (row) => row.inv?.id,
+      forceInvestorIds: syncForceIds,
     });
 
     // Fallback: if PERSISTENCE_FLOOR filtered everything out (thin profile / new URL),
@@ -1395,6 +1401,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         : ['Technology'];
     const quickInvestors = getCandidateInvestors(phase1Sectors, PIPELINE_CONFIG.FAST_MATCH_LIMIT, placeholderStartup);
     console.log(`  ⚡ [BG] Phase 1 shortlist: ${quickInvestors.length} candidates (cap=${PIPELINE_CONFIG.FAST_MATCH_LIMIT}, sectors=${phase1Sectors.join(',')})`);
+    const phase1ForceIds = collectFrequentLedgerFunderIds(quickInvestors);
     const quickMatches = [];
     
     // CRITICAL FIX: Parallel processing with timeout protection
@@ -1421,7 +1428,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           Promise.all(concurrentBatch.map(investor => {
             try {
               const result = calculateMatchScore(placeholderStartup, investor, 0, investor.signals || null);
-              if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+              if (
+                result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR
+                || phase1ForceIds.has(String(investor.id))
+              ) {
                 return {
                   startup_id: startupId,
                   investor_id: investor.id,
@@ -1455,7 +1465,6 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     }
     quickMatches.sort((a, b) => b.match_score - a.match_score);
-    const phase1ForceIds = collectFrequentLedgerFunderIds(quickInvestors);
     const phase1InvestorById = new Map(quickInvestors.map((inv) => [String(inv.id), inv]));
     fastMatches = selectTopMatchesByFirm(
       quickMatches,
@@ -1963,6 +1972,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       };
       const investors = getCandidateInvestors(startupSectors, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS, phase3Startup);
       console.log(`  ⚡ [BG] Phase 3 shortlist: ${investors.length} candidates (cap=${PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS})`);
+      const phase3ForceIds = collectFrequentLedgerFunderIds(investors);
       
       // Use the just-seeded signal total (already computed above) for match scoring
       const signalScore = signalTotal;
@@ -1993,7 +2003,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             Promise.all(concurrentBatch.map(investor => {
               try {
                 const result = calculateMatchScore(enrichedStartup, investor, signalScore, investor.signals || null);
-                if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+                if (
+                  result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR
+                  || phase3ForceIds.has(String(investor.id))
+                ) {
                   return {
                     startup_id: startupId,
                     investor_id: investor.id,
@@ -2030,7 +2043,6 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
 
       allMatches.sort((a, b) => b.match_score - a.match_score);
-      const phase3ForceIds = collectFrequentLedgerFunderIds(investors);
       const phase3InvestorById = new Map(investors.map((inv) => [String(inv.id), inv]));
       const matches = selectTopMatchesByFirm(
         allMatches,
