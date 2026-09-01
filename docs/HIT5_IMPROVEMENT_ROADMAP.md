@@ -1,6 +1,7 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-08-25 (prospective proof cohort spec)  
+**Last updated:** 2026-09-01 (pipeline drain → participants → seed VCs → miss triage)  
+**Miss triage note:** `docs/HIT5_MISS_TRIAGE_2026-09-01.md`  
 **Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)  
 **Proof cohort (URL submits):** `docs/PROOF_COHORT_SPEC.md` · `npm run proof-cohort:report -- --since=2026-08-25`
 
@@ -21,20 +22,20 @@ Pair counts are **higher in spirit** (many matches per startup) but **verified p
 
 ## Current snapshot (180d horizon)
 
-Run `npm run funding:claim-readiness -- --summary` for live numbers.
+Run `npm run funding:claim-readiness -- --summary` for live numbers.  
+Detailed miss triage: `docs/HIT5_MISS_TRIAGE_2026-09-01.md`.
 
 | Metric | Value | Notes |
 |--------|-------|--------|
-| Sealed sets (serve-grade, 5 firms) | 1,700 | 47 excluded identity |
-| Mature / pending | 707 / 993 | ~150 mature within 30d |
+| Sealed sets (serve-grade, 5 firms) | 2,212 | Identity exclusions still present |
+| Mature / pending | 811 / 1,401 | Time unlocks pending maturity |
 | Funded in horizon | 71 | 0 indeterminate |
 | Hit@5 audited | 71 | **29 short of 100** |
-| Startup-level hits | 9 | ~12.9% among audited |
-| Mature unfunded | ~658 | Need new post-prediction funding evidence |
-| Outcomes cohort resolved | ~4.84k / 10.9k qualified+URL | Target 5k searched (~162 remaining) |
-| Pair review pending | ~0 rows (Paper/Accel batch verified) | `npm run outcomes:review -- --list` |
+| Startup-level hits | 9 | **~12.7%** among audited |
+| Mature unfunded | (see claim-readiness) | Need new post-prediction funding evidence |
+| Pair review pending | (see outcomes:review) | Pair layer parallel to Hit@5 |
 
-**Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` ~833 rows — actual funder often never entered pre-event match pool / top-5. Do **not** retune GOD/fit until candidate inventory is fixed.
+**Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` **946** · `post_event_match_not_prediction` 350 · `ranked_outside_top_five` 12 · `top_five_hit` 3. Actual funder usually never entered the pre-event match pool / top-5. Do **not** retune GOD/fit until candidate inventory is fixed.
 
 ---
 
@@ -142,8 +143,8 @@ Compare:
 | Requirement | Status |
 |-------------|--------|
 | ≥100 audited outcomes | 71 / 100 |
-| ≥85% hit rate among audited | ~13% (not claim-ready) |
+| ≥85% hit rate among audited | ~12.7% (not claim-ready) |
 | Immutable prediction clock | Enforced |
-| Serve-grade identity | 47 still excluded |
+| Serve-grade identity | Exclusions remain |
 
-**Product claim stays blocked** until inventory ≥100 audited; hit-rate work follows candidate inventory, not copy tweaks.
+**Product claim stays blocked** until inventory ≥100 audited; hit-rate work follows candidate inventory (Wave 4), not copy tweaks.
