@@ -551,26 +551,31 @@ const profiles = [
 async function findInvestor(name, firm) {
   const targets = [...new Set([name, firm].filter(Boolean))];
   for (const t of targets) {
-    const { data: byName, error: e1 } = await db
-      .from('investors')
-      .select('id,name,firm,status,type,entity_gate,is_individual')
-      .ilike('name', t)
-      .limit(5);
-    if (e1) throw e1;
-    const { data: byFirm, error: e2 } = await db
-      .from('investors')
-      .select('id,name,firm,status,type,entity_gate,is_individual')
-      .ilike('firm', t)
-      .limit(5);
-    if (e2) throw e2;
-    const rows = [...(byName || []), ...(byFirm || [])];
-    const exact = rows.find(
-      (r) =>
-        r.is_individual !== true &&
-        (String(r.name || '').toLowerCase() === t.toLowerCase() ||
-          String(r.firm || '').toLowerCase() === t.toLowerCase()),
-    );
-    if (exact) return exact;
+    const normalized = normalizeEntityName(t);
+    const searchTerms = [...new Set([t, normalized].filter(Boolean))];
+    
+    for (const term of searchTerms) {
+      const { data: byName, error: e1 } = await db
+        .from('investors')
+        .select('id,name,firm,status,type,entity_gate,is_individual')
+        .ilike('name', term)
+        .limit(5);
+      if (e1) throw e1;
+      const { data: byFirm, error: e2 } = await db
+        .from('investors')
+        .select('id,name,firm,status,type,entity_gate,is_individual')
+        .ilike('firm', term)
+        .limit(5);
+      if (e2) throw e2;
+      const rows = [...(byName || []), ...(byFirm || [])];
+      const exact = rows.find(
+        (r) =>
+          r.is_individual !== true &&
+          (normalizeEntityName(r.name || '') === normalized ||
+            normalizeEntityName(r.firm || '') === normalized),
+      );
+      if (exact) return exact;
+    }
   }
   return null;
 }
