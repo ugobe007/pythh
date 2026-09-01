@@ -5,6 +5,7 @@
  * Default provider: inference engine (Google News RSS + extractors — no Gemini credits).
  * Optional:
  *   --provider=gemini     when GEMINI_API_KEY is available
+ *   --provider=openai     when OPENAI_API_KEY is available (web search via Responses API)
  *   --provider=ontology   news (inference) + SEC Form D + NSF/SBIR + USASpending
  *                         (docs/FUNDING_SOURCE_ONTOLOGY.md §6 public channels)
  *   --name=Acme           only this startup (ILIKE)
@@ -49,7 +50,13 @@ const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit=
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
 const providerArg = process.argv.find((a) => a.startsWith('--provider='))?.split('=')[1];
 const provider =
-  providerArg === 'gemini' ? 'gemini' : providerArg === 'ontology' ? 'ontology' : 'inference';
+  providerArg === 'gemini'
+    ? 'gemini'
+    : providerArg === 'openai'
+      ? 'openai'
+      : providerArg === 'ontology'
+        ? 'ontology'
+        : 'inference';
 const ontologySourcesArg = process.argv.find((a) => a.startsWith('--sources='))?.split('=')[1];
 const ontologySources = ontologySourcesArg
   ? ontologySourcesArg.split(',').map((s) => s.trim()).filter(Boolean)
@@ -64,11 +71,14 @@ const skipJunkNames =
 const url = resolveSupabaseRestUrl().url;
 const serviceKey = resolveSupabaseServiceKey();
 const geminiKey = process.env.GEMINI_API_KEY || process.env.AISTUDIO_API_KEY;
+const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_API;
 if (!url || !serviceKey) throw new Error('Missing Supabase service environment');
 if (provider === 'gemini' && !geminiKey) throw new Error('Missing GEMINI_API_KEY for --provider=gemini');
+if (provider === 'openai' && !openaiKey) throw new Error('Missing OPENAI_API_KEY for --provider=openai');
 
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-3.6-flash';
+const openaiModel = process.env.OPENAI_SEARCH_MODEL || 'gpt-4o-mini';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -742,7 +752,7 @@ async function processOntologyJob(startup, job) {
   };
 }
 
-async function processGeminiJob(startup, job) {
+async function loadUniqueInvestorsByName() {
   const investorRows = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db.from('investors').select('id,name').range(from, from + 999);
@@ -756,9 +766,71 @@ async function processGeminiJob(startup, job) {
     if (!k) continue;
     grouped.set(k, [...(grouped.get(k) || []), i]);
   }
-  const investors = new Map([...grouped].filter(([, v]) => v.length === 1).map(([k, v]) => [k, v[0]]));
+  return new Map([...grouped].filter(([, v]) => v.length === 1).map(([k, v]) => [k, v[0]]));
+}
 
-  const prompt = `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${job.earliest_match_at}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
+function buildFundingWebSearchPrompt(startup, earliestMatchAt) {
+  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
+}
+
+async function persistWebSearchEvents({ startup, investors, searchEvents, sourceProvider, rawGrounding = {} }) {
+  const seenSources = new Set();
+  let events = 0;
+  let pairs = 0;
+
+  for (const event of searchEvents) {
+    if (!event.source_url || !event.event_date || !event.investor_name) continue;
+    event.source_url = await directSourceUrl(event.source_url);
+    const sourceKey = `${event.event_date}|${norm(event.investor_name)}|${event.source_url}`;
+    if (seenSources.has(sourceKey)) continue;
+    seenSources.add(sourceKey);
+    const investor = investors.get(norm(event.investor_name));
+    const payload = {
+      startup_id: startup.id,
+      investor_id: investor?.id || null,
+      investor_name_raw: event.investor_name,
+      event_date: event.event_date,
+      round_type: event.round_type || null,
+      amount_raw: event.amount || null,
+      source_url: event.source_url,
+      source_title: event.source_title || null,
+      source_provider: sourceProvider,
+      resolution_status: investor ? 'resolved' : 'pending',
+      resolution_method: investor ? 'name_exact_unique' : null,
+      raw_payload: rawGrounding,
+    };
+    if (apply) {
+      const { error } = await db.from('funding_evidence_search_results').upsert(payload, {
+        onConflict: 'startup_id,source_url,investor_name_raw,event_date',
+        ignoreDuplicates: true,
+      });
+      if (error) throw new Error(error.message);
+    }
+    events++;
+    if (investor) {
+      const day = String(event.event_date).slice(0, 10);
+      const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day)
+        ? `${day}T23:59:59.999Z`
+        : `${event.event_date}`;
+      const paired = await upsertPairEvidence({
+        startup,
+        investor,
+        eventAt,
+        sourceUrl: event.source_url,
+        sourceTitle: event.source_title || null,
+        sourceProvider,
+        rawPayload: payload,
+      });
+      if (paired) pairs++;
+    }
+  }
+
+  return { events, pairs };
+}
+
+async function processGeminiJob(startup, job) {
+  const investors = await loadUniqueInvestorsByName();
+  const prompt = buildFundingWebSearchPrompt(startup, job.earliest_match_at);
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
     {
@@ -777,60 +849,35 @@ async function processGeminiJob(startup, job) {
   const parsed = parseSearchJson(text);
   const geminiEvents = Array.isArray(parsed.events) ? parsed.events : [];
 
-  const seenSources = new Set();
-  let events = 0;
-  let pairs = 0;
+  return persistWebSearchEvents({
+    startup,
+    investors,
+    searchEvents: geminiEvents,
+    sourceProvider: 'gemini_google_search',
+    rawGrounding: { grounding: json.candidates?.[0]?.groundingMetadata || {} },
+  });
+}
 
-  for (const event of geminiEvents) {
-    if (!event.source_url || !event.event_date || !event.investor_name) continue;
-    event.source_url = await directSourceUrl(event.source_url);
-    const sourceKey = `${event.event_date}|${norm(event.investor_name)}|${event.source_url}`;
-    if (seenSources.has(sourceKey)) continue;
-    seenSources.add(sourceKey);
-    const investor = investors.get(norm(event.investor_name));
-    const payload = {
-      startup_id: startup.id,
-      investor_id: investor?.id || null,
-      investor_name_raw: event.investor_name,
-      event_date: event.event_date,
-      round_type: event.round_type || null,
-      amount_raw: event.amount || null,
-      source_url: event.source_url,
-      source_title: event.source_title || null,
-      source_provider: 'gemini_google_search',
-      resolution_status: investor ? 'resolved' : 'pending',
-      resolution_method: investor ? 'name_exact_unique' : null,
-      raw_payload: { grounding: json.candidates?.[0]?.groundingMetadata || {} },
-    };
-    if (apply) {
-      const { error } = await db.from('funding_evidence_search_results').upsert(payload, {
-        onConflict: 'startup_id,source_url,investor_name_raw,event_date',
-        ignoreDuplicates: true,
-      });
-      if (error) throw new Error(error.message);
-    }
-    events++;
-    if (investor) {
-      // Date-only Gemini rows lack a time; use end-of-UTC-day so same-calendar-day
-      // predictions (match.created_at earlier that day) still count as pre-announcement.
-      const day = String(event.event_date).slice(0, 10);
-      const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day)
-        ? `${day}T23:59:59.999Z`
-        : `${event.event_date}`;
-      const paired = await upsertPairEvidence({
-        startup,
-        investor,
-        eventAt,
-        sourceUrl: event.source_url,
-        sourceTitle: event.source_title || null,
-        sourceProvider: 'gemini_google_search',
-        rawPayload: payload,
-      });
-      if (paired) pairs++;
-    }
-  }
-
-  return { events, pairs };
+async function processOpenAIJob(startup, job) {
+  const OpenAI = require('openai');
+  const openai = new OpenAI({ apiKey: openaiKey });
+  const investors = await loadUniqueInvestorsByName();
+  const prompt = buildFundingWebSearchPrompt(startup, job.earliest_match_at);
+  const response = await openai.responses.create({
+    model: openaiModel,
+    tools: [{ type: 'web_search' }],
+    input: prompt,
+  });
+  const text = response.output_text || '';
+  const parsed = parseSearchJson(text);
+  const searchEvents = Array.isArray(parsed.events) ? parsed.events : [];
+  return persistWebSearchEvents({
+    startup,
+    investors,
+    searchEvents,
+    sourceProvider: 'openai_web_search',
+    rawGrounding: { openai_response_id: response.id || null },
+  });
 }
 
 if (seed) {
@@ -924,9 +971,11 @@ const jobs = await loadJobs();
 const searchProvider =
   provider === 'gemini'
     ? 'gemini_google_search'
-    : provider === 'ontology'
-      ? 'funding_source_ontology'
-      : 'inference_engine';
+    : provider === 'openai'
+      ? 'openai_web_search'
+      : provider === 'ontology'
+        ? 'funding_source_ontology'
+        : 'inference_engine';
 let completed = 0;
 let results = 0;
 let pairs = 0;
@@ -1000,9 +1049,19 @@ for (const job of jobs || []) {
             }
             throw err;
           })
-        : provider === 'ontology'
-          ? await processOntologyJob(startup, job)
-          : await processInferenceJob(startup, job);
+        : provider === 'openai'
+          ? await processOpenAIJob(startup, job).catch(async (err) => {
+              const msg = String(err?.message || err);
+              if (/\b429\b|rate.?limit/i.test(msg)) {
+                console.warn(`[search] OpenAI rate limit for ${startup.name} — falling back to inference`);
+                const inferenceOutcome = await processInferenceJob(startup, job);
+                return { ...inferenceOutcome, fallback_to_inference: true };
+              }
+              throw err;
+            })
+          : provider === 'ontology'
+            ? await processOntologyJob(startup, job)
+            : await processInferenceJob(startup, job);
     if (outcome.skipped_no_url) {
       skippedNoUrl += 1;
       if (apply) {

@@ -119,6 +119,7 @@
     "enrich:rss-news": "node scripts/run-node.mjs scripts/enrich-from-rss-news.js",
     "outcomes:correlate-funding": "node scripts/run-node.mjs scripts/correlate-funding-event-investors.mjs",
     "outcomes:search-funding": "node scripts/run-node.mjs scripts/search-startup-funding-evidence.mjs",
+    "outcomes:search-funding:openai": "node scripts/run-node.mjs scripts/search-startup-funding-evidence.mjs --provider=openai",
     "outcomes:search-funding:ontology": "node scripts/run-node.mjs scripts/search-startup-funding-evidence.mjs --provider=ontology",
     "proof-cohort:search": "node scripts/run-node.mjs scripts/search-startup-funding-evidence.mjs --cohort-since=2026-08-25 --min-god=55 --require-snapshot --skip-junk-names",
     "proof-cohort:search:gemini": "node scripts/run-node.mjs scripts/search-startup-funding-evidence.mjs --provider=gemini --cohort-since=2026-08-25 --min-god=55 --require-snapshot --skip-junk-names",
