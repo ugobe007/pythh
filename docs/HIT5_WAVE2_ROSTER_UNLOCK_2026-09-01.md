@@ -63,10 +63,29 @@ Reconcile after resolve: `candidate_generation_miss` **1134** (up from ~946) —
 When Gemini credits are ready:
 
 ```bash
+# Queue is often empty after ontology search marks mature-unfunded complete.
+# Re-triage first so complete+zero-result high-priority rows reopen as pending.
+npm run outcomes:triage-queue -- --apply --park-weak --target=5000
 npm run outcomes:search-funding -- --provider=gemini --apply --limit=100 --delay=400
-# or mature-unfunded / proof-cohort scoped variants
+npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=150
 npm run funding:participants:seed-indeterminate -- --apply
 npm run funding:claim-readiness -- --summary
 ```
+
+### Gemini run (2026-09-01 evening)
+
+**Why `jobs: 0` first:** search only loads `status IN (pending,error) AND priority > 0`. After Wave 6 ontology, mature-unfunded rows were `complete`; remaining pending were all `parked_weak_identity` at priority 0.
+
+**Fix:** re-ran triage → **2,863** eligible. Gemini then ran:
+
+| Metric | Value |
+|--------|------:|
+| Jobs / completed | 100 / 99 |
+| Events written | 7 (Orthogonal) |
+| Post-prediction pairs | 1 (Orthogonal · PR Newswire seed) |
+| Verified pairs after promote | **92** (was 91) |
+| Hit@5 audited (180d) | still **71** |
+
+Orthogonal pair is real funding evidence; sealed Hit@5 still needs that startup in the mature funded+audited sealed set (or more mature-unfunded discoveries). Keep draining Gemini on the reopened queue.
 
 See also: `docs/HIT5_IMPROVEMENT_ROADMAP.md`, `docs/HIT5_WAVE5_WAVE6_2026-09-01.md`.
