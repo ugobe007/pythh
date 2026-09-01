@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import HeroScoringDots from "@/components/HeroScoringDots";
 import {
   G, CYAN, PURPLE, GOLD, MUTED, DIM, BORDER, G_BORDER, godScoreColor,
@@ -30,38 +30,100 @@ const FALLBACK_SIGNALS: PreviewSignal[] = [
   { label: "Founder language", value: 0.74, raw: 7.4, color: CYAN },
 ];
 
-const FALLBACK_GOD = { score: 84, label: "Elite · Investment-grade", name: "oracle-pick" };
+const FALLBACK_ENTRIES: PreviewEntry[] = [
+  {
+    startup: {
+      id: "fallback-1",
+      name: "oracle-pick",
+      domain: "oracle-pick.ai",
+      godScore: 84,
+      godLabel: "Elite · Investment-grade",
+    },
+    signals: FALLBACK_SIGNALS,
+  },
+];
+
+/** Dwell time per startup before rotating (ms) */
+const ROTATE_MS = 6500;
+/** Brief scan state when switching entries (ms) */
+const SCAN_MS = 900;
+const ANIM_DELAY_MS = 1100;
+
+function normalizePool(data: unknown): PreviewEntry[] {
+  if (!data || typeof data !== "object") return [];
+  const d = data as { startups?: PreviewEntry[]; startup?: PreviewEntry["startup"]; signals?: PreviewSignal[] };
+  if (Array.isArray(d.startups) && d.startups.length > 0) {
+    return d.startups.filter((e) => e?.startup?.id);
+  }
+  if (d.startup?.id) {
+    return [{ startup: d.startup, signals: d.signals ?? FALLBACK_SIGNALS }];
+  }
+  return [];
+}
 
 export default function PythhEngineVisual({ className = "" }: { className?: string }) {
-  const [entry, setEntry] = useState<PreviewEntry | null>(null);
+  const [pool, setPool] = useState<PreviewEntry[]>(FALLBACK_ENTRIES);
+  const [index, setIndex] = useState(0);
   const [animated, setAnimated] = useState(false);
   const [scanning, setScanning] = useState(true);
+  const pausedRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/hero-preview")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) return;
-        const e = data.startups?.[0] ?? data;
-        if (e?.startup) setEntry(e);
+        if (cancelled) return;
+        const next = normalizePool(data);
+        if (next.length > 0) {
+          setPool(next);
+          setIndex(0);
+        }
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Pause rotation when the tab is hidden
   useEffect(() => {
-    const scan = setTimeout(() => setScanning(false), 1200);
-    const anim = setTimeout(() => setAnimated(true), 1400);
-    return () => {
-      clearTimeout(scan);
-      clearTimeout(anim);
+    const onVis = () => {
+      pausedRef.current = document.visibilityState === "hidden";
     };
-  }, [entry?.startup?.id]);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
-  const startup = entry?.startup;
-  const signals = entry?.signals?.length ? entry.signals : FALLBACK_SIGNALS;
-  const godScore = startup?.godScore ?? FALLBACK_GOD.score;
-  const godLabel = startup?.godLabel ?? FALLBACK_GOD.label;
-  const displayName = startup?.domain ?? startup?.name ?? "live startup";
+  // Advance through the pool
+  useEffect(() => {
+    if (pool.length < 2) return;
+    const id = window.setInterval(() => {
+      if (pausedRef.current) return;
+      setIndex((i) => (i + 1) % pool.length);
+    }, ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [pool.length]);
+
+  // Replay scan + bar animation whenever the active startup changes
+  useEffect(() => {
+    setScanning(true);
+    setAnimated(false);
+    const scan = window.setTimeout(() => setScanning(false), SCAN_MS);
+    const anim = window.setTimeout(() => setAnimated(true), ANIM_DELAY_MS);
+    return () => {
+      window.clearTimeout(scan);
+      window.clearTimeout(anim);
+    };
+  }, [index, pool]);
+
+  const entry = pool[index] ?? pool[0] ?? FALLBACK_ENTRIES[0];
+  const startup = entry.startup;
+  const signals = entry.signals?.length ? entry.signals : FALLBACK_SIGNALS;
+  const godScore = startup.godScore;
+  const godLabel = startup.godLabel;
+  const displayName = startup.domain ?? startup.name ?? "live startup";
+  const showDots = pool.length > 1;
 
   return (
     <div
@@ -78,6 +140,7 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
       >
         <div className="min-w-0">
           <p
+            key={startup.id}
             className="font-display font-bold truncate text-lg leading-tight mb-1"
             style={{ color: PURPLE, letterSpacing: "-0.02em" }}
           >
@@ -100,7 +163,7 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
 
       {scanning ? (
         <div className="py-10 flex flex-col items-center justify-center gap-2">
-          <HeroScoringDots active durationMs={1200} tone="emerald" />
+          <HeroScoringDots active durationMs={SCAN_MS} tone="emerald" />
           <p className="text-[10px] font-mono uppercase tracking-widest" style={{ color: G }}>
             reading signal array
           </p>
@@ -112,9 +175,9 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
               Observable signals · 0–10 scale
             </span>
           </div>
-          <div className="px-4 py-3 space-y-2.5 border-b" style={{ borderColor: BORDER }}>
+          <div key={startup.id} className="px-4 py-3 space-y-2.5 border-b" style={{ borderColor: BORDER }}>
             {signals.slice(0, 5).map(({ label, value, raw, color }) => (
-              <div key={label} className="flex items-center gap-2">
+              <div key={`${startup.id}-${label}`} className="flex items-center gap-2">
                 <span className="text-[10px] font-mono w-[96px] shrink-0 truncate" style={{ color: MUTED }}>
                   {label}
                 </span>
@@ -168,6 +231,29 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
             </div>
           </div>
         </>
+      )}
+
+      {showDots && (
+        <div
+          className="flex items-center justify-center gap-1.5 py-2.5 border-t"
+          style={{ borderColor: BORDER }}
+          aria-label={`Startup ${index + 1} of ${pool.length}`}
+        >
+          {pool.map((e, i) => (
+            <button
+              key={e.startup.id}
+              type="button"
+              aria-label={`Show ${e.startup.domain ?? e.startup.name}`}
+              onClick={() => setIndex(i)}
+              className="rounded-full transition-all p-0 border-0 cursor-pointer"
+              style={{
+                width: i === index ? 14 : 6,
+                height: 6,
+                backgroundColor: i === index ? G : "oklch(0.28 0.01 264)",
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
