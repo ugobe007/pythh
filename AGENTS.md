@@ -40,6 +40,10 @@ User preference (**2026-08-29**): **automate PRs**. For every branch with commit
 
 ### Environment / secrets (gotchas)
 
+- **Node.js version:** use **Node 22 LTS** (`nvm use` reads `.nvmrc`). **Node 24+ breaks** ops scripts
+  (`undici`, `@supabase/supabase-js` AuthClient load failures). If you see
+  `Class extends value #<Object> is not a constructor or null` or `webidl.converters`, run
+  `nvm install 22 && nvm use 22` then `rm -rf node_modules && npm install`.
 - Config is read from the **repo-root `.env`** (the server loads `../.env`), not `server/.env`.
   `.env*` is gitignored.
 - **The backend will not boot without `OPENAI_API_KEY`.** `server/routes/oracle.js` constructs the
