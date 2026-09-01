@@ -669,6 +669,8 @@ const ALIAS_FAMILY = Object.freeze({
 
 function normalizeFunderLabel(value) {
   return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
