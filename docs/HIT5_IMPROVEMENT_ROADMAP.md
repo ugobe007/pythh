@@ -1,8 +1,9 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-09-01 (Wave 4 candidate pool + Wave 5/6 maturity & pair proof)  
+**Last updated:** 2026-09-01 (Wave 2 roster unlock re-run; Gemini discovery deferred)  
 **Miss triage note:** `docs/HIT5_MISS_TRIAGE_2026-09-01.md`  
 **Wave 5/6 ops note:** `docs/HIT5_WAVE5_WAVE6_2026-09-01.md`  
+**Wave 2 roster note:** `docs/HIT5_WAVE2_ROSTER_UNLOCK_2026-09-01.md`  
 **Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)  
 **Proof cohort (URL submits):** `docs/PROOF_COHORT_SPEC.md` · `npm run proof-cohort:report -- --since=2026-08-25`
 
@@ -29,14 +30,14 @@ Detailed miss triage: `docs/HIT5_MISS_TRIAGE_2026-09-01.md`.
 | Metric | Value | Notes |
 |--------|-------|--------|
 | Sealed sets (serve-grade, 5 firms) | 2,212 | Identity exclusions still present |
-| Mature / pending | 811 / 1,401 | Time unlocks pending maturity |
+| Mature / pending | 818 / 1,394 | +7 mature since Wave 5 snapshot (calendar) |
 | Funded in horizon | 71 | 0 indeterminate |
 | Hit@5 audited | 71 | **29 short of 100** |
 | Startup-level hits | 9 | **~12.7%** among audited |
-| Mature unfunded | (see claim-readiness) | Need new post-prediction funding evidence |
-| Pair review pending | (see outcomes:review) | Pair layer parallel to Hit@5 |
+| Mature unfunded | 759 | Wave 6 triage boosted ~3.2k for search |
+| Pair verified fundings | 91 | Parallel Wave 6 track |
 
-**Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` **946** · `post_event_match_not_prediction` 350 · `ranked_outside_top_five` 12 · `top_five_hit` 3. Actual funder usually never entered the pre-event match pool / top-5. Do **not** retune GOD/fit until candidate inventory is fixed.
+**Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` **1134** · `post_event_match_not_prediction` 326 · `ranked_outside_top_five` 12 · `top_five_hit` 5. Actual funder usually never entered the pre-event match pool / top-5. Do **not** retune GOD/fit until candidate inventory is fixed. Wave 2 roster unlock (2026-09-01) did not move audited N — funded cohort already complete; next lift needs Gemini discovery on mature-unfunded.
 
 ---
 
