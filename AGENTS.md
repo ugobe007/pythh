@@ -192,8 +192,10 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - Repair dark instrumentation (missing seals/queues): `npm run proof-cohort:instrument:apply -- --since=2026-08-25 --limit=200`
 - Drain unmatched high-GOD URL startups (match latency SLA): `npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25`
 - Mark publisher-article scrapes as junk (VentureBurn/PE Hub/…): `npm run proof-cohort:mark-publisher-junk:apply`
+- **Gemini prepaid credits depleted:** use OpenAI web search instead:
+  `npm run outcomes:search-funding -- --provider=openai --apply --limit=50 --delay=800`
+  (requires `OPENAI_API_KEY`). Gemini 429 batches fall back to inference (often also rate-limited).
 - Targeted funding search (skip junk names, sealed + GOD≥55): `npm run proof-cohort:search:gemini -- --apply --limit=25 --delay=600`
-- **Gemini prepaid credits depleted (again 2026-08-30):** search falls back to inference on 429; prefer `npm run proof-cohort:search -- --apply --provider=inference --limit=40` until AI Studio billing is topped up.
 - Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`
