@@ -133,6 +133,13 @@ async function main() {
         continue;
       }
 
+      if (contact.source === 'inferred_best_guess') {
+        stats.skipped_existing++;
+        console.log(`skip (no new data from Hunter)`);
+        await sleep(DELAY_MS);
+        continue;
+      }
+
       if ((contact.hunterConfidence || 0) < MIN_CONFIDENCE && contact.source !== 'verified_on_file') {
         stats.rejected++;
         console.log(`skip (low_confidence:${contact.hunterConfidence || 0})`);
