@@ -48,12 +48,19 @@ psql "$DATABASE_URL" -f supabase/migrations/20260521120000_prospecting_outreach_
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (bypasses RLS) |
 | `RESEND_API_KEY` | Resend API key for sending emails |
 
-3. **Investor emails** must be populated by the email inference script first:
+3. **Investor emails** — run DNS inference first, then Hunter.io for verified contacts:
 
 ```bash
-npm run enrich:emails       # infer emails for recent investors
-npm run enrich:emails:all   # infer for all investors (slow)
+npm run enrich:emails              # infer emails for recent investors (DNS permutations)
+npm run enrich:emails:all          # infer for all investors (slow)
+npm run enrich:emails:hunter       # Hunter.io lookup for investors missing verified email
+npm run enrich:emails:hunter:dry   # preview Hunter investor lookups (limit 10)
+
+npm run enrich:founder-emails      # Hunter.io founder lookup → extracted_data.outreach_contact
+npm run enrich:founder-emails:dry  # preview founder lookups
 ```
+
+**Hunter.io secrets:** set `HUNTER_API_KEY` (or `HUNTER_IO_API_KEY`) in `.env` and GitHub Actions secrets. Optional: `ZEROBOUNCE_API_KEY` for deliverability validation before writes.
 
 ---
 
