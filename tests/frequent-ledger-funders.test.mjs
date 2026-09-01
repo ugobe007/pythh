@@ -7,6 +7,7 @@ const {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
+  applyPersistenceFloorWithForcedLedger,
   selectTopMatchesReservingForced,
   firmProfileRank,
 } = require('../server/lib/frequentLedgerFunders.js');
@@ -53,6 +54,12 @@ const {
   assert.equal(isFrequentLedgerFunder({ name: 'Radical Ventures', firm: 'Radical' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'IvyCap Ventures', firm: 'IvyCap Ventures' }), true);
   assert.equal(isFrequentLedgerFunder({ name: 'Tether', firm: 'Tether' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Alkeon Capital', firm: 'Alkeon Capital' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Lux Capital', firm: 'Lux Capital' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Atomico', firm: 'Atomico' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Scale Venture Partners', firm: 'Scale Venture Partners' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Upfront Ventures', firm: 'Upfront Ventures' }), true);
+  assert.equal(isFrequentLedgerFunder({ name: 'Blume Founders Fund', firm: 'Blume Founders Fund' }), true);
 }
 
 {
@@ -122,6 +129,25 @@ const {
   ];
   const selected = selectTopMatchesReservingForced(ranked, ['gc'], 3);
   assert.deepEqual(selected.map((r) => r.investor_id), ['gc', 'a', 'b']);
+}
+
+{
+  const investors = [
+    { id: 'lux', name: 'Lux Capital', firm: 'Lux Capital', investor_score: 70 },
+    { id: 'noise', name: 'Other', firm: 'Other', investor_score: 90 },
+  ];
+  const allScored = [
+    { investor_id: 'lux', match_score: 22 },
+    { investor_id: 'noise', match_score: 88 },
+  ];
+  const kept = applyPersistenceFloorWithForcedLedger(allScored, investors, 30);
+  assert.deepEqual(kept.map((r) => r.investor_id).sort(), ['lux', 'noise']);
+  const keptOnlyLux = applyPersistenceFloorWithForcedLedger(
+    [{ investor_id: 'lux', match_score: 22 }],
+    investors,
+    30,
+  );
+  assert.deepEqual(keptOnlyLux.map((r) => r.investor_id), ['lux']);
 }
 
 console.log('frequent-ledger-funders.test.mjs: ok');

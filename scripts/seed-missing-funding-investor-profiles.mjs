@@ -1747,6 +1747,73 @@ const profiles = [
     thesis: 'European seed-stage venture investor.',
     source: 'https://www.emerge.vc/', type: 'VC', investorType: 'VC',
   },
+  // --- Wave 2026-09-01: audit not_in_universe + Hit@5 miss actuals ---
+  {
+    canonicalName: 'Blume Founders Fund', firm: 'Blume Founders Fund', url: 'https://blume.vc/',
+    sectors: ['Technology', 'SaaS', 'AI/ML', 'Consumer'], stage: ['Seed', 'Series A'], geography: ['India', 'Asia'],
+    thesis: 'Early-stage fund from the Blume Ventures platform backing Indian founders.',
+    source: 'https://blume.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'YL Ventures', firm: 'YL Ventures', url: 'https://www.ylventures.com/',
+    sectors: ['Cybersecurity', 'Enterprise', 'SaaS', 'AI/ML'], stage: ['Seed', 'Series A'], geography: ['Israel', 'United States'],
+    thesis: 'Israeli early-stage cybersecurity and enterprise software investor.',
+    source: 'https://www.ylventures.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'RedShift Capital', firm: 'RedShift Capital', url: 'https://www.redshiftcap.com/',
+    sectors: ['PropTech', 'Real Estate', 'SaaS', 'Fintech'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'PropTech-focused venture firm investing in real estate technology.',
+    source: 'https://www.redshiftcap.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Alkeon Capital', firm: 'Alkeon Capital', url: 'https://www.alkeoncapital.com/',
+    sectors: ['Technology', 'SaaS', 'AI/ML', 'Enterprise'], stage: ['Series B', 'Series C', 'Growth'], geography: ['Global'],
+    thesis: 'Growth investor backing category-leading software and technology companies.',
+    source: 'https://www.alkeoncapital.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Atomico', firm: 'Atomico', url: 'https://www.atomico.com/',
+    sectors: ['Technology', 'SaaS', 'AI/ML', 'Fintech'], stage: ['Series A', 'Series B', 'Growth'], geography: ['Europe', 'Global'],
+    thesis: 'European venture firm backing ambitious technology founders.',
+    source: 'https://www.atomico.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Scale Venture Partners', firm: 'Scale Venture Partners', url: 'https://www.scalevp.com/',
+    sectors: ['Enterprise', 'SaaS', 'AI/ML', 'Security'], stage: ['Series B', 'Series C'], geography: ['United States', 'Global'],
+    thesis: 'B2B software growth investor focused on go-to-market stage companies.',
+    source: 'https://www.scalevp.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Lux Capital', firm: 'Lux Capital', url: 'https://www.luxcapital.com/',
+    sectors: ['DeepTech', 'AI/ML', 'Healthcare', 'Hardware'], stage: ['Seed', 'Series A', 'Series B'], geography: ['United States', 'Global'],
+    thesis: 'Deep-tech and science-driven venture firm backing frontier technology.',
+    source: 'https://www.luxcapital.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Upfront Ventures', firm: 'Upfront Ventures', url: 'https://upfront.com/',
+    sectors: ['Technology', 'SaaS', 'Consumer', 'Healthcare'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Los Angeles early-stage venture firm.',
+    source: 'https://upfront.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Susa Ventures', firm: 'Susa Ventures', url: 'https://www.susaventures.com/',
+    sectors: ['Technology', 'SaaS', 'Fintech', 'AI/ML'], stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Seed-stage venture firm backing technical founding teams.',
+    source: 'https://www.susaventures.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Battery Ventures', firm: 'Battery Ventures', url: 'https://www.battery.com/',
+    sectors: ['Enterprise', 'SaaS', 'AI/ML', 'Infrastructure'], stage: ['Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Global technology investor from seed through growth stages.',
+    source: 'https://www.battery.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: '8VC', firm: '8VC', url: 'https://8vc.com/',
+    sectors: ['Technology', 'SaaS', 'AI/ML', 'Enterprise', 'Healthcare'], stage: ['Seed', 'Series A', 'Series B'], geography: ['United States', 'Global'],
+    thesis: 'Multi-stage venture firm backing transformative technology companies.',
+    source: 'https://8vc.com/', type: 'VC', investorType: 'VC',
+  },
 ];
 
 async function allInvestors() {

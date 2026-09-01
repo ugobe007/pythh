@@ -283,6 +283,23 @@ const organizations = [
   ['Emerge', 'emerge.vc', ['Emerge']],
   ['kopa ventures', null, ['kopa ventures', 'Kopa Ventures']],
   ['Unconventional Ventures', null, ['Unconventional Ventures']],
+  // Post-Wave4 candidate pool (2026-09-01).
+  ['Blume Founders Fund', 'blume.vc', ['Blume Founders Fund', 'Blume Founders']],
+  ['YL Ventures', 'ylventures.com', ['YL Ventures']],
+  ['RedShift Capital', 'redshiftcap.com', ['RedShift Capital', 'RedShift']],
+  ['Alkeon Capital', 'alkeoncapital.com', ['Alkeon', 'Alkeon Capital']],
+  ['Atomico', 'atomico.com', ['Atomico']],
+  ['Scale Venture Partners', 'scalevp.com', ['Scale Venture Partners', 'Scale Venture']],
+  ['Lux Capital', 'luxcapital.com', ['Lux Capital', 'Lux']],
+  ['Upfront Ventures', 'upfront.com', ['Upfront Ventures', 'Upfront']],
+  ['Susa Ventures', 'susaventures.com', ['Susa Ventures', 'Susa']],
+  ['Battery Ventures', 'battery.com', ['Battery Ventures', 'Battery']],
+  ['8VC', '8vc.com', ['8VC']],
+  ['Aglaé Ventures', 'aglaeventures.com', ['Aglaé Ventures', 'Aglae Ventures']],
+  ['Alven', 'alven.co', ['Alven']],
+  ['Eniac Ventures', 'eniac.vc', ['Eniac', 'Eniac Ventures']],
+  ['PeakSpan Capital', 'peakspancapital.com', ['PeakSpan Capital', 'PeakSpan']],
+  ['Female Founders Fund', 'femalefoundersfund.com', ['Female Founders Fund']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
