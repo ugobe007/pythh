@@ -12,7 +12,8 @@
  *   --cohort-since=2026-08-25  restrict to proof-cohort URL submits
  *   --min-god=55          skip low GOD when selecting jobs (needs DATABASE_URL)
  *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
- *   --skip-junk-names     demote Capital/place-name queue noise (default with --cohort-since)
+ *   --skip-junk-names     skip/park Capital/place-name/megacorp queue noise
+ *                         (default with --cohort-since and for openai/gemini; --no-skip-junk-names to disable)
  *   --requeue-empty       reopen complete+zero-result rows (all priorities unless filtered)
  *   --requeue-priority-empty  safer reopen: complete+zero-result AND priority >= 20000
  *                         (qualified-url / issuer / mature-unfunded boosts; skips parked)
@@ -78,7 +79,8 @@ const cohortSince = process.argv.find((a) => a.startsWith('--cohort-since='))?.s
 const minGod = Number(process.argv.find((a) => a.startsWith('--min-god='))?.split('=')[1] || 0);
 const skipJunkNames =
   process.argv.includes('--skip-junk-names') ||
-  (Boolean(cohortSince) && !process.argv.includes('--no-skip-junk-names'));
+  ((Boolean(cohortSince) || providerArg === 'openai' || providerArg === 'gemini') &&
+    !process.argv.includes('--no-skip-junk-names'));
 
 const url = resolveSupabaseRestUrl().url;
 const serviceKey = resolveSupabaseServiceKey();
@@ -981,11 +983,65 @@ if (requeueEmpty) {
 }
 
 const JUNK_NAME_RE =
-  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron|Development|Sports|Party|Globe|More|Owner|Management|Travel|Pitch|Forge|Foundation|Avenue|Street|Music|Theft|Password|HarmonyOS|Susquehanna|Rules|Lab|Weeks|Better|Always|Markers|Max|Bucket|Live|Revier|Heidelberg)$';
+  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron|Development|Sports|Party|Globe|More|Owner|Management|Travel|Pitch|Forge|Foundation|Avenue|Street|Music|Theft|Password|HarmonyOS|Susquehanna|Rules|Lab|Weeks|Better|Always|Markers|Max|Bucket|Live|Revier|Heidelberg|Corporation|Holdings|Universal)$';
+const JUNK_NAME_JS_RE = new RegExp(JUNK_NAME_RE, 'i');
+const JUNK_WEBSITE_RE =
+  /(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews)/i;
+
+function isJunkStartupName(name, website) {
+  const n = String(name || '').trim();
+  const w = String(website || '').trim();
+  if (!n || n.length < 3) return true;
+  if (JUNK_NAME_JS_RE.test(n)) return true;
+  if (!w || JUNK_WEBSITE_RE.test(w)) return true;
+  return false;
+}
+
+async function parkJunkJobs(ids) {
+  const now = new Date().toISOString();
+  for (let i = 0; i < ids.length; i += 80) {
+    const chunk = ids.slice(i, i + 80);
+    const { error } = await db
+      .from('funding_evidence_search_queue')
+      .update({
+        status: 'pending',
+        priority: 0,
+        error_message: 'search:parked_junk_name',
+        updated_at: now,
+      })
+      .in('startup_id', chunk);
+    if (error) throw new Error(`park junk: ${error.message}`);
+  }
+}
+
+async function filterJunkJobsRest(jobs) {
+  const kept = [];
+  const park = [];
+  for (let i = 0; i < jobs.length; i += 80) {
+    const chunk = jobs.slice(i, i + 80);
+    const { data, error } = await db
+      .from('startup_uploads')
+      .select('id,name,website')
+      .in('id', chunk.map((j) => j.startup_id));
+    if (error) throw new Error(error.message);
+    const byId = new Map((data || []).map((s) => [s.id, s]));
+    for (const job of chunk) {
+      const startup = byId.get(job.startup_id);
+      if (!startup || isJunkStartupName(startup.name, startup.website)) {
+        park.push(job.startup_id);
+        continue;
+      }
+      kept.push(job);
+    }
+  }
+  if (apply && park.length) await parkJunkJobs(park);
+  return { kept, parked: park.length };
+}
 
 async function loadJobs() {
-  const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot || skipJunkNames);
+  const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot);
   if (!needsPg) {
+    const fetchLimit = skipJunkNames ? Math.min(800, Math.max(limit * 12, 120)) : limit;
     const { data, error } = await db
       .from('funding_evidence_search_queue')
       .select('startup_id,earliest_match_at,attempts,priority')
@@ -993,12 +1049,14 @@ async function loadJobs() {
       .gt('priority', 0)
       .order('priority', { ascending: false })
       .order('earliest_match_at', { ascending: true })
-      .limit(limit);
+      .limit(fetchLimit);
     if (error) throw new Error(error.message);
-    return data || [];
+    if (!skipJunkNames) return { jobs: data || [], parked_junk: 0 };
+    const { kept, parked } = await filterJunkJobsRest(data || []);
+    return { jobs: kept.slice(0, limit), parked_junk: parked };
   }
   if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL required for --name/--cohort-since/--min-god/--require-snapshot/--skip-junk-names');
+    throw new Error('DATABASE_URL required for --name/--cohort-since/--min-god/--require-snapshot');
   }
   const pool = new pg.Pool({
     connectionString: massageConnectionString(process.env.DATABASE_URL),
@@ -1043,13 +1101,15 @@ async function loadJobs() {
       `,
       params,
     );
-    return rows;
+    return { jobs: rows, parked_junk: 0 };
   } finally {
     await pool.end();
   }
 }
 
-const jobs = await loadJobs();
+const loaded = await loadJobs();
+const jobs = loaded.jobs || [];
+const parkedJunk = loaded.parked_junk || 0;
 
 const searchProvider =
   provider === 'gemini'
@@ -1219,6 +1279,7 @@ console.log(
       },
       ontology_sources: provider === 'ontology' ? ontologySources : undefined,
       jobs: (jobs || []).length,
+      parked_junk: parkedJunk || undefined,
       completed,
       skipped_no_url: skippedNoUrl,
       timestamps_synced: timestampsSynced,

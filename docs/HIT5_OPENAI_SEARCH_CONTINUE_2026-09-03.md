@@ -26,7 +26,7 @@ npm run funding:claim-readiness -- --summary
 | Verified funding pairs | 104 |
 | Pending review | 0 |
 
-## OpenAI wave (limit 50)
+## OpenAI wave 1 (limit 50 + requeue)
 
 | Metric | Value |
 |--------|------:|
@@ -34,10 +34,20 @@ npm run funding:claim-readiness -- --summary
 | Jobs / completed | 50 / 32 |
 | Events written (`openai_web_search`) | 25 |
 | Post-prediction pairs | **0** |
-| Parse-error jobs | 18 (narrated “no rounds found”) |
+| Parse-error jobs | 18 (narrated “no rounds found”; later treated as empty JSON) |
 
-Parse errors are now treated as empty `{"events":[]}` so they mark **complete**
-instead of `error`. Prompt also asks for empty JSON when nothing is found.
+## OpenAI wave 2 (limit 50, no requeue)
+
+Empty-JSON parse fix worked: **50/50 completed**, no parse-error stalls.
+
+| Metric | Value |
+|--------|------:|
+| Jobs / completed | 50 / 50 |
+| Events written | 4 (all Curaa ₹40 crore Series A / 3one4 Capital) |
+| Post-prediction pairs | **0** |
+| High-priority pending remaining (before junk park) | ~2,666 |
+
+**Queue pollution:** this pass searched London Stock Exchange, Olin Corporation, Noble Corporation, GenNx360 Capital, Allied Universal, ERCOT, Data Breach, Big Labor. OpenAI/Gemini now default `--skip-junk-names` over REST and park matches (`search:parked_junk_name`) so they do not consume the next wave.
 
 ### Real-looking hits (startup named in title)
 
@@ -47,6 +57,7 @@ instead of `error`. Prompt also asks for empty JSON when nothing is found.
 - **HERP** — Series C follow-on (JIC unresolved)
 - **Eisen** — $18.5M (MissionOG resolved)
 - **Curql** — Wagmo strategic investment (classifier-borderline)
+- **Curaa** — ₹40 crore Series A led by 3one4 Capital (Better Capital, Kae Capital; Lumikai unresolved)
 
 Pairs stayed 0 because `upsertPairEvidence` requires a **pre-event**
 `startup_investor_matches` row. These are candidate-generation misses, not rank misses.
