@@ -13,6 +13,10 @@
  *   --min-god=55          skip low GOD when selecting jobs (needs DATABASE_URL)
  *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
  *   --skip-junk-names     demote Capital/place-name queue noise (default with --cohort-since)
+ *   --requeue-empty       reopen complete+zero-result rows (all priorities unless filtered)
+ *   --requeue-priority-empty  safer reopen: complete+zero-result AND priority >= 20000
+ *                         (qualified-url / issuer / mature-unfunded boosts; skips parked)
+ *   --min-requeue-priority=N  floor for --requeue-empty / --requeue-priority-empty
  *
  * Ontology equity Form D rows write search_results + ledger events (observed).
  * Grant rows write search_results + grant ledger events — never equity Hit@5.
@@ -44,7 +48,15 @@ const PUBLISHER_HOST_RE =
 
 const apply = process.argv.includes('--apply');
 const seed = process.argv.includes('--seed');
-const requeueEmpty = process.argv.includes('--requeue-empty');
+const requeuePriorityEmpty = process.argv.includes('--requeue-priority-empty');
+const requeueEmpty = process.argv.includes('--requeue-empty') || requeuePriorityEmpty;
+const minRequeuePriority = Math.max(
+  0,
+  Number(
+    process.argv.find((a) => a.startsWith('--min-requeue-priority='))?.split('=')[1] ||
+      (requeuePriorityEmpty ? 20000 : 0),
+  ),
+);
 const requireSnapshot = process.argv.includes('--require-snapshot');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 10));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
@@ -886,15 +898,46 @@ if (seed) {
   console.log(`queue seeded: ${data}`);
 }
 
-if (requeueEmpty && apply) {
-  const { data, error } = await db
-    .from('funding_evidence_search_queue')
-    .update({ status: 'pending', error_message: 'requeued_after_zero_inference_hits', updated_at: new Date().toISOString() })
-    .eq('status', 'complete')
-    .eq('result_count', 0)
-    .select('startup_id');
-  if (error) throw new Error(error.message);
-  console.log(`requeued ${(data || []).length} zero-result startups`);
+async function requeueZeroResultJobs({ minPriority, applyMode }) {
+  let requeued = 0;
+  for (let offset = 0; ; offset += 1000) {
+    let query = db
+      .from('funding_evidence_search_queue')
+      .select('startup_id')
+      .eq('status', 'complete')
+      .eq('result_count', 0)
+      .range(offset, offset + 999);
+    if (minPriority > 0) query = query.gte('priority', minPriority);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const ids = (data || []).map((row) => row.startup_id).filter(Boolean);
+    if (!ids.length) break;
+    if (applyMode) {
+      const { error: upErr } = await db
+        .from('funding_evidence_search_queue')
+        .update({
+          status: 'pending',
+          error_message:
+            minPriority > 0 ? 'requeued_high_priority_empty' : 'requeued_after_zero_inference_hits',
+          updated_at: new Date().toISOString(),
+        })
+        .in('startup_id', ids);
+      if (upErr) throw new Error(upErr.message);
+      // After update those rows leave the complete set; keep offset at 0.
+      offset = -1000;
+    }
+    requeued += ids.length;
+    if (ids.length < 1000) break;
+  }
+  return requeued;
+}
+
+if (requeueEmpty) {
+  const requeued = await requeueZeroResultJobs({ minPriority: minRequeuePriority, applyMode: apply });
+  console.log(
+    `${apply ? 'requeued' : 'requeue_candidates'} ${requeued} zero-result startups` +
+      (minRequeuePriority > 0 ? ` (priority>=${minRequeuePriority})` : ''),
+  );
 }
 
 const JUNK_NAME_RE =
