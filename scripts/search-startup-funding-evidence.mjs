@@ -1150,3 +1150,6 @@ console.log(
   ),
 );
 
+// Supabase JS keeps the event loop alive; exit so batch drain loops can advance.
+process.exit(0);
+
