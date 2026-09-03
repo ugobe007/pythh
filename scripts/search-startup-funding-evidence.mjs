@@ -913,16 +913,21 @@ async function requeueZeroResultJobs({ minPriority, applyMode }) {
     const ids = (data || []).map((row) => row.startup_id).filter(Boolean);
     if (!ids.length) break;
     if (applyMode) {
-      const { error: upErr } = await db
-        .from('funding_evidence_search_queue')
-        .update({
-          status: 'pending',
-          error_message:
-            minPriority > 0 ? 'requeued_high_priority_empty' : 'requeued_after_zero_inference_hits',
-          updated_at: new Date().toISOString(),
-        })
-        .in('startup_id', ids);
-      if (upErr) throw new Error(upErr.message);
+      const note =
+        minPriority > 0 ? 'requeued_high_priority_empty' : 'requeued_after_zero_inference_hits';
+      const now = new Date().toISOString();
+      for (let i = 0; i < ids.length; i += 80) {
+        const chunk = ids.slice(i, i + 80);
+        const { error: upErr } = await db
+          .from('funding_evidence_search_queue')
+          .update({
+            status: 'pending',
+            error_message: note,
+            updated_at: now,
+          })
+          .in('startup_id', chunk);
+        if (upErr) throw new Error(`requeue update: ${upErr.message} (${upErr.code || ''} ${upErr.details || ''})`);
+      }
       // After update those rows leave the complete set; keep offset at 0.
       offset = -1000;
     }
