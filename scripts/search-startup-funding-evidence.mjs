@@ -152,6 +152,9 @@ async function resolveAutoVerifyReviewerId() {
 const FUNDING_WORDS = /\b(rais(?:e|es|ed|ing)|funding|financing|series\s+[a-z]|pre[- ]seed|seed round|investment|invests?\s+in|led\s+by|participation\s+from)\b/i;
 const RUMOR_WORDS = /\b(in talks|plans? to|may invest|considering|could invest|reportedly|rumou?r|seeks? to raise|targets? a raise)\b/i;
 
+const NO_FUNDING_JSON_RE =
+  /\b(no (?:public )?(?:records?|announcements?|funding|rounds?)|found no|did not find|unable to find|no completed funding)\b/i;
+
 function parseSearchJson(value) {
   const text = String(value || '').trim();
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
@@ -163,7 +166,15 @@ function parseSearchJson(value) {
   }
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
-  if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1));
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(candidate.slice(start, end + 1));
+    } catch {
+      /* fall through */
+    }
+  }
+  // Models often narrate "no rounds found" instead of {"events":[]}. Treat as empty.
+  if (NO_FUNDING_JSON_RE.test(candidate)) return { events: [] };
   throw new Error(`Search response contained no parseable JSON: ${candidate.slice(0, 160)}`);
 }
 
@@ -782,7 +793,7 @@ async function loadUniqueInvestorsByName() {
 }
 
 function buildFundingWebSearchPrompt(startup, earliestMatchAt) {
-  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
+  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. If you find no completed post-cutoff rounds, return {"events":[]} with no extra prose. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
 }
 
 async function persistWebSearchEvents({ startup, investors, searchEvents, sourceProvider, rawGrounding = {} }) {
