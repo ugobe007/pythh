@@ -828,6 +828,13 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /findMatchedInvestorsInText/);
   assert.match(script, /fetchArticleText/);
   assert.match(script, /--requeue-empty/);
+  assert.match(script, /--requeue-priority-empty/);
+  assert.match(script, /min-requeue-priority=/);
+  assert.match(script, /requeued_high_priority_empty/);
+  assert.match(script, /NO_FUNDING_JSON_RE/);
+  assert.match(script, /If you find no completed post-cutoff rounds/);
+  assert.match(script, /JUNK_INVESTOR_NAME_RE/);
+  assert.match(script, /startupMentionedInText\(mentionHay/);
   assert.match(script, /startupMentionedInText/);
   assert.match(script, /extractKnownInvestorMentions/);
   assert.match(script, /providerArg === 'gemini'/);

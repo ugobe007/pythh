@@ -13,6 +13,10 @@
  *   --min-god=55          skip low GOD when selecting jobs (needs DATABASE_URL)
  *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
  *   --skip-junk-names     demote Capital/place-name queue noise (default with --cohort-since)
+ *   --requeue-empty       reopen complete+zero-result rows (all priorities unless filtered)
+ *   --requeue-priority-empty  safer reopen: complete+zero-result AND priority >= 20000
+ *                         (qualified-url / issuer / mature-unfunded boosts; skips parked)
+ *   --min-requeue-priority=N  floor for --requeue-empty / --requeue-priority-empty
  *
  * Ontology equity Form D rows write search_results + ledger events (observed).
  * Grant rows write search_results + grant ledger events — never equity Hit@5.
@@ -44,7 +48,15 @@ const PUBLISHER_HOST_RE =
 
 const apply = process.argv.includes('--apply');
 const seed = process.argv.includes('--seed');
-const requeueEmpty = process.argv.includes('--requeue-empty');
+const requeuePriorityEmpty = process.argv.includes('--requeue-priority-empty');
+const requeueEmpty = process.argv.includes('--requeue-empty') || requeuePriorityEmpty;
+const minRequeuePriority = Math.max(
+  0,
+  Number(
+    process.argv.find((a) => a.startsWith('--min-requeue-priority='))?.split('=')[1] ||
+      (requeuePriorityEmpty ? 20000 : 0),
+  ),
+);
 const requireSnapshot = process.argv.includes('--require-snapshot');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 10));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
@@ -140,6 +152,9 @@ async function resolveAutoVerifyReviewerId() {
 const FUNDING_WORDS = /\b(rais(?:e|es|ed|ing)|funding|financing|series\s+[a-z]|pre[- ]seed|seed round|investment|invests?\s+in|led\s+by|participation\s+from)\b/i;
 const RUMOR_WORDS = /\b(in talks|plans? to|may invest|considering|could invest|reportedly|rumou?r|seeks? to raise|targets? a raise)\b/i;
 
+const NO_FUNDING_JSON_RE =
+  /\b(no (?:public )?(?:records?|announcements?|funding|rounds?)|found no|did not find|unable to find|no completed funding)\b/i;
+
 function parseSearchJson(value) {
   const text = String(value || '').trim();
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
@@ -151,7 +166,15 @@ function parseSearchJson(value) {
   }
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
-  if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1));
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(candidate.slice(start, end + 1));
+    } catch {
+      /* fall through */
+    }
+  }
+  // Models often narrate "no rounds found" instead of {"events":[]}. Treat as empty.
+  if (NO_FUNDING_JSON_RE.test(candidate)) return { events: [] };
   throw new Error(`Search response contained no parseable JSON: ${candidate.slice(0, 160)}`);
 }
 
@@ -770,17 +793,37 @@ async function loadUniqueInvestorsByName() {
 }
 
 function buildFundingWebSearchPrompt(startup, earliestMatchAt) {
-  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
+  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. If you find no completed post-cutoff rounds, return {"events":[]} with no extra prose. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
 }
 
-async function persistWebSearchEvents({ startup, investors, searchEvents, sourceProvider, rawGrounding = {} }) {
+const JUNK_INVESTOR_NAME_RE =
+  /^(new and existing|existing and new|undisclosed(?: investors?)?|various(?: investors?)?|others|& others|the investors?|existing investors?|new investors?|angels?)\b/i;
+
+async function persistWebSearchEvents({
+  startup,
+  investors,
+  searchEvents,
+  sourceProvider,
+  rawGrounding = {},
+  earliestMatchAt = null,
+}) {
   const seenSources = new Set();
   let events = 0;
   let pairs = 0;
+  const cutoff = earliestMatchAt ? new Date(earliestMatchAt) : null;
 
   for (const event of searchEvents) {
     if (!event.source_url || !event.event_date || !event.investor_name) continue;
+    if (JUNK_INVESTOR_NAME_RE.test(String(event.investor_name).trim())) continue;
+    const day = String(event.event_date).slice(0, 10);
+    const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T23:59:59.999Z`) : new Date(event.event_date);
+    if (cutoff && Number.isFinite(cutoff.getTime()) && Number.isFinite(eventAt.getTime()) && eventAt <= cutoff) {
+      continue;
+    }
     event.source_url = await directSourceUrl(event.source_url);
+    const mentionHay = `${event.source_title || ''}\n${event.source_url}`;
+    const normalizedWebsite = startup.website && !/^https?:\/\//i.test(startup.website) ? `https://${startup.website}` : startup.website;
+    if (!startupMentionedInText(mentionHay, startup.name, normalizedWebsite)) continue;
     const sourceKey = `${event.event_date}|${norm(event.investor_name)}|${event.source_url}`;
     if (seenSources.has(sourceKey)) continue;
     seenSources.add(sourceKey);
@@ -855,6 +898,7 @@ async function processGeminiJob(startup, job) {
     searchEvents: geminiEvents,
     sourceProvider: 'gemini_google_search',
     rawGrounding: { grounding: json.candidates?.[0]?.groundingMetadata || {} },
+    earliestMatchAt: job.earliest_match_at,
   });
 }
 
@@ -877,6 +921,7 @@ async function processOpenAIJob(startup, job) {
     searchEvents,
     sourceProvider: 'openai_web_search',
     rawGrounding: { openai_response_id: response.id || null },
+    earliestMatchAt: job.earliest_match_at,
   });
 }
 
@@ -886,15 +931,53 @@ if (seed) {
   console.log(`queue seeded: ${data}`);
 }
 
-if (requeueEmpty && apply) {
-  const { data, error } = await db
-    .from('funding_evidence_search_queue')
-    .update({ status: 'pending', error_message: 'requeued_after_zero_inference_hits', updated_at: new Date().toISOString() })
-    .eq('status', 'complete')
-    .eq('result_count', 0)
-    .select('startup_id');
-  if (error) throw new Error(error.message);
-  console.log(`requeued ${(data || []).length} zero-result startups`);
+async function requeueZeroResultJobs({ minPriority, applyMode }) {
+  let requeued = 0;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  for (let offset = 0; ; offset += 1000) {
+    let query = db
+      .from('funding_evidence_search_queue')
+      .select('startup_id')
+      .eq('status', 'complete')
+      .eq('result_count', 0)
+      .or(`last_searched_at.is.null,last_searched_at.lt.${sevenDaysAgo}`)
+      .range(offset, offset + 999);
+    if (minPriority > 0) query = query.gte('priority', minPriority);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const ids = (data || []).map((row) => row.startup_id).filter(Boolean);
+    if (!ids.length) break;
+    if (applyMode) {
+      const note =
+        minPriority > 0 ? 'requeued_high_priority_empty' : 'requeued_after_zero_inference_hits';
+      const now = new Date().toISOString();
+      for (let i = 0; i < ids.length; i += 80) {
+        const chunk = ids.slice(i, i + 80);
+        const { error: upErr } = await db
+          .from('funding_evidence_search_queue')
+          .update({
+            status: 'pending',
+            error_message: note,
+            updated_at: now,
+          })
+          .in('startup_id', chunk);
+        if (upErr) throw new Error(`requeue update: ${upErr.message} (${upErr.code || ''} ${upErr.details || ''})`);
+      }
+      // After update those rows leave the complete set; keep offset at 0.
+      offset = -1000;
+    }
+    requeued += ids.length;
+    if (ids.length < 1000) break;
+  }
+  return requeued;
+}
+
+if (requeueEmpty) {
+  const requeued = await requeueZeroResultJobs({ minPriority: minRequeuePriority, applyMode: apply });
+  console.log(
+    `${apply ? 'requeued' : 'requeue_candidates'} ${requeued} zero-result startups` +
+      (minRequeuePriority > 0 ? ` (priority>=${minRequeuePriority})` : ''),
+  );
 }
 
 const JUNK_NAME_RE =

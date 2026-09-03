@@ -60,17 +60,20 @@ Reconcile after resolve: `candidate_generation_miss` **1134** (up from ~946) —
 
 ## Next
 
-When Gemini credits are ready:
+When Gemini credits are ready (or use OpenAI now — credits depleted):
 
 ```bash
 # Queue is often empty after ontology search marks mature-unfunded complete.
 # Re-triage first so complete+zero-result high-priority rows reopen as pending.
+# Without DATABASE_URL, use --requeue-priority-empty instead of triage.
 npm run outcomes:triage-queue -- --apply --park-weak --target=5000
-npm run outcomes:search-funding -- --provider=gemini --apply --limit=100 --delay=400
+npm run outcomes:search-funding -- --provider=openai --requeue-priority-empty --min-requeue-priority=55000 --apply --limit=50 --delay=800
 npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=150
 npm run funding:participants:seed-indeterminate -- --apply
 npm run funding:claim-readiness -- --summary
 ```
+
+2026-09-03 OpenAI continue: `docs/HIT5_OPENAI_SEARCH_CONTINUE_2026-09-03.md` (50 jobs, 25 events, 0 pairs; identity gate added).
 
 ### Gemini run (2026-09-01 evening)
 
