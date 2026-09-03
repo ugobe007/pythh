@@ -815,13 +815,15 @@ async function persistWebSearchEvents({
   for (const event of searchEvents) {
     if (!event.source_url || !event.event_date || !event.investor_name) continue;
     if (JUNK_INVESTOR_NAME_RE.test(String(event.investor_name).trim())) continue;
-    const eventDay = new Date(event.event_date);
-    if (cutoff && Number.isFinite(cutoff.getTime()) && Number.isFinite(eventDay.getTime()) && eventDay <= cutoff) {
+    const day = String(event.event_date).slice(0, 10);
+    const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T23:59:59.999Z`) : new Date(event.event_date);
+    if (cutoff && Number.isFinite(cutoff.getTime()) && Number.isFinite(eventAt.getTime()) && eventAt <= cutoff) {
       continue;
     }
-    const mentionHay = `${event.source_title || ''}\n${event.source_url}`;
-    if (!startupMentionedInText(mentionHay, startup.name, startup.website)) continue;
     event.source_url = await directSourceUrl(event.source_url);
+    const mentionHay = `${event.source_title || ''}\n${event.source_url}`;
+    const normalizedWebsite = startup.website && !/^https?:\/\//i.test(startup.website) ? `https://${startup.website}` : startup.website;
+    if (!startupMentionedInText(mentionHay, startup.name, normalizedWebsite)) continue;
     const sourceKey = `${event.event_date}|${norm(event.investor_name)}|${event.source_url}`;
     if (seenSources.has(sourceKey)) continue;
     seenSources.add(sourceKey);
