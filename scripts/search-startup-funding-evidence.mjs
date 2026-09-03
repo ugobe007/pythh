@@ -796,13 +796,31 @@ function buildFundingWebSearchPrompt(startup, earliestMatchAt) {
   return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. If you find no completed post-cutoff rounds, return {"events":[]} with no extra prose. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
 }
 
-async function persistWebSearchEvents({ startup, investors, searchEvents, sourceProvider, rawGrounding = {} }) {
+const JUNK_INVESTOR_NAME_RE =
+  /^(new and existing|existing and new|undisclosed(?: investors?)?|various(?: investors?)?|others|& others|the investors?|existing investors?|new investors?|angels?)\b/i;
+
+async function persistWebSearchEvents({
+  startup,
+  investors,
+  searchEvents,
+  sourceProvider,
+  rawGrounding = {},
+  earliestMatchAt = null,
+}) {
   const seenSources = new Set();
   let events = 0;
   let pairs = 0;
+  const cutoff = earliestMatchAt ? new Date(earliestMatchAt) : null;
 
   for (const event of searchEvents) {
     if (!event.source_url || !event.event_date || !event.investor_name) continue;
+    if (JUNK_INVESTOR_NAME_RE.test(String(event.investor_name).trim())) continue;
+    const eventDay = new Date(event.event_date);
+    if (cutoff && Number.isFinite(cutoff.getTime()) && Number.isFinite(eventDay.getTime()) && eventDay <= cutoff) {
+      continue;
+    }
+    const mentionHay = `${event.source_title || ''}\n${event.source_url}`;
+    if (!startupMentionedInText(mentionHay, startup.name, startup.website)) continue;
     event.source_url = await directSourceUrl(event.source_url);
     const sourceKey = `${event.event_date}|${norm(event.investor_name)}|${event.source_url}`;
     if (seenSources.has(sourceKey)) continue;
@@ -878,6 +896,7 @@ async function processGeminiJob(startup, job) {
     searchEvents: geminiEvents,
     sourceProvider: 'gemini_google_search',
     rawGrounding: { grounding: json.candidates?.[0]?.groundingMetadata || {} },
+    earliestMatchAt: job.earliest_match_at,
   });
 }
 
@@ -900,6 +919,7 @@ async function processOpenAIJob(startup, job) {
     searchEvents,
     sourceProvider: 'openai_web_search',
     rawGrounding: { openai_response_id: response.id || null },
+    earliestMatchAt: job.earliest_match_at,
   });
 }
 
