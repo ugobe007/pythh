@@ -931,12 +931,14 @@ if (seed) {
 
 async function requeueZeroResultJobs({ minPriority, applyMode }) {
   let requeued = 0;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   for (let offset = 0; ; offset += 1000) {
     let query = db
       .from('funding_evidence_search_queue')
       .select('startup_id')
       .eq('status', 'complete')
       .eq('result_count', 0)
+      .or(`last_searched_at.is.null,last_searched_at.lt.${sevenDaysAgo}`)
       .range(offset, offset + 999);
     if (minPriority > 0) query = query.gte('priority', minPriority);
     const { data, error } = await query;
