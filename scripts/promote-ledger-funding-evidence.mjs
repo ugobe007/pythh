@@ -18,9 +18,10 @@ import 'dotenv/config';
 import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
+import { loadFundingParticipationOntology } from '../lib/loadFundingLibs.mjs';
 
 const require = createRequire(import.meta.url);
-const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
+const { extractKnownInvestorMentions } = loadFundingParticipationOntology();
 const { isIssuerPrimary } = require('../server/lib/matchEvidenceSourceTier.js');
 const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
 const { fetchEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');

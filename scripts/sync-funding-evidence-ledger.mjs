@@ -2,11 +2,13 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
-import ledger from '../server/lib/fundingEvidenceLedger.js';
+import { loadFundingEvidenceLedger, loadFundingParticipationOntology } from '../lib/loadFundingLibs.mjs';
 
 const require = createRequire(import.meta.url);
 const { extractFunding, extractCompanyNameFromHeadline } = require('../lib/inference-extractor.js');
-const { classifyNamedInvestorParticipation, extractExplicitParticipantMentions } = require('../server/lib/fundingParticipationOntology.js');
+const { classifyNamedInvestorParticipation, extractExplicitParticipantMentions } =
+  loadFundingParticipationOntology();
+const ledger = loadFundingEvidenceLedger();
 const { HORIZONS, normalizeEntityName, normalizeStartupName, isPromotionSafeStartupName, isPlausibleInvestorEntityName, startupNameCandidates, participantNamesFromEvent, classifyFundingEvidence, startupNameFromFundingEvent, eventTimestamp, evaluateRecommendationSet, canonicalRoundKey } = ledger;
 const apply = process.argv.includes('--apply');
 const limitArg = process.argv.find(arg => arg.startsWith('--limit='));

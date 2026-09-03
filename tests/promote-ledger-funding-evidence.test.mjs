@@ -51,6 +51,7 @@ test('promote ledger script and agent loop are wired', () => {
   assert.match(promote, /filterCleanHits/);
   assert.match(promote, /review_match_validation_evidence/);
   assert.match(promote, /reject-low-pending/);
+  assert.match(promote, /loadFundingParticipationOntology/);
 
   const agent = readFileSync(new URL('../scripts/agents/match-outcome-agent.mjs', import.meta.url), 'utf8');
   assert.match(agent, /promote-ledger-funding-evidence\.mjs/);

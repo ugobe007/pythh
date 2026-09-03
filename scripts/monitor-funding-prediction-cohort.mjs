@@ -4,11 +4,13 @@ import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
+import { loadFundingEvidenceLedger, loadFundingParticipationOntology } from '../lib/loadFundingLibs.mjs';
+
 const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
 const { extractFunding } = require('../lib/inference-extractor.js');
-const ledger = require('../server/lib/fundingEvidenceLedger.js');
-const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
+const ledger = loadFundingEvidenceLedger();
+const { extractKnownInvestorMentions } = loadFundingParticipationOntology();
 
 const apply = process.argv.includes('--apply');
 const cohortArg = process.argv.find(arg => arg.startsWith('--cohort-key='));

@@ -901,6 +901,7 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /CO_LED_ROUND/);
   assert.match(script, /evidence_phrase: participant\.phrase/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /loadFundingEvidenceLedger/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {

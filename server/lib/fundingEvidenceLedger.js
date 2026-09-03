@@ -755,6 +755,13 @@ function metricsForEvaluations(rows, topK = 5) {
   };
 }
 
+// Named `exports.foo =` plus `module.exports =` so ESM/tsx interop can see both.
+exports.canonicalRoundKey = canonicalRoundKey;
+exports.resolveCanonicalEntity = resolveCanonicalEntity;
+exports.classifyFundingEvidence = classifyFundingEvidence;
+exports.normalizeEntityName = normalizeEntityName;
+exports.normalizeStartupName = normalizeStartupName;
+
 module.exports = {
   HORIZONS,
   stripInvestorHeadlineNoise,
