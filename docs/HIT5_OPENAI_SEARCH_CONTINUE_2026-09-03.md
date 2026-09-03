@@ -49,6 +49,23 @@ Empty-JSON parse fix worked: **50/50 completed**, no parse-error stalls.
 
 **Queue pollution:** this pass searched London Stock Exchange, Olin Corporation, Noble Corporation, GenNx360 Capital, Allied Universal, ERCOT, Data Breach, Big Labor. OpenAI/Gemini now default `--skip-junk-names` over REST and park matches (`search:parked_junk_name`) so they do not consume the next wave.
 
+## OpenAI wave 3 (limit 50, junk park on)
+
+| Metric | Value |
+|--------|------:|
+| Parked junk before search | **15** |
+| Jobs / completed | **50 / 50** |
+| Events written | 11 |
+| Post-prediction pair upserts | **3** |
+
+Real startups entered the batch (Mintlify, Shapes, Groww, Statsig, Recraft, Labelbox) after parking Capital/Corporation/Exchange suffixes.
+
+- **Shapes** — GlobeNewswire $8M seed · Lightspeed (issuer-primary auto-verify; firm-alias hit Barry Eggers / Lightspeed). Duplicate of a Sep 2 pair on a URL variant.
+- **Mintlify** — first-party Series B blog · 2 pair upserts already verified 2026-09-02 (a16z / Salesforce Ventures).
+- **Groww** — Economic Times State Street ₹580 crore AMC stake (investor unresolved; no pair).
+
+Public-company leftovers still leaked (Tim Hortons, Lam Research, Teladoc, PagerDuty, Malwarebytes). Park-weak via `DATABASE_URL` remains the durable filter for those.
+
 ### Real-looking hits (startup named in title)
 
 - **Atorie** — TechCrunch “raises $9.5M” (Night Capital, a16z Speedrun; Jeremy Liew unresolved)
@@ -88,9 +105,8 @@ yet trusted ledger rounds with complete rosters). Next:
 
 1. Ingest classifier-safe titles (Atorie / Transfyr / Lupin / HERP) via
    `funding:ingest:audited:apply` + participants + corroborate.
-2. Keep draining OpenAI on the remaining ~3k requeued mature-unfunded jobs
-   (`--limit=50` waves). Do **not** pass `--requeue-priority-empty` again unless
-   the high-priority pending queue is empty.
+2. Keep draining OpenAI (`--limit=50`). Junk names park automatically for openai/gemini.
+   Do **not** pass `--requeue-priority-empty` unless high-priority pending is empty.
 3. Promote-ledger still needs `DATABASE_URL` (7-day complete-status hold from #112).
 
 See `docs/HIT5_IMPROVEMENT_ROADMAP.md`, `docs/HIT5_WAVE2_ROSTER_UNLOCK_2026-09-01.md`.
