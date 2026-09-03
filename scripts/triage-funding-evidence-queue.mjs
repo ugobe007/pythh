@@ -64,6 +64,7 @@ if (apply) {
       AND (s.entity_gate = 'qualified' OR s.entity_gate IS NULL)
       AND s.source_type = 'url'
       AND coalesce(s.website, '') <> ''
+      AND coalesce(q.error_message, '') NOT LIKE 'search:parked_%'
   `);
   summary.boosted_qualified_url = boost.rowCount || 0;
 
