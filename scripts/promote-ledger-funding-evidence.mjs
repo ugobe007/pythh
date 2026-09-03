@@ -266,18 +266,33 @@ for (const event of events) {
       const earliest = await fetchEarliestMatchAt(db, event.startup_id);
       const { data: qRow } = await db
         .from('funding_evidence_search_queue')
-        .select('startup_id, priority, status')
+        .select('startup_id, priority, status, last_searched_at')
         .eq('startup_id', event.startup_id)
         .maybeSingle();
       if (qRow) {
+        // Do not thrash recently completed searches back to pending — that
+        // prevents free-path drain loops from ever reaching zero boosted.
+        const lastSearchedMs = qRow.last_searched_at
+          ? Date.parse(qRow.last_searched_at)
+          : NaN;
+        const recentlySearched =
+          Number.isFinite(lastSearchedMs) && Date.now() - lastSearchedMs < 7 * 24 * 60 * 60 * 1000;
+        const keepComplete = qRow.status === 'complete' && recentlySearched;
+        const nextStatus = keepComplete
+          ? 'complete'
+          : qRow.status === 'processing'
+            ? 'processing'
+            : 'pending';
         await db
           .from('funding_evidence_search_queue')
           .update({
             priority: Math.max(Number(qRow.priority) || 0, 50000),
-            status: qRow.status === 'processing' ? 'processing' : 'pending',
+            status: nextStatus,
             ...(earliest ? { earliest_match_at: earliest } : {}),
             updated_at: new Date().toISOString(),
-            error_message: 'priority_boost:issuer_ledger_event',
+            error_message: keepComplete
+              ? 'priority_boost:issuer_ledger_event_kept_complete'
+              : 'priority_boost:issuer_ledger_event',
           })
           .eq('startup_id', event.startup_id);
       } else if (earliest) {
