@@ -30,13 +30,14 @@ import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
+import { loadFundingEvidenceLedger, loadFundingParticipationOntology } from '../lib/loadFundingLibs.mjs';
 
 const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
 const { extractFunding } = require('../lib/inference-extractor.js');
-const { extractKnownInvestorMentions } = require('../server/lib/fundingParticipationOntology.js');
+const { extractKnownInvestorMentions } = loadFundingParticipationOntology();
 const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
-const ledger = require('../server/lib/fundingEvidenceLedger.js');
+const ledger = loadFundingEvidenceLedger();
 const { syncQueueEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');
 const {
   lookupStartupFundingEvents,

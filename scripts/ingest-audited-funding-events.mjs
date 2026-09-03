@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { createRequire } from 'node:module';
 import { supabaseResult } from '../lib/supabaseNetworkRetry.mjs';
 import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
+import { loadFundingEvidenceLedger } from '../lib/loadFundingLibs.mjs';
 
-const require = createRequire(import.meta.url);
-const { canonicalRoundKey, resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
+const { canonicalRoundKey, resolveCanonicalEntity } = loadFundingEvidenceLedger();
 const apply = process.argv.includes('--apply');
 const { url } = resolveSupabaseRestUrl();
 const key = resolveSupabaseServiceKey();

@@ -4,11 +4,12 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import * as cheerio from 'cheerio';
 import { createClient } from '@supabase/supabase-js';
-import { createRequire } from 'node:module';
+import { loadFundingEvidenceLedger, loadFundingParticipationOntology } from '../lib/loadFundingLibs.mjs';
 
-const require = createRequire(import.meta.url);
-const { extractKnownInvestorMentions, extractExplicitParticipantMentions } = require('../server/lib/fundingParticipationOntology.js');
-const { isPlausibleInvestorEntityName, normalizeEntityName, resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
+const { extractKnownInvestorMentions, extractExplicitParticipantMentions } =
+  loadFundingParticipationOntology();
+const { isPlausibleInvestorEntityName, normalizeEntityName, resolveCanonicalEntity } =
+  loadFundingEvidenceLedger();
 
 const apply = process.argv.includes('--apply');
 const retryFailed = process.argv.includes('--retry-failed');

@@ -179,6 +179,11 @@ function classifyNamedInvestorParticipation(text, investorName) {
     : { role: 'unknown', relation: null, evidencePhrase: String(text || '').slice(0, 1000) };
 }
 
+exports.extractKnownInvestorMentions = extractKnownInvestorMentions;
+exports.extractExplicitParticipantMentions = extractExplicitParticipantMentions;
+exports.classifyNamedInvestorParticipation = classifyNamedInvestorParticipation;
+exports.classifyParticipationPhrase = classifyParticipationPhrase;
+
 module.exports = {
   PARTICIPATION_ROLES,
   ROLE_CONFIDENCE,
