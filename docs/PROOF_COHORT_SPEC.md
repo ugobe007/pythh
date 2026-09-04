@@ -128,7 +128,7 @@ Run on **proof cohort queue** only (priority > 0; URL submits with website):
 npm run proof-cohort:report -- --since=2026-08-25
 npm run outcomes:recover-urls -- --apply --limit=50
 npm run outcomes:triage-queue -- --apply --park-weak --target=5000
-npm run proof-cohort:search:gemini -- --apply --limit=25 --delay=600
+npm run proof-cohort:search:cascade -- --apply --limit=25 --delay=1200
 npm run proof-cohort:reprocess-pairs:apply -- --since=2026-08-25
 npm run outcomes:promote-ledger -- --apply --reject-low-pending --limit=100
 npm run outcomes:review -- --list
@@ -143,7 +143,7 @@ npm run funding:match-fund-lag:cohort
 
 `funding:match-fund-lag` histograms match→fund days (0–30 / 30–60 / **60–90** / 90–180 / 180+) and sealed cohort age vs that window. Keep searching sealed clocks — many true positives land in 60–90d.
 
-(`proof-cohort:search` / `:gemini` skip Capital/place-name junk and require a sealed snapshot + GOD≥55.)
+(`proof-cohort:search` / `:cascade` skip Capital/place-name junk and require a sealed snapshot + GOD≥55. Cascade is Anthropic → OpenAI → inference.)
 
 Do **not** force-match after announcement — that breaks the gate clock.
 
