@@ -66,8 +66,10 @@ This grew from the Aug 23 “~42 pairs / 30 startups” roadmap line. Pair proof
 
 ## Next ops (forward only)
 
-1. Ingest Runable Series A roster (SiliconANGLE; post-seal) — this PR.
-2. Do **not** ingest Remepy / Meduloc / SiteVue / Transfyr (announce on or before `predicted_at`, or Pulse2 scrape lag).
-3. Keep draining search after the 7-day complete-status hold; no `--requeue-priority-empty` until then.
-4. Expand `frequentLedgerFunders` from never-pre-matched qualified firms (`funding:audit:candidate-misses`).
-5. `DATABASE_URL` is still required on the Mac for `outcomes:promote-ledger` / `outcomes:matched`.
+1. Runable SiliconANGLE roster is already applied (10/72). Do **not** re-ingest from TechCrunch (pre-seal).
+2. Do **not** ingest Remepy / Meduloc / SiteVue / Transfyr / **Yardstik**.
+   - Yardstik PR Newswire 15:00 UTC is the same 2026-08-27 embargo as SiliconANGLE 13:00 UTC, which is **before** `predicted_at` 14:08 UTC. Sealed top-5 (Northzone, Nexus, GC, Founders Fund, Menlo) missed Harbert / Rally / MissionOG / Crosslink / Grotech / Great North — still not a claimable miss.
+   - Transfyr company post is 2026-08-26; seal is 2026-08-29.
+3. Paid search queue is drained (`pending` priority>0 = 0). Do **not** `--requeue-priority-empty` until the 7-day complete-status hold expires. Next Mac drain: `outcomes:triage-queue` (needs `DATABASE_URL`) then `outcomes:search-funding:cascade`.
+4. Paid-search persist now runs `classifyFundingEvidence` so OpenAI/Anthropic M&A, credit-facility, and listing headlines do not write `funding_evidence_search_results`.
+5. Expand `frequentLedgerFunders` from never-pre-matched qualified firms (`funding:audit:candidate-misses`) — needs `DATABASE_URL` on the Mac.
