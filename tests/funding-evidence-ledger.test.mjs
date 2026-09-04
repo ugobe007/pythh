@@ -834,6 +834,8 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /requeued_high_priority_empty/);
   assert.match(script, /NO_FUNDING_JSON_RE/);
   assert.match(script, /If you find no completed post-cutoff rounds/);
+  assert.match(script, /Exclude rumors, talks, planned investments, grants, acquisitions, credit facilities/);
+  assert.match(script, /classifyFundingEvidence/);
   assert.match(script, /JUNK_INVESTOR_NAME_RE/);
   assert.match(script, /startupMentionedInText\(mentionHay/);
   assert.match(script, /isJunkStartupName/);
@@ -919,6 +921,9 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /predictedAtByStartup/);
   assert.match(script, /post_prediction/);
   assert.doesNotMatch(script, /audited:atorie:|audited:curaa:|audited:lupin-dental:|audited:eisen:/);
+  assert.match(script, /Do NOT ingest Yardstik/);
+  assert.match(script, /Do NOT ingest Transfyr/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {

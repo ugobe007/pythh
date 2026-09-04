@@ -359,6 +359,12 @@ const audited = [
   },
   // Do NOT ingest Runable: TechCrunch published 2026-08-26 11:00 UTC, before predicted_at 2026-08-26 13:44 UTC.
   // SiliconANGLE 2026-08-27 is a next-day rewrite (scrape-lag pattern per Transfyr/Remepy).
+  // Do NOT ingest Yardstik $30M Series B: SiliconANGLE 2026-08-27 13:00 UTC is before
+  // predicted_at 2026-08-27 14:08 UTC. PR Newswire 15:00 UTC / company blog are the same
+  // embargo, not a new post-seal round. Sealed top-5 was Northzone / Nexus / GC /
+  // Founders Fund / Menlo — none of Harbert / Rally / MissionOG / Crosslink / Grotech /
+  // Great North. Treat as scrape-lag, not a Hit@5 miss.
+  // Do NOT ingest Transfyr $25M: company post 2026-08-26, seal 2026-08-29 15:46 UTC.
 ];
 
 async function allInvestors() {

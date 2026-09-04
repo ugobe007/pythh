@@ -1,6 +1,6 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-09-04 (legacy-match 42% review + Runable roster unlock)  
+**Last updated:** 2026-09-04 (Yardstik clock reject + paid-search classifier gate)  
 **Miss triage note:** `docs/HIT5_MISS_TRIAGE_2026-09-01.md`  
 **Wave 5/6 ops note:** `docs/HIT5_WAVE5_WAVE6_2026-09-01.md`  
 **Wave 2 roster note:** `docs/HIT5_WAVE2_ROSTER_UNLOCK_2026-09-01.md`  

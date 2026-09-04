@@ -50,6 +50,7 @@ const { extractFunding } = require('../lib/inference-extractor.js');
 const { extractKnownInvestorMentions } = loadFundingParticipationOntology();
 const { filterCleanHits } = require('../server/lib/matchEvidenceInvestorHit.js');
 const ledger = loadFundingEvidenceLedger();
+const { classifyFundingEvidence } = ledger;
 const { syncQueueEarliestMatchAt } = require('../server/lib/syncQueueEarliestMatchAt.js');
 const {
   lookupStartupFundingEvents,
@@ -861,7 +862,7 @@ async function loadUniqueInvestorsByName() {
 }
 
 function buildFundingWebSearchPrompt(startup, earliestMatchAt) {
-  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. If you find no completed post-cutoff rounds, return {"events":[]} with no extra prose. Exclude rumors, talks, planned investments, grants, and funding that predates the cutoff. One row per named investor per completed round.`;
+  return `Search the public web for completed funding rounds for startup "${startup.name}" (${startup.website || 'website unknown'}) announced after ${earliestMatchAt}. Return JSON only: {"events":[{"event_date":"YYYY-MM-DD","investor_name":"exact investor name","round_type":"","amount":"","source_url":"direct article or announcement URL","source_title":""}]}. If you find no completed post-cutoff rounds, return {"events":[]} with no extra prose. Exclude rumors, talks, planned investments, grants, acquisitions, credit facilities, IPOs, listings, political donations, and funding that predates the cutoff. One row per named investor per completed round.`;
 }
 
 const JUNK_INVESTOR_NAME_RE =
@@ -883,6 +884,16 @@ async function persistWebSearchEvents({
   for (const event of searchEvents) {
     if (!event.source_url || !event.event_date || !event.investor_name) continue;
     if (JUNK_INVESTOR_NAME_RE.test(String(event.investor_name).trim())) continue;
+    const classified = classifyFundingEvidence({
+      event_type: 'FUNDING',
+      frame_confidence: 0.9,
+      extraction_meta: { decision: 'ACCEPT', graph_safe: true },
+      source_title: event.source_title,
+      source_url: event.source_url,
+    });
+    if (!classified.eligible) continue;
+    const isConvertible = /\bconvertible\b/i.test(event.source_title || '');
+    if (!['equity', 'mixed'].includes(classified.financingType) && !(classified.financingType === 'debt' && isConvertible)) continue;
     const day = String(event.event_date).slice(0, 10);
     const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T23:59:59.999Z`) : new Date(event.event_date);
     if (cutoff && Number.isFinite(cutoff.getTime()) && Number.isFinite(eventAt.getTime()) && eventAt <= cutoff) {
