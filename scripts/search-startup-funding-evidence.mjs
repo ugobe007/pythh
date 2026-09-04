@@ -188,8 +188,7 @@ function isPaidSearchRetryable(err) {
   return (
     status === 429 ||
     status === 401 ||
-    (status === 400 && /invalid_request_error/i.test(type)) ||
-    /overloaded_error|rate_limit_error|invalid_request_error/i.test(type) ||
+    /overloaded_error|rate_limit_error/i.test(type) ||
     /\b429\b|rate.?limit|overloaded|RESOURCE_EXHAUSTED|credits? (are )?depleted|insufficient.?credits?|quota|invalid.?api.?key|unauthorized|credit balance is too low/i.test(
       msg,
     )
