@@ -12,7 +12,7 @@ The product claim is **sealed startup-level Hit@5**: did any of five firms predi
 | Oracle ~44% verified-funded | Public **portfolio picks** later press-confirmed funded | Separate Oracle/portfolio metric | Not match Hit@5 |
 | `confirmed_outcome_counts.confirmed_hit: 30` ÷ 71 audited | Sum of hit *rows across 30/90/180/365 horizons* (4+8+9+9=30) | Looks like ~42%, is **double-counting the same startups** | No |
 | Historical reconcile of **legacy** `startup_investor_matches` | Pre-event top-5 vs later funders; scores may have been rewritten later | **1.4%** directional / **1.5%** audited (1 hit / 65–71 evaluable) | Diagnostic only |
-| **Sealed Hit@5 @180d** | Snapshots + trusted post-`predicted_at` events | **9 / 71 = 12.7%** (1 indeterminate: Runable) | Yes, when N≥100 and rate≥85% |
+| **Sealed Hit@5 @180d** | Snapshots + trusted post-`predicted_at` events | **10 / 72 = 13.9%** after Runable unlock | Yes, when N≥100 and rate≥85% |
 
 **Hard rule:** current-state match tables are not a prediction clock. Rematches after the round (`post_event_match_not_prediction`) inflate “we matched the funder” stories. Legacy scores may have been updated after `created_at`.
 
@@ -25,14 +25,14 @@ The product claim is **sealed startup-level Hit@5**: did any of five firms predi
 | Sealed sets | 2,212 (47 identity exclusions) |
 | Mature / pending | 832 / 1,380 |
 | Funded in horizon | 72 |
-| Hits / misses / indeterminate | **9 / 62 / 1** |
-| Audited | 71 (**29 short of 100**) |
-| Observed rate | 12.7% (95% CI 6.8–22.4%) |
+| Hits / misses / indeterminate | **10 / 62 / 0** |
+| Audited | 72 (**28 short of 100**) |
+| Observed rate | 13.9% (95% CI 7.7–23.7%) |
 | Claim ready | **No** |
 
-Hits: Jump, OpenRouter, Saronic, Replit, Isomorphic Labs, Legora, Cognition, Dust, Upscale AI.
+Hits: Jump, OpenRouter, Saronic, Replit, Isomorphic Labs, Legora, Cognition, Dust, Upscale AI, **Runable**.
 
-The one 180d indeterminate is **Runable** (SiliconANGLE $21M Series A, 2026-08-27, after `predicted_at` 2026-08-26 13:44). Roster was empty. Nexus Venture Partners is sealed rank 4 and co-led the round — unlocking the roster should audit as a **hit**.
+**Runable unlock (applied):** SiliconANGLE $21M Series A, 2026-08-27, after `predicted_at` 2026-08-26 13:44. Co-leads Susquehanna Venture Capital + Nexus Venture Partners (sealed rank 4) + Together Fund + Array VC. Converted the only 180d indeterminate into a hit. Audited 71→72, hits 9→10.
 
 ## Legacy-match reconcile (diagnostic)
 

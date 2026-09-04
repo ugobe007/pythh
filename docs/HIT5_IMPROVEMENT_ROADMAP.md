@@ -19,7 +19,7 @@ This doc ties **pair-level match outcomes** (did this specific investor fund thi
 | Layer | Question | Primary data | Typical count (2026-08-23) |
 |--------|-----------|--------------|----------------------------|
 | **Pair outcomes** | Did matched investor *X* fund startup *Y* after `match.created_at`? | `match_validation_evidence` (verified) | 107 verified post-prediction pairs (45 startups) |
-| **Sealed Hit@5** | Did any top-5 investor participate before the round (audited roster)? | `funding_prediction_snapshots` + `funding_evidence_events` | 71 audited (9 hit / 62 miss / 1 indeterminate); target 100 |
+| **Sealed Hit@5** | Did any top-5 investor participate before the round (audited roster)? | `funding_prediction_snapshots` + `funding_evidence_events` | 72 audited (10 hit / 62 miss); target 100 |
 
 Pair counts are **higher in spirit** (many matches per startup) but **verified pairs** are still sparse because search/review is pair-scoped. Hit@5 is **stricter**: one outcome per startup, complete participant list, temporal seal on `created_at` / `predicted_at`.
 
@@ -34,9 +34,9 @@ Detailed miss triage: `docs/HIT5_MISS_TRIAGE_2026-09-01.md`.
 |--------|-------|--------|
 | Sealed sets (serve-grade, 5 firms) | 2,212 | Identity exclusions still present |
 | Mature / pending | 832 / 1,380 | Calendar maturity vs 2026-09-01 |
-| Funded in horizon | 72 | 1 indeterminate (Runable) |
-| Hit@5 audited | 71 | **29 short of 100** |
-| Startup-level hits | 9 | **~12.7%** among audited |
+| Funded in horizon | 72 | Runable roster unlocked |
+| Hit@5 audited | 72 | **28 short of 100** |
+| Startup-level hits | 10 | **~13.9%** among audited |
 | Mature unfunded | 780 | Hunt gaps are mostly untrusted / pre-seal |
 | Pair verified fundings | 107 | Parallel pair track (was ~42 in Aug 23 copy) |
 
@@ -147,8 +147,8 @@ Compare:
 
 | Requirement | Status |
 |-------------|--------|
-| ≥100 audited outcomes | 71 / 100 |
-| ≥85% hit rate among audited | ~12.7% (not claim-ready) |
+| ≥100 audited outcomes | 72 / 100 |
+| ≥85% hit rate among audited | ~13.9% (not claim-ready) |
 | Immutable prediction clock | Enforced |
 | Serve-grade identity | Exclusions remain |
 
