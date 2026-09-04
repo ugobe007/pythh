@@ -25,6 +25,7 @@ test('public GOD weight copy matches live config JSON', () => {
   assert.match(pub, /product: 0\.15/);
   assert.match(pub, /vision: 0\.13/);
   assert.match(pub, /traction 30/);
+  assert.match(pub, /0–20 scale · live weights 22 \/ 30 \/ 20 \/ 15 \/ 13/);
 });
 
 test('public scoring pages no longer claim equal 20-point GOD buckets', () => {
@@ -39,8 +40,13 @@ test('public scoring pages no longer claim equal 20-point GOD buckets', () => {
     assert.doesNotMatch(src, /each scored 0–20/);
     assert.doesNotMatch(src, /Five dimensions scored 0–20 each/);
     assert.doesNotMatch(src, /GOD dimensions · 0–20 each/);
+    assert.doesNotMatch(src, /5 × 20 = 100/);
   }
   assert.match(pages.methodology, /godWeightPtsLabel\("team"\)/);
   assert.match(pages.methodology, /godWeightPtsLabel\("traction"\)/);
   assert.match(pages.methodology, /godWeightPtsLabel\("vision"\)/);
+  assert.match(pages.chart, /STARTUP_GOD_WEIGHT_CHART_LABEL/);
+  assert.match(pages.chart, /max: 20/);
+  assert.doesNotMatch(pages.chart, /godWeightPts\(/);
+  assert.match(pages.trends, /22 \+ 30 \+ 20 \+ 15 \+ 13 = 100/);
 });

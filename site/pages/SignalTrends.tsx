@@ -596,7 +596,7 @@ export default function SignalTrends() {
               <div>
                 <p className="text-sm font-semibold text-white">Total GOD Score = 0–100</p>
                 <p className="text-xs" style={{ color: "oklch(0.48 0.01 264)" }}>
-                  5 × 20 = 100 max · Behavioral multipliers shift scores above tier thresholds
+                  22 + 30 + 20 + 15 + 13 = 100 · Behavioral multipliers shift scores above tier thresholds
                 </p>
               </div>
             </div>

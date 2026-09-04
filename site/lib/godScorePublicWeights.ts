@@ -25,4 +25,6 @@ export function godWeightPtsLabel(key: StartupGodWeightKey): string {
 export const STARTUP_GOD_WEIGHT_SUMMARY =
   'Team 22, traction 30, market 20, product 15, vision 13 — signal-informed live shares that sum to 100.';
 
-export const STARTUP_GOD_WEIGHT_CHART_LABEL = 'GOD dimensions · 22 / 30 / 20 / 15 / 13';
+/** Chart header: bars stay 0–20; the numbers are composite shares, not bar maxes. */
+export const STARTUP_GOD_WEIGHT_CHART_LABEL =
+  'GOD dimensions · 0–20 scale · live weights 22 / 30 / 20 / 15 / 13';
