@@ -6,37 +6,38 @@ import StartupCTA from "@/components/design/StartupCTA";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
 import { G, PAGE, BORDER, CARD, MUTED, DIM } from "@/lib/designTokens";
+import { godWeightPtsLabel, STARTUP_GOD_WEIGHT_SUMMARY } from "@/lib/godScorePublicWeights";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const GOD_DIMS = [
   {
     label: "Team",
-    weight: "20 pts",
+    weight: godWeightPtsLabel("team"),
     color: "#a855f7",
     desc: "Founder background, domain expertise, repeat-founder status, technical depth, and advisor network. We score what founders have publicly demonstrated — not what they claim on an about page. A repeat founder with a prior exit scores differently than a first-time founder in an adjacent field.",
   },
   {
     label: "Traction",
-    weight: "20 pts",
+    weight: godWeightPtsLabel("traction"),
     color: "#22d3ee",
     desc: "Revenue indicators, customer count, MRR/ARR proxies, and growth velocity — inferred from public signals like job posts, press coverage, and product launch cadence. A startup hiring its third enterprise sales rep is sending a very different signal than one posting junior dev roles.",
   },
   {
     label: "Market",
-    weight: "20 pts",
+    weight: godWeightPtsLabel("market"),
     color: "#f97316",
     desc: "Total addressable market size, sector momentum, comparable funding activity in adjacent categories, and timing relative to macro trends and technology cycles. We look at whether investors are already clustering in this space — and whether the timing window is opening or closing.",
   },
   {
     label: "Product",
-    weight: "20 pts",
+    weight: godWeightPtsLabel("product"),
     color: "#eab308",
     desc: "Product clarity, differentiation signals, technical depth, and shipping velocity from the public footprint. A startup with a live product, documented API, and three recent changelog posts scores materially higher than one with a landing page and a waitlist.",
   },
   {
     label: "Vision",
-    weight: "20 pts",
+    weight: godWeightPtsLabel("vision"),
     color: "#22c55e",
     desc: "Narrative coherence, mission clarity, and long-arc thesis alignment with the market opportunity. PYTHIA looks for founders who articulate a specific point of view on why this moment matters — not just what the product does.",
   },
@@ -151,7 +152,7 @@ export default function Methodology() {
           <SectionHeader
             n="01"
             title="The GOD Score (0–100)"
-            subtitle="Every startup receives a GOD score — a 100-point composite across five independently weighted signal dimensions. Scores update automatically as new data surfaces. No single dimension dominates; strength must be multi-dimensional to score high."
+            subtitle={`Every startup receives a GOD score — a 100-point composite across five independently weighted signal dimensions. ${STARTUP_GOD_WEIGHT_SUMMARY} Scores update as new public data surfaces. Traction is the largest share; no single bucket can carry a high score alone.`}
           />
 
           {/* 5 dimension cards */}

@@ -19,6 +19,7 @@ import StartupCTA from "@/components/design/StartupCTA";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
 import { G, G_BORDER, PAGE, BORDER, CARD, MUTED, DIM, TEXT, VIOLET, VIOLET_BORDER } from "@/lib/designTokens";
+import { STARTUP_GOD_WEIGHT_SUMMARY } from "@/lib/godScorePublicWeights";
 
 // ─── Live stats ───────────────────────────────────────────────────────────────
 
@@ -545,7 +546,7 @@ const HOW_IT_WORKS = [
     n: "02",
     icon: <BarChart3 size={18} />,
     label: "GOD Scoring",
-    desc: "Five dimensions scored 0–20 each — Team, Traction, Market, Product, Vision — summing to a 0–100 GOD score. Behavioral multipliers (repeat founder, social proof cascade, sector pivot) apply on top. The score is deterministic, explainable, and self-improving.",
+    desc: `Five dimensions — Team, Traction, Market, Product, Vision — summing to a 0–100 GOD score. ${STARTUP_GOD_WEIGHT_SUMMARY} Behavioral multipliers (repeat founder, social proof cascade, sector pivot) apply on top. The score is deterministic and explainable.`,
   },
   {
     n: "03",
@@ -675,7 +676,7 @@ export default function Platform() {
               {
                 stat: "5",
                 label: "Scoring dimensions",
-                desc: "Team, Traction, Market, Product, Vision — each scored 0–20, summing to a 0–100 GOD score. Dimensional scoring reveals exactly where a startup is strong and where it needs work — not just a single number.",
+                desc: `Team, Traction, Market, Product, Vision — ${STARTUP_GOD_WEIGHT_SUMMARY} Dimensional scoring shows where a startup is strong and where it needs work — not just a single number.`,
                 color: "#22d3ee",
               },
               {

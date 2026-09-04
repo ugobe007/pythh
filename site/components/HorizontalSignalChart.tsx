@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   G, CYAN, PURPLE, GOLD, MUTED, DIM, BORDER, G_BORDER, BAR_GREY, BAR_EMERALD, godScoreColor,
 } from "@/lib/designTokens";
+import { godWeightPts, STARTUP_GOD_WEIGHT_CHART_LABEL } from "@/lib/godScorePublicWeights";
 
 interface PreviewSignal {
   label: string;
@@ -43,12 +44,23 @@ const FALLBACK_SIGNALS: PreviewSignal[] = [
   { label: "Founder lang", value: 0.74, raw: 7.4, color: BAR_EMERALD },
 ];
 
-const FALLBACK_DIMS = ["TEAM", "TRACTION", "MARKET", "PRODUCT", "VISION"].map((label, i) => ({
-  label,
-  score: [17, 14, 18, 15, 16][i],
-  max: 20,
-  color: i % 2 === 0 ? BAR_EMERALD : BAR_GREY,
-}));
+const FALLBACK_DIMS = (
+  [
+    ["TEAM", "team", 0.78],
+    ["TRACTION", "traction", 0.7],
+    ["MARKET", "market", 0.85],
+    ["PRODUCT", "product", 0.72],
+    ["VISION", "vision", 0.68],
+  ] as const
+).map(([label, key, fill], i) => {
+  const max = godWeightPts(key);
+  return {
+    label,
+    score: Math.round(max * fill),
+    max,
+    color: i % 2 === 0 ? BAR_EMERALD : BAR_GREY,
+  };
+});
 
 function SignalColumn({
   label,
@@ -201,7 +213,7 @@ export default function HorizontalSignalChart({
 
       <div className="px-4 py-3 border-b" style={{ borderColor: BORDER }}>
         <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
-          GOD dimensions · 0–20 each
+          {STARTUP_GOD_WEIGHT_CHART_LABEL}
         </span>
       </div>
       <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

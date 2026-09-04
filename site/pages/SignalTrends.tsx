@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import HorizontalSignalChart, { type ChartStartup } from "@/components/HorizontalSignalChart";
+import { godWeightPtsLabel } from "@/lib/godScorePublicWeights";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -569,11 +570,11 @@ export default function SignalTrends() {
             </p>
             <div className="space-y-3 mb-5">
               {[
-                { dim: "Team",     range: "0–20", weight: "Founder track record, team depth, cofounder dynamics",  color: "#a855f7" },
-                { dim: "Traction", range: "0–20", weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
-                { dim: "Market",   range: "0–20", weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
-                { dim: "Product",  range: "0–20", weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },
-                { dim: "Vision",   range: "0–20", weight: "Thesis coherence, contrarian insight, conviction",     color: "#22c55e" },
+                { dim: "Team",     range: godWeightPtsLabel("team"),     weight: "Founder track record, team depth, cofounder dynamics",  color: "#a855f7" },
+                { dim: "Traction", range: godWeightPtsLabel("traction"), weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
+                { dim: "Market",   range: godWeightPtsLabel("market"),   weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
+                { dim: "Product",  range: godWeightPtsLabel("product"),  weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },
+                { dim: "Vision",   range: godWeightPtsLabel("vision"),   weight: "Thesis coherence, contrarian insight, conviction",     color: "#22c55e" },
               ].map(({ dim, range, weight, color }) => (
                 <div key={dim} className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: color }} />
