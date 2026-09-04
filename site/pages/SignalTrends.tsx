@@ -524,8 +524,8 @@ export default function SignalTrends() {
         <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
           Rankings show how the same startups reorder under different investor scoring models.
           The default{" "}
-          <span style={{ color: "#22d3ee" }}>GOD Score</span> is pythh's balanced baseline — equal
-          weight across team, traction, market, product, and vision. Click any tab to see how a
+          <span style={{ color: "#22d3ee" }}>GOD Score</span> is pythh's signal-informed baseline —
+          team 22, traction 30, market 20, product 15, vision 13. Click any tab to see how a
           specific investor would rescore and reorder the same companies.{" "}
           <span style={{ color: "oklch(0.65 0.01 264)" }}>
             The delta between lenses is the signal.

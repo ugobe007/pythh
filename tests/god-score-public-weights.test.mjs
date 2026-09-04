@@ -41,6 +41,7 @@ test('public scoring pages no longer claim equal 20-point GOD buckets', () => {
     assert.doesNotMatch(src, /Five dimensions scored 0–20 each/);
     assert.doesNotMatch(src, /GOD dimensions · 0–20 each/);
     assert.doesNotMatch(src, /5 × 20 = 100/);
+    assert.doesNotMatch(src, /equal weight across team/);
   }
   assert.match(pages.methodology, /godWeightPtsLabel\("team"\)/);
   assert.match(pages.methodology, /godWeightPtsLabel\("traction"\)/);
