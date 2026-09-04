@@ -51,3 +51,20 @@ test('public scoring pages no longer claim equal 20-point GOD buckets', () => {
   assert.doesNotMatch(pages.chart, /godWeightPts\(/);
   assert.match(pages.trends, /22 \+ 30 \+ 20 \+ 15 \+ 13 = 100/);
 });
+
+test('public Vision copy states large destination scale, especially repeat founders', () => {
+  const pub = read('../site/lib/godScorePublicWeights.ts');
+  assert.match(pub, /STARTUP_GOD_VISION_THESIS/);
+  assert.match(pub, /large visions, not small ones/);
+  assert.match(pub, /repeat founders who have done it before/);
+
+  const methodology = read('../site/pages/Methodology.tsx');
+  const trends = read('../site/pages/SignalTrends.tsx');
+  const about = read('../site/pages/About.tsx');
+  const support = read('../site/pages/Support.tsx');
+  assert.match(methodology, /STARTUP_GOD_VISION_THESIS/);
+  assert.match(methodology, /destination scale/);
+  assert.match(trends, /STARTUP_GOD_VISION_THESIS/);
+  assert.match(about, /category-scale ambition/);
+  assert.match(support, /large visions, not small ones/);
+});

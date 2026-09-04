@@ -1687,7 +1687,8 @@ function scoreVision(startup: StartupProfile): number {
   }
   
   // --- 3. Ambitious Scale/Impact Vision (0-0.4 points) ---
-  // VCs want "big if it works" - look for ambitious language
+  // Investors underwrite large visions, not small ones — especially repeat founders
+  // who have already shipped something that size. Score destination scale, not polish.
   const ambitionPatterns = [
     /\b(billion|trillion|\$\d+[BT]|massive market|huge opportunity)/i,
     /\b(global|worldwide|international|cross-border|multi-country)/i,

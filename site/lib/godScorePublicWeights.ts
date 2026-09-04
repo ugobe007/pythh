@@ -28,3 +28,7 @@ export const STARTUP_GOD_WEIGHT_SUMMARY =
 /** Chart header: bars stay 0–20; the numbers are composite shares, not bar maxes. */
 export const STARTUP_GOD_WEIGHT_CHART_LABEL =
   'GOD dimensions · 0–20 scale · live weights 22 / 30 / 20 / 15 / 13';
+
+/** What Vision measures for investors — scale of destination, not narrative polish. */
+export const STARTUP_GOD_VISION_THESIS =
+  'Investors look for founders building large visions, not small ones — especially repeat founders who have done it before.';
