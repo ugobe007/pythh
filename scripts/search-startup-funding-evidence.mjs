@@ -892,6 +892,7 @@ async function persistWebSearchEvents({
       source_url: event.source_url,
     });
     if (!classified.eligible) continue;
+    if (!['equity', 'mixed'].includes(classified.financingType)) continue;
     const day = String(event.event_date).slice(0, 10);
     const eventAt = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T23:59:59.999Z`) : new Date(event.event_date);
     if (cutoff && Number.isFinite(cutoff.getTime()) && Number.isFinite(eventAt.getTime()) && eventAt <= cutoff) {
