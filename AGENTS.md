@@ -192,10 +192,12 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - Repair dark instrumentation (missing seals/queues): `npm run proof-cohort:instrument:apply -- --since=2026-08-25 --limit=200`
 - Drain unmatched high-GOD URL startups (match latency SLA): `npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25`
 - Mark publisher-article scrapes as junk (VentureBurn/PE Hub/…): `npm run proof-cohort:mark-publisher-junk:apply`
-- **Gemini prepaid credits depleted:** use OpenAI web search instead:
-  `npm run outcomes:search-funding -- --provider=openai --apply --limit=50 --delay=800`
-  (requires `OPENAI_API_KEY`). Gemini 429 batches fall back to inference (often also rate-limited).
-- Targeted funding search (skip junk names, sealed + GOD≥55): `npm run proof-cohort:search:gemini -- --apply --limit=25 --delay=600`
+- **Paid funding search cascade:** Anthropic web search → OpenAI web search → inference (Google News).
+  `npm run outcomes:search-funding:cascade -- --apply --limit=50 --delay=1200`
+  Requires `ANTHROPIC_API_KEY` (preferred) and/or `OPENAI_API_KEY`; a missing key skips that step.
+  Gemini prepaid is depleted — do not use `--provider=gemini` unless credits are restored.
+  Single-provider: `npm run outcomes:search-funding:anthropic` or `:openai`. 429 / overloaded / credit errors fall through the cascade (or to inference for a single paid provider).
+- Targeted proof-cohort search (skip junk names, sealed + GOD≥55): `npm run proof-cohort:search:cascade -- --apply --limit=25 --delay=1200`
 - Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.
 - One-shot audit after each ops batch: `npm run funding:match-funding-audit`

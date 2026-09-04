@@ -4,8 +4,11 @@
  *
  * Default provider: inference engine (Google News RSS + extractors — no Gemini credits).
  * Optional:
- *   --provider=gemini     when GEMINI_API_KEY is available
+ *   --provider=cascade    Anthropic web search → OpenAI web search → inference
+ *                         (skip a step when that API key is missing)
+ *   --provider=anthropic  when ANTHROPIC_API_KEY is available (web_search tool)
  *   --provider=openai     when OPENAI_API_KEY is available (web search via Responses API)
+ *   --provider=gemini     when GEMINI_API_KEY is available
  *   --provider=ontology   news (inference) + SEC Form D + NSF/SBIR + USASpending
  *                         (docs/FUNDING_SOURCE_ONTOLOGY.md §6 public channels)
  *   --name=Acme           only this startup (ILIKE)
@@ -13,7 +16,8 @@
  *   --min-god=55          skip low GOD when selecting jobs (needs DATABASE_URL)
  *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
  *   --skip-junk-names     skip/park Capital/place-name/megacorp queue noise
- *                         (default with --cohort-since and for openai/gemini; --no-skip-junk-names to disable)
+ *                         (default with --cohort-since and for cascade/anthropic/openai/gemini;
+ *                          --no-skip-junk-names to disable)
  *   --park-complete-junk  park priority>0 complete/pending/error rows whose name/site
  *                         is public-company / publisher / name-gate junk (no API calls)
  *   --requeue-empty       reopen complete+zero-result rows (all priorities unless filtered)
@@ -71,14 +75,19 @@ const requireSnapshot = process.argv.includes('--require-snapshot');
 const limit = Math.max(1, Number(process.argv.find((a) => a.startsWith('--limit='))?.split('=')[1] || 10));
 const delay = Math.max(0, Number(process.argv.find((a) => a.startsWith('--delay='))?.split('=')[1] || 500));
 const providerArg = process.argv.find((a) => a.startsWith('--provider='))?.split('=')[1];
+const PAID_WEB_SEARCH_PROVIDERS = new Set(['cascade', 'anthropic', 'openai', 'gemini']);
 const provider =
-  providerArg === 'gemini'
-    ? 'gemini'
-    : providerArg === 'openai'
-      ? 'openai'
-      : providerArg === 'ontology'
-        ? 'ontology'
-        : 'inference';
+  providerArg === 'cascade'
+    ? 'cascade'
+    : providerArg === 'anthropic'
+      ? 'anthropic'
+      : providerArg === 'gemini'
+        ? 'gemini'
+        : providerArg === 'openai'
+          ? 'openai'
+          : providerArg === 'ontology'
+            ? 'ontology'
+            : 'inference';
 const ontologySourcesArg = process.argv.find((a) => a.startsWith('--sources='))?.split('=')[1];
 const ontologySources = ontologySourcesArg
   ? ontologySourcesArg.split(',').map((s) => s.trim()).filter(Boolean)
@@ -88,7 +97,7 @@ const cohortSince = process.argv.find((a) => a.startsWith('--cohort-since='))?.s
 const minGod = Number(process.argv.find((a) => a.startsWith('--min-god='))?.split('=')[1] || 0);
 const skipJunkNames =
   process.argv.includes('--skip-junk-names') ||
-  ((Boolean(cohortSince) || providerArg === 'openai' || providerArg === 'gemini') &&
+  ((Boolean(cohortSince) || PAID_WEB_SEARCH_PROVIDERS.has(providerArg)) &&
     !process.argv.includes('--no-skip-junk-names'));
 const parkCompleteJunk = process.argv.includes('--park-complete-junk');
 
@@ -96,13 +105,18 @@ const url = resolveSupabaseRestUrl().url;
 const serviceKey = resolveSupabaseServiceKey();
 const geminiKey = process.env.GEMINI_API_KEY || process.env.AISTUDIO_API_KEY;
 const openaiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_API;
+const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API;
 if (!url || !serviceKey) throw new Error('Missing Supabase service environment');
 if (provider === 'gemini' && !geminiKey) throw new Error('Missing GEMINI_API_KEY for --provider=gemini');
 if (provider === 'openai' && !openaiKey) throw new Error('Missing OPENAI_API_KEY for --provider=openai');
+if (provider === 'anthropic' && !anthropicKey) {
+  throw new Error('Missing ANTHROPIC_API_KEY for --provider=anthropic');
+}
 
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-3.6-flash';
 const openaiModel = process.env.OPENAI_SEARCH_MODEL || 'gpt-4o-mini';
+const anthropicModel = process.env.ANTHROPIC_SEARCH_MODEL || 'claude-sonnet-4-20250514';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -166,6 +180,48 @@ const RUMOR_WORDS = /\b(in talks|plans? to|may invest|considering|could invest|r
 
 const NO_FUNDING_JSON_RE =
   /\b(no (?:public )?(?:records?|announcements?|funding|rounds?)|found no|did not find|unable to find|no completed funding)\b/i;
+
+function isPaidSearchRetryable(err) {
+  const status = Number(err?.status || err?.statusCode || 0);
+  const type = String(err?.error?.error?.type || err?.error?.type || '');
+  const msg = String(err?.message || err);
+  return (
+    status === 429 ||
+    status === 401 ||
+    /overloaded_error|rate_limit_error/i.test(type) ||
+    /\b429\b|rate.?limit|overloaded|RESOURCE_EXHAUSTED|credits? (are )?depleted|insufficient.?credits?|quota|invalid.?api.?key|unauthorized|credit balance is too low/i.test(
+      msg,
+    )
+  );
+}
+
+function extractAnthropicMessageText(message) {
+  return (message?.content || [])
+    .filter((block) => block?.type === 'text' && block.text)
+    .map((block) => block.text)
+    .join('\n');
+}
+
+function extractAnthropicCitations(message) {
+  const citations = [];
+  const seen = new Set();
+  for (const block of message?.content || []) {
+    const fromText = block?.type === 'text' ? block.citations || [] : [];
+    const fromTool =
+      block?.type === 'web_search_tool_result' && Array.isArray(block.content) ? block.content : [];
+    for (const citation of [...fromText, ...fromTool]) {
+      const url = String(citation?.url || '').trim();
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      citations.push({
+        url,
+        title: citation.title || null,
+        cited_text: citation.cited_text || null,
+      });
+    }
+  }
+  return citations;
+}
 
 function parseSearchJson(value) {
   const text = String(value || '').trim();
@@ -904,7 +960,7 @@ async function processGeminiJob(startup, job) {
   const parsed = parseSearchJson(text);
   const geminiEvents = Array.isArray(parsed.events) ? parsed.events : [];
 
-  return persistWebSearchEvents({
+  const persisted = await persistWebSearchEvents({
     startup,
     investors,
     searchEvents: geminiEvents,
@@ -912,6 +968,7 @@ async function processGeminiJob(startup, job) {
     rawGrounding: { grounding: json.candidates?.[0]?.groundingMetadata || {} },
     earliestMatchAt: job.earliest_match_at,
   });
+  return { ...persisted, search_provider: 'gemini_google_search' };
 }
 
 async function processOpenAIJob(startup, job) {
@@ -927,7 +984,7 @@ async function processOpenAIJob(startup, job) {
   const text = response.output_text || '';
   const parsed = parseSearchJson(text);
   const searchEvents = Array.isArray(parsed.events) ? parsed.events : [];
-  return persistWebSearchEvents({
+  const persisted = await persistWebSearchEvents({
     startup,
     investors,
     searchEvents,
@@ -935,6 +992,73 @@ async function processOpenAIJob(startup, job) {
     rawGrounding: { openai_response_id: response.id || null },
     earliestMatchAt: job.earliest_match_at,
   });
+  return { ...persisted, search_provider: 'openai_web_search' };
+}
+
+async function processAnthropicJob(startup, job) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  const anthropic = new Anthropic({ apiKey: anthropicKey });
+  const investors = await loadUniqueInvestorsByName();
+  const prompt = buildFundingWebSearchPrompt(startup, job.earliest_match_at);
+  const response = await anthropic.messages.create({
+    model: anthropicModel,
+    max_tokens: 4000,
+    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = extractAnthropicMessageText(response);
+  const parsed = parseSearchJson(text);
+  const searchEvents = Array.isArray(parsed.events) ? parsed.events : [];
+  const persisted = await persistWebSearchEvents({
+    startup,
+    investors,
+    searchEvents,
+    sourceProvider: 'anthropic_web_search',
+    rawGrounding: {
+      anthropic_id: response.id || null,
+      citations: extractAnthropicCitations(response),
+    },
+    earliestMatchAt: job.earliest_match_at,
+  });
+  return { ...persisted, search_provider: 'anthropic_web_search' };
+}
+
+async function processCascadeJob(startup, job) {
+  if (anthropicKey) {
+    try {
+      const outcome = await processAnthropicJob(startup, job);
+      return { ...outcome, cascade: ['anthropic'] };
+    } catch (err) {
+      if (!isPaidSearchRetryable(err)) throw err;
+      console.warn(
+        `[search] Anthropic unavailable for ${startup.name} (${String(err.message || err).slice(0, 120)}) — trying OpenAI`,
+      );
+    }
+  } else {
+    console.warn(`[search] No ANTHROPIC_API_KEY — skipping to OpenAI for ${startup.name}`);
+  }
+
+  if (openaiKey) {
+    try {
+      const outcome = await processOpenAIJob(startup, job);
+      return { ...outcome, cascade: ['openai'] };
+    } catch (err) {
+      if (!isPaidSearchRetryable(err)) throw err;
+      console.warn(
+        `[search] OpenAI unavailable for ${startup.name} (${String(err.message || err).slice(0, 120)}) — falling back to inference`,
+      );
+    }
+  } else {
+    console.warn(`[search] No OPENAI_API_KEY — falling back to inference for ${startup.name}`);
+  }
+
+  const inferenceOutcome = await processInferenceJob(startup, job);
+  return {
+    ...inferenceOutcome,
+    search_provider: 'inference_engine',
+    fallback_to_inference: true,
+    cascade: ['inference'],
+  };
 }
 
 if (seed) {
@@ -1166,9 +1290,13 @@ const searchProvider =
     ? 'gemini_google_search'
     : provider === 'openai'
       ? 'openai_web_search'
-      : provider === 'ontology'
-        ? 'funding_source_ontology'
-        : 'inference_engine';
+      : provider === 'anthropic'
+        ? 'anthropic_web_search'
+        : provider === 'cascade'
+          ? 'anthropic_openai_inference_cascade'
+          : provider === 'ontology'
+            ? 'funding_source_ontology'
+            : 'inference_engine';
 let completed = 0;
 let results = 0;
 let pairs = 0;
@@ -1232,25 +1360,28 @@ for (const job of jobs || []) {
 
   try {
     const outcome =
-      provider === 'gemini'
-        ? await processGeminiJob(startup, job).catch(async (err) => {
-            const msg = String(err?.message || err);
-            if (/\b429\b|credits? are depleted|RESOURCE_EXHAUSTED/i.test(msg)) {
+      provider === 'cascade'
+        ? await processCascadeJob(startup, job)
+        : provider === 'anthropic'
+          ? await processAnthropicJob(startup, job).catch(async (err) => {
+              if (!isPaidSearchRetryable(err)) throw err;
+              console.warn(`[search] Anthropic unavailable for ${startup.name} — falling back to inference`);
+              const inferenceOutcome = await processInferenceJob(startup, job);
+              return { ...inferenceOutcome, search_provider: 'inference_engine', fallback_to_inference: true };
+            })
+        : provider === 'gemini'
+          ? await processGeminiJob(startup, job).catch(async (err) => {
+              if (!isPaidSearchRetryable(err)) throw err;
               console.warn(`[search] Gemini credits/429 for ${startup.name} — falling back to inference`);
               const inferenceOutcome = await processInferenceJob(startup, job);
-              return { ...inferenceOutcome, fallback_to_inference: true };
-            }
-            throw err;
-          })
+              return { ...inferenceOutcome, search_provider: 'inference_engine', fallback_to_inference: true };
+            })
         : provider === 'openai'
           ? await processOpenAIJob(startup, job).catch(async (err) => {
-              const msg = String(err?.message || err);
-              if (/\b429\b|rate.?limit/i.test(msg)) {
-                console.warn(`[search] OpenAI rate limit for ${startup.name} — falling back to inference`);
-                const inferenceOutcome = await processInferenceJob(startup, job);
-                return { ...inferenceOutcome, fallback_to_inference: true };
-              }
-              throw err;
+              if (!isPaidSearchRetryable(err)) throw err;
+              console.warn(`[search] OpenAI rate limit for ${startup.name} — falling back to inference`);
+              const inferenceOutcome = await processInferenceJob(startup, job);
+              return { ...inferenceOutcome, search_provider: 'inference_engine', fallback_to_inference: true };
             })
           : provider === 'ontology'
             ? await processOntologyJob(startup, job)
@@ -1282,7 +1413,9 @@ for (const job of jobs || []) {
         .update({
           status: 'complete',
           last_searched_at: new Date().toISOString(),
-          search_provider: outcome.fallback_to_inference ? 'inference_engine' : searchProvider,
+          search_provider:
+            outcome.search_provider ||
+            (outcome.fallback_to_inference ? 'inference_engine' : searchProvider),
           result_count: outcome.events,
           earliest_match_at: job.earliest_match_at,
           error_message: null,

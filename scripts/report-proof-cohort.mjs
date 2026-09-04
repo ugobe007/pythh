@@ -170,7 +170,7 @@ try {
     recent_submits: recent,
     weekly_commands: [
       'npm run proof-cohort:report -- --since=' + sinceIso.split('T')[0],
-      'node scripts/search-startup-funding-evidence.mjs --apply --provider=gemini --limit=50 --delay=600',
+      'npm run outcomes:search-funding:cascade -- --apply --limit=50 --delay=1200',
       'npm run funding:match-funding-audit',
     ],
     doc: 'docs/PROOF_COHORT_SPEC.md',
