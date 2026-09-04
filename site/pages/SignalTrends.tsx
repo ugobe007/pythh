@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import HorizontalSignalChart, { type ChartStartup } from "@/components/HorizontalSignalChart";
-import { godWeightPtsLabel } from "@/lib/godScorePublicWeights";
+import { godWeightPtsLabel, STARTUP_GOD_VISION_THESIS } from "@/lib/godScorePublicWeights";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -574,7 +574,7 @@ export default function SignalTrends() {
                 { dim: "Traction", range: godWeightPtsLabel("traction"), weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
                 { dim: "Market",   range: godWeightPtsLabel("market"),   weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
                 { dim: "Product",  range: godWeightPtsLabel("product"),  weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },
-                { dim: "Vision",   range: godWeightPtsLabel("vision"),   weight: "Thesis coherence, contrarian insight, conviction",     color: "#22c55e" },
+                { dim: "Vision",   range: godWeightPtsLabel("vision"),   weight: STARTUP_GOD_VISION_THESIS,     color: "#22c55e" },
               ].map(({ dim, range, weight, color }) => (
                 <div key={dim} className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: color }} />

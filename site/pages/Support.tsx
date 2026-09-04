@@ -8,7 +8,7 @@ import { Link } from "wouter";
 import { MessageSquare, Mail, ArrowUpRight } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import SectionLabel from "@/components/design/SectionLabel";
-import { G, PAGE, BORDER, CARD, MUTED, DIM, CYAN, SEPARATOR } from "@/lib/designTokens";
+import { G, PAGE, BORDER, CARD, MUTED, DIM, CYAN, SEPARATOR, G_BORDER } from "@/lib/designTokens";
 
 const FAQ = [
   {
@@ -21,7 +21,7 @@ const FAQ = [
   },
   {
     q: "What is the GOD score?",
-    a: "The GOD score (0–100) evaluates startups across five dimensions: Team, Traction, Market, Product, and Vision. It determines match quality and investor fit.",
+    a: "The GOD score (0–100) evaluates startups across five dimensions: Team, Traction, Market, Product, and Vision. Vision measures destination scale — investors look for large visions, not small ones, especially from repeat founders who have done it before. The score determines match quality and investor fit.",
   },
   {
     q: "Is pythh.ai free?",

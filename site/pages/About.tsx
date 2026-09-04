@@ -18,7 +18,7 @@ const WHAT_WE_DO = [
   },
   {
     title: "GOD Score",
-    desc: "Every startup is evaluated across five dimensions: Team, Traction, Market, Product, and Vision. The composite score (0–100) determines match quality and investor fit.",
+    desc: "Every startup is evaluated across five dimensions: Team, Traction, Market, Product, and Vision. Vision rewards large, category-scale ambition — not a small product story — especially from founders who have done it before. The composite score (0–100) determines match quality and investor fit.",
   },
   {
     title: "AI-Powered Matching",

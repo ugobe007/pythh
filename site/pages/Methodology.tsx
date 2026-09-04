@@ -6,7 +6,7 @@ import StartupCTA from "@/components/design/StartupCTA";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
 import { G, PAGE, BORDER, CARD, MUTED, DIM } from "@/lib/designTokens";
-import { godWeightPtsLabel, STARTUP_GOD_WEIGHT_SUMMARY } from "@/lib/godScorePublicWeights";
+import { godWeightPtsLabel, STARTUP_GOD_WEIGHT_SUMMARY, STARTUP_GOD_VISION_THESIS } from "@/lib/godScorePublicWeights";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ const GOD_DIMS = [
     label: "Team",
     weight: godWeightPtsLabel("team"),
     color: "#a855f7",
-    desc: "Founder background, domain expertise, repeat-founder status, technical depth, and advisor network. We score what founders have publicly demonstrated — not what they claim on an about page. A repeat founder with a prior exit scores differently than a first-time founder in an adjacent field.",
+    desc: "Founder background, domain expertise, repeat-founder status, technical depth, and advisor network. We score what founders have publicly demonstrated — not what they claim on an about page. A repeat founder who has already shipped something large — and is now pointing at a bigger destination — is the combination investors take seriously.",
   },
   {
     label: "Traction",
@@ -39,7 +39,7 @@ const GOD_DIMS = [
     label: "Vision",
     weight: godWeightPtsLabel("vision"),
     color: "#22c55e",
-    desc: "Narrative coherence, mission clarity, and long-arc thesis alignment with the market opportunity. PYTHIA looks for founders who articulate a specific point of view on why this moment matters — not just what the product does.",
+    desc: `${STARTUP_GOD_VISION_THESIS} Category-scale ambition scores higher than a niche feature or incremental tool. We read the public thesis for destination scale — not narrative polish — and for whether the founders have already built something that size.`,
   },
 ];
 
