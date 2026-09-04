@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import HorizontalSignalChart, { type ChartStartup } from "@/components/HorizontalSignalChart";
+import { godWeightPtsLabel } from "@/lib/godScorePublicWeights";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -523,8 +524,8 @@ export default function SignalTrends() {
         <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
           Rankings show how the same startups reorder under different investor scoring models.
           The default{" "}
-          <span style={{ color: "#22d3ee" }}>GOD Score</span> is pythh's balanced baseline — equal
-          weight across team, traction, market, product, and vision. Click any tab to see how a
+          <span style={{ color: "#22d3ee" }}>GOD Score</span> is pythh's signal-informed baseline —
+          team 22, traction 30, market 20, product 15, vision 13. Click any tab to see how a
           specific investor would rescore and reorder the same companies.{" "}
           <span style={{ color: "oklch(0.65 0.01 264)" }}>
             The delta between lenses is the signal.
@@ -569,11 +570,11 @@ export default function SignalTrends() {
             </p>
             <div className="space-y-3 mb-5">
               {[
-                { dim: "Team",     range: "0–20", weight: "Founder track record, team depth, cofounder dynamics",  color: "#a855f7" },
-                { dim: "Traction", range: "0–20", weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
-                { dim: "Market",   range: "0–20", weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
-                { dim: "Product",  range: "0–20", weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },
-                { dim: "Vision",   range: "0–20", weight: "Thesis coherence, contrarian insight, conviction",     color: "#22c55e" },
+                { dim: "Team",     range: godWeightPtsLabel("team"),     weight: "Founder track record, team depth, cofounder dynamics",  color: "#a855f7" },
+                { dim: "Traction", range: godWeightPtsLabel("traction"), weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
+                { dim: "Market",   range: godWeightPtsLabel("market"),   weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
+                { dim: "Product",  range: godWeightPtsLabel("product"),  weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },
+                { dim: "Vision",   range: godWeightPtsLabel("vision"),   weight: "Thesis coherence, contrarian insight, conviction",     color: "#22c55e" },
               ].map(({ dim, range, weight, color }) => (
                 <div key={dim} className="flex items-start gap-3">
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: color }} />
@@ -595,7 +596,7 @@ export default function SignalTrends() {
               <div>
                 <p className="text-sm font-semibold text-white">Total GOD Score = 0–100</p>
                 <p className="text-xs" style={{ color: "oklch(0.48 0.01 264)" }}>
-                  5 × 20 = 100 max · Behavioral multipliers shift scores above tier thresholds
+                  22 + 30 + 20 + 15 + 13 = 100 · Behavioral multipliers shift scores above tier thresholds
                 </p>
               </div>
             </div>

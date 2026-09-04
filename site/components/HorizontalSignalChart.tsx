@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   G, CYAN, PURPLE, GOLD, MUTED, DIM, BORDER, G_BORDER, BAR_GREY, BAR_EMERALD, godScoreColor,
 } from "@/lib/designTokens";
+import { STARTUP_GOD_WEIGHT_CHART_LABEL } from "@/lib/godScorePublicWeights";
 
 interface PreviewSignal {
   label: string;
@@ -201,7 +202,7 @@ export default function HorizontalSignalChart({
 
       <div className="px-4 py-3 border-b" style={{ borderColor: BORDER }}>
         <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
-          GOD dimensions · 0–20 each
+          {STARTUP_GOD_WEIGHT_CHART_LABEL}
         </span>
       </div>
       <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
