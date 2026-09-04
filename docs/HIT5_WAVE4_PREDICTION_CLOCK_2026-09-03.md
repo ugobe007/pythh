@@ -21,12 +21,14 @@ so a pre-prediction title cannot be applied by accident.
 
 ## Queue (this VM, 2026-09-03)
 
-| Bucket | Count |
-|--------|------:|
-| High-priority pending | **1** (`Senior` / VentureFizz job URL — junk) |
-| Complete + `result_count=0`, priority ≥ 55k | **3,045** |
-| Requeueable under 7-day hold | **0** |
-| Parked pending | 9,878 |
+| Bucket | Before park | After `--park-complete-junk --apply` |
+|--------|------------:|-------------------------------------:|
+| High-priority pending | **1** (`Senior` / VentureFizz) | **0** |
+| Complete + `result_count=0`, priority ≥ 55k | 3,045 | **2,939** |
+| `search:parked_junk_name` | 15 | **480** |
+| Parked pending (priority ≤ 0) | 9,878 | 10,343 |
+
+`--park-complete-junk --apply` parked **465** rows (name-gate + exact denylist + publisher hosts). Tim Hortons, PagerDuty, Malwarebytes, Miss Universe, SPIR-V, GLSL, Brent Kovar, Gavin Potenza, and Senior are now priority 0.
 
 `--requeue-priority-empty` correctly stays quiet: last search is inside the
 7-day complete-status hold from #112. Do not force-reopen.
@@ -48,10 +50,10 @@ at priority 55k–99k. `--skip-junk-names` now uses the name gate + an exact
 denylist + VentureFizz/Mattermark hosts.
 
 ```bash
-# Park complete + pending junk (no OpenAI/Gemini calls)
-npm run outcomes:search-funding -- --park-complete-junk --apply --limit=1
+# Already applied on 2026-09-03 (465 parked). Re-run is idempotent.
+npm run outcomes:search-funding -- --park-complete-junk --skip-junk-names --apply --limit=1
 
-# After the 7-day hold (or on a real OPENAI_API_KEY), drain — do not requeue
+# After the 7-day hold + a real OPENAI_API_KEY, drain — do not requeue
 npm run outcomes:search-funding:openai -- --apply --limit=50 --delay=1200
 ```
 
