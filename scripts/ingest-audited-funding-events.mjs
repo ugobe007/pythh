@@ -357,6 +357,8 @@ const audited = [
       ['Pi Labs', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing investors Antler, Findus Ventures, E2MC, and Pi Labs also participated'],
     ],
   },
+  // Do NOT ingest Runable: TechCrunch published 2026-08-26 11:00 UTC, before predicted_at 2026-08-26 13:44 UTC.
+  // SiliconANGLE 2026-08-27 is a next-day rewrite (scrape-lag pattern per Transfyr/Remepy).
 ];
 
 async function allInvestors() {

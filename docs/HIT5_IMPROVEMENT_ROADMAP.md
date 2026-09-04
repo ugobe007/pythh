@@ -1,11 +1,12 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-09-03 (Wave 4 prediction-clock triage; do not ingest pre-seal rounds)  
+**Last updated:** 2026-09-04 (legacy-match 42% review + Runable roster unlock)  
 **Miss triage note:** `docs/HIT5_MISS_TRIAGE_2026-09-01.md`  
 **Wave 5/6 ops note:** `docs/HIT5_WAVE5_WAVE6_2026-09-01.md`  
 **Wave 2 roster note:** `docs/HIT5_WAVE2_ROSTER_UNLOCK_2026-09-01.md`  
 **OpenAI continue note:** `docs/HIT5_OPENAI_SEARCH_CONTINUE_2026-09-03.md`  
 **Wave 4 clock note:** `docs/HIT5_WAVE4_PREDICTION_CLOCK_2026-09-03.md`  
+**Legacy 42% review:** `docs/HIT5_LEGACY_MATCH_REVIEW_2026-09-04.md`  
 **Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)  
 **Proof cohort (URL submits):** `docs/PROOF_COHORT_SPEC.md` · `npm run proof-cohort:report -- --since=2026-08-25`
 
@@ -17,8 +18,8 @@ This doc ties **pair-level match outcomes** (did this specific investor fund thi
 
 | Layer | Question | Primary data | Typical count (2026-08-23) |
 |--------|-----------|--------------|----------------------------|
-| **Pair outcomes** | Did matched investor *X* fund startup *Y* after `match.created_at`? | `match_validation_evidence` (verified) | ~42 verified post-prediction funding pairs (30 startups) |
-| **Sealed Hit@5** | Did any top-5 investor participate before the round (audited roster)? | `funding_prediction_snapshots` + `funding_evidence_events` | 71 audited (9 hit / 62 miss); target 100 |
+| **Pair outcomes** | Did matched investor *X* fund startup *Y* after `match.created_at`? | `match_validation_evidence` (verified) | 107 verified post-prediction pairs (45 startups) |
+| **Sealed Hit@5** | Did any top-5 investor participate before the round (audited roster)? | `funding_prediction_snapshots` + `funding_evidence_events` | 72 audited (10 hit / 62 miss); target 100 |
 
 Pair counts are **higher in spirit** (many matches per startup) but **verified pairs** are still sparse because search/review is pair-scoped. Hit@5 is **stricter**: one outcome per startup, complete participant list, temporal seal on `created_at` / `predicted_at`.
 
@@ -32,14 +33,14 @@ Detailed miss triage: `docs/HIT5_MISS_TRIAGE_2026-09-01.md`.
 | Metric | Value | Notes |
 |--------|-------|--------|
 | Sealed sets (serve-grade, 5 firms) | 2,212 | Identity exclusions still present |
-| Mature / pending | 818 / 1,394 | +7 mature since Wave 5 snapshot (calendar) |
-| Funded in horizon | 71 | 0 indeterminate |
-| Hit@5 audited | 71 | **29 short of 100** |
-| Startup-level hits | 9 | **~12.7%** among audited |
-| Mature unfunded | 759 | Wave 6 triage boosted ~3.2k for search |
-| Pair verified fundings | 91 | Parallel Wave 6 track |
+| Mature / pending | 832 / 1,380 | Calendar maturity vs 2026-09-01 |
+| Funded in horizon | 72 | Runable roster unlocked |
+| Hit@5 audited | 72 | **28 short of 100** |
+| Startup-level hits | 10 | **~13.9%** among audited |
+| Mature unfunded | 780 | Hunt gaps are mostly untrusted / pre-seal |
+| Pair verified fundings | 107 | Parallel pair track (was ~42 in Aug 23 copy) |
 
-**Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` **1134** · `post_event_match_not_prediction` 326 · `ranked_outside_top_five` 12 · `top_five_hit` 5. Actual funder usually never entered the pre-event match pool / top-5. Do **not** retune GOD/fit until candidate inventory is fixed. Wave 2 roster unlock (2026-09-01) did not move audited N — funded cohort already complete; next lift needs Gemini discovery on mature-unfunded.
+**Retrospective reconcile (diagnostic, not claim):** `candidate_generation_miss` **1688** · `post_event_match_not_prediction` 347 · `ranked_outside_top_five` 11 · `top_five_hit` 1. Directional / audited hit@5 ≈ **1.4% / 1.5%**. The old “42% from legacy matches” is not this number — see `docs/HIT5_LEGACY_MATCH_REVIEW_2026-09-04.md`. Do **not** retune GOD/fit until candidate inventory is fixed.
 
 ---
 
@@ -146,8 +147,8 @@ Compare:
 
 | Requirement | Status |
 |-------------|--------|
-| ≥100 audited outcomes | 71 / 100 |
-| ≥85% hit rate among audited | ~12.7% (not claim-ready) |
+| ≥100 audited outcomes | 72 / 100 |
+| ≥85% hit rate among audited | ~13.9% (not claim-ready) |
 | Immutable prediction clock | Enforced |
 | Serve-grade identity | Exclusions remain |
 
