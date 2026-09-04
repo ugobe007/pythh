@@ -357,6 +357,21 @@ const audited = [
       ['Pi Labs', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing investors Antler, Findus Ventures, E2MC, and Pi Labs also participated'],
     ],
   },
+  // 180d indeterminate: SiliconANGLE trusted, post-seal (predicted_at 2026-08-26 13:44).
+  // Nexus Venture Partners is sealed rank 4 — completing the roster should audit as a hit.
+  {
+    key: 'audited:runable:series-a:2026-08-27:21000000', startupId: '09df0126-6cdf-462c-84d9-880148e3593c', startupName: 'Runable',
+    roundType: 'Series A', amountUsd: 21_000_000, announcedAt: '2026-08-27T16:35:09Z', participantListComplete: true,
+    sourceUrl: 'https://siliconangle.com/2026/08/27/runable-raises-21m-to-realize-small-businesses-growth-vision-using-ai-agents/',
+    sourcePublisher: 'SiliconANGLE',
+    sourceTitle: 'Runable raises $21M in Series A', verificationStatus: 'verified',
+    participants: [
+      ['Susquehanna Venture Capital', 'co_lead', 'CO_LED_ROUND', 'Susquehanna Venture Capital and Nexus Venture Partners co-led the Series A'],
+      ['Nexus Venture Partners', 'co_lead', 'CO_LED_ROUND', 'Susquehanna Venture Capital and Nexus Venture Partners co-led the Series A'],
+      ['Together Fund', 'participant', 'PARTICIPATED_IN_ROUND', 'alongside continued support from existing investors Together Fund and Array VC'],
+      ['Array VC', 'participant', 'PARTICIPATED_IN_ROUND', 'alongside continued support from existing investors Together Fund and Array VC'],
+    ],
+  },
 ];
 
 async function allInvestors() {
