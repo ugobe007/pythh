@@ -371,13 +371,46 @@ async function allInvestors() {
   return rows;
 }
 
+async function predictedAtByStartup(ids) {
+  const map = new Map();
+  for (let i = 0; i < ids.length; i += 80) {
+    const { data, error } = await db
+      .from('funding_prediction_snapshots')
+      .select('startup_id,predicted_at')
+      .eq('cohort_key', 'served-first-top5')
+      .in('startup_id', ids.slice(i, i + 80));
+    if (error) throw error;
+    for (const row of data || []) {
+      const prev = map.get(row.startup_id);
+      if (!prev || new Date(row.predicted_at) < new Date(prev)) {
+        map.set(row.startup_id, row.predicted_at);
+      }
+    }
+  }
+  return map;
+}
+
 async function main() {
   const investors = await allInvestors();
+  const predictedAt = await predictedAtByStartup(audited.map((event) => event.startupId));
   const preview = [];
   for (const event of audited) {
+    if (typeof canonicalRoundKey !== 'function') {
+      throw new TypeError(
+        'canonicalRoundKey is not a function — use Node 22 (nvm use) and pull latest main. See lib/loadFundingLibs.mjs.',
+      );
+    }
     const roundKey = canonicalRoundKey({ startupId: event.startupId, startupName: event.startupName, roundType: event.roundType, amountUsd: event.amountUsd, announcedAt: event.announcedAt });
     const resolved = event.participants.map(([name, role, relation, phrase]) => ({ name, role, relation, phrase, ...resolveCanonicalEntity(investors || [], name) }));
-    preview.push({ startup: event.startupName, announced_at: event.announcedAt, participants: resolved.map(row => `${row.name}:${row.status}`) });
+    const clock = predictedAt.get(event.startupId) || null;
+    const postPrediction = !clock || new Date(event.announcedAt) > new Date(clock);
+    preview.push({
+      startup: event.startupName,
+      announced_at: event.announcedAt,
+      predicted_at: clock,
+      post_prediction: postPrediction,
+      participants: resolved.map(row => `${row.name}:${row.status}`),
+    });
     if (!apply) continue;
     const { data: evidence, error: eventError } = await db.from('funding_evidence_events').upsert({
       source_event_key: event.key, startup_id: event.startupId, startup_name_raw: event.startupName,

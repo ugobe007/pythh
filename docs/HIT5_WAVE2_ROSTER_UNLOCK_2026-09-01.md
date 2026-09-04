@@ -75,6 +75,8 @@ npm run funding:claim-readiness -- --summary
 
 2026-09-03 OpenAI continue: `docs/HIT5_OPENAI_SEARCH_CONTINUE_2026-09-03.md` (50 jobs, 25 events, 0 pairs; identity gate added).
 
+2026-09-03 Wave 4: `docs/HIT5_WAVE4_PREDICTION_CLOCK_2026-09-03.md` — Wave 3 hits are pre-`predicted_at`; park public-company leftovers with `--park-complete-junk` before the next paid search. Do **not** pass `--requeue-priority-empty` until the 7-day complete hold expires.
+
 ### Gemini run (2026-09-01 evening)
 
 **Why `jobs: 0` first:** search only loads `status IN (pending,error) AND priority > 0`. After Wave 6 ontology, mature-unfunded rows were `complete`; remaining pending were all `parked_weak_identity` at priority 0.

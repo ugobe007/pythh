@@ -30,6 +30,9 @@ test('funding CJS helpers load as functions from ESM', () => {
   const ledger = loadFundingEvidenceLedger();
   assert.equal(typeof ledger.canonicalRoundKey, 'function');
   assert.equal(typeof ledger.resolveCanonicalEntity, 'function');
+  assert.equal(typeof ledger.classifyFundingEvidence, 'function');
+  assert.equal(typeof ledger.isPromotionSafeStartupName, 'function');
+  assert.equal(typeof ledger.clusterCompatibleRoundEvents, 'function');
   const key = ledger.canonicalRoundKey({
     startupId: 'startup-1',
     startupName: 'Acme',

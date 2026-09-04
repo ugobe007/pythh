@@ -103,10 +103,13 @@ Korea Development. They are qualified+url with a mature clock — park via
 Sealed Hit@5 audited N is unchanged by this pass (events are search_results, not
 yet trusted ledger rounds with complete rosters). Next:
 
-1. Ingest classifier-safe titles (Atorie / Transfyr / Lupin / HERP) via
-   `funding:ingest:audited:apply` + participants + corroborate.
-2. Keep draining OpenAI (`--limit=50`). Junk names park automatically for openai/gemini.
-   Do **not** pass `--requeue-priority-empty` unless high-priority pending is empty.
-3. Promote-ledger still needs `DATABASE_URL` (7-day complete-status hold from #112).
+1. **Do not ingest** Atorie / Curaa / Lupin Dental / Eisen / Transfyr — all
+   announced on or before `predicted_at` (see `docs/HIT5_WAVE4_PREDICTION_CLOCK_2026-09-03.md`).
+2. Park leftover public-company / publisher rows:
+   `npm run outcomes:search-funding -- --park-complete-junk --apply --limit=1`
+3. Keep draining OpenAI (`--limit=50`) after the 7-day complete hold. Junk names
+   park automatically. Do **not** pass `--requeue-priority-empty` while
+   `last_searched_at` is still inside that hold.
+4. Promote-ledger still needs `DATABASE_URL`.
 
 See `docs/HIT5_IMPROVEMENT_ROADMAP.md`, `docs/HIT5_WAVE2_ROSTER_UNLOCK_2026-09-01.md`.

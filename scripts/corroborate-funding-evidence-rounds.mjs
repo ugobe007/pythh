@@ -3,12 +3,14 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
+import { loadFundingEvidenceLedger } from '../lib/loadFundingLibs.mjs';
+
 const require = createRequire(import.meta.url);
 const {
   classifyFundingEvidence,
   isPromotionSafeStartupName,
   clusterCompatibleRoundEvents,
-} = require('../server/lib/fundingEvidenceLedger.js');
+} = loadFundingEvidenceLedger();
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 
 const apply = process.argv.includes('--apply');

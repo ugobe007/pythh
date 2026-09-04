@@ -7,13 +7,15 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
+import { loadFundingEvidenceLedger } from '../lib/loadFundingLibs.mjs';
+
 const require = createRequire(import.meta.url);
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 const {
   classifyFundingEvidence,
   isServeGradeStartupIdentity,
   normalizeEntityName,
-} = require('../server/lib/fundingEvidenceLedger.js');
+} = loadFundingEvidenceLedger();
 
 const horizon = Number(process.argv.find((a) => a.startsWith('--horizon='))?.split('=')[1] || 180);
 const asJson = process.argv.includes('--json');
