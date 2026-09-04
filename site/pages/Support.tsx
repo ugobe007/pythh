@@ -8,7 +8,7 @@ import { Link } from "wouter";
 import { MessageSquare, Mail, ArrowUpRight } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import SectionLabel from "@/components/design/SectionLabel";
-import { G, PAGE, BORDER, CARD, MUTED, DIM, CYAN, SEPARATOR } from "@/lib/designTokens";
+import { G, PAGE, BORDER, CARD, MUTED, DIM, CYAN, SEPARATOR, G_BORDER } from "@/lib/designTokens";
 
 const FAQ = [
   {
