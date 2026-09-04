@@ -806,6 +806,7 @@ test('claim-readiness report prevents temporal leakage and separates accuracy de
   assert.match(script, /rowsByIds/);
   assert.match(script, /hasFiveDistinctInvestorFirms/);
   assert.match(script, /excluded_prediction_sets_with_duplicate_or_unresolved_firms/);
+  assert.match(script, /loadFundingEvidenceLedger/);
 });
 
 test('prospective cohort monitor is free-search-first and cannot backdate evidence', () => {
@@ -837,7 +838,13 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /startupMentionedInText\(mentionHay/);
   assert.match(script, /isJunkStartupName/);
   assert.match(script, /search:parked_junk_name/);
-  assert.match(script, /Corporation\|Holdings\|Universal/);
+  assert.match(script, /--park-complete-junk/);
+  assert.match(script, /parkCompleteJunkJobs/);
+  assert.match(script, /venturefizz/);
+  const junk = readFileSync(new URL('../lib/fundingSearchJunk.mjs', import.meta.url), 'utf8');
+  assert.match(junk, /Corporation\|Holdings\|Universal/);
+  assert.match(junk, /venturefizz/);
+  assert.match(junk, /tim hortons/);
   assert.match(script, /startupMentionedInText/);
   assert.match(script, /extractKnownInvestorMentions/);
   assert.match(script, /providerArg === 'gemini'/);
@@ -902,6 +909,9 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /evidence_phrase: participant\.phrase/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /loadFundingEvidenceLedger/);
+  assert.match(script, /predictedAtByStartup/);
+  assert.match(script, /post_prediction/);
+  assert.doesNotMatch(script, /audited:atorie:|audited:curaa:|audited:lupin-dental:|audited:eisen:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1039,6 +1049,7 @@ test('corroboration requires two independent sources or one reviewed trusted sou
   assert.match(script, /Promise\.all\(batch\.map/);
   assert.match(script, /canonical_round_key/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
+  assert.match(script, /loadFundingEvidenceLedger/);
 });
 
 test('missing funding investors are seeded only from reviewed first-party profiles', () => {

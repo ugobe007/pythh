@@ -14,6 +14,8 @@
  *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
  *   --skip-junk-names     skip/park Capital/place-name/megacorp queue noise
  *                         (default with --cohort-since and for openai/gemini; --no-skip-junk-names to disable)
+ *   --park-complete-junk  park priority>0 complete/pending/error rows whose name/site
+ *                         is public-company / publisher / name-gate junk (no API calls)
  *   --requeue-empty       reopen complete+zero-result rows (all priorities unless filtered)
  *   --requeue-priority-empty  safer reopen: complete+zero-result AND priority >= 20000
  *                         (qualified-url / issuer / mature-unfunded boosts; skips parked)
@@ -31,6 +33,12 @@ import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
 import { loadFundingEvidenceLedger, loadFundingParticipationOntology } from '../lib/loadFundingLibs.mjs';
+import {
+  EXACT_NON_STARTUP_SEARCH_NAMES,
+  JUNK_NAME_SUFFIX_RE as JUNK_NAME_RE,
+  JUNK_WEBSITE_RE,
+  isJunkStartupName,
+} from '../lib/fundingSearchJunk.mjs';
 
 const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
@@ -82,6 +90,7 @@ const skipJunkNames =
   process.argv.includes('--skip-junk-names') ||
   ((Boolean(cohortSince) || providerArg === 'openai' || providerArg === 'gemini') &&
     !process.argv.includes('--no-skip-junk-names'));
+const parkCompleteJunk = process.argv.includes('--park-complete-junk');
 
 const url = resolveSupabaseRestUrl().url;
 const serviceKey = resolveSupabaseServiceKey();
@@ -983,21 +992,6 @@ if (requeueEmpty) {
   );
 }
 
-const JUNK_NAME_RE =
-  '(Capital|Ventures|Partners|Fund|Bank|Exchange|Studio|Investments|International|Democrats|Brands|Tennessee|Carolina|University|Calculator|Wordle|Locker|Cameron|Development|Sports|Party|Globe|More|Owner|Management|Travel|Pitch|Forge|Foundation|Avenue|Street|Music|Theft|Password|HarmonyOS|Susquehanna|Rules|Lab|Weeks|Better|Always|Markers|Max|Bucket|Live|Revier|Heidelberg|Corporation|Holdings|Universal)$';
-const JUNK_NAME_JS_RE = new RegExp(JUNK_NAME_RE, 'i');
-const JUNK_WEBSITE_RE =
-  /(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews)/i;
-
-function isJunkStartupName(name, website) {
-  const n = String(name || '').trim();
-  const w = String(website || '').trim();
-  if (!n || n.length < 3) return true;
-  if (JUNK_NAME_JS_RE.test(n)) return true;
-  if (!w || JUNK_WEBSITE_RE.test(w)) return true;
-  return false;
-}
-
 async function parkJunkJobs(ids) {
   const now = new Date().toISOString();
   for (let i = 0; i < ids.length; i += 80) {
@@ -1022,13 +1016,13 @@ async function filterJunkJobsRest(jobs) {
     const chunk = jobs.slice(i, i + 80);
     const { data, error } = await db
       .from('startup_uploads')
-      .select('id,name,website')
+      .select('id,name,website,entity_gate')
       .in('id', chunk.map((j) => j.startup_id));
     if (error) throw new Error(error.message);
     const byId = new Map((data || []).map((s) => [s.id, s]));
     for (const job of chunk) {
       const startup = byId.get(job.startup_id);
-      if (!startup || isJunkStartupName(startup.name, startup.website)) {
+      if (!startup || isJunkStartupName(startup.name, startup.website, { entityGate: startup.entity_gate })) {
         park.push(job.startup_id);
         continue;
       }
@@ -1037,6 +1031,52 @@ async function filterJunkJobsRest(jobs) {
   }
   if (apply && park.length) await parkJunkJobs(park);
   return { kept, parked: park.length };
+}
+
+async function parkCompleteJunkJobs({ applyMode }) {
+  const junkIds = [];
+  const seen = new Set();
+  for (let offset = 0; ; offset += 200) {
+    const { data, error } = await db
+      .from('funding_evidence_search_queue')
+      .select('startup_id')
+      .in('status', ['complete', 'pending', 'error'])
+      .gt('priority', 0)
+      .order('startup_id', { ascending: true })
+      .range(offset, offset + 199);
+    if (error) throw new Error(error.message);
+    const rows = data || [];
+    if (!rows.length) break;
+    const { parkedIds } = await collectJunkStartupIds(rows);
+    for (const id of parkedIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      junkIds.push(id);
+    }
+    if (rows.length < 200) break;
+  }
+  if (applyMode && junkIds.length) await parkJunkJobs(junkIds);
+  return junkIds.length;
+}
+
+async function collectJunkStartupIds(jobs) {
+  const parkedIds = [];
+  for (let i = 0; i < jobs.length; i += 80) {
+    const chunk = jobs.slice(i, i + 80);
+    const { data, error } = await db
+      .from('startup_uploads')
+      .select('id,name,website,entity_gate')
+      .in('id', chunk.map((j) => j.startup_id));
+    if (error) throw new Error(error.message);
+    const byId = new Map((data || []).map((s) => [s.id, s]));
+    for (const job of chunk) {
+      const startup = byId.get(job.startup_id);
+      if (!startup || isJunkStartupName(startup.name, startup.website, { entityGate: startup.entity_gate })) {
+        parkedIds.push(job.startup_id);
+      }
+    }
+  }
+  return { parkedIds };
 }
 
 async function loadJobs() {
@@ -1086,8 +1126,11 @@ async function loadJobs() {
       )`);
     }
     if (skipJunkNames) {
+      const exactJunk = [...EXACT_NON_STARTUP_SEARCH_NAMES].map((n) => n.replace(/'/g, "''")).join("','");
       where.push(`s.name !~* '${JUNK_NAME_RE}'`);
-      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews)'`);
+      where.push(`lower(s.name) NOT IN ('${exactJunk}')`);
+      where.push(`COALESCE(s.entity_gate, '') <> 'junk'`);
+      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews|venturefizz|mattermark|instagram)'`);
       where.push(`NULLIF(TRIM(s.website), '') IS NOT NULL`);
     }
     params.push(limit);
@@ -1108,9 +1151,15 @@ async function loadJobs() {
   }
 }
 
+let parkedCompleteJunk = 0;
+if (parkCompleteJunk) {
+  parkedCompleteJunk = await parkCompleteJunkJobs({ applyMode: apply });
+  console.log(`${apply ? 'parked_complete_junk' : 'park_complete_junk_candidates'} ${parkedCompleteJunk}`);
+}
+
 const loaded = await loadJobs();
 const jobs = loaded.jobs || [];
-const parkedJunk = loaded.parked_junk || 0;
+const parkedJunk = (loaded.parked_junk || 0) + parkedCompleteJunk;
 
 const searchProvider =
   provider === 'gemini'
@@ -1277,10 +1326,12 @@ console.log(
         min_god: minGod || undefined,
         require_snapshot: requireSnapshot || undefined,
         skip_junk_names: skipJunkNames || undefined,
+        park_complete_junk: parkCompleteJunk || undefined,
       },
       ontology_sources: provider === 'ontology' ? ontologySources : undefined,
       jobs: (jobs || []).length,
       parked_junk: parkedJunk || undefined,
+      parked_complete_junk: parkedCompleteJunk || undefined,
       completed,
       skipped_no_url: skippedNoUrl,
       timestamps_synced: timestampsSynced,

@@ -3,10 +3,13 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 
+import { loadFundingEvidenceLedger } from '../lib/loadFundingLibs.mjs';
+
 const require = createRequire(import.meta.url);
 const { buildClaimReadiness } = require('../server/lib/fundingPredictionClaim.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
-const { classifyFundingEvidence, isServeGradeStartupIdentity, normalizeEntityName, groupSourceOutcomesByRoundCluster } = require('../server/lib/fundingEvidenceLedger.js');
+const { classifyFundingEvidence, isServeGradeStartupIdentity, normalizeEntityName, groupSourceOutcomesByRoundCluster } =
+  loadFundingEvidenceLedger();
 const {
   predictionIdentityKeys,
   participantIdentityKeys,

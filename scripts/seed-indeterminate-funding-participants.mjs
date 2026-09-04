@@ -12,8 +12,10 @@ import { createRequire } from 'node:module';
 import { supabaseResult } from '../lib/supabaseNetworkRetry.mjs';
 import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supabaseEnv.mjs';
 
+import { loadFundingEvidenceLedger } from '../lib/loadFundingLibs.mjs';
+
 const require = createRequire(import.meta.url);
-const { resolveCanonicalEntity } = require('../server/lib/fundingEvidenceLedger.js');
+const { resolveCanonicalEntity } = loadFundingEvidenceLedger();
 
 const apply = process.argv.includes('--apply');
 const { url } = resolveSupabaseRestUrl();

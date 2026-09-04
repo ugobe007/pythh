@@ -1,10 +1,11 @@
 # Hit@5 claim inventory — audit & improvement roadmap
 
-**Last updated:** 2026-09-03 (OpenAI search continue after free-path drain)  
+**Last updated:** 2026-09-03 (Wave 4 prediction-clock triage; do not ingest pre-seal rounds)  
 **Miss triage note:** `docs/HIT5_MISS_TRIAGE_2026-09-01.md`  
 **Wave 5/6 ops note:** `docs/HIT5_WAVE5_WAVE6_2026-09-01.md`  
 **Wave 2 roster note:** `docs/HIT5_WAVE2_ROSTER_UNLOCK_2026-09-01.md`  
 **OpenAI continue note:** `docs/HIT5_OPENAI_SEARCH_CONTINUE_2026-09-03.md`  
+**Wave 4 clock note:** `docs/HIT5_WAVE4_PREDICTION_CLOCK_2026-09-03.md`  
 **Regenerate audit:** `npm run funding:match-funding-audit` (or `--json`)  
 **Proof cohort (URL submits):** `docs/PROOF_COHORT_SPEC.md` · `npm run proof-cohort:report -- --since=2026-08-25`
 
