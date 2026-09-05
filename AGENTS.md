@@ -197,6 +197,7 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
   Requires `ANTHROPIC_API_KEY` (preferred) and/or `OPENAI_API_KEY`; a missing key skips that step.
   Gemini prepaid is depleted — do not use `--provider=gemini` unless credits are restored.
   Single-provider: `npm run outcomes:search-funding:anthropic` or `:openai`. 429 / overloaded / credit errors fall through the cascade (or to inference for a single paid provider).
+  Retired `claude-sonnet-4-20250514` is filtered before any request (even if `ANTHROPIC_SEARCH_MODEL` still names it). A model 404 is cached for the rest of the batch so the next job goes straight to OpenAI.
 - Targeted proof-cohort search (skip junk names, sealed + GOD≥55): `npm run proof-cohort:search:cascade -- --apply --limit=25 --delay=1200`
 - Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.

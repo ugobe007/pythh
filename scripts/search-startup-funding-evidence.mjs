@@ -5,7 +5,9 @@
  * Default provider: inference engine (Google News RSS + extractors — no Gemini credits).
  * Optional:
  *   --provider=cascade    Anthropic web search → OpenAI web search → inference
- *                         (skip a step when that API key is missing)
+ *                         (skip a step when that API key is missing;
+ *                          retired/404 Anthropic model ids are filtered before
+ *                          any request and cached for the rest of the batch)
  *   --provider=anthropic  when ANTHROPIC_API_KEY is available (web_search tool)
  *   --provider=openai     when OPENAI_API_KEY is available (web search via Responses API)
  *   --provider=gemini     when GEMINI_API_KEY is available
@@ -117,11 +119,23 @@ if (provider === 'anthropic' && !anthropicKey) {
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-3.6-flash';
 const openaiModel = process.env.OPENAI_SEARCH_MODEL || 'gpt-4o-mini';
-const anthropicSearchModels = [...new Set([
-  process.env.ANTHROPIC_SEARCH_MODEL,
-  'claude-sonnet-5',
-  'claude-sonnet-4-6',
-].filter(Boolean))];
+const RETIRED_ANTHROPIC_SEARCH_MODELS = new Set([
+  'claude-sonnet-4-20250514',
+]);
+const deadAnthropicModels = new Set();
+
+function liveAnthropicSearchModels() {
+  const requested = [
+    process.env.ANTHROPIC_SEARCH_MODEL,
+    process.env.ANTHROPIC_SEARCH_FALLBACK_MODEL,
+    'claude-sonnet-5',
+    'claude-sonnet-4-6',
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .filter((id) => !RETIRED_ANTHROPIC_SEARCH_MODELS.has(id) && !deadAnthropicModels.has(id));
+  return [...new Set(requested)];
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -1019,13 +1033,17 @@ async function processOpenAIJob(startup, job) {
 }
 
 async function processAnthropicJob(startup, job) {
+  const models = liveAnthropicSearchModels();
+  if (!models.length) {
+    throw Object.assign(new Error('Anthropic search failed: no live model'), { status: 404 });
+  }
   const Anthropic = require('@anthropic-ai/sdk');
   const anthropic = new Anthropic({ apiKey: anthropicKey });
   const investors = await loadUniqueInvestorsByName();
   const prompt = buildFundingWebSearchPrompt(startup, job.earliest_match_at);
   let response;
   let lastModelError;
-  for (const model of anthropicSearchModels) {
+  for (const model of models) {
     try {
       response = await anthropic.messages.create({
         model,
@@ -1038,7 +1056,8 @@ async function processAnthropicJob(startup, job) {
     } catch (err) {
       lastModelError = err;
       if (!isUnknownAnthropicModel(err)) throw err;
-      console.warn(`[search] Anthropic model ${model} not found — trying next`);
+      deadAnthropicModels.add(model);
+      console.warn(`[search] Anthropic model ${model} not found — skipping for the rest of this batch`);
     }
   }
   if (!response) throw lastModelError || new Error('Anthropic search failed: no model available');
@@ -1060,7 +1079,7 @@ async function processAnthropicJob(startup, job) {
 }
 
 async function processCascadeJob(startup, job) {
-  if (anthropicKey) {
+  if (anthropicKey && liveAnthropicSearchModels().length) {
     try {
       const outcome = await processAnthropicJob(startup, job);
       return { ...outcome, cascade: ['anthropic'] };
@@ -1070,6 +1089,8 @@ async function processCascadeJob(startup, job) {
         `[search] Anthropic unavailable for ${startup.name} (${String(err.message || err).slice(0, 120)}) — trying OpenAI`,
       );
     }
+  } else if (anthropicKey) {
+    console.warn('[search] Skip Anthropic (retired/dead models only) — trying OpenAI');
   } else {
     console.warn(`[search] No ANTHROPIC_API_KEY — skipping to OpenAI for ${startup.name}`);
   }

@@ -863,7 +863,10 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /isUnknownAnthropicModel/);
   assert.match(script, /claude-sonnet-5/);
   assert.match(script, /not_found_error/);
-  assert.doesNotMatch(script, /claude-sonnet-4-20250514/);
+  assert.match(script, /RETIRED_ANTHROPIC_SEARCH_MODELS/);
+  assert.match(script, /claude-sonnet-4-20250514/);
+  assert.match(script, /liveAnthropicSearchModels/);
+  assert.match(script, /deadAnthropicModels/);
   assert.match(script, /web_search_20250305/);
   assert.match(script, /inference_engine_free_news_search/);
   assert.match(script, /source_provider: 'inference_engine'/);
