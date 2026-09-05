@@ -64,6 +64,7 @@ items (`funding-evidence-ledger.md`). Hunt-queue search must match that rule.
 | Policy cascade (free, then paid if empty) | `npm run outcomes:search-funding:cascade -- --apply --limit=50 --delay=1200` |
 | Force one paid provider | `npm run outcomes:search-funding:openai` or `:anthropic` |
 | Observed thesis from trusted announcements | `npm run funding:attention` (dry-run) / `-- --apply` |
+| Why / follow-the-lead / angel-sidecar logic | `npm run funding:attention:patterns` |
 
 Skip paid automatically when inference/ontology writes events, pairs, or ledger
 rows. Junk names are parked before any paid call (`--skip-junk-names` is default

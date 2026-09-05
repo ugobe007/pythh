@@ -3,7 +3,7 @@
  * Funding-attention agent (observed thesis from verified announcements).
  *
  * Reads trusted funding_evidence_events + participants, extracts announcement
- * aspects (customer growth, hiring, unique tech, board, partners, product),
+ * aspects (revenue growth, PMF, customer-access partnerships, plus hiring/tech/board),
  * and writes:
  *   - investors.signals.observed_thesis + union into top_themes (additive)
  *   - pythh_signal_events for startups that already have a pythh_entities row
@@ -27,6 +27,7 @@ import { writeFileSync } from 'node:fs';
 import {
   announcementTextFromEvent,
   extractFundingAttentionAspects,
+  inferFundingTriggers,
   FUNDING_ATTENTION_VERSION,
 } from '../lib/fundingAttentionAspects.mjs';
 import { investorSignalsPatch } from '../lib/fundingAttentionObservedThesis.mjs';
@@ -86,7 +87,8 @@ function eventEligible(event) {
 
 function alreadyExtracted(event) {
   const meta = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
-  return Boolean(meta.funding_attention_extracted_at) && !force;
+  if (force) return false;
+  return meta.funding_attention_version === FUNDING_ATTENTION_VERSION;
 }
 
 function participantPhraseText(rows) {
@@ -268,6 +270,7 @@ async function main() {
       announcementTextFromEvent(event),
       participantPhraseText(participants),
     ]);
+    const triggers = inferFundingTriggers(extracted);
     const resolved = participants.filter((row) => row.investor_id && row.resolution_status === 'resolved');
     const canCoInvest = TRUSTED_STATUSES.has(event.verification_status) && resolved.length >= 2;
     const stampMeta = event.metadata && typeof event.metadata === 'object' ? { ...event.metadata } : {};
@@ -278,6 +281,8 @@ async function main() {
         funding_attention_extracted_at: new Date().toISOString(),
         funding_attention_version: FUNDING_ATTENTION_VERSION,
         funding_attention_aspects: extracted.aspects.map((a) => a.id),
+        funding_attention_why: triggers.primary,
+        funding_attention_cited: extracted.cited,
       },
     };
     if (!extracted.aspects.length && !canCoInvest) {
@@ -295,6 +300,7 @@ async function main() {
       status: event.verification_status,
       title: event.source_title,
       aspects: extracted.aspects.map((a) => a.id),
+      why_funding: triggers.primary,
       cited: extracted.cited,
       investors: resolved.map((row) => row.investor_name_raw),
       entity_id: entityId || null,
@@ -313,6 +319,8 @@ async function main() {
         announcedAt: event.announced_at || event.occurred_at,
         startupName: event.startup_name_raw,
         cited: extracted.cited,
+        whyFunding: triggers.primary,
+        triggers: triggers.reasons,
       });
       investorUpdates.set(investor.id, {
         id: investor.id,
