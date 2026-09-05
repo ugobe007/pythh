@@ -28,6 +28,9 @@ test('classifies founder-angels vs firm partners vs institutions', () => {
   assert.equal(classifyCapitalRole({ name: 'Y Combinator', firm: 'Y Combinator', type: 'Accelerator' }).role, 'firm');
   assert.equal(classifyCapitalRole({ name: 'Y Combinator', firm: 'Y Combinator' }).role, 'firm');
   assert.equal(classifyCapitalRole({ name: 'IVP', firm: 'Institutional Venture Partners' }).role, 'firm');
+  assert.equal(classifyCapitalRole({ name: 'QED Investors', firm: 'QED' }).role, 'firm');
+  assert.equal(classifyCapitalRole({ name: 'Plug and Play Tech Center', firm: 'Plug and Play' }).role, 'firm');
+  assert.equal(classifyCapitalRole({ name: 'Spectrum Impact Family Office', firm: 'Spectrum Impact' }).role, 'firm');
   assert.equal(isWellKnownFirm({ name: 'Sequoia Capital', firm: 'Sequoia' }), true);
 });
 
@@ -130,6 +133,8 @@ test('pattern helpers never retune GOD weights or write investment_thesis', () =
   const weights = JSON.parse(read('../server/config/god-score-weights.json'));
   assert.doesNotMatch(lib, /investment_thesis:/);
   assert.match(script, /investment_thesis is never written/);
+  assert.match(script, /pageSelect/);
+  assert.match(script, /omit --limit to scan every stamped event/);
   assert.doesNotMatch(script, /GOD_SCORE_CONFIG\s*=/);
   assert.equal(weights.weights.componentWeights.team, 0.22);
   assert.equal(weights.weights.componentWeights.traction, 0.3);

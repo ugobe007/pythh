@@ -9,7 +9,7 @@
  * (observed_thesis.patterns only — never investment_thesis).
  *
  *   npm run funding:attention:patterns
- *   npm run funding:attention:patterns -- --apply --limit=400
+ *   npm run funding:attention:patterns -- --apply
  */
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
@@ -26,7 +26,8 @@ const apply = process.argv.includes('--apply');
 const jsonOut = process.argv.includes('--json');
 const limitArg = process.argv.find((arg) => arg.startsWith('--limit='));
 const reportArg = process.argv.find((arg) => arg.startsWith('--report='));
-const limit = Math.min(Math.max(Number(limitArg?.split('=')[1] || 400), 1), 5000);
+const parsedLimit = limitArg ? Number(limitArg.split('=')[1]) : null;
+const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
 const reportPath = reportArg?.slice('--report='.length)
   || `reports/funding-attention-patterns-${new Date().toISOString().slice(0, 10)}.json`;
 
@@ -47,15 +48,37 @@ async function pageIn(table, columns, ids, idCol = 'id') {
   return out;
 }
 
+async function pageSelect(table, columns, build) {
+  const out = [];
+  const pageSize = 1000;
+  let offset = 0;
+  while (true) {
+    let query = db.from(table).select(columns).range(offset, offset + pageSize - 1);
+    if (build) query = build(query);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+  return out;
+}
+
 async function main() {
-  const { data: events, error } = await db
-    .from('funding_evidence_events')
-    .select('id,startup_id,startup_name_raw,verification_status,announced_at,occurred_at,created_at,round_type,metadata')
-    .in('verification_status', ['verified', 'corroborated'])
-    .not('metadata->funding_attention_extracted_at', 'is', null)
-    .order('announced_at', { ascending: false })
-    .limit(limit);
-  if (error) throw error;
+  const eventColumns = 'id,startup_id,startup_name_raw,verification_status,announced_at,occurred_at,created_at,round_type,metadata';
+  let events = await pageSelect(
+    'funding_evidence_events',
+    eventColumns,
+    (q) => q
+      .in('verification_status', ['verified', 'corroborated'])
+      .not('metadata->funding_attention_extracted_at', 'is', null)
+      .order('announced_at', { ascending: false }),
+  );
+  if (limit != null) events = events.slice(0, limit);
+  if (apply && limit != null) {
+    console.warn(`funding-attention:patterns --limit=${limit} with --apply is a windowed rewrite; omit --limit to scan every stamped event`);
+  }
 
   const eventIds = (events || []).map((row) => row.id);
   const participants = await pageIn(
@@ -155,9 +178,18 @@ async function main() {
       const observed = current.observed_thesis && typeof current.observed_thesis === 'object'
         ? { ...current.observed_thesis }
         : {};
+      const existingPatterns = observed.patterns && typeof observed.patterns === 'object'
+        ? observed.patterns
+        : {};
+      const follow = followByInvestor.get(investor.id)
+        || (limit != null ? existingPatterns.follow_the_lead : null)
+        || null;
+      const sidecar = sidecarByInvestor.get(investor.id)
+        || (limit != null ? existingPatterns.sidecar : null)
+        || null;
       observed.patterns = patternNotesForInvestor(investor, {
-        follow_the_lead: followByInvestor.get(investor.id) || null,
-        sidecar: sidecarByInvestor.get(investor.id) || null,
+        follow_the_lead: follow,
+        sidecar,
         trigger_affinity: triggerByInvestor.get(investor.id) || {},
       });
       current.observed_thesis = observed;
