@@ -339,6 +339,8 @@ async function main() {
 
   if (apply) {
     const investorUpdatesByEvent = new Map();
+    const signalInsertsByEvent = new Map();
+    
     for (const event of events) {
       const participants = participantsByEvent.get(event.id) || [];
       const resolved = participants.filter((row) => row.investor_id && row.resolution_status === 'resolved');
@@ -350,7 +352,17 @@ async function main() {
       }
     }
 
-    const failedInvestors = new Set();
+    for (const signal of signalInserts) {
+      const sourceUrl = signal.source_url;
+      const event = events.find((e) => e.source_url === sourceUrl);
+      if (event) {
+        const list = signalInsertsByEvent.get(event.id) || [];
+        list.push(signal);
+        signalInsertsByEvent.set(event.id, list);
+      }
+    }
+
+    const failedInvestorsByEvent = new Map();
     for (const update of investorUpdates.values()) {
       const { error } = await db.from('investors').update({
         signals: update.signals,
@@ -359,29 +371,36 @@ async function main() {
       if (error) {
         stats.errors += 1;
         console.error(`  investor ${update.id}: ${error.message}`);
-        failedInvestors.add(update.id);
+        for (const [eventId, investorIds] of investorUpdatesByEvent.entries()) {
+          if (investorIds.includes(update.id)) {
+            const failed = failedInvestorsByEvent.get(eventId) || new Set();
+            failed.add(update.id);
+            failedInvestorsByEvent.set(eventId, failed);
+          }
+        }
       }
     }
 
-    const failedSignalsByEntity = new Map();
+    const failedSignalsByEvent = new Map();
     for (let i = 0; i < signalInserts.length; i += 100) {
       const batch = signalInserts.slice(i, i + 100);
       const { error } = await db.from('pythh_signal_events').insert(batch);
       if (error) {
         stats.errors += batch.length;
         console.error(`  signal insert @${i}: ${error.message}`);
-        for (const row of batch) {
-          failedSignalsByEntity.set(row.entity_id, true);
+        for (const signal of batch) {
+          const sourceUrl = signal.source_url;
+          const event = events.find((e) => e.source_url === sourceUrl);
+          if (event) {
+            failedSignalsByEvent.set(event.id, true);
+          }
         }
       }
     }
 
     for (const stamp of stampUpdates) {
-      const event = events.find((e) => e.id === stamp.id);
-      const entityId = event?.startup_id ? entityByUpload.get(event.startup_id) : null;
-      const investorIds = investorUpdatesByEvent.get(stamp.id) || [];
-      const hasFailedInvestor = investorIds.some((id) => failedInvestors.has(id));
-      const hasFailedSignal = entityId && failedSignalsByEntity.has(entityId);
+      const hasFailedInvestor = failedInvestorsByEvent.has(stamp.id);
+      const hasFailedSignal = failedSignalsByEvent.has(stamp.id);
       if (hasFailedInvestor || hasFailedSignal) continue;
       
       const { error } = await db.from('funding_evidence_events').update({
