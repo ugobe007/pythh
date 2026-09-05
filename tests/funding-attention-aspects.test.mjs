@@ -57,14 +57,44 @@ test('ignores hiring freeze / not hiring', () => {
   assert.equal(aspects.some((row) => row.id === 'hiring'), false);
 });
 
-test('announcementTextFromEvent concatenates title and metadata excerpt', () => {
+test('announcementTextFromEvent concatenates title and funding excerpt', () => {
   const text = announcementTextFromEvent({
     source_title: 'Nova raises $12M',
-    metadata: { excerpt: 'citing customer growth and a new product launch' },
+    metadata: { funding_evidence_excerpt: 'The company raised the round citing customer growth and a new product launch' },
   });
   const { aspects } = extractFundingAttentionAspects(text);
   assert.ok(aspectThemes(aspects).includes('customer growth'));
   assert.ok(primarySignalsForAspects(aspects).includes('revenue_signal'));
+});
+
+test('drops aggregator sidebar excerpts that do not mention the startup', () => {
+  const { aspects } = extractFundingAttentionAspects(announcementTextFromEvent({
+    startup_name_raw: 'HiddenLayer',
+    source_title: 'HiddenLayer Raises $100M Series B',
+    metadata: {
+      funding_evidence_excerpt: '10 Best Decentralized Crypto Exchanges (DEXs) in 2026\n10 Best Crypto Mining App Options',
+    },
+  }));
+  assert.equal(aspects.some((row) => row.id === 'customer_growth'), false);
+});
+
+test('reads raise-to-purpose and launch headlines', () => {
+  const purpose = extractFundingAttentionAspects(
+    'Wonderful raises $550M at $5B valuation to build AI operating system for enterprises',
+  );
+  assert.ok(purpose.aspects.some((row) => row.id === 'use_of_proceeds'));
+
+  const launch = extractFundingAttentionAspects(
+    'Thyme Care Raises $125M, Launches New Oncology Parent Entity',
+  );
+  assert.ok(launch.aspects.some((row) => row.id === 'product_rev'));
+
+  const excerpt = extractFundingAttentionAspects({
+    source_title: 'HyImpulse Raises More Than €50 Million',
+    body: 'HyImpulse focuses on innovative proprietary hybrid propulsion technology and plans to use the funding to expand.',
+  });
+  assert.ok(excerpt.aspects.some((row) => row.id === 'unique_tech'));
+  assert.ok(excerpt.aspects.some((row) => row.id === 'use_of_proceeds'));
 });
 
 test('mergeObservedThesis is additive, idempotent per event, and never writes thesis', () => {

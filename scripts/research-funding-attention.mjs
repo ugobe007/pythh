@@ -293,6 +293,7 @@ async function main() {
       event_id: event.id,
       startup: event.startup_name_raw,
       status: event.verification_status,
+      title: event.source_title,
       aspects: extracted.aspects.map((a) => a.id),
       cited: extracted.cited,
       investors: resolved.map((row) => row.investor_name_raw),

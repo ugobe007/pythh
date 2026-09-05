@@ -28,7 +28,7 @@ those rows is **data completeness**, not a weight retune.
 
 ## Aspect taxonomy
 
-Extracted from `source_title` + metadata excerpt/body + participant evidence phrases:
+Extracted from `source_title` + `metadata.funding_evidence_excerpt` (and other excerpt/body fields) + participant evidence phrases:
 
 | Aspect | Example language | Startup signal |
 | --- | --- | --- |
@@ -38,6 +38,7 @@ Extracted from `source_title` + metadata excerpt/body + participant evidence phr
 | `board` | joins the board, board seat | `hiring_signal` |
 | `partners` | strategic partnership, partnered with | `partnership_signal` |
 | `product_rev` | launched a product, GA, product update | `product_signal` |
+| `use_of_proceeds` | raises $X to scale/build/expand … | `growth_signal` |
 
 Firm-name “X Partners”, onboard/keyboard/dashboard, and hiring-freeze copy are rejected.
 
