@@ -9,6 +9,8 @@ import {
   announcementTextFromEvent,
   aspectThemes,
   primarySignalsForAspects,
+  inferFundingTriggers,
+  FUNDING_ATTENTION_VERSION,
 } from '../lib/fundingAttentionAspects.mjs';
 import {
   mergeObservedThesis,
@@ -76,6 +78,28 @@ test('drops aggregator sidebar excerpts that do not mention the startup', () => 
     },
   }));
   assert.equal(aspects.some((row) => row.id === 'customer_growth'), false);
+});
+
+test('extracts revenue growth, product-market fit, and customer-access partnerships', () => {
+  const revenue = extractFundingAttentionAspects(
+    'Nova raises $40M after 3x ARR growth and year-over-year revenue growth.',
+  );
+  assert.ok(revenue.aspects.some((row) => row.id === 'revenue_growth'));
+  assert.equal(inferFundingTriggers(revenue).primary, 'revenue_growth');
+
+  const pmf = extractFundingAttentionAspects(
+    'Investors cited unique product-market fit and inbound demand from the waitlist.',
+  );
+  assert.ok(pmf.aspects.some((row) => row.id === 'product_market_fit'));
+
+  const access = extractFundingAttentionAspects(
+    'The startup partnered with Salesforce to reach enterprise customers and signed a distribution partnership.',
+  );
+  assert.ok(access.aspects.some((row) => row.id === 'customer_access_partnership'));
+
+  const firmName = extractFundingAttentionAspects('Insight Partners leads the Series B.');
+  assert.equal(firmName.aspects.some((row) => row.id === 'customer_access_partnership'), false);
+  assert.equal(firmName.aspects.some((row) => row.id === 'partners'), false);
 });
 
 test('reads raise-to-purpose and launch headlines', () => {
@@ -165,6 +189,7 @@ test('agent and helpers never retune GOD_SCORE_CONFIG or write investment_thesis
   const scoring = read('../server/services/startupScoringService.ts');
   const weights = JSON.parse(read('../server/config/god-score-weights.json'));
 
+  assert.equal(FUNDING_ATTENTION_VERSION, 'funding-attention-v2');
   assert.match(agent, /investment_thesis is never written/);
   assert.doesNotMatch(agent, /investment_thesis:/);
   assert.doesNotMatch(agent, /GOD_SCORE_CONFIG\s*=/);

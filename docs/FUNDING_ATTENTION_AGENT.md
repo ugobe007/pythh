@@ -1,13 +1,14 @@
 # Funding-attention agent
 
-**Status:** live pipeline (pattern extract, no paid model)  
-**Command:** `npm run funding:attention` (dry-run) · `npm run funding:attention -- --apply --limit=100`
+**Status:** live pipeline (pattern extract + pattern logic, no paid model)  
+**Command:** `npm run funding:attention` · `npm run funding:attention:patterns`
 
 This is **not** `research:agent` (`agents/research/`). That loop is a product/growth survey
 (signup friction, 100 signups/day). This agent answers a different question:
 
-> When a trusted announcement says a startup raised, *what did the press / issuer
-> say the money was for — and which resolved investors sat on that same event?*
+> When a trusted announcement says a startup raised, *why did the funding happen,
+> what triggered the investor, and which later checks follow a well-known lead
+> or a personal angel sidecar?*
 
 That is ontology **P3**: observed thesis from verified participations
 (`docs/FUNDING_SOURCE_ONTOLOGY.md` §2.4 / §8).
@@ -39,6 +40,9 @@ Extracted from `source_title` + `metadata.funding_evidence_excerpt` (and other e
 | `partners` | strategic partnership, partnered with | `partnership_signal` |
 | `product_rev` | launched a product, GA, product update | `product_signal` |
 | `use_of_proceeds` | raises $X to scale/build/expand … | `growth_signal` |
+| `revenue_growth` | 3x ARR, revenue growth, YoY ARR | `revenue_signal` |
+| `product_market_fit` | product-market fit, inbound demand, waitlist | `product_signal` |
+| `customer_access_partnership` | distribution / channel partner that unlocks customers | `partnership_signal` |
 
 Firm-name “X Partners”, onboard/keyboard/dashboard, and hiring-freeze copy are rejected.
 
@@ -61,14 +65,29 @@ co-mentions do not become `CO_INVESTED_WITH` edges.
 - Change `GOD_SCORE_CONFIG` or match-fit weights
 - Invent a new SQL table (Supabase Preview history is fragile)
 
+## Pattern logic (`npm run funding:attention:patterns`)
+
+Runs on stamped verified/corroborated events. Does not call a model.
+
+| Question | Rule |
+| --- | --- |
+| Why did this funding take place? | Ranked triggers; primary prefers revenue growth, then PMF, then customer-access partnerships |
+| What triggered the investor? | Same announcement aspects attached to each resolved participant |
+| Do others follow a well-known firm? | Later verified event after Sequoia/a16z/Accel/… already appeared. Same-event syndicates are co-invest, not follow |
+| Partner as angel vs firm? | Person on the roster **without** their firm → personal/scout check. Firm present → fund check |
+| Founder-angels | Known operator-founders (Altman, Chesky, …) or founder-exit language on an individual profile |
+
+`--apply` writes `investors.signals.observed_thesis.patterns` only.
+
 ## Commands
 
 ```bash
 npm run funding:attention
 npm run funding:attention -- --apply --limit=100
-npm run funding:attention -- --event-ids=<uuid> --apply
+npm run funding:attention:patterns
+npm run funding:attention:patterns -- --apply --limit=400
 npm run test:funding-attention
 ```
 
-Re-runs skip stamped events unless `--force`. The same event id replaces its
-contribution on an investor (no double-count).
+v2 re-extracts v1 stamps so the new trigger classes land. Same event id replaces
+its investor contribution (no double-count). `--force` ignores version.
