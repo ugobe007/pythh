@@ -859,6 +859,11 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /processOpenAIJob/);
   assert.match(script, /processAnthropicJob/);
   assert.match(script, /processCascadeJob/);
+  assert.match(script, /freeSearchFoundEvidence/);
+  assert.match(script, /inference_then_paid_cascade/);
+  assert.match(script, /paid_skipped: true/);
+  assert.match(script, /const free = await processOntologyJob/);
+  assert.doesNotMatch(script, /Anthropic web search → OpenAI web search → inference/);
   assert.match(script, /isPaidSearchRetryable/);
   assert.match(script, /isUnknownAnthropicModel/);
   assert.match(script, /claude-sonnet-5/);

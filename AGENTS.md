@@ -192,12 +192,14 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - Repair dark instrumentation (missing seals/queues): `npm run proof-cohort:instrument:apply -- --since=2026-08-25 --limit=200`
 - Drain unmatched high-GOD URL startups (match latency SLA): `npm run proof-cohort:drain-unmatched:apply -- --since=2026-08-25 --min-god=80 --limit=25`
 - Mark publisher-article scrapes as junk (VentureBurn/PE Hub/…): `npm run proof-cohort:mark-publisher-junk:apply`
-- **Paid funding search cascade:** Anthropic web search → OpenAI web search → inference (Google News).
-  `npm run outcomes:search-funding:cascade -- --apply --limit=50 --delay=1200`
-  Requires `ANTHROPIC_API_KEY` (preferred) and/or `OPENAI_API_KEY`; a missing key skips that step.
+- **Funding search policy** (`docs/FUNDING_SEARCH_POLICY.md`): scrapers → inference → ontology → paid AI last.
+  Default / CI: `npm run outcomes:agent` (`--provider=ontology`, free).
+  Cascade: `npm run outcomes:search-funding:cascade -- --apply --limit=50 --delay=1200`
+  runs inference + ontology first and calls Anthropic/OpenAI **only** when that path found nothing.
+  Requires `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` for the paid fallback; a missing key skips that step.
   Gemini prepaid is depleted — do not use `--provider=gemini` unless credits are restored.
-  Single-provider: `npm run outcomes:search-funding:anthropic` or `:openai`. 429 / overloaded / credit errors fall through the cascade (or to inference for a single paid provider).
-  Retired `claude-sonnet-4-20250514` is filtered before any request (even if `ANTHROPIC_SEARCH_MODEL` still names it). A model 404 is cached for the rest of the batch so the next job goes straight to OpenAI.
+  Single-provider overrides (paid-first on purpose): `npm run outcomes:search-funding:anthropic` or `:openai`.
+  Retired `claude-sonnet-4-20250514` is filtered before any request (even if `ANTHROPIC_SEARCH_MODEL` still names it). A model 404 is cached for the rest of the batch.
 - Targeted proof-cohort search (skip junk names, sealed + GOD≥55): `npm run proof-cohort:search:cascade -- --apply --limit=25 --delay=1200`
 - Instant submit investor cache **must paginate** (`getInvestors` in `server/routes/instantSubmit.js`) — PostgREST 1000-row default caused generation misses / zero-match windows.
 - **Funding source ontology (match product architecture):** `docs/FUNDING_SOURCE_ONTOLOGY.md` — entities, evidence hierarchy, source map, and inference rules for capital discovery beyond a single investor database.

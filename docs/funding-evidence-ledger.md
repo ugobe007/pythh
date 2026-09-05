@@ -77,6 +77,8 @@ announcement does not prove that PYTHH caused an investment.
    ambiguous items. Set the provider to `inference` for a strictly free run, or
    `anthropic` after that account has API credits. Deterministic inference hints
    are included in each model request to reduce ambiguity and wasted calls.
+   Hunt-queue search follows the same rule: scrapers → inference → ontology →
+   paid AI last ([`FUNDING_SEARCH_POLICY.md`](./FUNDING_SEARCH_POLICY.md)).
    obvious noise and complete deterministic startup/investor relationships do
    not call a paid model. `--llm-all` exists only for explicit audits.
 7. Do not use these outcomes in live ranking until cohort size, verification

@@ -325,7 +325,7 @@ Do **not** fold operator-founder network into **startup** GOD — that score is 
 | Multi-source funding events + participants | `funding_evidence_*` tables, `server/lib/fundingEvidenceLedger.js` |
 | Source trust tiers | `server/lib/fundingSourceTrust.js` |
 | Participation roles + CO_INVESTED_WITH rule | `server/lib/fundingParticipationOntology.js`, docs |
-| Discovery from web/news | `scripts/search-startup-funding-evidence.mjs`, promote/corroborate/triage scripts |
+| Discovery from web/news | `scripts/search-startup-funding-evidence.mjs` (scrapers → inference → ontology → paid last; [`FUNDING_SEARCH_POLICY.md`](./FUNDING_SEARCH_POLICY.md)), promote/corroborate/triage scripts |
 | Ontology public lookup (SEC Form D, NSF/SBIR, USASpending) | `server/lib/fundingSourceLookup.js`, `npm run funding:lookup-sources`, `--provider=ontology` |
 | Hit@5 temporal + claim gates | prediction snapshots, claim-readiness reports |
 | Firm vs individual identity | `investor_organizations`, canonicalize / repair scripts |

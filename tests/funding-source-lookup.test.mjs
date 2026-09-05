@@ -134,7 +134,8 @@ test('search script supports --provider=ontology and defaults remain inference',
   assert.match(script, /fundingSourceLookup/);
   assert.match(script, /processOntologyJob/);
   assert.match(script, /funding_source_ontology/);
-  assert.match(script, /providerArg === 'gemini' \? 'gemini' : providerArg === 'ontology' \? 'ontology' : 'inference'/);
+  assert.match(script, /: 'inference'/);
+  assert.match(script, /inference_then_paid_cascade/);
 });
 
 test('match-outcome agent uses ontology search provider', () => {
