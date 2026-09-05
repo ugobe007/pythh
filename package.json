@@ -286,6 +286,7 @@
     "match": "node scripts/run-node.mjs scripts/core/queue-processor-v16.js",
     "scrape": "node scripts/run-node.mjs scripts/core/simple-rss-scraper.js",
     "scrape:ssot": "npx tsx scripts/core/ssot-rss-scraper.js",
+    "rss:ensure-core": "node scripts/run-node.mjs scripts/ensure-core-funding-rss-sources.mjs",
     "analyze:vc-funding-themes": "node scripts/run-node.mjs scripts/analyze-vc-funding-themes.mjs",
     "analyze:vc-funding-themes:clean": "node scripts/run-node.mjs scripts/analyze-vc-funding-themes.mjs --min-god=55 --exclude-sectors=Gaming",
     "scrape:high-volume": "node scripts/run-node.mjs scripts/high-volume-discovery.js",

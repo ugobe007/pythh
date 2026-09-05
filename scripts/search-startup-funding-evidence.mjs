@@ -47,6 +47,7 @@ import {
   JUNK_WEBSITE_RE,
   isJunkStartupName,
 } from '../lib/fundingSearchJunk.mjs';
+import { CORE_FUNDING_INFERENCE_SITE_QUERY } from '../lib/coreFundingRssSources.mjs';
 
 const require = createRequire(import.meta.url);
 const { searchStartupNews } = require('../server/services/inferenceService.js');
@@ -681,6 +682,7 @@ async function processInferenceJob(startup, job) {
       '(site:businesswire.com OR site:prnewswire.com OR site:globenewswire.com) (raises OR funding OR series)',
       { lite: true },
     ),
+    await searchStartupNews(startup.name, website, 6, CORE_FUNDING_INFERENCE_SITE_QUERY, { lite: true }),
   ];
   if (website) {
     try {
