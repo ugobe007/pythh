@@ -77,15 +77,18 @@ Runs on stamped verified/corroborated events. Does not call a model.
 | Partner as angel vs firm? | Person on the roster **without** their firm → personal/scout check. Firm present → fund check |
 | Founder-angels | Known operator-founders (Altman, Chesky, …) or founder-exit language on an individual profile |
 
-`--apply` writes `investors.signals.observed_thesis.patterns` only.
+`--apply` writes `investors.signals.observed_thesis.patterns` only. Default scan
+is every stamped event (paginate past PostgREST’s 1000-row page). `--limit=N`
+is smoke-only; using it with `--apply` rewrites a newest-N window and can drop
+follow-the-lead / sidecar notes that live on older stamps.
 
 ## Commands
 
 ```bash
 npm run funding:attention
-npm run funding:attention -- --apply --limit=100
+npm run funding:attention -- --apply --limit=200
 npm run funding:attention:patterns
-npm run funding:attention:patterns -- --apply --limit=400
+npm run funding:attention:patterns -- --apply
 npm run test:funding-attention
 ```
 
