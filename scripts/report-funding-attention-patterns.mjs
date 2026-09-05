@@ -20,6 +20,7 @@ import {
   detectFollowTheLead,
   patternNotesForInvestor,
 } from '../lib/fundingAttentionPatterns.mjs';
+import { inferFundingTriggers } from '../lib/fundingAttentionAspects.mjs';
 
 const apply = process.argv.includes('--apply');
 const jsonOut = process.argv.includes('--json');
@@ -118,7 +119,15 @@ async function main() {
 
       for (const person of roster) {
         const affinity = triggerByInvestor.get(person.id) || {};
-        const why = event.metadata?.funding_attention_why;
+        let why = event.metadata?.funding_attention_why;
+        if (!why) {
+          const extracted = {
+            aspects: event.metadata?.funding_attention_aspects || [],
+            cited: event.metadata?.funding_attention_cited,
+          };
+          const triggers = inferFundingTriggers(extracted);
+          why = triggers.primary;
+        }
         if (why) affinity[why] = (affinity[why] || 0) + 1;
         triggerByInvestor.set(person.id, affinity);
         const vehicle = classifyCheckVehicle(person, roster, event);
@@ -134,9 +143,8 @@ async function main() {
         followByInvestor.set(detected.leader.investor_id, { as: 'leader', firm: detected.leader.firm });
       }
       for (const follower of detected.followers) {
-        for (const name of follower.names || []) {
-          const match = investorRows.find((row) => (row.firm || row.name) === name);
-          if (match) followByInvestor.set(match.id, { as: 'follower', after: detected.leader.firm });
+        for (const id of follower.investor_ids || []) {
+          if (id) followByInvestor.set(id, { as: 'follower', after: detected.leader.firm });
         }
       }
     }
