@@ -117,7 +117,11 @@ if (provider === 'anthropic' && !anthropicKey) {
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 const model = process.env.GEMINI_SEARCH_MODEL || 'gemini-3.6-flash';
 const openaiModel = process.env.OPENAI_SEARCH_MODEL || 'gpt-4o-mini';
-const anthropicModel = process.env.ANTHROPIC_SEARCH_MODEL || 'claude-sonnet-4-20250514';
+const anthropicSearchModels = [...new Set([
+  process.env.ANTHROPIC_SEARCH_MODEL,
+  'claude-sonnet-5',
+  'claude-sonnet-4-6',
+].filter(Boolean))];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -182,6 +186,13 @@ const RUMOR_WORDS = /\b(in talks|plans? to|may invest|considering|could invest|r
 const NO_FUNDING_JSON_RE =
   /\b(no (?:public )?(?:records?|announcements?|funding|rounds?)|found no|did not find|unable to find|no completed funding)\b/i;
 
+function isUnknownAnthropicModel(err) {
+  const status = Number(err?.status || err?.statusCode || 0);
+  const type = String(err?.error?.error?.type || err?.error?.type || '');
+  const msg = String(err?.message || err);
+  return status === 404 || /not_found_error/i.test(type) || /model: .+/i.test(msg) && /not_found/i.test(msg);
+}
+
 function isPaidSearchRetryable(err) {
   const status = Number(err?.status || err?.statusCode || 0);
   const type = String(err?.error?.error?.type || err?.error?.type || '');
@@ -189,7 +200,8 @@ function isPaidSearchRetryable(err) {
   return (
     status === 429 ||
     status === 401 ||
-    /overloaded_error|rate_limit_error/i.test(type) ||
+    status === 404 ||
+    /overloaded_error|rate_limit_error|not_found_error/i.test(type) ||
     /\b429\b|rate.?limit|overloaded|RESOURCE_EXHAUSTED|credits? (are )?depleted|insufficient.?credits?|quota|invalid.?api.?key|unauthorized|credit balance is too low/i.test(
       msg,
     )
@@ -1011,12 +1023,25 @@ async function processAnthropicJob(startup, job) {
   const anthropic = new Anthropic({ apiKey: anthropicKey });
   const investors = await loadUniqueInvestorsByName();
   const prompt = buildFundingWebSearchPrompt(startup, job.earliest_match_at);
-  const response = await anthropic.messages.create({
-    model: anthropicModel,
-    max_tokens: 4000,
-    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-    messages: [{ role: 'user', content: prompt }],
-  });
+  let response;
+  let lastModelError;
+  for (const model of anthropicSearchModels) {
+    try {
+      response = await anthropic.messages.create({
+        model,
+        max_tokens: 4000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }],
+      });
+      lastModelError = null;
+      break;
+    } catch (err) {
+      lastModelError = err;
+      if (!isUnknownAnthropicModel(err)) throw err;
+      console.warn(`[search] Anthropic model ${model} not found — trying next`);
+    }
+  }
+  if (!response) throw lastModelError || new Error('Anthropic search failed: no model available');
   const text = extractAnthropicMessageText(response);
   const parsed = parseSearchJson(text);
   const searchEvents = Array.isArray(parsed.events) ? parsed.events : [];
