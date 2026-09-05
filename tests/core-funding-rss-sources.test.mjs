@@ -41,4 +41,8 @@ test('high-volume discovery and inference hunt the core publishers', () => {
 
   assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:news\.crunchbase\.com/);
   assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:techcrunch\.com/);
+  assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:dealroom\.co/);
+  assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:producthunt\.com/);
+  assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:angellist\.com/);
+  assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:wellfound\.com/);
 });
