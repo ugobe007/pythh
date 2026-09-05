@@ -183,6 +183,7 @@ API: `GET /api/admin/match-outcomes/proof`, `GET .../pending`, `POST .../review`
 - **GHA High-Volume Discovery** (`high-volume-discovery.yml`) — every **6h** → `discovered_startups` + `scraper_runs`.
 - **Event resolver** daily promotes `discovered` → uploads (not uploads-only).
 - Local smoke: `RSS_MAX_SOURCES=10 npm run scrape:ssot` · `npm run scrape:high-volume:smoke`
+- Core funding/launch feeds (Crunchbase, TechCrunch Startups, Product Hunt, Dealroom/AngelList via Google News): `lib/coreFundingRssSources.mjs` · `npm run rss:ensure-core -- --apply`
 - **Signal Art Daily** may fail while Gemini prepaid credits are depleted — unrelated to discovery scrapers.
 
 ### Hit@5 roadmap & match→funding audit

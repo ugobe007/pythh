@@ -8,6 +8,23 @@ Companion: [`funding-evidence-ledger.md`](./funding-evidence-ledger.md),
 [`FUNDING_SOURCE_ONTOLOGY.md`](./FUNDING_SOURCE_ONTOLOGY.md),
 [`PYTHH_SCRAPERS_PARSERS_WORKFLOW.md`](./PYTHH_SCRAPERS_PARSERS_WORKFLOW.md).
 
+## Core scraper sources
+
+These publisher homepages are first-wave RSS (or Google News `site:` when the
+first-party feed is dead / Cloudflare-blocked). Canonical list:
+`lib/coreFundingRssSources.mjs`. Apply with
+`npm run rss:ensure-core -- --apply`.
+
+| Homepage | Fetchable feed | Status |
+|----------|----------------|--------|
+| https://news.crunchbase.com | `/feed/` | First-party RSS |
+| https://techcrunch.com/category/startups/ | `/feed/` | First-party RSS |
+| https://www.producthunt.com | `/feed` | First-party Atom |
+| https://dealroom.co/news/ | Google News `site:dealroom.co` | CF 403 on first-party |
+| https://www.angellist.com | Google News `site:angellist.com` / wellfound | No RSS (HTML catch-all) |
+
+Do **not** store these hosts as a startup `website`. They are news sources.
+
 ## Required order
 
 ```text
