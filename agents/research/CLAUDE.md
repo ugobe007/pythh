@@ -2,6 +2,10 @@
 
 You survey the **market and funding workflow** to find signals that inform Pythh product strategy. You report to the **Product Agent** (`agents/product/`).
 
+This is **not** the funding-attention pipeline. Observed “why they funded” tags from
+trusted announcements live in `docs/FUNDING_ATTENTION_AGENT.md` and
+`npm run funding:attention` — do not fold that write path into this product loop.
+
 **Orchestrator mandate:** Read `agents/ORCHESTRATOR.md` and today's `reports/orchestrator-brief-*.json`. Research *distrust* and *passivity* — why founders/investors bounce after preview, and what loops make competitors sticky.
 
 **Investor canon:** Read `agents/INVESTOR_CANON.md` — research how VCs use Carta, Smartsheet, Standard Metrics; validate 10-pick portfolio loop hypothesis.

@@ -2,7 +2,7 @@
 
 **Status:** architecture spec for implementation (not a live schema migration)  
 **Audience:** coding agents extending matching, evidence ingestion, and Hit@5  
-**Companion docs:** [`funding-evidence-ledger.md`](./funding-evidence-ledger.md), [`funding-participation-ontology.md`](./funding-participation-ontology.md), [`ONTOLOGY_REASONING_ROADMAP.md`](./ONTOLOGY_REASONING_ROADMAP.md), [`HIT5_IMPROVEMENT_ROADMAP.md`](./HIT5_IMPROVEMENT_ROADMAP.md)
+**Companion docs:** [`funding-evidence-ledger.md`](./funding-evidence-ledger.md), [`funding-participation-ontology.md`](./funding-participation-ontology.md), [`FUNDING_ATTENTION_AGENT.md`](./FUNDING_ATTENTION_AGENT.md), [`ONTOLOGY_REASONING_ROADMAP.md`](./ONTOLOGY_REASONING_ROADMAP.md), [`HIT5_IMPROVEMENT_ROADMAP.md`](./HIT5_IMPROVEMENT_ROADMAP.md)
 
 ---
 
@@ -120,7 +120,7 @@ Skip bank-wealth desks (e.g. Morgan Stanley Wealth), firm-like Title Case mislab
 Split every thesis field into:
 
 - **`stated_*`** — from OpenVC, firm site, partner posts  
-- **`observed_*`** — from ledger / outcomes / news graph  
+- **`observed_*`** — from ledger / outcomes / news graph (`investors.signals.observed_thesis` via `npm run funding:attention`)  
 - **`confidence`**, **`as_of`**, **`evidence_ids[]`**
 
 Priority fields (OpenVC-shaped + inferred):
@@ -340,7 +340,7 @@ Do **not** fold operator-founder network into **startup** GOD — that score is 
 | ~~No **SBIR** ingest~~ **Partial** | `fundingSourceLookup` + NSF awardee awards (SBIR.gov API often egress-blocked); grants stay `financing_type=grant` |
 | ~~No SEC Form D company lookup~~ **Shipped** | Issuer Form D via EDGAR full-text → ledger `observed` equity events (roster incomplete) |
 | No Dealroom/CB as structured graph import | Optional connectors behind license; never replace ledger SoT |
-| Stated vs observed thesis not split in schema | Add `thesis_stated` / `thesis_observed` JSONB + evidence refs |
+| ~~Stated vs observed thesis not split in schema~~ **Partial** | No new JSONB columns (Preview history is fragile). `investors.signals.observed_thesis` + `top_themes` via `npm run funding:attention`. Stated thesis stays `investment_thesis` / first-party only. |
 | Match explanations not standardized | Shared `MatchExplanation` DTO on serve + admin |
 | Continuous announcement → edge materialization | Batch job over verified events → investor feature refresh |
 
@@ -360,7 +360,7 @@ Do **not** fold operator-founder network into **startup** GOD — that score is 
 | **P0** | This ontology + keep ledger / trust / participation as SoT | Agents cite this doc |
 | **P1** | OpenVC CRM/partnership → stated thesis on investor profiles | Filterable stage/geo/check in matching features |
 | **P2** | SBIR/NSF awards + SEC Form D lookup (`fundingSourceLookup`, `--provider=ontology`) | Grant + Form D events on ledger for matched startups |
-| **P3** | Observed thesis rollup job from verified participations | `recent_activity`, sector affinity on profiles |
+| **P3** | ~~Observed thesis rollup job from verified participations~~ **Shipped (v1)** — `npm run funding:attention` writes `investors.signals.observed_thesis` + aspect `pythh_signal_events` from trusted announcement copy. Does not retune GOD/fit. | Aspect tags + verified same-event co-investors on profiles |
 | **P4** | MatchExplanation payload on serve path | UI shows evidence trail, not score alone |
 | **P5** | Optional Dealroom/CB connectors | Enrichment only; ledger remains authoritative for Hit@5 |
 
