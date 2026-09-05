@@ -104,14 +104,17 @@ async function main() {
         const profile = investorsById.get(row.investor_id) || {};
         return { ...profile, id: row.investor_id, name: profile.name || row.investor_name_raw };
       });
-      const list = byStartup.get(event.startup_id) || [];
+      const startupKey = event.startup_id
+        || (String(event.startup_name_raw || '').trim() ? `name:${String(event.startup_name_raw).toLowerCase()}` : null);
+      if (!startupKey) continue;
+      const list = byStartup.get(startupKey) || [];
       list.push({
         id: event.id,
         startup_name: event.startup_name_raw,
         announced_at: event.announced_at || event.occurred_at,
         investors: roster,
       });
-      byStartup.set(event.startup_id, list);
+      byStartup.set(startupKey, list);
 
       for (const person of roster) {
         const affinity = triggerByInvestor.get(person.id) || {};
