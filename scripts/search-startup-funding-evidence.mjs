@@ -4,8 +4,10 @@
  *
  * Default provider: inference engine (Google News RSS + extractors — no Gemini credits).
  * Optional:
- *   --provider=cascade    Anthropic web search → OpenAI web search → inference
- *                         (skip a step when that API key is missing;
+ *   --provider=cascade    funding search policy (docs/FUNDING_SEARCH_POLICY.md):
+ *                         scrapers/ledger seeds → inference + ontology →
+ *                         Anthropic or OpenAI only if the free path found nothing
+ *                         (skip a paid step when that API key is missing;
  *                          retired/404 Anthropic model ids are filtered before
  *                          any request and cached for the rest of the batch)
  *   --provider=anthropic  when ANTHROPIC_API_KEY is available (web_search tool)
@@ -1078,11 +1080,36 @@ async function processAnthropicJob(startup, job) {
   return { ...persisted, search_provider: 'anthropic_web_search' };
 }
 
+function freeSearchFoundEvidence(outcome) {
+  return (
+    Number(outcome?.events || 0) > 0
+    || Number(outcome?.pairs || 0) > 0
+    || Number(outcome?.ledger_writes || 0) > 0
+  );
+}
+
 async function processCascadeJob(startup, job) {
+  const free = await processOntologyJob(startup, job);
+  if (freeSearchFoundEvidence(free)) {
+    console.log(
+      `[search] ${startup.name}: scrapers/inference/ontology found evidence — skip paid AI`,
+    );
+    return {
+      ...free,
+      search_provider: 'inference_ontology_free_first',
+      paid_skipped: true,
+      cascade: ['scraper_ledger', 'inference', 'ontology'],
+    };
+  }
+
   if (anthropicKey && liveAnthropicSearchModels().length) {
     try {
       const outcome = await processAnthropicJob(startup, job);
-      return { ...outcome, cascade: ['anthropic'] };
+      return {
+        ...outcome,
+        fallback_to_paid: true,
+        cascade: ['scraper_ledger', 'inference', 'ontology', 'anthropic'],
+      };
     } catch (err) {
       if (!isPaidSearchRetryable(err)) throw err;
       console.warn(
@@ -1092,29 +1119,32 @@ async function processCascadeJob(startup, job) {
   } else if (anthropicKey) {
     console.warn('[search] Skip Anthropic (retired/dead models only) — trying OpenAI');
   } else {
-    console.warn(`[search] No ANTHROPIC_API_KEY — skipping to OpenAI for ${startup.name}`);
+    console.warn(`[search] No ANTHROPIC_API_KEY — paid fallback is OpenAI for ${startup.name}`);
   }
 
   if (openaiKey) {
     try {
       const outcome = await processOpenAIJob(startup, job);
-      return { ...outcome, cascade: ['openai'] };
+      return {
+        ...outcome,
+        fallback_to_paid: true,
+        cascade: ['scraper_ledger', 'inference', 'ontology', 'openai'],
+      };
     } catch (err) {
       if (!isPaidSearchRetryable(err)) throw err;
       console.warn(
-        `[search] OpenAI unavailable for ${startup.name} (${String(err.message || err).slice(0, 120)}) — falling back to inference`,
+        `[search] OpenAI unavailable for ${startup.name} (${String(err.message || err).slice(0, 120)}) — keeping free-path result`,
       );
     }
   } else {
-    console.warn(`[search] No OPENAI_API_KEY — falling back to inference for ${startup.name}`);
+    console.warn(`[search] No OPENAI_API_KEY — keeping free-path result for ${startup.name}`);
   }
 
-  const inferenceOutcome = await processInferenceJob(startup, job);
   return {
-    ...inferenceOutcome,
-    search_provider: 'inference_engine',
-    fallback_to_inference: true,
-    cascade: ['inference'],
+    ...free,
+    search_provider: 'inference_ontology_free_first',
+    paid_skipped: true,
+    cascade: ['scraper_ledger', 'inference', 'ontology'],
   };
 }
 
@@ -1350,7 +1380,7 @@ const searchProvider =
       : provider === 'anthropic'
         ? 'anthropic_web_search'
         : provider === 'cascade'
-          ? 'anthropic_openai_inference_cascade'
+          ? 'inference_then_paid_cascade'
           : provider === 'ontology'
             ? 'funding_source_ontology'
             : 'inference_engine';

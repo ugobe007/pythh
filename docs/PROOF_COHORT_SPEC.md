@@ -143,7 +143,7 @@ npm run funding:match-fund-lag:cohort
 
 `funding:match-fund-lag` histograms match→fund days (0–30 / 30–60 / **60–90** / 90–180 / 180+) and sealed cohort age vs that window. Keep searching sealed clocks — many true positives land in 60–90d.
 
-(`proof-cohort:search` / `:cascade` skip Capital/place-name junk and require a sealed snapshot + GOD≥55. Cascade is Anthropic → OpenAI → inference.)
+(`proof-cohort:search` / `:cascade` skip Capital/place-name junk and require a sealed snapshot + GOD≥55. Cascade follows [`FUNDING_SEARCH_POLICY.md`](./FUNDING_SEARCH_POLICY.md): scrapers/inference/ontology first, Anthropic/OpenAI only if the free path found nothing.)
 
 Do **not** force-match after announcement — that breaks the gate clock.
 
