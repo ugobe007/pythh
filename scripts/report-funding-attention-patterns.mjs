@@ -122,7 +122,8 @@ async function main() {
         let why = event.metadata?.funding_attention_why;
         if (!why) {
           const extracted = {
-            aspects: event.metadata?.funding_attention_aspects || [],
+            aspects: (event.metadata?.funding_attention_aspects || [])
+              .map((id) => (typeof id === 'string' ? { id, theme: id } : id)),
             cited: event.metadata?.funding_attention_cited,
           };
           const triggers = inferFundingTriggers(extracted);
