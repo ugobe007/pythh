@@ -338,6 +338,19 @@ async function main() {
   stats.signal_events = signalInserts.length;
 
   if (apply) {
+    const investorUpdatesByEvent = new Map();
+    for (const event of events) {
+      const participants = participantsByEvent.get(event.id) || [];
+      const resolved = participants.filter((row) => row.investor_id && row.resolution_status === 'resolved');
+      for (const participant of resolved) {
+        if (!investorUpdates.has(participant.investor_id)) continue;
+        const list = investorUpdatesByEvent.get(event.id) || [];
+        list.push(participant.investor_id);
+        investorUpdatesByEvent.set(event.id, list);
+      }
+    }
+
+    const failedInvestors = new Set();
     for (const update of investorUpdates.values()) {
       const { error } = await db.from('investors').update({
         signals: update.signals,
@@ -346,17 +359,31 @@ async function main() {
       if (error) {
         stats.errors += 1;
         console.error(`  investor ${update.id}: ${error.message}`);
+        failedInvestors.add(update.id);
       }
     }
+
+    const failedSignalsByEntity = new Map();
     for (let i = 0; i < signalInserts.length; i += 100) {
       const batch = signalInserts.slice(i, i + 100);
       const { error } = await db.from('pythh_signal_events').insert(batch);
       if (error) {
         stats.errors += batch.length;
         console.error(`  signal insert @${i}: ${error.message}`);
+        for (const row of batch) {
+          failedSignalsByEntity.set(row.entity_id, true);
+        }
       }
     }
+
     for (const stamp of stampUpdates) {
+      const event = events.find((e) => e.id === stamp.id);
+      const entityId = event?.startup_id ? entityByUpload.get(event.startup_id) : null;
+      const investorIds = investorUpdatesByEvent.get(stamp.id) || [];
+      const hasFailedInvestor = investorIds.some((id) => failedInvestors.has(id));
+      const hasFailedSignal = entityId && failedSignalsByEntity.has(entityId);
+      if (hasFailedInvestor || hasFailedSignal) continue;
+      
       const { error } = await db.from('funding_evidence_events').update({
         metadata: stamp.metadata,
         updated_at: new Date().toISOString(),
