@@ -24,6 +24,9 @@ test('exact public-company and non-startup hunt-queue names are junk', () => {
     'Brent Kovar',
     'Gavin Potenza',
     'Senior',
+    'Dogecoin',
+    'Formulary Financial',
+    'Setting Boundaries',
   ]) {
     assert.equal(EXACT_NON_STARTUP_SEARCH_NAMES.has(name.toLowerCase()), true, name);
     assert.equal(isJunkStartupName(name, `https://${name.replace(/\s+/g, '').toLowerCase()}.com`), true, name);
