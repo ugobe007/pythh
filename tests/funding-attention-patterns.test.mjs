@@ -26,6 +26,7 @@ test('classifies founder-angels vs firm partners vs institutions', () => {
   }).role, 'partner_angel');
   assert.equal(classifyCapitalRole({ name: 'Accel', firm: 'Accel', is_individual: false }).role, 'firm');
   assert.equal(classifyCapitalRole({ name: 'Y Combinator', firm: 'Y Combinator', type: 'Accelerator' }).role, 'firm');
+  assert.equal(classifyCapitalRole({ name: 'Y Combinator', firm: 'Y Combinator' }).role, 'firm');
   assert.equal(classifyCapitalRole({ name: 'IVP', firm: 'Institutional Venture Partners' }).role, 'firm');
   assert.equal(isWellKnownFirm({ name: 'Sequoia Capital', firm: 'Sequoia' }), true);
 });
