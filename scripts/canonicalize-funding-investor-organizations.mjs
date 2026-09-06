@@ -314,7 +314,7 @@ const organizations = [
   ['TCV', 'tcv.com', ['TCV']],
   ['Zone 2 Ventures', 'zone2.vc', ['Zone 2 Ventures', 'Zone II Ventures']],
   ['Leblon Capital', null, ['Leblon Capital']],
-  ['Kindred Ventures', 'kindredvc.com', ['Kindred Ventures']],
+  ['Kindred Ventures', 'kindredventures.com', ['Kindred Ventures']],
   ['Quadri Ventures', 'quadri.vc', ['Quadri Ventures', 'Quadri']],
   ['First Order Fund', 'firstorderfund.com', ['First Order Fund']],
   ['Vocal Ventures', 'vocalventures.co', ['Vocal Ventures']],
@@ -323,7 +323,7 @@ const organizations = [
   ['Repeat Ventures', 'repeat.vc', ['Repeat Ventures', 'Repeat.vc']],
   // Avatar Robotics $6.5M seed — firms only. Skip Henry Ford III / angels.
   ['AlleyCorp', 'alleycorp.com', ['AlleyCorp']],
-  ['defy.vc', 'defy.vc', ['defy.vc', 'Defy.vc', 'Defy Partners']],
+  ['Defy', 'defy.vc', ['Defy', 'defy.vc', 'Defy.vc', 'Defy Partners']],
   ['Headline', 'headline.com', ['Headline']],
   ['REFASHIOND Ventures', 'refashiond.com', ['REFASHIOND Ventures', 'Refashiond Ventures', 'Refashiond']],
 ];

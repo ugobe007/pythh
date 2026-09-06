@@ -1900,7 +1900,7 @@ const profiles = [
     source: 'https://leblon-capital.notion.site', type: 'VC', investorType: 'VC',
   },
   {
-    canonicalName: 'Kindred Ventures', firm: 'Kindred Ventures', url: 'https://www.kindredvc.com/',
+    canonicalName: 'Kindred Ventures', firm: 'Kindred Ventures', url: 'https://www.kindredventures.com/',
     sectors: ['Technology', 'SaaS', 'Fintech', 'AI/ML'],
     stage: ['Pre-Seed', 'Seed', 'Series A'], geography: ['United States'],
     thesis: 'Early-stage firm; participated in Corgi’s Series B1.',
@@ -1958,7 +1958,7 @@ const profiles = [
     source: 'https://alleycorp.com/', type: 'VC', investorType: 'VC',
   },
   {
-    canonicalName: 'defy.vc', firm: 'Defy Partners', url: 'https://defy.vc/',
+    canonicalName: 'Defy', displayName: 'Defy', firm: 'Defy', url: 'https://defy.vc/',
     sectors: ['Technology', 'AI/ML', 'Robotics'],
     stage: ['Pre-Seed', 'Seed'], geography: ['United States'],
     thesis: 'Silicon Valley early-stage firm; led Avatar Robotics’ pre-seed and joined the $6.5M seed.',
