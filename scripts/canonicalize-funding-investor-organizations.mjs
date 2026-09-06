@@ -307,6 +307,25 @@ const organizations = [
   ['Breakers', 'breakers.vc', ['Breakers', 'Breakers VC']],
   ['The Pay It Forward Company', 'pif.co', ['The Pay It Forward Company', 'Pay It Forward Company', 'PIF Company']],
   ['Boot64 Ventures', 'boot64.com', ['Boot64 Ventures', 'Boot64']],
+  // Proception $11M seed (First Round / YC / BoxGroup). YC already canonical.
+  ['First Round Capital', 'firstround.com', ['First Round Capital', 'First Round']],
+  ['BoxGroup', 'boxgroup.com', ['BoxGroup', 'Box Group']],
+  // Corgi $106M Series B1 roster — firms only. Skip Prime Capital (≠ F-Prime) and people.
+  ['TCV', 'tcv.com', ['TCV']],
+  ['Zone 2 Ventures', 'zone2.vc', ['Zone 2 Ventures', 'Zone II Ventures']],
+  ['Leblon Capital', null, ['Leblon Capital']],
+  ['Kindred Ventures', 'kindredvc.com', ['Kindred Ventures']],
+  ['Quadri Ventures', 'quadri.vc', ['Quadri Ventures', 'Quadri']],
+  ['First Order Fund', 'firstorderfund.com', ['First Order Fund']],
+  ['Vocal Ventures', 'vocalventures.co', ['Vocal Ventures']],
+  ['Nordstar', 'nordstar.com', ['Nordstar', 'Nordstar Partners']],
+  ['GSBackers', 'gsbackers.com', ['GSBackers']],
+  ['Repeat Ventures', 'repeat.vc', ['Repeat Ventures', 'Repeat.vc']],
+  // Avatar Robotics $6.5M seed — firms only. Skip Henry Ford III / angels.
+  ['AlleyCorp', 'alleycorp.com', ['AlleyCorp']],
+  ['defy.vc', 'defy.vc', ['defy.vc', 'Defy.vc', 'Defy Partners']],
+  ['Headline', 'headline.com', ['Headline']],
+  ['REFASHIOND Ventures', 'refashiond.com', ['REFASHIOND Ventures', 'Refashiond Ventures', 'Refashiond']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
