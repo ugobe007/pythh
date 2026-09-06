@@ -942,6 +942,15 @@ const rejectEventIds = [
   'e2c33bac-1080-4c7e-aea9-e0a6a38cbcb0', // VC roundup (SiteVue line only)
   'e4a56afe-5b03-4c0b-8f72-8cd221ca4b0c', // VC roundup (Alloy line only)
   '5b4f513a-88d0-448c-a07b-7d1d7d322513', // Meridian Google News duplicate (issuer wires exist)
+  // Post-#130 hunt: untrusted observed gaps that cannot become sealed Hit@5
+  '1d40b85c-488f-4c0e-98c7-0d4f40257cef', // Flint Trails Investment LP Form D (fund filing)
+  'cd99778d-3afb-4440-b7fb-611b54fa29ae', // Grok / Pentagon access (secure AI, not a raise)
+  'ff95445c-ac41-4687-b175-35f1b895e56a', // Grok / Pentagon access duplicate
+  'fdc9f692-60be-4eca-b8c5-e1282777b802', // OpenPayd US licenses / Nasdaq listing
+  '5063c544-26dd-4413-b730-f3fc819a4856', // Remepy Pulse2 rewrite; PR Newswire 2026-08-12 before seal 08-18
+  '2db8e775-53e6-48a8-80ef-94206a2f9b1d', // Meduloc Google News rewrite; PR Newswire 2026-08-06 before seal 08-18
+  '954e9aa2-d8b6-4502-8268-6b1818a1fbe0', // SiteVue Google News rewrite; PR Newswire 2026-08-06 before seal 08-18
+  'f92cf00a-1dcb-4cd4-afa3-a886129e74ae', // Transfyr Pulse2 08-30; issuer 2026-08-26 before seal 08-29
 ];
 
 async function seedEvent(eventId, seed, investors) {

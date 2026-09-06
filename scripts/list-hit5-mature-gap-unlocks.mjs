@@ -168,7 +168,7 @@ const allSets = buildPredictionSets(snapshots);
 const startupIds = [...new Set(allSets.map((row) => row.startup_id))];
 const investorIds = [...new Set(allSets.flatMap((row) => row.predictions.map((p) => p.investor_id)))];
 const [startups, investors] = await Promise.all([
-  rowsByIds('startup_uploads', 'id,name', startupIds),
+  rowsByIds('startup_uploads', 'id,name,description,source_type,website,company_domain', startupIds),
   rowsByIds('investors', 'id,name,firm', investorIds),
 ]);
 const startupById = new Map(startups.map((row) => [row.id, row]));
