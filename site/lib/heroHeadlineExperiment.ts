@@ -20,7 +20,7 @@ export const HERO_PRIMARY_CTA = 'Automate your raise';
 
 /** Locked public subline — raise automation without claiming send-before-approval. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your URL — Oracle qualifies investors, drafts outreach, and books meetings. Nothing is sent without your approval.';
+  'Paste your URL — Pythh qualifies investors, drafts outreach, and books meetings. Nothing is sent without your approval.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
