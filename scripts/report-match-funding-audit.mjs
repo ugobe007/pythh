@@ -217,6 +217,7 @@ if (asJson) {
   console.log('Working metric — overall pairs (including non-sealed top 5):');
   console.log(`  verified pair fundings:  ${report.match_layer.verified_post_prediction_pairs}`);
   console.log(`  startups (pair verified):${report.match_layer.startups_with_verified_pair_funding}`);
+  console.log('  rates live in:           npm run outcomes:matched:summary');
   console.log(`  match rows:              ${report.match_layer.total_match_rows}`);
   console.log(`  startups w/ matches:     ${report.match_layer.startups_with_matches}`);
   console.log('\nSealed Hit@5 (claim only):');

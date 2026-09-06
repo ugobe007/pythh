@@ -64,6 +64,9 @@ interface PlatformStats {
   matches_new_30d?: number;
   signals?: number;
   funded_startups?: number;
+  pair_funding_rate_pct?: number | null;
+  pair_funding_hits?: number;
+  pair_funding_startups?: number;
   computed_at?: string;
 }
 
@@ -99,7 +102,7 @@ function formatVelocitySub(n: number): string {
   return `${n.toLocaleString()} new this week`;
 }
 
-const PLATFORM_STATS_SESSION_KEY = "pythh_platform_stats_v1";
+const PLATFORM_STATS_SESSION_KEY = "pythh_platform_stats_v2";
 
 function readCachedPlatformStats(): PlatformStats | null {
   try {
@@ -116,6 +119,10 @@ function readCachedPlatformStats(): PlatformStats | null {
       matches_new_30d: Number(d.matches_new_30d) || 0,
       signals: Number(d.signals) || 0,
       funded_startups: Number(d.funded_startups) || 0,
+      pair_funding_rate_pct:
+        d.pair_funding_rate_pct == null ? null : Number(d.pair_funding_rate_pct),
+      pair_funding_hits: Number(d.pair_funding_hits) || 0,
+      pair_funding_startups: Number(d.pair_funding_startups) || 0,
       computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
     };
   } catch {
@@ -150,6 +157,10 @@ function usePlatformStats() {
           matches_new_30d: Number(d.matches_new_30d) || 0,
           signals: Number(d.signals) || 0,
           funded_startups: Number(d.funded_startups) || 0,
+          pair_funding_rate_pct:
+            d.pair_funding_rate_pct == null ? null : Number(d.pair_funding_rate_pct),
+          pair_funding_hits: Number(d.pair_funding_hits) || 0,
+          pair_funding_startups: Number(d.pair_funding_startups) || 0,
           computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
         };
         if (!(next.startups > 0)) return;
@@ -508,9 +519,16 @@ function HeroSection({
                 featured: true,
               },
               {
-                value: startupCount.toLocaleString(),
-                label: "Startups tracked",
-                sub: "company profiles",
+                value:
+                  platformStats?.pair_funding_rate_pct != null
+                    ? `${platformStats.pair_funding_rate_pct}%`
+                    : "—",
+                label: "Funding rate",
+                sub:
+                  platformStats?.pair_funding_hits != null
+                  && platformStats?.pair_funding_startups
+                    ? `${platformStats.pair_funding_hits} of ${platformStats.pair_funding_startups} matched funders in top-5`
+                    : "sealed + live Hit@5",
                 color: TEXT,
               },
               {

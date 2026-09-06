@@ -11,6 +11,14 @@ test('instrumentMatchOutcomes exports awaitable helpers', () => {
   assert.equal(typeof instrumentMatchOutcomesSafe, 'function');
 });
 
+test('sync instrumentation defers freeze until Phase 1/3 persist more than 5 rows', () => {
+  const instrument = readFileSync(new URL('../server/lib/instrumentMatchOutcomes.js', import.meta.url), 'utf8');
+  assert.match(instrument, /deferred_until_enriched_matches/);
+  assert.match(instrument, /source === 'instant_sync'/);
+  const instant = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
+  assert.match(instant, /buildDisplayedTopFiveForceIds/);
+});
+
 test('instantSubmit instruments sync, phase1, phase3 skip, and timeouts', () => {
   const instant = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
   assert.match(instant, /instrumentMatchOutcomesSafe/);

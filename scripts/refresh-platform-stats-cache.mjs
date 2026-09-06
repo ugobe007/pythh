@@ -87,6 +87,16 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
       countUniqueFundedStartups(),
     ]);
 
+  let pairRate = null;
+  try {
+    const { createRequire } = await import('node:module');
+    const require = createRequire(import.meta.url);
+    const { computePairLayerFundingRate } = require('../server/lib/pairLayerFundingRate.js');
+    pairRate = await computePairLayerFundingRate();
+  } catch (e) {
+    console.warn(`   pair funding rate skipped: ${errMsg(e)}`);
+  }
+
   const row = {
     id: 1,
     startups,
@@ -97,6 +107,13 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
     matches_new_30d,
     signals,
     funded_startups,
+    ...(pairRate && pairRate.pair_funding_rate_pct != null
+      ? {
+          pair_funding_rate_pct: pairRate.pair_funding_rate_pct,
+          pair_funding_hits: pairRate.pair_funding_hits,
+          pair_funding_startups: pairRate.pair_funding_startups,
+        }
+      : {}),
     updated_at: new Date().toISOString(),
     refresh_source: source,
   };
@@ -104,6 +121,11 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
   console.log(`   startups ${startups.toLocaleString()} · investors ${investors.toLocaleString()}`);
   console.log(`   matches ${matches.toLocaleString()} · 7d ${matches_new_7d.toLocaleString()} · signals ${signals.toLocaleString()}`);
   console.log(`   funded startups ${funded_startups.toLocaleString()} (unique tracked outcomes)`);
+  if (pairRate?.pair_funding_rate_pct != null) {
+    console.log(
+      `   funding rate ${pairRate.pair_funding_rate_pct}% (${pairRate.pair_funding_hits}/${pairRate.pair_funding_startups} matched funders in top-5)`,
+    );
+  }
   console.log(`   elapsed ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   if (!APPLY) {
@@ -111,7 +133,12 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
     return row;
   }
 
-  const { error } = await sb.from('platform_stats_cache').upsert(row, { onConflict: 'id' });
+  let { error } = await sb.from('platform_stats_cache').upsert(row, { onConflict: 'id' });
+  if (error && /pair_funding_/i.test(error.message || '')) {
+    const { pair_funding_rate_pct, pair_funding_hits, pair_funding_startups, ...legacy } = row;
+    ({ error } = await sb.from('platform_stats_cache').upsert(legacy, { onConflict: 'id' }));
+    if (!error) console.warn('   pair funding columns missing on cache table — wrote legacy row');
+  }
   if (error) throw new Error(`upsert failed: ${error.message}`);
   console.log('✅ platform_stats_cache updated');
   return row;
