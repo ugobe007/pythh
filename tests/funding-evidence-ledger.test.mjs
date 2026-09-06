@@ -521,6 +521,9 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Blue Origin is expected to raise private capital' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Crusoe is in active talks to raise $3B' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Crusoe signs $1.3 billion AI cloud deal with Jane Street' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'CarbonSix Bags $40M Series A to Deploy Physical AI' }).reason, 'missing_financing_action');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wultra Bags €6.8M Series A For Global Expansion' }).reason, 'missing_financing_action');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Venice AI Raises $65M Series A at $1B valuation' }).eligible, true);
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'AI startup Crusoe valued at $30 billion after new funding' }).eligible, true);
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wisk Aero manager raised safety concerns' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'We gamble, invest, and cling to what we own' }).reason, 'missing_financing_action');
@@ -956,7 +959,10 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /Do NOT ingest Luxonis/);
   assert.match(script, /Do NOT ingest 10Beauty/);
   assert.match(script, /Do NOT ingest LinqAlpha/);
-  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:/);
+  assert.match(script, /Do NOT ingest Venice AI/);
+  assert.match(script, /Do NOT ingest CarbonSix/);
+  assert.match(script, /Do NOT ingest Wultra/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:|audited:venice:|audited:carbonsix:|audited:wultra:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1110,6 +1116,9 @@ test('missing funding investors are seeded only from reviewed first-party profil
     'First Round Capital', 'BoxGroup', 'TCV', 'Zone 2 Ventures', 'Quadri Ventures', 'Vocal Ventures',
     'Nordstar', 'Repeat Ventures', 'AlleyCorp', 'defy.vc', 'Headline', 'REFASHIOND Ventures',
     'Genesys Cloud', 'Denali Growth Partners', 'Story Ventures', 'AVP', 'Atinum Investment', 'GFT Ventures',
+    'Dragonfly', 'Coinbase Ventures', 'F-Prime Capital', 'North Island Ventures',
+    'IMM Investment', 'Korea Development Bank', 'SV Investment', 'Cortentia', 'ASQ',
+    'Seventure Partners', 'J&T Ventures', 'Elevator Ventures',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
