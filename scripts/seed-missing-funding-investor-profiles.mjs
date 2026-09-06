@@ -1862,9 +1862,9 @@ const profiles = [
     thesis: 'Louisiana-focused early-stage fund for local, veteran, disadvantaged, and rural founders; pre-formation applicants welcome.',
     source: 'https://boot64.com/', type: 'VC', investorType: 'VC',
   },
-  // Scaled Cognition $100M Series A — Genesys Cloud is a corporate LP, not Genesys Capital.
+  // Scaled Cognition $100M Series A — Genesys Cloud ≠ Genesys Capital (capital suffix strips).
   {
-    canonicalName: 'Genesys', firm: 'Genesys', url: 'https://www.genesys.com/',
+    canonicalName: 'Genesys Cloud', firm: 'Genesys Cloud', url: 'https://www.genesys.com/',
     sectors: ['Enterprise', 'AI/ML', 'SaaS'],
     stage: ['Series A', 'Series B', 'Growth'], geography: ['Global'],
     thesis: 'Cloud CX platform; strategic investor in Scaled Cognition’s $100M Series A alongside Khosla.',

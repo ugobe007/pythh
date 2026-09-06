@@ -308,8 +308,9 @@ const organizations = [
   ['The Pay It Forward Company', 'pif.co', ['The Pay It Forward Company', 'Pay It Forward Company', 'PIF Company']],
   ['Boot64 Ventures', 'boot64.com', ['Boot64 Ventures', 'Boot64']],
   // Scaled Cognition / Luxonis / 10Beauty / LinqAlpha 2026 Series A-style rosters.
-  // Khosla + Taiwania already canonical. Genesys ≠ Genesys Capital.
-  ['Genesys', 'genesys.com', ['Genesys']],
+  // Khosla + Taiwania already canonical. Genesys Cloud ≠ Genesys Capital
+  // (normalizeEntityName strips "capital", so never use a bare "Genesys" org).
+  ['Genesys Cloud', 'genesys.com', ['Genesys Cloud']],
   ['Denali Growth Partners', 'denaligrowth.com', ['Denali Growth Partners', 'Denali Growth']],
   ['Story Ventures', 'storyventures.com', ['Story Ventures']],
   ['AVP', 'avpcap.com', ['AVP']],

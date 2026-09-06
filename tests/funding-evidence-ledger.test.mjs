@@ -1101,13 +1101,14 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.doesNotMatch(script, /\.delete\(/);
   for (const name of [
     'SpaceFund', 'Turbostart', 'Canyon Angels', 'Breakers', 'The Pay It Forward Company', 'Boot64 Ventures',
-    'Genesys', 'Denali Growth Partners', 'Story Ventures', 'AVP', 'Atinum Investment', 'GFT Ventures',
+    'Genesys Cloud', 'Denali Growth Partners', 'Story Ventures', 'AVP', 'Atinum Investment', 'GFT Ventures',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   assert.doesNotMatch(script, /canonicalName:\s*'Tech Weekend'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Founders Village'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Genesys'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Genesys Capital'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Karlie Kloss'/);
   assert.doesNotMatch(orgs, /\['Tech Weekend'/);
