@@ -36,6 +36,9 @@ test('normalizes common investor firm suffixes for deterministic resolution', ()
   assert.equal(normalizeEntityName('Acme Capital Partners'), 'acme');
   // Weak remainders keep the corporate token (Founders Fund ≠ "founders")
   assert.equal(normalizeEntityName('Founders Fund'), 'founders fund');
+  // Genesys ≠ Genesys Capital (weak token prevents suffix stripping)
+  assert.equal(normalizeEntityName('Genesys'), 'genesys');
+  assert.equal(normalizeEntityName('Genesys Capital'), 'genesys capital');
 });
 
 test('strips RSS/headline publisher suffixes and possessive person prefixes', () => {
