@@ -23,6 +23,7 @@ if (!conn) {
 }
 
 const asSummary = process.argv.includes('--summary');
+const REPORT_REVISION = 'pair-scoreboard-v3';
 
 function massageConnectionString(connectionString) {
   const s = String(connectionString || '');
@@ -378,7 +379,7 @@ function startupRollup(verified) {
 
 function printScoreboard(summary, placement, pendingByTier, rates) {
   const headline = rates.startup_hit_at_5_including_unsealed;
-  console.log('Overall matched investments (pair layer, including non-sealed top 5)');
+  console.log(`Overall matched investments (pair layer, including non-sealed top 5)  [${REPORT_REVISION}]`);
   console.log(
     `  HIT RATE:                 ${headline.rate_pct}%   ${headline.hits} of ${headline.startups} startups had a matched funder in top-5`,
   );
@@ -413,9 +414,11 @@ try {
   const summary = summaryRows[0];
   const pendingByTier = countBy(pending, 'source_tier');
   if (verified.length !== Number(summary.verified_pairs)) {
-    console.warn(
-      `pair-count guard: query returned ${verified.length} rows; summary says ${summary.verified_pairs} verified pairs`,
+    console.error(
+      `Refusing to print rates: placement query returned ${verified.length} rows but there are ${summary.verified_pairs} verified pairs. This is a join explosion (the 546-row / 24.4% board). Pull pair-scoreboard-v3.`,
     );
+    process.exitCode = 1;
+    return;
   }
   const placement = placementSummary(verified);
   const rates = rateSummary(verified);
@@ -423,6 +426,7 @@ try {
 
   const payload = {
     generated_at: new Date().toISOString(),
+    report_revision: REPORT_REVISION,
     working_metric: 'startup_hit_at_5_including_unsealed',
     headline_rate_pct: rates.headline.rate_pct,
     summary: {
