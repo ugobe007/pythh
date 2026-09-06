@@ -380,6 +380,8 @@ const audited = [
   // but no served-first-top5 snapshot. Do not freeze in this PR.
   // Do NOT ingest Pie $19.5M Series A / $23.7M total (2026-06-30): upload "Pie" created the
   // same day with no getpie.com website and no served-first-top5 snapshot.
+  // Do NOT ingest YC Spring 2026 as verified: batch who-wiring is observed-only via
+  // scripts/seed-yc-batch-who.mjs (ycombinator.com is not a trusted Hit@5 domain).
 ];
 
 async function allInvestors() {
