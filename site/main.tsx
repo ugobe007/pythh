@@ -8,8 +8,10 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import { bootstrapSupabase } from "./lib/supabase";
-import { bootstrapOAuthFromHash } from "./lib/supabaseOAuth";
+import { bootstrapOAuthFromHash, hasOAuthReturnInUrl } from "./lib/supabaseOAuth";
 import "./index.css";
+
+const BOOT_TIMEOUT_MS = 5000;
 
 const queryClient = new QueryClient();
 
@@ -59,11 +61,10 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-async function mountApp() {
-  await bootstrapSupabase();
-  await bootstrapOAuthFromHash();
-
-  createRoot(document.getElementById("root")!).render(
+function renderApp() {
+  const root = document.getElementById("root");
+  if (!root) return;
+  createRoot(root).render(
     <HelmetProvider>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
@@ -76,4 +77,31 @@ async function mountApp() {
   sessionStorage.removeItem("pythh_asset_recovery");
 }
 
-void mountApp();
+async function mountApp() {
+  const boot = Promise.all([
+    bootstrapSupabase(),
+    bootstrapOAuthFromHash(),
+  ]);
+
+  // Homepage must never wait on /api/public-config. Only OAuth returns need
+  // session before first paint, and even that is capped.
+  if (hasOAuthReturnInUrl()) {
+    await Promise.race([
+      boot,
+      new Promise<void>((resolve) => setTimeout(resolve, BOOT_TIMEOUT_MS)),
+    ]);
+  } else {
+    void boot;
+  }
+
+  renderApp();
+}
+
+void mountApp().catch((err) => {
+  console.error("[boot] mount failed", err);
+  try {
+    renderApp();
+  } catch {
+    /* already failed */
+  }
+});

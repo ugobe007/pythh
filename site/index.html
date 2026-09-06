@@ -64,9 +64,12 @@
     <script>
       (function () {
         if (window.__PYTHH_RUNTIME__ && window.__PYTHH_RUNTIME__.supabaseUrl) return;
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { ctrl.abort(); }, 5000);
         window.__PYTHH_PUBLIC_CONFIG_PROMISE__ = fetch("/api/public-config", {
           cache: "no-store",
           credentials: "same-origin",
+          signal: ctrl.signal,
         })
           .then(function (res) {
             return res.ok ? res.json() : null;
@@ -78,7 +81,8 @@
               supabaseAnonKey: data.supabaseAnonKey,
             };
           })
-          .catch(function () {});
+          .catch(function () {})
+          .finally(function () { clearTimeout(timer); });
       })();
     </script>
     <script>

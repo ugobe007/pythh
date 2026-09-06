@@ -27,6 +27,21 @@ test('full app smoke suite owns server startup and waits for real readiness', ()
   assert.match(smoke, /server\.kill\('SIGTERM'\)/);
 });
 
+test('homepage mounts without waiting on public-config or Clear-Site-Data', () => {
+  const main = read('../site/main.tsx');
+  const supabase = read('../site/lib/supabase.ts');
+  const indexHtml = read('../site/index.html');
+  const vercel = read('../vercel.json');
+
+  assert.match(main, /hasOAuthReturnInUrl\(\)/);
+  assert.match(main, /void boot/);
+  assert.doesNotMatch(main, /await bootstrapSupabase\(\);\s*await bootstrapOAuthFromHash\(\);/);
+  assert.match(supabase, /PUBLIC_CONFIG_TIMEOUT_MS/);
+  assert.match(supabase, /Promise\.race\(\[\s*window\.__PYTHH_PUBLIC_CONFIG_PROMISE__/);
+  assert.match(indexHtml, /ctrl\.abort\(\)/);
+  assert.doesNotMatch(vercel, /Clear-Site-Data/);
+});
+
 test('homepage reveal animations fail open instead of leaving blank sections', () => {
   const home = read('../site/Home.tsx');
   assert.match(home, /typeof IntersectionObserver === "undefined"/);
