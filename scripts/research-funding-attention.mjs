@@ -82,7 +82,11 @@ async function pageSelect(table, columns, build) {
 function eventEligible(event) {
   if (REJECTED_STATUSES.has(event.verification_status)) return false;
   if (TRUSTED_STATUSES.has(event.verification_status)) return true;
-  return Boolean(assessFundingSource(event).trusted);
+  if (assessFundingSource(event).trusted) return true;
+  const meta = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+  // Explicit --event-ids can include first-party issuer blogs (Venice / Pie)
+  // that are observed-only because they have no served-first-top5 seal.
+  return selectedEventIds.has(event.id) && meta.issuer_first_party === true;
 }
 
 function alreadyExtracted(event) {

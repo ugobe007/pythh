@@ -15,7 +15,7 @@ import { resolveSupabaseRestUrl, resolveSupabaseServiceKey } from '../lib/supaba
 import { loadFundingEvidenceLedger } from '../lib/loadFundingLibs.mjs';
 
 const require = createRequire(import.meta.url);
-const { resolveCanonicalEntity } = loadFundingEvidenceLedger();
+const { resolveCanonicalEntity, canonicalRoundKey } = loadFundingEvidenceLedger();
 
 const apply = process.argv.includes('--apply');
 const { url } = resolveSupabaseRestUrl();
@@ -29,6 +29,19 @@ const db = createClient(url, key, { auth: { persistSession: false } });
  *  evidencePublisher: string,
  *  evidenceTitle: string,
  *  participantListComplete: boolean,
+ *  fundingEvidenceExcerpt?: string,
+ *  issuerFirstParty?: boolean,
+ *  createObservedIfMissing?: {
+ *    startupId: string,
+ *    startupName: string,
+ *    roundType: string,
+ *    amountUsd: number|null,
+ *    announcedAt: string,
+ *    sourceUrl: string,
+ *    sourcePublisher: string,
+ *    sourceTitle: string,
+ *    sourceEventKey: string,
+ *  },
  *  participants: Array<[string, string, string, string]>,
  * }>} */
 const seeds = [
@@ -844,6 +857,169 @@ const seeds = [
       ['Pi Labs', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing investors Antler, Findus Ventures, E2MC, and Pi Labs also participated'],
     ],
   },
+  // Who/why for the July 2026 raises. Attach to existing ledger events when they
+  // already exist. Venice / Pie have no events and no served-first-top5 seal —
+  // create observed company-blog rows only (never verified / never ingest-audited).
+  {
+    key: 'carbonsix-series-a-40m',
+    eventIds: [
+      'e59d2c59-3b73-47e3-a8fd-793363099136', // SiliconANGLE verified
+      '3fe3f6c3-0842-4d21-9631-6494083483dc', // Pulse2 corroborated
+    ],
+    evidenceUrl: 'https://siliconangle.com/2026/07/02/carbonsix-raises-40m-deliver-intelligent-learning-machines-factory-floor/',
+    evidencePublisher: 'SiliconANGLE',
+    evidenceTitle: 'CarbonSix raises $40M to deliver intelligent learning machines to the factory floor',
+    participantListComplete: true,
+    fundingEvidenceExcerpt: [
+      'The Series A funding round was co-led by DSC Investment and LB Investment.',
+      'New investors joining in the round included IMM Investment, Korea Development Bank, SV Investment, Cortentia and A Squared U.S.',
+      'From the very beginning, our goal has never been about building technology for technology\'s sake — it has been about creating practical, field-ready physical AI that drives measurable bottom-line results for manufacturers.',
+      'The company said it plans to use the new funding to hire new talent, scale its infrastructure and expand globally.',
+      'CarbonSix develops deployment-ready robotic intelligence software and hardware, including a proprietary data flywheel, for immediate integration into real-world manufacturing lines.',
+    ].join(' '),
+    participants: [
+      ['DSC Investment', 'co_lead', 'CO_LED_ROUND', 'The Series A funding round was co-led by DSC Investment and LB Investment.'],
+      ['LB Investment', 'co_lead', 'CO_LED_ROUND', 'The Series A funding round was co-led by DSC Investment and LB Investment.'],
+      ['IMM Investment', 'participant', 'PARTICIPATED_IN_ROUND', 'New investors joining in the round included IMM Investment, Korea Development Bank, SV Investment, Cortentia and A Squared U.S.'],
+      ['Korea Development Bank', 'participant', 'PARTICIPATED_IN_ROUND', 'New investors joining in the round included IMM Investment, Korea Development Bank, SV Investment, Cortentia and A Squared U.S.'],
+      ['SV Investment', 'participant', 'PARTICIPATED_IN_ROUND', 'New investors joining in the round included IMM Investment, Korea Development Bank, SV Investment, Cortentia and A Squared U.S.'],
+      ['Cortentia', 'participant', 'PARTICIPATED_IN_ROUND', 'New investors joining in the round included IMM Investment, Korea Development Bank, SV Investment, Cortentia and A Squared U.S.'],
+      ['ASQ', 'participant', 'PARTICIPATED_IN_ROUND', 'New investors in the round included IMM Investment, Korea Development Bank, SV Investment, Cortentia, and ASQ.'],
+      ['Storm Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing seed-round investors fully participated, including Foothill Ventures, Storm Ventures, Zeitgeist Capital, Xquared and CarbonBlack Fund.'],
+      ['Foothill Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing seed-round investors fully participated, including Foothill Ventures, Storm Ventures, Zeitgeist Capital, Xquared and CarbonBlack Fund.'],
+      ['Zeitgeist Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing seed-round investors fully participated, including Foothill Ventures, Storm Ventures, Zeitgeist Capital, Xquared and CarbonBlack Fund.'],
+      ['Xquared', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing seed-round investors fully participated, including Foothill Ventures, Storm Ventures, Zeitgeist Capital, Xquared and CarbonBlack Fund.'],
+      ['CarbonBlack Fund', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing seed-round investors fully participated, including Foothill Ventures, Storm Ventures, Zeitgeist Capital, Xquared and CarbonBlack Fund.'],
+    ],
+  },
+  {
+    key: 'wultra-series-a-6-8m',
+    eventIds: [
+      '73a09142-8e2a-4edf-834e-7855c874300a', // PR Newswire verified
+      '60281e0b-787a-47bf-a63f-b68d3d2246f2', // Pulse2 observed
+    ],
+    evidenceUrl: 'https://www.prnewswire.com/news-releases/wultra-raises-6-8-million-in-series-a-funding-to-accelerate-global-expansion-of-post-quantum-digital-identity-solutions-302813435.html',
+    evidencePublisher: 'PR Newswire',
+    evidenceTitle: 'Wultra Raises €6.8 Million in Series A Funding to Accelerate Global Expansion of Post-Quantum Digital Identity Solutions',
+    participantListComplete: true,
+    fundingEvidenceExcerpt: [
+      'The investment round was backed by lead investor Seventure Partners, followed by ARIADNEXT founders Marc Norlain and Guillaume Despagne and existing investors J&T Ventures and Elevator Ventures.',
+      'Wultra helps financial institutions replace legacy authentication methods with phishing-resistant, post-quantum technologies that improve security and user experience.',
+      'The proceeds will be used to scale Wultra\'s digital identity platform and accelerate the company\'s next phase of growth.',
+      'The funding will also support team growth, enable a stronger focus on large strategic customers, and support the company\'s long-term strategic objectives.',
+      'The investment comes as organizations worldwide modernize their digital identity systems to address AI-enabled identity fraud.',
+    ].join(' '),
+    participants: [
+      ['Seventure Partners', 'lead', 'LED_ROUND', 'The investment round was backed by lead investor Seventure Partners'],
+      ['J&T Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'followed by ARIADNEXT founders Marc Norlain and Guillaume Despagne and existing investors J&T Ventures and Elevator Ventures'],
+      ['Elevator Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'followed by ARIADNEXT founders Marc Norlain and Guillaume Despagne and existing investors J&T Ventures and Elevator Ventures'],
+    ],
+  },
+  {
+    key: 'together-ai-series-c-800m',
+    eventIds: [
+      'e774853c-34ef-4dbc-895c-402dd8fb7984', // SiliconANGLE verified
+      '2b467e52-3075-4c63-a430-995d0cfc2944', // The Next Web verified
+    ],
+    evidenceUrl: 'https://www.together.ai/blog/announcing-our-series-c',
+    evidencePublisher: 'Together AI',
+    evidenceTitle: 'Announcing our $800M Series C to accelerate the shift to open-source AI',
+    participantListComplete: true,
+    replaceParticipants: true,
+    fundingEvidenceExcerpt: [
+      'Together AI raises $800M to accelerate the shift to open-source AI.',
+      'Together AI has raised 800 million dollars in a Series C round led by Aramco Ventures, valuing the company at more than eight billion dollars.',
+      'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.',
+      'Together AI says it now generates more than one billion dollars in annual bookings and that usage of open-source models on its platform has tripled over the past year.',
+      'Today, Together AI is trusted by thousands of customers, including many of the world\'s fastest-growing AI companies.',
+      'Companies building with open models routinely achieve 6x to 20x lower costs while maintaining equal or better performance.',
+    ].join(' '),
+    participants: [
+      ['Aramco Ventures', 'lead', 'LED_ROUND', 'Together AI has raised 800 million dollars in a Series C round led by Aramco Ventures'],
+      ['Vista Equity Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.'],
+      ['General Catalyst', 'participant', 'PARTICIPATED_IN_ROUND', 'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.'],
+      ['Emergence Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.'],
+      ['NVIDIA', 'participant', 'PARTICIPATED_IN_ROUND', 'Series C funding of $800 million from an incredible group of investors including Aramco Ventures, NVIDIA, Vista Equity, General Catalyst'],
+      ['March Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.'],
+      ['Pegatron', 'participant', 'PARTICIPATED_IN_ROUND', 'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.'],
+      ['S Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'The round also drew Vista Equity Partners, General Catalyst, Emergence Capital, Nvidia, March Capital, Pegatron, and SentinelOne\'s S Ventures.'],
+      ['SE Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'investors including Aramco Ventures, NVIDIA, Vista Equity, General Catalyst, Emergence Capital, SE Ventures, Pegatron, Salesforce Ventures, March Capital'],
+      ['Salesforce Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'investors including Emergence Capital, SE Ventures, Pegatron, Salesforce Ventures, March Capital, DTCP Growth, Lux Capital'],
+      ['Lux Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'investors including Salesforce Ventures, March Capital, DTCP Growth, Lux Capital, Geodesic, PSP Partners'],
+      ['Geodesic', 'participant', 'PARTICIPATED_IN_ROUND', 'investors including Salesforce Ventures, March Capital, DTCP Growth, Lux Capital, Geodesic, PSP Partners'],
+      ['DTCP Growth', 'participant', 'PARTICIPATED_IN_ROUND', 'investors including Salesforce Ventures, March Capital, DTCP Growth, Lux Capital, Geodesic, PSP Partners'],
+      ['PSP Partners', 'participant', 'PARTICIPATED_IN_ROUND', 'investors including Salesforce Ventures, March Capital, DTCP Growth, Lux Capital, Geodesic, PSP Partners'],
+    ],
+  },
+  {
+    key: 'venice-series-a-65m',
+    eventIds: [],
+    createObservedIfMissing: {
+      startupId: '915dc8c3-60bc-4dde-b4ad-9c4bb96cf6c2',
+      startupName: 'Venice',
+      roundType: 'Series A',
+      amountUsd: 65_000_000,
+      announcedAt: '2026-07-01T18:00:00.000Z',
+      sourceUrl: 'https://venice.ai/blog/venice-raises-65-million-series-a',
+      sourcePublisher: 'Venice',
+      sourceTitle: 'Venice Raises $65 Million Series A at a $1 Billion Valuation',
+      sourceEventKey: 'issuer-logic:venice:series-a:2026-07-01:65000000',
+    },
+    issuerFirstParty: true,
+    evidenceUrl: 'https://venice.ai/blog/venice-raises-65-million-series-a',
+    evidencePublisher: 'Venice',
+    evidenceTitle: 'Venice Raises $65 Million Series A at a $1 Billion Valuation',
+    participantListComplete: true,
+    fundingEvidenceExcerpt: [
+      'Venice raised a $65 million Series A led by Dragonfly at a $1 billion valuation, its first outside capital, to scale private, unrestricted AI globally.',
+      'Venice plans to use the funding to scale its consumer app and API globally.',
+      'Venice raised a $65 million Series A led by Dragonfly, with backing from Coinbase Ventures, F-Prime, North Island Ventures, and others.',
+      'Venice never logs prompts. Conversations are stored on the user\'s device, not on Venice\'s servers.',
+      'Venice serves 3.5 million users and processes 1.3 trillion tokens per month.',
+      'Intelligence, the lifeblood of civilizational advancement, is becoming a collaboration between man and machine. Venice\'s mission is to protect it from mass surveillance and censorship.',
+    ].join(' '),
+    participants: [
+      ['Dragonfly', 'lead', 'LED_ROUND', 'Venice raised a $65 million Series A led by Dragonfly'],
+      ['Coinbase Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'with backing from Coinbase Ventures, F-Prime, North Island Ventures, and others'],
+      ['F-Prime', 'participant', 'PARTICIPATED_IN_ROUND', 'with backing from Coinbase Ventures, F-Prime, North Island Ventures, and others'],
+      ['North Island Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'with backing from Coinbase Ventures, F-Prime, North Island Ventures, and others'],
+    ],
+  },
+  {
+    key: 'pie-series-a-19-5m',
+    eventIds: [],
+    createObservedIfMissing: {
+      startupId: '10d9bcc6-fe74-49f0-bb5b-45241a9fc391',
+      startupName: 'Pie',
+      roundType: 'Series A',
+      amountUsd: 19_500_000,
+      announcedAt: '2026-06-30T00:00:00.000Z',
+      sourceUrl: 'https://getpie.com/blog/pie-raises-23.7m-to-bring-ai-powered-growth-to-main-street-businesses',
+      sourcePublisher: 'Pie',
+      sourceTitle: 'Pie raises $23.7M to bring AI-powered growth to Main Street businesses',
+      sourceEventKey: 'issuer-logic:pie:series-a:2026-06-30:19500000',
+    },
+    issuerFirstParty: true,
+    evidenceUrl: 'https://getpie.com/blog/pie-raises-23.7m-to-bring-ai-powered-growth-to-main-street-businesses',
+    evidencePublisher: 'Pie',
+    evidenceTitle: 'Pie raises $23.7M to bring AI-powered growth to Main Street businesses',
+    participantListComplete: true,
+    fundingEvidenceExcerpt: [
+      'Pie, the AI-powered growth platform for small businesses, today announced a $19.5 million Series A led by Lightspeed Venture Partners, bringing its total funding to $23.7 million.',
+      'The round included participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital, and existing investors.',
+      'The company also announced its emergence from stealth and launched Front Desk, an AI product that answers calls for small business owners 24/7.',
+      'Since launching its first AI-powered growth product in late 2025, Pie has grown to reach thousands of small business customers while in stealth.',
+      'Pie is bringing AI to Main Street by starting with one of the biggest pain points for small business owners: finding new customers. Customer acquisition is a powerful entry point, but the broader vision is to build an AI platform that can support small businesses across more of their daily operations over time.',
+    ].join(' '),
+    participants: [
+      ['Lightspeed Venture Partners', 'lead', 'LED_ROUND', 'a $19.5 million Series A led by Lightspeed Venture Partners'],
+      ['SciFi VC', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
+      ['F-Prime', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
+      ['Commerce Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
+      ['WEX Venture Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
+      ['Capital One Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
+    ],
+  },
 ];
 
 /** Reject every event on a canonical_round_key (valuation noise / duplicate mis-amount). */
@@ -957,6 +1133,57 @@ const rejectEventIds = [
   '82fd189e-eebb-4832-b20a-44df2d11beaf', // Whop Tether stablecoin strategic (Pulse2 copy)
 ];
 
+async function ensureObservedEvent(seed) {
+  const spec = seed.createObservedIfMissing;
+  if (!spec) return seed.eventIds || [];
+  if ((seed.eventIds || []).length) return seed.eventIds;
+  const { data: existing, error: existingError } = await db.from('funding_evidence_events')
+    .select('id')
+    .eq('source_event_key', spec.sourceEventKey)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing?.id) return [existing.id];
+  if (!apply) return [`dry-run:${spec.sourceEventKey}`];
+  if (typeof canonicalRoundKey !== 'function') {
+    throw new TypeError('canonicalRoundKey is not a function — use Node 22 and pull latest main.');
+  }
+  const roundKey = canonicalRoundKey({
+    startupId: spec.startupId,
+    startupName: spec.startupName,
+    roundType: spec.roundType,
+    amountUsd: spec.amountUsd,
+    announcedAt: spec.announcedAt,
+  });
+  const { data: created, error: createError } = await db.from('funding_evidence_events').upsert({
+    source_event_key: spec.sourceEventKey,
+    startup_id: spec.startupId,
+    startup_name_raw: spec.startupName,
+    financing_type: 'equity',
+    round_type: spec.roundType,
+    amount_usd: spec.amountUsd,
+    announced_at: spec.announcedAt,
+    occurred_at: spec.announcedAt,
+    occurred_at_precision: 'day',
+    canonical_round_key: roundKey,
+    source_url: spec.sourceUrl,
+    source_publisher: spec.sourcePublisher,
+    source_title: spec.sourceTitle,
+    evidence_confidence: 0.85,
+    verification_status: 'observed',
+    extraction_version: 'issuer-logic-v1',
+    metadata: {
+      issuer_first_party: true,
+      hit5_claim_ready: false,
+      no_served_first_top5_snapshot: true,
+      participant_list_complete: seed.participantListComplete,
+      funding_evidence_excerpt: seed.fundingEvidenceExcerpt || null,
+    },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'source_event_key' }).select('id').single();
+  if (createError) throw createError;
+  return [created.id];
+}
+
 async function seedEvent(eventId, seed, investors) {
   const { data: event, error } = await db.from('funding_evidence_events')
     .select('id,startup_name_raw,metadata,source_url,source_publisher,source_title')
@@ -975,6 +1202,12 @@ async function seedEvent(eventId, seed, investors) {
       participants: resolved.map((row) => `${row.name}:${row.status}`),
     };
   }
+  const existingExcerpt = String(event.metadata?.funding_evidence_excerpt || '').trim();
+  const nextExcerpt = seed.fundingEvidenceExcerpt
+    ? (existingExcerpt.includes(seed.fundingEvidenceExcerpt.slice(0, 80))
+      ? existingExcerpt
+      : [existingExcerpt, seed.fundingEvidenceExcerpt].filter(Boolean).join('\n\n').slice(0, 5000))
+    : existingExcerpt;
   const metadata = {
     ...(event.metadata || {}),
     participant_list_complete: seed.participantListComplete,
@@ -984,6 +1217,8 @@ async function seedEvent(eventId, seed, investors) {
     manual_seed_key: seed.key,
     manual_seed_evidence_url: seed.evidenceUrl,
     manual_seed_evidence_publisher: seed.evidencePublisher,
+    ...(nextExcerpt ? { funding_evidence_excerpt: nextExcerpt } : {}),
+    ...(seed.issuerFirstParty ? { issuer_first_party: true, hit5_claim_ready: false } : {}),
   };
   const { error: updateError } = await db.from('funding_evidence_events').update({
     metadata,
@@ -1135,7 +1370,19 @@ async function main() {
   const investors = await allInvestors();
   const seeded = [];
   for (const seed of seeds) {
-    for (const eventId of seed.eventIds) {
+    const eventIds = await ensureObservedEvent(seed);
+    for (const eventId of eventIds) {
+      if (String(eventId).startsWith('dry-run:')) {
+        seeded.push({
+          event_id: eventId,
+          startup: seed.createObservedIfMissing?.startupName || seed.key,
+          seed: seed.key,
+          dry_run: true,
+          create_observed: true,
+          participants: seed.participants.map(([name, role]) => `${name}:${role}`),
+        });
+        continue;
+      }
       seeded.push(await seedEvent(eventId, seed, investors));
     }
   }

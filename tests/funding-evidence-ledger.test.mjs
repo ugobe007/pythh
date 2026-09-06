@@ -967,6 +967,27 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:|audited:venice:|audited:carbonsix:|audited:wultra:|audited:together-ai:|audited:pie:/);
 });
 
+test('investment-logic seeds capture who/why without minting audited Hit@5 events', () => {
+  const seed = readFileSync(new URL('../scripts/seed-indeterminate-funding-participants.mjs', import.meta.url), 'utf8');
+  assert.match(seed, /key: 'carbonsix-series-a-40m'/);
+  assert.match(seed, /key: 'wultra-series-a-6-8m'/);
+  assert.match(seed, /key: 'together-ai-series-c-800m'/);
+  assert.match(seed, /key: 'venice-series-a-65m'/);
+  assert.match(seed, /key: 'pie-series-a-19-5m'/);
+  assert.match(seed, /\['DSC Investment', 'co_lead', 'CO_LED_ROUND'/);
+  assert.match(seed, /\['Seventure Partners', 'lead', 'LED_ROUND'/);
+  assert.match(seed, /\['Aramco Ventures', 'lead', 'LED_ROUND'/);
+  assert.match(seed, /\['Dragonfly', 'lead', 'LED_ROUND'/);
+  assert.match(seed, /\['Lightspeed Venture Partners', 'lead', 'LED_ROUND'/);
+  assert.match(seed, /verification_status: 'observed'/);
+  assert.match(seed, /issuer_first_party: true/);
+  assert.match(seed, /hit5_claim_ready: false/);
+  assert.match(seed, /funding_evidence_excerpt/);
+  assert.match(seed, /createObservedIfMissing/);
+  assert.doesNotMatch(seed, /verification_status: 'verified'/);
+  assert.doesNotMatch(seed, /Max Levchin', 'lead'|Max Levchin', 'participant'/);
+});
+
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
   const script = readFileSync(new URL('../scripts/analyze-funding-match-deltas.mjs', import.meta.url), 'utf8');
   assert.match(script, /missing_from_investor_universe/);
