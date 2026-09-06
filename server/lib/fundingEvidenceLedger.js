@@ -689,7 +689,7 @@ function classifyFundingEvidence(event) {
     return { eligible: false, reason: 'missing_financing_action', financingType: 'unknown' };
   }
   // "bags $X" / "nabs $X" stamp like a raise but stay untrusted without raise/secure/close language.
-  if (/\b(?:bags?|nabs?|snags?)\b/i.test(text) && !/\b(?:raises?|raised|secur(?:es|ed)|closes?|closed)\b/i.test(text)) {
+  if (/\b(?:bags?|nabs?|snags?)\s+[$€£¥₹]\s?[\d.,]+\s*[mkb]?\b/i.test(text) && !/\b(?:raises?|raised|secur(?:es|ed)|closes?|closed)\b/i.test(text)) {
     return { eligible: false, reason: 'missing_financing_action', financingType: 'unknown' };
   }
   if (/\bfiles?\s+form\s+d\b/i.test(text) && !/\b(?:raises?|raised|series [a-h]|led by|seed funding)\b/i.test(text)) {
