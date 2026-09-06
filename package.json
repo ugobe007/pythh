@@ -134,6 +134,7 @@
     "funding:lookup-sources": "node scripts/run-node.mjs scripts/lookup-startup-funding-sources.mjs",
     "outcomes:report": "node scripts/run-node.mjs scripts/report-match-funding-reconciliation.mjs",
     "outcomes:matched": "node scripts/run-node.mjs scripts/report-matched-investments.mjs",
+    "outcomes:matched:summary": "node scripts/run-node.mjs scripts/report-matched-investments.mjs --summary",
     "outcomes:review": "node scripts/run-node.mjs scripts/review-match-validation-evidence.mjs",
     "outcomes:agent": "node scripts/run-node.mjs scripts/agents/match-outcome-agent.mjs",
     "outcomes:resolution-loop": "node scripts/run-node.mjs scripts/agents/resolution-loop-agent.mjs",
