@@ -850,9 +850,11 @@ test('historical funding search defaults to inference engine, not Gemini', () =>
   assert.match(script, /--park-complete-junk/);
   assert.match(script, /parkCompleteJunkJobs/);
   assert.match(script, /venturefizz/);
+  assert.match(script, /hackernoon/);
   const junk = readFileSync(new URL('../lib/fundingSearchJunk.mjs', import.meta.url), 'utf8');
   assert.match(junk, /Corporation\|Holdings\|Universal/);
   assert.match(junk, /venturefizz/);
+  assert.match(junk, /hackernoon/);
   assert.match(junk, /tim hortons/);
   assert.match(script, /startupMentionedInText/);
   assert.match(script, /extractKnownInvestorMentions/);
