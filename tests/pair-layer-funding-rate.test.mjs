@@ -30,6 +30,17 @@ const home = readFileSync(new URL('../site/Home.tsx', import.meta.url), 'utf8');
 assert.match(home, /label: "Funding rate"/);
 assert.doesNotMatch(home, /label: "Startups tracked"/);
 assert.match(home, /pair_funding_rate_pct/);
+const investorTile = home.slice(
+  home.indexOf('label: "Investors in Pythh"'),
+  home.indexOf('label: "Funding rate"'),
+);
+const rateTile = home.slice(
+  home.indexOf('label: "Funding rate"'),
+  home.indexOf('label: "Investor matches"'),
+);
+assert.doesNotMatch(investorTile, /featured: true/);
+assert.match(rateTile, /featured: true/);
+assert.match(rateTile, /color: G/);
 
 const api = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
 assert.match(api, /attachPairLayerFundingRate/);

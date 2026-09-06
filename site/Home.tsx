@@ -515,8 +515,7 @@ function HeroSection({
                 value: investorCount.toLocaleString(),
                 label: "Investors in Pythh",
                 sub: "angels, VCs & funds",
-                color: G,
-                featured: true,
+                color: TEXT,
               },
               {
                 value:
@@ -529,7 +528,8 @@ function HeroSection({
                   && platformStats?.pair_funding_startups
                     ? `${platformStats.pair_funding_hits} of ${platformStats.pair_funding_startups} matched funders in top-5`
                     : "sealed + live Hit@5",
-                color: TEXT,
+                color: G,
+                featured: true,
               },
               {
                 value: formatMatchFull(matchCount),

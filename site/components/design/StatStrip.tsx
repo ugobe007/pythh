@@ -47,7 +47,7 @@ export default function StatStrip({
         const inner = (
           <>
             <div
-              className={`font-display font-bold ${s.featured ? "text-2xl md:text-3xl" : valueSize} tabular-nums mb-1`}
+              className={`font-display font-bold ${s.featured ? "text-3xl md:text-4xl" : valueSize} tabular-nums mb-1`}
               style={{ color: valueColor, lineHeight: 1, letterSpacing: "-0.02em" }}
             >
               {s.value}
