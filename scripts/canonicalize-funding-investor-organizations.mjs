@@ -335,6 +335,21 @@ const organizations = [
   ['AVP', 'avpcap.com', ['AVP']],
   ['Atinum Investment', null, ['Atinum Investment']],
   ['GFT Ventures', 'gft.vc', ['GFT Ventures']],
+  // Venice AI $65M Series A — F-Prime ≠ Prime Capital.
+  ['Dragonfly', 'dragonfly.xyz', ['Dragonfly']],
+  ['Coinbase Ventures', 'coinbase.com', ['Coinbase Ventures']],
+  ['F-Prime Capital', 'fprimecapital.com', ['F-Prime Capital', 'F-Prime']],
+  ['North Island Ventures', 'northislandventures.com', ['North Island Ventures']],
+  // CarbonSix $40M Series A. DSC + LB already canonical.
+  ['IMM Investment', 'imminvestment.com', ['IMM Investment']],
+  ['Korea Development Bank', 'kdb.co.kr', ['Korea Development Bank', 'KDB']],
+  ['SV Investment', 'svinvestment.co.kr', ['SV Investment']],
+  ['Cortentia', 'cortentia.com', ['Cortentia']],
+  ['ASQ', 'asq.vc', ['ASQ', 'A Squared']],
+  // Wultra €6.8M Series A — skip ARIADNEXT founder-angels.
+  ['Seventure Partners', 'seventure.fr', ['Seventure Partners', 'Seventure']],
+  ['J&T Ventures', 'jtventures.cz', ['J&T Ventures']],
+  ['Elevator Ventures', 'elevator-ventures.com', ['Elevator Ventures']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership

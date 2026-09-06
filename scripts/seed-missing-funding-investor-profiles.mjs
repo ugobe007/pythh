@@ -2024,6 +2024,93 @@ const profiles = [
     thesis: 'Palo Alto deep-tech firm (ex-Nvidia/Samsung); co-anchored LinqAlpha’s $22M Series A.',
     source: 'https://www.gft.vc/', type: 'VC', investorType: 'VC',
   },
+  // Venice AI $65M Series A (company blog 2026-07-01). F-Prime ≠ Prime Capital.
+  {
+    canonicalName: 'Dragonfly', firm: 'Dragonfly', url: 'https://www.dragonfly.xyz/',
+    sectors: ['Crypto', 'AI/ML', 'Fintech'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['Global'],
+    thesis: 'Crypto-native VC; led Venice AI’s $65M Series A at a $1B valuation.',
+    source: 'https://www.dragonfly.xyz/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Coinbase Ventures', firm: 'Coinbase Ventures', url: 'https://www.coinbase.com/ventures',
+    sectors: ['Crypto', 'Fintech', 'AI/ML'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['Global'],
+    thesis: 'Coinbase corporate venture; backed Venice AI’s $65M Series A.',
+    source: 'https://www.coinbase.com/ventures', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'F-Prime Capital', firm: 'F-Prime Capital', url: 'https://www.fprimecapital.com/',
+    sectors: ['Healthcare', 'Technology', 'AI/ML'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['United States', 'Global'],
+    thesis: 'Fidelity-affiliated early-stage firm; participated in Venice AI’s $65M Series A.',
+    source: 'https://www.fprimecapital.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'North Island Ventures', firm: 'North Island Ventures', url: 'https://northislandventures.com/',
+    sectors: ['Crypto', 'Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Crypto/fintech firm; backed Venice AI’s $65M Series A.',
+    source: 'https://northislandventures.com/', type: 'VC', investorType: 'VC',
+  },
+  // CarbonSix $40M Series A (PR Newswire 2026-07-01). Skip celebrity-style people; DSC/LB already exist.
+  {
+    canonicalName: 'IMM Investment', firm: 'IMM Investment', url: 'https://imminvestment.com/',
+    sectors: ['Technology', 'AI/ML'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['South Korea', 'Global'],
+    thesis: 'Seoul multi-asset firm; participated in CarbonSix’s $40M Series A.',
+    source: 'https://imminvestment.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Korea Development Bank', firm: 'Korea Development Bank', url: 'https://www.kdb.co.kr/',
+    sectors: ['Technology', 'Manufacturing'],
+    stage: ['Series A', 'Growth'], geography: ['South Korea'],
+    thesis: 'Korean policy bank (KDB); participated in CarbonSix’s $40M Series A.',
+    source: 'https://www.kdb.co.kr/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'SV Investment', firm: 'SV Investment', url: 'https://svinvestment.co.kr/',
+    sectors: ['Technology', 'AI/ML'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['South Korea'],
+    thesis: 'Korean VC; participated in CarbonSix’s $40M Series A.',
+    source: 'https://svinvestment.co.kr/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Cortentia', firm: 'Cortentia', url: 'https://cortentia.com/',
+    sectors: ['Technology', 'AI/ML'],
+    stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'US firm named on CarbonSix’s $40M Series A wire.',
+    source: 'https://cortentia.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'ASQ', firm: 'ASQ', url: 'https://asq.vc/',
+    sectors: ['Technology', 'AI/ML'],
+    stage: ['Seed', 'Series A'], geography: ['United States', 'Asia'],
+    thesis: 'ASQ / A Squared; US participant in CarbonSix’s $40M Series A.',
+    source: 'https://asq.vc/', type: 'VC', investorType: 'VC',
+  },
+  // Wultra €6.8M Series A (PR Newswire 2026-07-01). Skip ARIADNEXT founder-angels.
+  {
+    canonicalName: 'Seventure Partners', firm: 'Seventure Partners', url: 'https://www.seventure.fr/',
+    sectors: ['Fintech', 'HealthTech', 'Technology'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['Europe'],
+    thesis: 'French VC; led Wultra’s €6.8M Series A for post-quantum identity.',
+    source: 'https://www.seventure.fr/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'J&T Ventures', firm: 'J&T Ventures', url: 'https://www.jtventures.cz/',
+    sectors: ['Fintech', 'Technology'],
+    stage: ['Seed', 'Series A'], geography: ['Europe'],
+    thesis: 'Prague early-stage firm; existing investor in Wultra’s Series A.',
+    source: 'https://www.jtventures.cz/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Elevator Ventures', firm: 'Elevator Ventures', url: 'https://www.elevator-ventures.com/en/home.html',
+    sectors: ['Fintech'],
+    stage: ['Seed', 'Series A'], geography: ['Europe'],
+    thesis: 'Raiffeisen fintech investor; existing backer in Wultra’s €6.8M Series A.',
+    source: 'https://www.elevator-ventures.com/en/home.html', type: 'VC', investorType: 'VC',
+  },
 ];
 
 async function allInvestors() {
