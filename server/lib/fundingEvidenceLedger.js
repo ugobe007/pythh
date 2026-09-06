@@ -637,7 +637,7 @@ function classifyFundingEvidence(event) {
     || /^inside\b.{0,160}\bhas raised\b/i.test(text)
     || /\brais(?:es|ed)\b.{0,50}\b(?:safety|security|ethical|legal) concerns?\b/i.test(text)
     || /\brais(?:es|ed)\b.{0,40}\balarms?\b.{0,40}\b(?:about|over|on)\b/i.test(text)
-    || /\bsecures?\b.{0,40}\blicen[cs]e\b/i.test(text)
+    || /\bsecures?\b.{0,40}\blicen[cs]es?\b/i.test(text)
     || /\bsecures?\b.{0,60}\b(?:position|spot|place)\b.{0,40}\b(?:on|in)\b.{0,40}\b(?:list|ranking|index)\b/i.test(text)
     || /\binvest(?:s|ed)?\b.{0,70}\b(?:in|into)\b.{0,70}\b(?:operations?|factor(?:y|ies)|facilit(?:y|ies)|plant|fulfillment hub|data centers?|subsidiar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
@@ -652,7 +652,7 @@ function classifyFundingEvidence(event) {
   if (/\b(?:raises?|raised|raising|increases?|increased)\b.{0,50}\b(?:prices?|rates?|fees?|wages?|salar(?:y|ies))\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
-  if (/\b(?:in (?:active )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|reportedly on track|may invest|could invest|could secure|to invest|expected to raise|is raising|set to raise|on track to raise|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise|seeks? (?:funding|financing|investment))\b/i.test(text)
+  if (/\b(?:in (?:active |early )?talks|said to|reportedly considering|reportedly seeking|reportedly raising|reportedly on track|may invest|could invest|could secure|to invest|expected to raise|is raising|set to raise|on track to raise|nears? (?:a |an |the )?[$€£¥₹]?[\d.,]+\s*[mb]?[bn]?\s*raise|eyes? an? investment|mulls? an? investment|plans? to raise|seeks? to raise|seeks? (?:funding|financing|investment))\b/i.test(text)
     || /\btarget(?:s|ed|ing)?\b.{0,80}\b(?:raise|funding|valuation)\b/i.test(text)) {
     return { eligible: false, reason: 'unconfirmed_transaction', financingType: 'unknown' };
   }
@@ -661,7 +661,8 @@ function classifyFundingEvidence(event) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
   if (/\b(?:qip|qualified institutional placement|fund\s+[ivxlcdm]+|fund final close|final close|ipo|pre-ipo)\b/i.test(text)
-    || /\b(?:nasdaq|nyse|stock market)\s+debut\b/i.test(text)
+    || /\b(?:nasdaq|nyse|stock market)\s+(?:debut|listing)\b/i.test(text)
+    || /\bdebut\b.{0,40}\b(?:nasdaq|nyse)\b/i.test(text)
     || /\b(?:us|u\.s\.)\s+(?:stock\s+)?(?:market\s+)?(?:listing|debut|share\s+sale|share\s+offering)\b/i.test(text)
     || /\b(?:equity|stock|share)\s+(?:offering|sale|raise)\b/i.test(text)
     || /\bin\s+equity\s+(?:for|to|capital)\b/i.test(text)
@@ -674,11 +675,14 @@ function classifyFundingEvidence(event) {
     || /\b(?:investment vehicle|credit secondaries|related strategies)\b/i.test(text)) {
     return { eligible: false, reason: 'outside_venture_outcome_scope', financingType: 'unknown' };
   }
-  const hasFundingAction = /\b(?:raises?|raised|secures?|secured|closes?|closed|funding|financing|investment|backed)\b/i.test(text)
+  const hasFundingAction = /\b(?:raises?|raised|secur(?:es|ed)|closes?|closed|funding|financing|investment|backed)\b/i.test(text)
     || /\binvest(?:s|ed)?\b.{0,40}\bin\b/i.test(text)
     || /\bannounces?\b.{0,80}\b(?:funding|financing|investment|series [a-h]|round|raise)\b/i.test(text);
   if (!hasFundingAction) {
     return { eligible: false, reason: 'missing_financing_action', financingType: 'unknown' };
+  }
+  if (/\bfiles?\s+form\s+d\b/i.test(text) && !/\b(?:raises?|raised|series [a-h]|led by|seed funding)\b/i.test(text)) {
+    return { eligible: false, reason: 'outside_venture_outcome_scope', financingType: 'unknown' };
   }
   const hasDebt = /\b(?:debt|loan|credit facility|debt facility|borrowing|notes?|bond)\b/i.test(text);
   const hasEquity = /\b(?:seed|series [a-h]|venture round|equity|funding round|led by|participation from)\b/i.test(text);
