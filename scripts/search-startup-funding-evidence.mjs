@@ -1343,7 +1343,7 @@ async function loadJobs() {
       where.push(`s.name !~* '${JUNK_NAME_RE}'`);
       where.push(`lower(s.name) NOT IN ('${exactJunk}')`);
       where.push(`COALESCE(s.entity_gate, '') <> 'junk'`);
-      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews|venturefizz|mattermark|instagram)'`);
+      where.push(`COALESCE(s.website, '') !~* '(techcrunch|forbes|bloomberg|medium|substack|youtube|linkedin|wikipedia|crunchbase|pulse2|ventureburn|pehub|finsmes|thefintechtimes|agfundernews|venturefizz|mattermark|instagram|hackernoon)'`);
       where.push(`NULLIF(TRIM(s.website), '') IS NOT NULL`);
     }
     params.push(limit);

@@ -9,6 +9,7 @@ test('suffix and publisher-site rows stay junk', () => {
   assert.equal(isJunkStartupName('Olin Corporation', 'https://olin.com'), true);
   assert.equal(isJunkStartupName('London Stock Exchange', 'https://lseg.com'), true);
   assert.equal(isJunkStartupName('Whoop', 'https://venturefizz.com/job/whoop-senior'), true);
+  assert.equal(isJunkStartupName('Dazzl', 'https://hackernoon.com/dazzl-raises'), true);
   assert.equal(isJunkStartupName('Acme', ''), true);
 });
 
@@ -27,6 +28,7 @@ test('exact public-company and non-startup hunt-queue names are junk', () => {
     'Dogecoin',
     'Formulary Financial',
     'Setting Boundaries',
+    'Hackernoon',
   ]) {
     assert.equal(EXACT_NON_STARTUP_SEARCH_NAMES.has(name.toLowerCase()), true, name);
     assert.equal(isJunkStartupName(name, `https://${name.replace(/\s+/g, '').toLowerCase()}.com`), true, name);
