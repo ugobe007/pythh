@@ -517,6 +517,8 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Paradigm raises $1.2 billion fund as crypto VC pushes into AI' }).reason, 'outside_venture_outcome_scope');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Blue Origin is expected to raise private capital' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Crusoe is in active talks to raise $3B' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Crusoe signs $1.3 billion AI cloud deal with Jane Street' }).reason, 'non_financing_headline');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'AI startup Crusoe valued at $30 billion after new funding' }).eligible, true);
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Wisk Aero manager raised safety concerns' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'We gamble, invest, and cling to what we own' }).reason, 'missing_financing_action');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Citadel Securities invests $400M in Crypto.com' }).eligible, true);
