@@ -5,9 +5,13 @@
  * layer — every verified funder we matched before the raise — including
  * live top-5 that never received a served-first-top5 seal.
  *
+ * Headline rate: among startups with a verified post-prediction funder,
+ * share where that funder sat in sealed or live top-5 (firm identity).
+ *
  * Usage:
  *   npm run outcomes:matched
  *   npm run outcomes:matched -- --summary
+ *   npm run outcomes:matched:summary
  */
 import 'dotenv/config';
 import pg from 'pg';
@@ -19,6 +23,7 @@ if (!conn) {
 }
 
 const asSummary = process.argv.includes('--summary');
+const REPORT_REVISION = 'pair-scoreboard-v3';
 
 function massageConnectionString(connectionString) {
   const s = String(connectionString || '');
@@ -30,7 +35,7 @@ function massageConnectionString(connectionString) {
 const pool = new pg.Pool({ connectionString: massageConnectionString(conn), max: 1 });
 
 const verifiedSql = `
-  WITH investor_keys AS (
+  WITH identity AS (
     SELECT
       i.id AS investor_id,
       trim(both FROM regexp_replace(
@@ -53,15 +58,26 @@ const verifiedSql = `
       ) AS organization_id
     FROM investors i
   ),
-  investor_firm AS (
+  primary_key AS (
     SELECT
       investor_id,
       CASE
         WHEN organization_id IS NOT NULL THEN 'org:' || organization_id::text
         WHEN coalesce(firm_label, '') <> '' THEN 'label:' || firm_label
-        ELSE 'id:' || investor_id::text
+        ELSE 'investor:' || investor_id::text
       END AS firm_key
-    FROM investor_keys
+    FROM identity
+  ),
+  ident_keys AS (
+    SELECT investor_id, 'investor:' || investor_id::text AS ident FROM identity
+    UNION
+    SELECT investor_id, 'org:' || organization_id::text
+    FROM identity
+    WHERE organization_id IS NOT NULL
+    UNION
+    SELECT investor_id, 'label:' || firm_label
+    FROM identity
+    WHERE coalesce(firm_label, '') <> ''
   ),
   verified AS (
     SELECT
@@ -77,58 +93,47 @@ const verifiedSql = `
       m.match_score,
       e.source_provider,
       left(e.source_url, 100) AS source_url,
-      f.firm_key
+      pk.firm_key
     FROM match_validation_evidence e
     JOIN startup_investor_matches m ON m.id = e.match_id
     JOIN startup_uploads su ON su.id = e.startup_id
     JOIN investors i ON i.id = e.investor_id
-    JOIN investor_firm f ON f.investor_id = e.investor_id
+    JOIN primary_key pk ON pk.investor_id = e.investor_id
     WHERE e.verified
       AND e.startup_id = m.startup_id
       AND e.investor_id = m.investor_id
       AND e.event_at > m.created_at
       AND e.evidence_type IN ('funding', 'investment')
   ),
-  sealed AS (
-    SELECT
-      s.startup_id,
-      s.investor_id,
-      s.rank_position,
-      f.firm_key
-    FROM funding_prediction_snapshots s
-    JOIN investor_firm f ON f.investor_id = s.investor_id
-    WHERE s.cohort_key = 'served-first-top5'
-      AND s.rank_position BETWEEN 1 AND 5
-  ),
-  sealed_best AS (
-    SELECT DISTINCT ON (startup_id, firm_key)
-      startup_id,
-      investor_id,
-      rank_position,
-      firm_key
-    FROM sealed
-    ORDER BY startup_id, firm_key, rank_position ASC
+  sealed_hit AS (
+    SELECT v.match_id, min(s.rank_position) AS sealed_rank
+    FROM verified v
+    JOIN ident_keys vk ON vk.investor_id = v.investor_id
+    JOIN funding_prediction_snapshots s
+      ON s.startup_id = v.startup_id
+     AND s.cohort_key = 'served-first-top5'
+     AND s.rank_position BETWEEN 1 AND 5
+    JOIN ident_keys sk ON sk.investor_id = s.investor_id AND sk.ident = vk.ident
+    GROUP BY v.match_id
   ),
   live_unique AS (
     SELECT
       m.startup_id,
-      m.investor_id,
-      f.firm_key,
+      pk.firm_key,
       m.match_score,
       m.created_at,
       row_number() OVER (
-        PARTITION BY m.startup_id, f.firm_key
+        PARTITION BY m.startup_id, pk.firm_key
         ORDER BY m.match_score DESC NULLS LAST, m.created_at ASC, m.id ASC
       ) AS firm_dup_rank
     FROM startup_investor_matches m
-    JOIN investor_firm f ON f.investor_id = m.investor_id
+    JOIN primary_key pk ON pk.investor_id = m.investor_id
     WHERE m.startup_id IN (SELECT startup_id FROM verified)
       AND coalesce(m.status, 'suggested') IN ('suggested', 'accepted')
   ),
   live_rank AS (
     SELECT
       startup_id,
-      investor_id,
       firm_key,
       row_number() OVER (
         PARTITION BY startup_id
@@ -136,6 +141,17 @@ const verifiedSql = `
       ) AS live_rank
     FROM live_unique
     WHERE firm_dup_rank = 1
+  ),
+  live_hit AS (
+    SELECT v.match_id, min(lr.live_rank) AS live_rank
+    FROM verified v
+    JOIN ident_keys vk ON vk.investor_id = v.investor_id
+    JOIN ident_keys other ON other.ident = vk.ident
+    JOIN primary_key opk ON opk.investor_id = other.investor_id
+    JOIN live_rank lr
+      ON lr.startup_id = v.startup_id
+     AND lr.firm_key = opk.firm_key
+    GROUP BY v.match_id
   )
   SELECT
     v.startup_id,
@@ -151,18 +167,16 @@ const verifiedSql = `
     v.source_provider,
     v.source_url,
     v.firm_key,
-    s.rank_position AS sealed_rank,
-    lr.live_rank,
+    s.sealed_rank,
+    lh.live_rank,
     CASE
-      WHEN s.firm_key IS NOT NULL THEN 'sealed_top5'
-      WHEN lr.live_rank IS NOT NULL AND lr.live_rank <= 5 THEN 'live_top5_unsealed'
+      WHEN s.sealed_rank IS NOT NULL THEN 'sealed_top5'
+      WHEN lh.live_rank IS NOT NULL AND lh.live_rank <= 5 THEN 'live_top5_unsealed'
       ELSE 'outside_top5'
     END AS placement
   FROM verified v
-  LEFT JOIN sealed_best s
-    ON s.startup_id = v.startup_id AND s.firm_key = v.firm_key
-  LEFT JOIN live_rank lr
-    ON lr.startup_id = v.startup_id AND lr.firm_key = v.firm_key
+  LEFT JOIN sealed_hit s ON s.match_id = v.match_id
+  LEFT JOIN live_hit lh ON lh.match_id = v.match_id
   ORDER BY v.event_at DESC
 `;
 
@@ -225,10 +239,96 @@ function uniqueStartups(rows, predicate = () => true) {
   return new Set(rows.filter(predicate).map((r) => r.startup_id)).size;
 }
 
+function isTop5Placement(placement) {
+  return placement === 'sealed_top5' || placement === 'live_top5_unsealed';
+}
+
+function pct(numerator, denominator) {
+  const n = Number(numerator);
+  const d = Number(denominator);
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return null;
+  return Math.round((n / d) * 1000) / 10;
+}
+
+function formatRate(numerator, denominator) {
+  const rate = pct(numerator, denominator);
+  return rate == null ? 'n/a' : `${numerator}/${denominator} = ${rate}%`;
+}
+
+function firmDedupedPairs(verified) {
+  const best = new Map();
+  for (const row of verified) {
+    const key = `${row.startup_id}|${row.firm_key}`;
+    const cur = best.get(key);
+    if (!cur || rankPlacement(row.placement) < rankPlacement(cur.placement)) {
+      best.set(key, row);
+    }
+  }
+  return [...best.values()];
+}
+
+function rateSummary(verified) {
+  const firms = firmDedupedPairs(verified);
+  const startupIds = [...new Set(verified.map((r) => r.startup_id))];
+  const startupHitAny = startupIds.filter((id) =>
+    verified.some((r) => r.startup_id === id && isTop5Placement(r.placement)),
+  ).length;
+  const startupHitSealed = startupIds.filter((id) =>
+    verified.some((r) => r.startup_id === id && r.placement === 'sealed_top5'),
+  ).length;
+  const firmTop5 = firms.filter((r) => isTop5Placement(r.placement)).length;
+  const pairTop5 = verified.filter((r) => isTop5Placement(r.placement)).length;
+  return {
+    headline: {
+      name: 'startup_hit_at_5_including_unsealed',
+      hits: startupHitAny,
+      startups: startupIds.length,
+      rate_pct: pct(startupHitAny, startupIds.length),
+    },
+    startup_hit_at_5_including_unsealed: {
+      hits: startupHitAny,
+      startups: startupIds.length,
+      rate_pct: pct(startupHitAny, startupIds.length),
+    },
+    startup_hit_at_5_sealed_only: {
+      hits: startupHitSealed,
+      startups: startupIds.length,
+      rate_pct: pct(startupHitSealed, startupIds.length),
+    },
+    firm_pair_top5: {
+      hits: firmTop5,
+      pairs: firms.length,
+      rate_pct: pct(firmTop5, firms.length),
+    },
+    raw_pair_top5: {
+      hits: pairTop5,
+      pairs: verified.length,
+      rate_pct: pct(pairTop5, verified.length),
+    },
+    live_rank: rankBuckets(verified),
+  };
+}
+
+function rankBuckets(verified) {
+  const ranks = verified.map((r) => Number(r.live_rank)).filter((n) => Number.isFinite(n));
+  const bucket = (lo, hi) => ranks.filter((n) => n >= lo && n <= hi).length;
+  const sorted = [...ranks].sort((a, b) => a - b);
+  const mid = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+  return {
+    n: ranks.length,
+    p50: mid,
+    rank_1_5: bucket(1, 5),
+    rank_6_10: bucket(6, 10),
+    rank_11_20: bucket(11, 20),
+    rank_21_50: bucket(21, 50),
+    rank_50_plus: ranks.filter((n) => n > 50).length,
+  };
+}
+
 function placementSummary(verified) {
   const sealedPairs = verified.filter((r) => r.placement === 'sealed_top5');
   const liveUnsealedPairs = verified.filter((r) => r.placement === 'live_top5_unsealed');
-  const anyTop5Pairs = verified.filter((r) => r.placement === 'sealed_top5' || r.placement === 'live_top5_unsealed');
+  const anyTop5Pairs = verified.filter((r) => isTop5Placement(r.placement));
   const outsidePairs = verified.filter((r) => r.placement === 'outside_top5');
   return {
     sealed_top5: { pairs: sealedPairs.length, startups: uniqueStartups(sealedPairs) },
@@ -277,10 +377,22 @@ function startupRollup(verified) {
     .sort((a, b) => b.pairs - a.pairs || a.startup.localeCompare(b.startup));
 }
 
-function printScoreboard(summary, placement, pendingByTier) {
-  console.log('Overall matched investments (pair layer, including non-sealed top 5)');
-  console.log(`  verified pairs:          ${summary.verified_pairs} across ${summary.startups} startups`);
-  console.log(`  pending review:          ${summary.pending_pairs}`);
+function printScoreboard(summary, placement, pendingByTier, rates) {
+  const headline = rates.startup_hit_at_5_including_unsealed;
+  console.log(`Overall matched investments (pair layer, including non-sealed top 5)  [${REPORT_REVISION}]`);
+  console.log(
+    `  HIT RATE:                 ${headline.rate_pct}%   ${headline.hits} of ${headline.startups} startups had a matched funder in top-5`,
+  );
+  console.log(`  sealed-only hit rate:     ${formatRate(rates.startup_hit_at_5_sealed_only.hits, rates.startup_hit_at_5_sealed_only.startups)}`);
+  console.log(`  firm-deduped pair top-5:  ${formatRate(rates.firm_pair_top5.hits, rates.firm_pair_top5.pairs)}`);
+  console.log(`  raw pair top-5:           ${formatRate(rates.raw_pair_top5.hits, rates.raw_pair_top5.pairs)}`);
+  if (rates.live_rank) {
+    console.log(
+      `  live rank of funders:     p50=${rates.live_rank.p50}  1-5=${rates.live_rank.rank_1_5}  6-10=${rates.live_rank.rank_6_10}  11-20=${rates.live_rank.rank_11_20}  21-50=${rates.live_rank.rank_21_50}  50+=${rates.live_rank.rank_50_plus}`,
+    );
+  }
+  console.log(`  verified pairs:           ${summary.verified_pairs} across ${summary.startups} startups`);
+  console.log(`  pending review:           ${summary.pending_pairs}`);
   console.log('  placement:');
   console.log(`    any top-5 (sealed+live): ${placement.any_top5.pairs} pairs / ${placement.any_top5.startups} startups`);
   console.log(`    sealed top-5:            ${placement.sealed_top5.pairs} pairs / ${placement.sealed_top5.startups} startups`);
@@ -301,15 +413,24 @@ try {
 
   const summary = summaryRows[0];
   const pendingByTier = countBy(pending, 'source_tier');
+  if (verified.length !== Number(summary.verified_pairs)) {
+    throw new Error(
+      `Refusing to print rates: placement query returned ${verified.length} rows but there are ${summary.verified_pairs} verified pairs. This is a join explosion (the 546-row / 24.4% board). Pull pair-scoreboard-v3.`,
+    );
+  }
   const placement = placementSummary(verified);
+  const rates = rateSummary(verified);
   const startups = startupRollup(verified);
 
   const payload = {
     generated_at: new Date().toISOString(),
-    working_metric: 'overall_verified_pairs_including_non_sealed_top5',
+    report_revision: REPORT_REVISION,
+    working_metric: 'startup_hit_at_5_including_unsealed',
+    headline_rate_pct: rates.headline.rate_pct,
     summary: {
       ...summary,
       placement,
+      rates,
     },
     pending_by_source_tier: pendingByTier,
     startups_with_verified_pairs: startups,
@@ -318,7 +439,7 @@ try {
   };
 
   if (asSummary) {
-    printScoreboard(summary, placement, pendingByTier);
+    printScoreboard(summary, placement, pendingByTier, rates);
     console.log('\nStartups with a verified post-prediction funder:');
     for (const row of startups) {
       console.log(

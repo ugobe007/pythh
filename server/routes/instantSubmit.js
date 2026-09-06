@@ -29,6 +29,8 @@ const {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
+  extractPriorFunderLabels,
+  buildDisplayedTopFiveForceIds,
   applyPersistenceFloorWithForcedLedger,
 } = require('../lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
@@ -434,13 +436,7 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
     candidates.push(inv);
   };
 
-  const priorNames = [
-    ...(Array.isArray(startup?.extracted_data?.investors) ? startup.extracted_data.investors : []),
-    ...(Array.isArray(startup?.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
-    ...(Array.isArray(startup?.backed_by) ? startup.backed_by : []),
-  ]
-    .map((v) => String(v || '').trim())
-    .filter(Boolean);
+  const priorNames = extractPriorFunderLabels(startup);
 
   const expandedSectors = startupSectors?.length
     ? expandRelatedSectors(normalizeSectors(startupSectors))
@@ -1220,7 +1216,7 @@ async function generateSyncTopMatchesForHttpResponse(
       ? signalTotal
       : signalTotalFromGod(placeholderStartup.total_god_score);
 
-    const syncForceIds = collectFrequentLedgerFunderIds(candidates);
+    const persistForceIds = collectFrequentLedgerFunderIds(candidates);
     const withScores = [];
     for (const inv of candidates) {
       if (Date.now() > wall) break;
@@ -1228,7 +1224,7 @@ async function generateSyncTopMatchesForHttpResponse(
         const result = calculateMatchScore(placeholderStartup, inv, sig, inv.signals || null);
         if (
           result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR
-          || syncForceIds.has(String(inv.id))
+          || persistForceIds.has(String(inv.id))
         ) {
           withScores.push({ inv, result });
         }
@@ -1238,6 +1234,12 @@ async function generateSyncTopMatchesForHttpResponse(
     }
     withScores.sort((a, b) => b.result.score - a.result.score);
     const investorById = new Map(candidates.map((inv) => [String(inv.id), inv]));
+    const syncForceIds = buildDisplayedTopFiveForceIds(candidates, placeholderStartup, {
+      scoredRows: withScores,
+      getId: (row) => row.inv?.id,
+      getScore: (row) => Number(row.result?.score || 0),
+      maxLedgerSlots: 2,
+    });
     let top = selectTopMatchesByFirm(withScores, investorById, SYNC_RESPONSE_TOP_N, {
       getInvestorId: (row) => row.inv?.id,
       forceInvestorIds: syncForceIds,
@@ -1266,8 +1268,8 @@ async function generateSyncTopMatchesForHttpResponse(
     if (upErr) {
       console.warn(`[SYNC] match upsert: ${upErr.message}`);
     } else {
-      // Await enqueue so request teardown cannot drop the queue row. Freeze seals when
-      // serve-grade + 5 firms; BG Phase 1/3 re-instruments if enrichment improves the set.
+      // Await enqueue so request teardown cannot drop the queue row. Freeze is
+      // deferred until Phase 1/3 persist a fuller ranked set (sync only writes 5).
       await instrumentMatchOutcomesSafe(supabase, startupId, {
         source: 'instant_sync',
         modelVersionFallback: 'v3.5-instant-submit',

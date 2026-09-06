@@ -811,6 +811,72 @@ function collectFrequentLedgerFunderIds(investors) {
   return new Set(pickCanonicalFrequentFunders(investors).map((inv) => String(inv.id)));
 }
 
+function extractPriorFunderLabels(startup) {
+  const raw = [
+    ...(Array.isArray(startup?.extracted_data?.investors) ? startup.extracted_data.investors : []),
+    ...(Array.isArray(startup?.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
+    ...(Array.isArray(startup?.backed_by) ? startup.backed_by : []),
+  ];
+  return raw.map((v) => String(v || '').trim()).filter(Boolean);
+}
+
+function priorLabelSet(startup) {
+  return new Set(extractPriorFunderLabels(startup).map(normalizeFunderLabel).filter(Boolean));
+}
+
+function investorMatchesPriorLabels(investor, priorLabels) {
+  if (!investor || !priorLabels?.size) return false;
+  const keys = [investor.firm, investor.name].map(normalizeFunderLabel).filter(Boolean);
+  return keys.some((key) => {
+    if (priorLabels.has(key)) return true;
+    const family = familyKeyForLabel(key);
+    if (!family) return false;
+    for (const label of priorLabels) {
+      if (familyKeyForLabel(label) === family) return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * Documented prior funders from the startup record (website / extracted / backed_by).
+ * Prefers firm profiles so a partner row cannot take the reserved top-5 slot.
+ */
+function collectPriorFunderIds(investors, startup) {
+  const priorLabels = priorLabelSet(startup);
+  if (!priorLabels.size) return new Set();
+  const matched = (investors || []).filter((inv) => investorMatchesPriorLabels(inv, priorLabels));
+  if (!matched.length) return new Set();
+  const firmRows = matched.filter((inv) => firmProfileRank(inv) >= 3);
+  const chosen = firmRows.length ? firmRows : pickCanonicalFrequentFunders(matched);
+  const fallback = chosen.length ? chosen : matched.filter((inv) => firmProfileRank(inv) >= 0);
+  return new Set(fallback.map((inv) => String(inv.id)));
+}
+
+/**
+ * Top-5 placement reserve: every documented prior, plus at most `maxLedgerSlots`
+ * highest-scoring frequent-ledger firms. Does not retune GOD/fit weights.
+ * Top-50 persist should keep the full ledger force set.
+ */
+function buildDisplayedTopFiveForceIds(investors, startup, opts = {}) {
+  const maxLedgerSlots = Number.isFinite(Number(opts.maxLedgerSlots)) ? Number(opts.maxLedgerSlots) : 2;
+  const getId = opts.getId || ((row) => row.investor_id || row.inv?.id);
+  const getScore = opts.getScore || ((row) => Number(row.match_score ?? row.result?.score ?? 0));
+  const prior = collectPriorFunderIds(investors, startup);
+  const ledger = collectFrequentLedgerFunderIds(investors);
+  const extra = [];
+  const ranked = [...(opts.scoredRows || [])].sort(
+    (a, b) => getScore(b) - getScore(a) || String(getId(a) || '').localeCompare(String(getId(b) || '')),
+  );
+  for (const row of ranked) {
+    const id = String(getId(row) || '');
+    if (!id || prior.has(id) || !ledger.has(id)) continue;
+    extra.push(id);
+    if (extra.length >= maxLedgerSlots) break;
+  }
+  return new Set([...prior, ...extra]);
+}
+
 /**
  * Keep matches at/above persistence floor, plus allowlisted frequent-ledger funders
  * that scored below the floor so force-reserve can still persist them.
@@ -913,6 +979,9 @@ module.exports = {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
+  extractPriorFunderLabels,
+  collectPriorFunderIds,
+  buildDisplayedTopFiveForceIds,
   applyPersistenceFloorWithForcedLedger,
   selectTopMatchesReservingForced,
 };

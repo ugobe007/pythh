@@ -14,6 +14,7 @@ const {
   isServeGradeStartupIdentity,
 } = require('./fundingEvidenceLedger');
 const { isGarbageInvestorName, isHardJunkInvestorName } = require('../../lib/investorNameHeuristics');
+const { collectPriorFunderIds } = require('./frequentLedgerFunders');
 
 const SERVED_COHORT_KEY = 'served-first-top5';
 const DEFAULT_MODEL_VERSION = 'v3.5-instant-submit';
@@ -103,7 +104,7 @@ async function freezeTopFiveIfAbsent({
 
   const { data: startup, error: suErr } = await supabase
     .from('startup_uploads')
-    .select('id,name,website,company_domain,source_type,entity_gate,status,description,total_god_score')
+    .select('id,name,website,company_domain,source_type,entity_gate,status,description,total_god_score,extracted_data,backed_by')
     .eq('id', startupId)
     .maybeSingle();
   if (suErr) throw suErr;
@@ -133,19 +134,42 @@ async function freezeTopFiveIfAbsent({
 
   const seenFirms = new Set();
   const unique = [];
-  for (const match of matches) {
+  const priorIds = collectPriorFunderIds(investors, startup);
+
+  const firmKeysOf = (match) => {
     const investor = investorById.get(match.investor_id) || {};
-    if (!isEligibleFirmInvestor(investor)) continue;
-    const firmKeys = [
+    return [
       organizationByInvestor.get(match.investor_id)
         ? `organization:${organizationByInvestor.get(match.investor_id)}`
         : null,
       `label:${canonicalFirm(investor)}`,
     ].filter((key) => key && key !== 'label:');
-    if (!firmKeys.length || firmKeys.some((key) => seenFirms.has(key))) continue;
+  };
+
+  const tryAdd = (match) => {
+    const investor = investorById.get(match.investor_id) || {};
+    if (!isEligibleFirmInvestor(investor)) return false;
+    const firmKeys = firmKeysOf(match);
+    if (!firmKeys.length || firmKeys.some((key) => seenFirms.has(key))) return false;
     firmKeys.forEach((key) => seenFirms.add(key));
     unique.push(match);
-    if (unique.length === 5) break;
+    return true;
+  };
+
+  // Documented priors get a sealed slot before raw score fill. Most verified
+  // post-prediction funders sit far outside score top-5 (median rank ~100).
+  if (priorIds.size) {
+    for (const match of matches) {
+      if (!priorIds.has(String(match.investor_id))) continue;
+      tryAdd(match);
+      if (unique.length === 5) break;
+    }
+  }
+  if (unique.length < 5) {
+    for (const match of matches) {
+      tryAdd(match);
+      if (unique.length === 5) break;
+    }
   }
   if (unique.length !== 5) {
     return { frozen: false, reason: 'incomplete_top_five', rows: unique.length };

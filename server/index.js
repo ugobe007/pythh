@@ -1582,6 +1582,9 @@ function normalizePlatformStatsPayload(raw, source) {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const startups = Number(o.startups ?? 0) || 0;
   const matches = Number(o.matches ?? 0) || 0;
+  const pairStartups = Number(o.pair_funding_startups ?? 0) || 0;
+  const pairHits = Number(o.pair_funding_hits ?? 0) || 0;
+  const pairRate = Number(o.pair_funding_rate_pct);
   return {
     startups,
     startups_total: Number(o.startups_total ?? startups) || startups,
@@ -1591,9 +1594,27 @@ function normalizePlatformStatsPayload(raw, source) {
     matches_new_30d: Number(o.matches_new_30d ?? 0) || 0,
     signals: Number(o.signals ?? 0) || 0,
     funded_startups: Number(o.funded_startups ?? 0) || 0,
+    pair_funding_startups: pairStartups,
+    pair_funding_hits: pairHits,
+    pair_funding_rate_pct: Number.isFinite(pairRate) ? pairRate : null,
     computed_at: o.computed_at || new Date().toISOString(),
     source,
   };
+}
+
+async function attachPairLayerFundingRate(payload) {
+  if (payload?.pair_funding_rate_pct != null && payload.pair_funding_startups > 0) {
+    return payload;
+  }
+  try {
+    const { computePairLayerFundingRate } = require('./lib/pairLayerFundingRate');
+    const rate = await computePairLayerFundingRate();
+    if (!rate || rate.pair_funding_rate_pct == null) return payload;
+    return { ...payload, ...rate };
+  } catch (err) {
+    console.warn('[platform-stats] pair funding rate:', err.message);
+    return payload;
+  }
 }
 
 app.get('/api/platform-stats', async (req, res) => {
@@ -1615,10 +1636,10 @@ app.get('/api/platform-stats', async (req, res) => {
       .maybeSingle();
 
     if (!cacheErr && cacheRow && Number(cacheRow.matches) > 0) {
-      const payload = normalizePlatformStatsPayload(
+      const payload = await attachPairLayerFundingRate(normalizePlatformStatsPayload(
         { ...cacheRow, computed_at: cacheRow.updated_at },
         cacheRow.refresh_source || 'cache-table',
-      );
+      ));
       platformStatsCache = { payload, at: now };
       return res
         .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
@@ -1630,7 +1651,9 @@ app.get('/api/platform-stats', async (req, res) => {
     const fromRpc = rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData);
     const matchesRpc = fromRpc ? Number(rpcData.matches ?? 0) || 0 : 0;
     if (!rpcErr && fromRpc && matchesRpc > 0) {
-      const payload = normalizePlatformStatsPayload(rpcData, rpcData.source || 'rpc');
+      const payload = await attachPairLayerFundingRate(
+        normalizePlatformStatsPayload(rpcData, rpcData.source || 'rpc'),
+      );
       platformStatsCache = { payload, at: now };
       return res
         .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
@@ -1648,7 +1671,7 @@ app.get('/api/platform-stats', async (req, res) => {
       supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', daysAgoIso(30)),
       supabase.from('startup_signal_scores').select('*', { count: 'exact', head: true }),
     ]);
-    const payload = normalizePlatformStatsPayload(
+    const payload = await attachPairLayerFundingRate(normalizePlatformStatsPayload(
       {
         startups: su.count ?? 0,
         startups_total: suTotal.count ?? 0,
@@ -1661,7 +1684,7 @@ app.get('/api/platform-stats', async (req, res) => {
         computed_at: new Date().toISOString(),
       },
       'count',
-    );
+    ));
     platformStatsCache = { payload, at: now };
     return res
       .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
