@@ -182,6 +182,45 @@ test('adding observed themes can lift investor profile completeness without chan
   assert.ok(after.total <= 100);
 });
 
+test('July 2026 raise excerpts encode who invested and why the announcement happened', () => {
+  const venice = extractFundingAttentionAspects([
+    'Venice Raises $65 Million Series A at a $1 Billion Valuation',
+    'Venice plans to use the funding to scale its consumer app and API globally.',
+    'Venice serves 3.5 million users and processes 1.3 trillion tokens per month.',
+  ].join(' '));
+  assert.ok(venice.aspects.some((row) => row.id === 'use_of_proceeds'));
+  assert.ok(venice.aspects.some((row) => row.id === 'customer_growth'));
+  assert.equal(inferFundingTriggers(venice).primary, 'customer_growth');
+
+  const carbonsix = extractFundingAttentionAspects([
+    'CarbonSix raises $40M to deliver intelligent learning machines to the factory floor',
+    'CarbonSix develops deployment-ready robotic intelligence software and hardware, including a proprietary data flywheel.',
+    'The company said it plans to use the new funding to hire new talent, scale its infrastructure and expand globally.',
+  ].join(' '));
+  assert.ok(carbonsix.aspects.some((row) => row.id === 'unique_tech'));
+  assert.ok(carbonsix.aspects.some((row) => row.id === 'hiring'));
+
+  const wultra = extractFundingAttentionAspects([
+    'Wultra Raises €6.8 Million in Series A Funding to Accelerate Global Expansion of Post-Quantum Digital Identity Solutions',
+    'The proceeds will be used to scale Wultra\'s digital identity platform.',
+    'The funding will also support team growth.',
+  ].join(' '));
+  assert.ok(wultra.aspects.some((row) => row.id === 'use_of_proceeds') || wultra.aspects.some((row) => row.id === 'hiring'));
+
+  const together = extractFundingAttentionAspects([
+    'Together AI raises $800M to accelerate the shift to open-source AI.',
+    'Together AI has raised 800 million dollars in a Series C round led by Aramco Ventures to scale its open-source AI cloud platform.',
+  ].join(' '));
+  assert.ok(together.aspects.some((row) => row.id === 'use_of_proceeds'));
+
+  const pie = extractFundingAttentionAspects([
+    'Pie raises $23.7M to bring AI-powered growth to Main Street businesses',
+    'The company also announced its emergence from stealth and launched Front Desk, an AI product.',
+  ].join(' '));
+  assert.ok(pie.aspects.some((row) => row.id === 'use_of_proceeds'));
+  assert.ok(pie.aspects.some((row) => row.id === 'product_rev'));
+});
+
 test('agent and helpers never retune GOD_SCORE_CONFIG or write investment_thesis', () => {
   const agent = read('../scripts/research-funding-attention.mjs');
   const aspects = read('../lib/fundingAttentionAspects.mjs');
@@ -191,6 +230,7 @@ test('agent and helpers never retune GOD_SCORE_CONFIG or write investment_thesis
 
   assert.equal(FUNDING_ATTENTION_VERSION, 'funding-attention-v2');
   assert.match(agent, /investment_thesis is never written/);
+  assert.match(agent, /issuer_first_party === true/);
   assert.doesNotMatch(agent, /investment_thesis:/);
   assert.doesNotMatch(agent, /GOD_SCORE_CONFIG\s*=/);
   assert.doesNotMatch(aspects, /GOD_SCORE_CONFIG/);
