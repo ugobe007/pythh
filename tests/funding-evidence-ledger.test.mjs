@@ -946,7 +946,11 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.doesNotMatch(script, /audited:atorie:|audited:curaa:|audited:lupin-dental:|audited:eisen:/);
   assert.match(script, /Do NOT ingest Yardstik/);
   assert.match(script, /Do NOT ingest Transfyr/);
-  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:/);
+  assert.match(script, /Do NOT ingest Scaled Cognition/);
+  assert.match(script, /Do NOT ingest Luxonis/);
+  assert.match(script, /Do NOT ingest 10Beauty/);
+  assert.match(script, /Do NOT ingest LinqAlpha/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1095,14 +1099,20 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /existing_candidates/);
   assert.doesNotMatch(script, /\.delete\(/);
-  for (const name of ['SpaceFund', 'Turbostart', 'Canyon Angels', 'Breakers', 'The Pay It Forward Company', 'Boot64 Ventures']) {
+  for (const name of [
+    'SpaceFund', 'Turbostart', 'Canyon Angels', 'Breakers', 'The Pay It Forward Company', 'Boot64 Ventures',
+    'Genesys', 'Denali Growth Partners', 'Story Ventures', 'AVP', 'Atinum Investment', 'GFT Ventures',
+  ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   assert.doesNotMatch(script, /canonicalName:\s*'Tech Weekend'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Founders Village'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Genesys Capital'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Karlie Kloss'/);
   assert.doesNotMatch(orgs, /\['Tech Weekend'/);
   assert.doesNotMatch(orgs, /\['Founders Village'/);
+  assert.doesNotMatch(orgs, /\['Genesys Capital'/);
 });
 
 test('investor coverage resolve accepts headline-cleaned firm matches', () => {
