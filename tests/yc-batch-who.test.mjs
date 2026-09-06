@@ -74,11 +74,13 @@ test('YC who titles are classifier-eligible and not join-only headlines', () => 
 test('YC batch who script stays observed-only and does not write thesis or ingest-audited rows', () => {
   const script = read('../scripts/seed-yc-batch-who.mjs');
   const ingest = read('../scripts/ingest-audited-funding-events.mjs');
+  assert.match(script, /source_type: 'url'/);
   assert.match(script, /verification_status: 'observed'/);
   assert.match(script, /participant_list_complete: false/);
   assert.match(script, /hit5_claim_ready: false/);
   assert.match(script, /Y Combinator/);
   assert.match(script, /website host only/);
+  assert.doesNotMatch(script, /source_type: 'yc_directory'/);
   assert.doesNotMatch(script, /verification_status: 'verified'/);
   assert.doesNotMatch(script, /investment_thesis:/);
   assert.doesNotMatch(script, /freezeTopFiveIfAbsent/);

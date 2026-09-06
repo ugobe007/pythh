@@ -115,7 +115,7 @@ async function createUpload(company, host) {
     location: company.all_locations || null,
     team_size: Number.isFinite(Number(company.team_size)) ? Number(company.team_size) : null,
     sectors: Array.isArray(company.industries) && company.industries.length ? company.industries : null,
-    source_type: 'yc_directory',
+    source_type: 'url',
     source_url: company.url || `https://www.ycombinator.com/companies/${company.slug}`,
     status: 'approved',
     entity_gate: 'qualified',
@@ -123,6 +123,7 @@ async function createUpload(company, host) {
       yc_batch: batch,
       yc_slug: company.slug,
       yc_who_version: YC_BATCH_WHO_VERSION,
+      yc_directory: true,
     },
     updated_at: new Date().toISOString(),
   };
