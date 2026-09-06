@@ -378,6 +378,8 @@ const audited = [
   // Do NOT ingest Wultra €6.8M: PR Newswire already verified 2026-07-01; matches written 2026-08-21 after announce.
   // Do NOT ingest Together AI $800M Series C (2026-07-01): together.ai has 250 matches from Jan
   // but no served-first-top5 snapshot. Do not freeze in this PR.
+  // Do NOT ingest Pie $19.5M Series A / $23.7M total (2026-06-30): upload "Pie" created the
+  // same day with no getpie.com website and no served-first-top5 snapshot.
 ];
 
 async function allInvestors() {

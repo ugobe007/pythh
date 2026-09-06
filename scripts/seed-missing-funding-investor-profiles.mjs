@@ -2154,6 +2154,29 @@ const profiles = [
     thesis: 'SentinelOne corporate venture; participated in Together AI’s $800M Series C.',
     source: 'https://www.sentinelone.com/s-ventures/', type: 'Corporate', investorType: 'Corporate',
   },
+  // Pie $19.5M Series A (getpie.com 2026-06-30). Skip Max Levchin; skip Capital One Ventures
+  // (normalizes to "one" and would collide with One Ventures). Lightspeed + F-Prime exist.
+  {
+    canonicalName: 'SciFi VC', firm: 'SciFi VC', url: 'https://scifi.vc/',
+    sectors: ['Fintech', 'AI/ML', 'Science'],
+    stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Max and Nellie Levchin’s early-stage fund; participated in Pie’s $19.5M Series A.',
+    source: 'https://scifi.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Commerce Ventures', firm: 'Commerce Ventures', url: 'https://www.commercevc.com/',
+    sectors: ['Fintech', 'Commerce', 'AI/ML'],
+    stage: ['Seed', 'Series A', 'Series B'], geography: ['United States'],
+    thesis: 'Fintech/commerce specialist; participated in Pie’s $19.5M Series A.',
+    source: 'https://www.commercevc.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'WEX Venture Capital', firm: 'WEX Venture Capital', url: 'https://vc.wexinc.com/',
+    sectors: ['Fintech', 'Payments', 'Mobility'],
+    stage: ['Series A', 'Series B'], geography: ['United States'],
+    thesis: 'WEX Inc. CVC; participated in Pie’s $19.5M Series A for Main Street AI growth.',
+    source: 'https://vc.wexinc.com/', type: 'Corporate', investorType: 'Corporate',
+  },
 ];
 
 async function allInvestors() {

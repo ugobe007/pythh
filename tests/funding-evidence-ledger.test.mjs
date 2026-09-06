@@ -963,7 +963,8 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /Do NOT ingest CarbonSix/);
   assert.match(script, /Do NOT ingest Wultra/);
   assert.match(script, /Do NOT ingest Together AI/);
-  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:|audited:venice:|audited:carbonsix:|audited:wultra:|audited:together-ai:/);
+  assert.match(script, /Do NOT ingest Pie/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:|audited:venice:|audited:carbonsix:|audited:wultra:|audited:together-ai:|audited:pie:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1121,6 +1122,7 @@ test('missing funding investors are seeded only from reviewed first-party profil
     'IMM Investment', 'Korea Development Bank', 'SV Investment', 'Cortentia', 'ASQ',
     'Seventure Partners', 'J&T Ventures', 'Elevator Ventures',
     'Aramco Ventures', 'Vista Equity Partners', 'Emergence Capital', 'March Capital', 'Pegatron', 'S Ventures',
+    'SciFi VC', 'Commerce Ventures', 'WEX Venture Capital',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -1141,6 +1143,10 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.doesNotMatch(orgs, /\['SentinelOne'/);
   assert.doesNotMatch(orgs, /\['Aramco'/);
   assert.doesNotMatch(orgs, /\['March'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Max Levchin'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Capital One Ventures'/);
+  assert.doesNotMatch(orgs, /\['Capital One Ventures'/);
+  assert.doesNotMatch(orgs, /\['Max Levchin'/);
 });
 
 test('investor coverage resolve accepts headline-cleaned firm matches', () => {

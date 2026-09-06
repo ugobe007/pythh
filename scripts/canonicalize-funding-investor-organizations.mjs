@@ -358,6 +358,12 @@ const organizations = [
   ['March Capital', 'marchcp.com', ['March Capital']],
   ['Pegatron', 'pegatroncorp.com', ['Pegatron']],
   ['S Ventures', 'sentinelone.com', ['S Ventures']],
+  // Pie $19.5M Series A / $23.7M total (getpie.com blog 2026-06-30).
+  // Lightspeed + F-Prime already canonical. Skip Capital One Ventures
+  // (normalizeEntityName → "one", collides with One Ventures). Skip Max Levchin.
+  ['SciFi VC', 'scifi.vc', ['SciFi VC']],
+  ['Commerce Ventures', 'commercevc.com', ['Commerce Ventures']],
+  ['WEX Venture Capital', 'wexinc.com', ['WEX Venture Capital', 'WEX VC']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
