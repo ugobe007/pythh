@@ -62,4 +62,21 @@ const { canonicalFirmKey, selectTopMatchesByFirm } = require('../lib/matchTopSel
   assert.deepEqual(forced.map((r) => r.investor_id), ['gc', 'a']);
 }
 
+{
+  const investorById = new Map([
+    ['partner', { id: 'partner', name: 'Chris Dixon', firm: 'Andreessen Horowitz' }],
+    ['a16z', { id: 'a16z', name: 'Andreessen Horowitz', firm: 'Andreessen Horowitz' }],
+    ['fit', { id: 'fit', name: 'Fit Fund', firm: 'Fit Fund' }],
+  ]);
+  const ranked = [
+    { investor_id: 'partner', match_score: 92 },
+    { investor_id: 'fit', match_score: 80 },
+    { investor_id: 'a16z', match_score: 40 },
+  ];
+  const forced = selectTopMatchesByFirm(ranked, investorById, 2, {
+    forceInvestorIds: ['a16z'],
+  });
+  assert.deepEqual(forced.map((r) => r.investor_id), ['a16z', 'fit']);
+}
+
 console.log('match-top-selection.test.mjs: ok');

@@ -182,6 +182,132 @@ test('freezeTopFiveIfAbsent is idempotent and uses min(match.created_at)', async
   assert.equal(upserts.length, 1);
 });
 
+test('freeze reserves a documented prior funder ahead of raw score order', async () => {
+  const upserts = [];
+  const supabase = {
+    from(table) {
+      if (table === 'funding_prediction_snapshots') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return { async limit() { return { data: [], error: null }; } };
+                  },
+                };
+              },
+            };
+          },
+          upsert(rows, opts) {
+            upserts.push({ rows, opts });
+            return Promise.resolve({ error: null });
+          },
+        };
+      }
+      if (table === 'startup_uploads') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  async maybeSingle() {
+                    return {
+                      data: {
+                        id: 'su1',
+                        name: 'Owner',
+                        website: 'https://owner.com',
+                        company_domain: 'owner.com',
+                        source_type: 'url',
+                        entity_gate: 'qualified',
+                        status: 'approved',
+                        description: 'Restaurant software.',
+                        total_god_score: 70,
+                        extracted_data: { investors: ['Benchmark'] },
+                        backed_by: ['Benchmark'],
+                      },
+                      error: null,
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      if (table === 'startup_investor_matches') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return {
+                      order() {
+                        return {
+                          async limit() {
+                            return {
+                              data: [
+                                { id: 'm1', startup_id: 'su1', investor_id: 'high1', match_score: 90, algorithm_version: 'v3.5-instant-submit', created_at: '2026-03-01T00:00:00.000Z', status: 'suggested' },
+                                { id: 'm2', startup_id: 'su1', investor_id: 'high2', match_score: 88, algorithm_version: 'v3.5-instant-submit', created_at: '2026-03-01T00:00:00.000Z', status: 'suggested' },
+                                { id: 'm3', startup_id: 'su1', investor_id: 'high3', match_score: 86, algorithm_version: 'v3.5-instant-submit', created_at: '2026-03-01T00:00:00.000Z', status: 'suggested' },
+                                { id: 'm4', startup_id: 'su1', investor_id: 'high4', match_score: 84, algorithm_version: 'v3.5-instant-submit', created_at: '2026-03-01T00:00:00.000Z', status: 'suggested' },
+                                { id: 'm5', startup_id: 'su1', investor_id: 'high5', match_score: 82, algorithm_version: 'v3.5-instant-submit', created_at: '2026-03-01T00:00:00.000Z', status: 'suggested' },
+                                { id: 'm6', startup_id: 'su1', investor_id: 'bench', match_score: 40, algorithm_version: 'v3.5-instant-submit', created_at: '2026-03-01T00:00:00.000Z', status: 'suggested' },
+                              ],
+                              error: null,
+                            };
+                          },
+                        };
+                      },
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+      if (table === 'investors') {
+        return {
+          select() {
+            return {
+              async in(_col, ids) {
+                return {
+                  data: ids.map((id) => (
+                    id === 'bench'
+                      ? { id, name: 'Benchmark', firm: 'Benchmark', type: 'VC', investor_type: 'VC', is_individual: false }
+                      : { id, name: id, firm: id, type: 'VC', investor_type: 'VC', is_individual: false }
+                  )),
+                  error: null,
+                };
+              },
+            };
+          },
+        };
+      }
+      if (table === 'investor_organization_memberships') {
+        return {
+          select() {
+            return { async in() { return { data: [], error: null }; } };
+          },
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    },
+  };
+
+  const result = await freezeTopFiveIfAbsent({
+    supabase,
+    startupId: 'su1',
+    requirePredictionGradeStartup: false,
+  });
+  assert.equal(result.frozen, true);
+  const sealedIds = upserts[0].rows.map((row) => row.investor_id);
+  assert.ok(sealedIds.includes('bench'), `expected Benchmark reserved, got ${sealedIds.join(',')}`);
+  assert.equal(sealedIds.length, 5);
+});
+
 test('instantSubmit preserves match created_at and instruments predictions', () => {
   const src = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
   assert.match(src, /instrumentMatchOutcomesSafe/);

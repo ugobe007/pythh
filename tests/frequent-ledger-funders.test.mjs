@@ -7,6 +7,8 @@ const {
   pickCanonicalFrequentFunders,
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
+  collectPriorFunderIds,
+  buildDisplayedTopFiveForceIds,
   applyPersistenceFloorWithForcedLedger,
   selectTopMatchesReservingForced,
   firmProfileRank,
@@ -157,6 +159,33 @@ const {
     30,
   );
   assert.deepEqual(keptOnlyLux.map((r) => r.investor_id), ['lux']);
+}
+
+{
+  const investors = [
+    { id: 'a16z-partner', name: 'Chris Dixon (Andreessen Horowitz)', firm: 'Andreessen Horowitz', investor_score: 90 },
+    { id: 'a16z', name: 'Andreessen Horowitz', firm: 'Andreessen Horowitz', investor_score: 70 },
+    { id: 'seq', name: 'Sequoia Capital', firm: 'Sequoia Capital', investor_score: 80 },
+    { id: 'fit', name: 'Fit Fund', firm: 'Fit Fund', investor_score: 88 },
+  ];
+  const prior = collectPriorFunderIds(investors, {
+    extracted_data: { investors: ['Andreessen Horowitz'] },
+  });
+  assert.deepEqual([...prior], ['a16z']);
+
+  const displayed = buildDisplayedTopFiveForceIds(investors, {
+    extracted_data: { investors: ['Andreessen Horowitz'] },
+  }, {
+    scoredRows: [
+      { investor_id: 'seq', match_score: 91 },
+      { investor_id: 'a16z', match_score: 40 },
+      { investor_id: 'fit', match_score: 88 },
+    ],
+    maxLedgerSlots: 2,
+  });
+  assert.ok(displayed.has('a16z'), 'prior a16z reserved');
+  assert.ok(displayed.has('seq'), 'highest-scoring ledger firm reserved');
+  assert.equal(displayed.has('fit'), false, 'non-ledger fit is not forced');
 }
 
 console.log('frequent-ledger-funders.test.mjs: ok');

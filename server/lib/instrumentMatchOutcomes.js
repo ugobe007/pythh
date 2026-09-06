@@ -23,6 +23,15 @@ async function instrumentMatchOutcomes(supabase, startupId, opts = {}) {
   const enqueue = await enqueueFundingEvidenceSearch(supabase, startupId, { source });
 
   let freeze = { frozen: false, reason: 'not_attempted' };
+  // Sync only upserts 5 rows. Sealing then locks a stale top-5 before Phase 1/3
+  // persist the fuller ranked set. Existing seals stay immutable.
+  if (source === 'instant_sync') {
+    return {
+      ok: Boolean(enqueue?.ok !== false),
+      enqueue,
+      freeze: { frozen: false, reason: 'deferred_until_enriched_matches' },
+    };
+  }
   try {
     freeze = await freezeTopFiveIfAbsent({
       supabase,

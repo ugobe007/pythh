@@ -295,6 +295,23 @@ function rateSummary(verified) {
       pairs: verified.length,
       rate_pct: pct(pairTop5, verified.length),
     },
+    live_rank: rankBuckets(verified),
+  };
+}
+
+function rankBuckets(verified) {
+  const ranks = verified.map((r) => Number(r.live_rank)).filter((n) => Number.isFinite(n));
+  const bucket = (lo, hi) => ranks.filter((n) => n >= lo && n <= hi).length;
+  const sorted = [...ranks].sort((a, b) => a - b);
+  const mid = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+  return {
+    n: ranks.length,
+    p50: mid,
+    rank_1_5: bucket(1, 5),
+    rank_6_10: bucket(6, 10),
+    rank_11_20: bucket(11, 20),
+    rank_21_50: bucket(21, 50),
+    rank_50_plus: ranks.filter((n) => n > 50).length,
   };
 }
 
@@ -359,6 +376,11 @@ function printScoreboard(summary, placement, pendingByTier, rates) {
   console.log(`  sealed-only hit rate:     ${formatRate(rates.startup_hit_at_5_sealed_only.hits, rates.startup_hit_at_5_sealed_only.startups)}`);
   console.log(`  firm-deduped pair top-5:  ${formatRate(rates.firm_pair_top5.hits, rates.firm_pair_top5.pairs)}`);
   console.log(`  raw pair top-5:           ${formatRate(rates.raw_pair_top5.hits, rates.raw_pair_top5.pairs)}`);
+  if (rates.live_rank) {
+    console.log(
+      `  live rank of funders:     p50=${rates.live_rank.p50}  1-5=${rates.live_rank.rank_1_5}  6-10=${rates.live_rank.rank_6_10}  11-20=${rates.live_rank.rank_11_20}  21-50=${rates.live_rank.rank_21_50}  50+=${rates.live_rank.rank_50_plus}`,
+    );
+  }
   console.log(`  verified pairs:           ${summary.verified_pairs} across ${summary.startups} startups`);
   console.log(`  pending review:           ${summary.pending_pairs}`);
   console.log('  placement:');
