@@ -23,6 +23,7 @@ first-party feed is dead / Cloudflare-blocked). Canonical list:
 | https://www.producthunt.com | `/feed` | First-party Atom |
 | https://dealroom.co/news/ | Google News `site:dealroom.co` | CF 403 on first-party |
 | https://www.angellist.com | Google News `site:angellist.com` / wellfound | No RSS (HTML catch-all) |
+| https://www.geekwire.com/fundings/ | Google News `site:geekwire.com` | `/fundings/feed/` is CF 403 |
 
 Do **not** store these hosts as a startup `website`. They are news sources.
 

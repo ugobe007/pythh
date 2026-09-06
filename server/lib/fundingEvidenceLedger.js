@@ -632,6 +632,12 @@ function classifyFundingEvidence(event) {
   if (/\b(?:orders?|contract|recognitions?|award winner|certificat(?:e|ion)|political betting|ceasefire|capital rules? raise cost)\b/i.test(text)) {
     return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
   }
+  if (
+    /\b(?:signs?|signed)\b.{0,80}\b(?:cloud|customer|enterprise)\b.{0,40}\b(?:deal|contract)\b/i.test(text)
+    && !/\b(?:raises?|raised|funding round|series [a-h])\b/i.test(text)
+  ) {
+    return { eligible: false, reason: 'non_financing_headline', financingType: 'unknown' };
+  }
   if (/\b(?:raises? the stakes|boiler room|hidden fees?|sec claims?|token sale|initial coin offering|ico|preferred stock offering)\b/i.test(text)
     || /\bwhich (?:has|had) raised\b.{0,160}\b(?:releases?|launches?|announces?|unveils?)\b/i.test(text)
     || /^inside\b.{0,160}\bhas raised\b/i.test(text)
