@@ -495,6 +495,9 @@ test('rejects unsafe or non-financing scraper classifications and separates debt
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'The Pentagon is giving workers access to Grok through a secure AI platform' }).reason, 'missing_financing_action');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Flint Trails Investment, LP files Form D (2026-05-06)' }).reason, 'outside_venture_outcome_scope');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'SK Hynix prepares for a Nasdaq listing' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Einride will debut on the Nasdaq today after merging with a SPAC' }).reason, 'outside_venture_outcome_scope');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'DeepMind spinout Isomorphic Labs nears $2b raise' }).reason, 'unconfirmed_transaction');
+  assert.equal(classifyFundingEvidence({ ...base, source_title: 'Cognition is in early talks to raise hundreds of millions' }).reason, 'unconfirmed_transaction');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Ola Electric Secures BIS Certification For Its LFP Cell' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Four AI giants just raised $188 billion' }).reason, 'non_financing_headline');
   assert.equal(classifyFundingEvidence({ ...base, source_title: 'Companion Labs, nailinit, and Wholeleaf Raise Early-Stage Funding' }).reason, 'non_financing_headline');

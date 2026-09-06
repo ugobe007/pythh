@@ -951,6 +951,10 @@ const rejectEventIds = [
   '2db8e775-53e6-48a8-80ef-94206a2f9b1d', // Meduloc Google News rewrite; PR Newswire 2026-08-06 before seal 08-18
   '954e9aa2-d8b6-4502-8268-6b1818a1fbe0', // SiteVue Google News rewrite; PR Newswire 2026-08-06 before seal 08-18
   'f92cf00a-1dcb-4cd4-afa3-a886129e74ae', // Transfyr Pulse2 08-30; issuer 2026-08-26 before seal 08-29
+  'ab70b79a-8cbf-4b7b-8d03-861cedca03dc', // Einride SPAC / Nasdaq debut, not a VC round
+  'fcbac8e4-fc25-4941-a24b-658784eda47f', // Isomorphic Labs "nears $2b raise" rumor
+  '25a63ad1-f806-4679-ac61-0019f29dd913', // Cognition "in early talks" rumor
+  '82fd189e-eebb-4832-b20a-44df2d11beaf', // Whop Tether stablecoin strategic (Pulse2 copy)
 ];
 
 async function seedEvent(eventId, seed, investors) {
