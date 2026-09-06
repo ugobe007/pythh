@@ -1017,7 +1017,6 @@ const seeds = [
       ['F-Prime', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
       ['Commerce Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
       ['WEX Venture Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
-      ['Capital One Ventures', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
     ],
   },
 ];
