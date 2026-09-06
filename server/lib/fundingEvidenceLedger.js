@@ -37,7 +37,7 @@ function isSovereignWealthFundBrand(value) {
 const WEAK_NORMALIZED_TOKENS = new Set([
   'founders', 'general', 'first', 'index', 'light', 'soft', 'hard', 'open', 'true',
   'new', 'next', 'red', 'blue', 'bond', 'spark', 'prime', 'core', 'edge', 'peak',
-  'ridge', 'grove', 'union', 'social', 'global', 'national', 'united', 'american',
+  'ridge', 'grove', 'union', 'social', 'global', 'national', 'united', 'american', 'space',
 ]);
 
 /**
