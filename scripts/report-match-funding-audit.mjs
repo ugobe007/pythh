@@ -199,8 +199,10 @@ const report = {
       }
     : { error: triage?.error || 'triage_failed' },
   interpretation: {
+    working_metric:
+      'Overall pair layer (verified post-prediction matches), including live top-5 that were never sealed. Sealed Hit@5 stays the claim gate and is not the operating scoreboard.',
     pair_vs_startup_hit5:
-      'Pair-level verified funding (match_validation_evidence) counts investor↔startup rows where a specific match later funded. Sealed Hit@5 counts startup-level audited outcomes from funding_evidence_events + complete rosters — stricter and the claim metric.',
+      'Pair-level verified funding (match_validation_evidence) counts investor↔startup rows where a specific match later funded — sealed top-5, live unsealed top-5, and outside top-5. Sealed Hit@5 counts startup-level audited outcomes from funding_evidence_events + complete rosters — stricter and the claim metric.',
     primary_gap:
       reconcile?.actual_investor_delta_reasons?.candidate_generation_miss
         ? 'candidate_generation_miss dominates retrospective reconcile — expand match pool before GOD/fit retune.'
@@ -212,12 +214,12 @@ if (asJson) {
   console.log(JSON.stringify(report, null, 2));
 } else {
   console.log('\n📊 Match → funding audit (horizon=' + horizonDays + 'd)\n');
-  console.log('Pair layer:');
-  console.log(`  match rows:              ${report.match_layer.total_match_rows}`);
-  console.log(`  startups w/ matches:     ${report.match_layer.startups_with_matches}`);
+  console.log('Working metric — overall pairs (including non-sealed top 5):');
   console.log(`  verified pair fundings:  ${report.match_layer.verified_post_prediction_pairs}`);
   console.log(`  startups (pair verified):${report.match_layer.startups_with_verified_pair_funding}`);
-  console.log('\nSealed Hit@5 (claim):');
+  console.log(`  match rows:              ${report.match_layer.total_match_rows}`);
+  console.log(`  startups w/ matches:     ${report.match_layer.startups_with_matches}`);
+  console.log('\nSealed Hit@5 (claim only):');
   console.log(`  audited outcomes:        ${report.sealed_hit5.audited_outcomes}`);
   console.log(`  hits / misses:           ${report.sealed_hit5.confirmed_hit_startups} / ${report.sealed_hit5.confirmed_miss_startups}`);
   console.log(`  gap to 100 audited:      ${100 - Number(report.sealed_hit5.audited_outcomes || 0)}`);

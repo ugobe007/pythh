@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 /**
- * Verified + pending matched investments (startup × investor pairs with post-prediction funding evidence).
- * Usage: npm run outcomes:matched
+ * Verified + pending matched investments (startup × investor pairs with
+ * post-prediction funding evidence). Working metric is the overall pair
+ * layer — every verified funder we matched before the raise — including
+ * live top-5 that never received a served-first-top5 seal.
+ *
+ * Usage:
+ *   npm run outcomes:matched
+ *   npm run outcomes:matched -- --summary
  */
 import 'dotenv/config';
 import pg from 'pg';
@@ -11,6 +17,8 @@ if (!conn) {
   console.error('DATABASE_URL required');
   process.exit(1);
 }
+
+const asSummary = process.argv.includes('--summary');
 
 function massageConnectionString(connectionString) {
   const s = String(connectionString || '');
@@ -22,26 +30,140 @@ function massageConnectionString(connectionString) {
 const pool = new pg.Pool({ connectionString: massageConnectionString(conn), max: 1 });
 
 const verifiedSql = `
+  WITH investor_keys AS (
+    SELECT
+      i.id AS investor_id,
+      trim(both FROM regexp_replace(
+        regexp_replace(
+          lower(trim(coalesce(nullif(i.firm, ''), i.name))),
+          '\\y(?:ventures?|capital|partners?|management|fund|holdings?)\\y',
+          ' ',
+          'g'
+        ),
+        '[^a-z0-9]+',
+        ' ',
+        'g'
+      )) AS firm_label,
+      (
+        SELECT m.organization_id
+        FROM investor_organization_memberships m
+        WHERE m.investor_id = i.id
+        ORDER BY m.organization_id
+        LIMIT 1
+      ) AS organization_id
+    FROM investors i
+  ),
+  investor_firm AS (
+    SELECT
+      investor_id,
+      CASE
+        WHEN organization_id IS NOT NULL THEN 'org:' || organization_id::text
+        WHEN coalesce(firm_label, '') <> '' THEN 'label:' || firm_label
+        ELSE 'id:' || investor_id::text
+      END AS firm_key
+    FROM investor_keys
+  ),
+  verified AS (
+    SELECT
+      e.startup_id,
+      e.investor_id,
+      e.match_id,
+      su.name AS startup,
+      i.name AS investor,
+      e.evidence_type,
+      e.event_at,
+      m.created_at AS match_at,
+      round(extract(epoch FROM (e.event_at - m.created_at)) / 86400.0, 1) AS days_after_match,
+      m.match_score,
+      e.source_provider,
+      left(e.source_url, 100) AS source_url,
+      f.firm_key
+    FROM match_validation_evidence e
+    JOIN startup_investor_matches m ON m.id = e.match_id
+    JOIN startup_uploads su ON su.id = e.startup_id
+    JOIN investors i ON i.id = e.investor_id
+    JOIN investor_firm f ON f.investor_id = e.investor_id
+    WHERE e.verified
+      AND e.startup_id = m.startup_id
+      AND e.investor_id = m.investor_id
+      AND e.event_at > m.created_at
+      AND e.evidence_type IN ('funding', 'investment')
+  ),
+  sealed AS (
+    SELECT
+      s.startup_id,
+      s.investor_id,
+      s.rank_position,
+      f.firm_key
+    FROM funding_prediction_snapshots s
+    JOIN investor_firm f ON f.investor_id = s.investor_id
+    WHERE s.cohort_key = 'served-first-top5'
+      AND s.rank_position BETWEEN 1 AND 5
+  ),
+  sealed_best AS (
+    SELECT DISTINCT ON (startup_id, firm_key)
+      startup_id,
+      investor_id,
+      rank_position,
+      firm_key
+    FROM sealed
+    ORDER BY startup_id, firm_key, rank_position ASC
+  ),
+  live_unique AS (
+    SELECT
+      m.startup_id,
+      m.investor_id,
+      f.firm_key,
+      m.match_score,
+      m.created_at,
+      row_number() OVER (
+        PARTITION BY m.startup_id, f.firm_key
+        ORDER BY m.match_score DESC NULLS LAST, m.created_at ASC, m.id ASC
+      ) AS firm_dup_rank
+    FROM startup_investor_matches m
+    JOIN investor_firm f ON f.investor_id = m.investor_id
+    WHERE m.startup_id IN (SELECT startup_id FROM verified)
+      AND coalesce(m.status, 'suggested') IN ('suggested', 'accepted')
+  ),
+  live_rank AS (
+    SELECT
+      startup_id,
+      investor_id,
+      firm_key,
+      row_number() OVER (
+        PARTITION BY startup_id
+        ORDER BY match_score DESC NULLS LAST, created_at ASC
+      ) AS live_rank
+    FROM live_unique
+    WHERE firm_dup_rank = 1
+  )
   SELECT
-    su.name AS startup,
-    i.name AS investor,
-    e.evidence_type,
-    e.event_at,
-    m.created_at AS match_at,
-    round(extract(epoch FROM (e.event_at - m.created_at)) / 86400.0, 1) AS days_after_match,
-    m.match_score,
-    e.source_provider,
-    left(e.source_url, 100) AS source_url
-  FROM match_validation_evidence e
-  JOIN startup_investor_matches m ON m.id = e.match_id
-  JOIN startup_uploads su ON su.id = e.startup_id
-  JOIN investors i ON i.id = e.investor_id
-  WHERE e.verified
-    AND e.startup_id = m.startup_id
-    AND e.investor_id = m.investor_id
-    AND e.event_at > m.created_at
-    AND e.evidence_type IN ('funding', 'investment')
-  ORDER BY e.event_at DESC
+    v.startup_id,
+    v.investor_id,
+    v.match_id,
+    v.startup,
+    v.investor,
+    v.evidence_type,
+    v.event_at,
+    v.match_at,
+    v.days_after_match,
+    v.match_score,
+    v.source_provider,
+    v.source_url,
+    v.firm_key,
+    s.rank_position AS sealed_rank,
+    lr.live_rank,
+    CASE
+      WHEN s.firm_key IS NOT NULL THEN 'sealed_top5'
+      WHEN lr.live_rank IS NOT NULL AND lr.live_rank <= 5 THEN 'live_top5_unsealed'
+      ELSE 'outside_top5'
+    END AS placement
+  FROM verified v
+  LEFT JOIN sealed_best s
+    ON s.startup_id = v.startup_id AND s.firm_key = v.firm_key
+  LEFT JOIN live_rank lr
+    ON lr.startup_id = v.startup_id AND lr.firm_key = v.firm_key
+  ORDER BY v.event_at DESC
 `;
 
 const pendingSql = `
@@ -78,37 +200,134 @@ const summarySql = `
        AND e.investor_id = m.investor_id
        AND e.event_at > m.created_at
        AND e.evidence_type IN ('funding', 'investment')) AS verified_pairs,
+    (SELECT count(DISTINCT e.startup_id)::int FROM match_validation_evidence e
+     JOIN startup_investor_matches m ON m.id = e.match_id
+     WHERE e.verified
+       AND e.startup_id = m.startup_id
+       AND e.investor_id = m.investor_id
+       AND e.event_at > m.created_at
+       AND e.evidence_type IN ('funding', 'investment')) AS startups,
     (SELECT count(*)::int FROM match_validation_evidence e
      JOIN startup_investor_matches m ON m.id = e.match_id
      WHERE NOT e.verified AND e.review_status = 'pending' AND e.event_at > m.created_at) AS pending_pairs,
     (SELECT count(*)::int FROM match_outcome_classifications WHERE classification = 'verified_funding') AS classified_verified_funding
 `;
 
+function countBy(rows, key) {
+  return rows.reduce((acc, row) => {
+    const k = row[key] || 'unknown';
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function uniqueStartups(rows, predicate = () => true) {
+  return new Set(rows.filter(predicate).map((r) => r.startup_id)).size;
+}
+
+function placementSummary(verified) {
+  const sealedPairs = verified.filter((r) => r.placement === 'sealed_top5');
+  const liveUnsealedPairs = verified.filter((r) => r.placement === 'live_top5_unsealed');
+  const anyTop5Pairs = verified.filter((r) => r.placement === 'sealed_top5' || r.placement === 'live_top5_unsealed');
+  const outsidePairs = verified.filter((r) => r.placement === 'outside_top5');
+  return {
+    sealed_top5: { pairs: sealedPairs.length, startups: uniqueStartups(sealedPairs) },
+    live_top5_unsealed: { pairs: liveUnsealedPairs.length, startups: uniqueStartups(liveUnsealedPairs) },
+    any_top5: { pairs: anyTop5Pairs.length, startups: uniqueStartups(anyTop5Pairs) },
+    outside_top5: { pairs: outsidePairs.length, startups: uniqueStartups(outsidePairs) },
+    startups_with_any_verified_pair: uniqueStartups(verified),
+    startups_with_only_outside_top5: new Set(
+      [...new Set(verified.map((r) => r.startup_id))].filter((id) => {
+        const rows = verified.filter((r) => r.startup_id === id);
+        return rows.length > 0 && rows.every((r) => r.placement === 'outside_top5');
+      }),
+    ).size,
+  };
+}
+
+function rankPlacement(placement) {
+  if (placement === 'sealed_top5') return 0;
+  if (placement === 'live_top5_unsealed') return 1;
+  return 2;
+}
+
+function startupRollup(verified) {
+  const byStartup = new Map();
+  for (const row of verified) {
+    const cur = byStartup.get(row.startup_id) || {
+      startup: row.startup,
+      pairs: 0,
+      investors: new Set(),
+      best_placement: 'outside_top5',
+    };
+    cur.pairs += 1;
+    cur.investors.add(row.investor);
+    if (rankPlacement(row.placement) < rankPlacement(cur.best_placement)) {
+      cur.best_placement = row.placement;
+    }
+    byStartup.set(row.startup_id, cur);
+  }
+  return [...byStartup.values()]
+    .map((row) => ({
+      startup: row.startup,
+      pairs: row.pairs,
+      investors: [...row.investors].sort(),
+      best_placement: row.best_placement,
+    }))
+    .sort((a, b) => b.pairs - a.pairs || a.startup.localeCompare(b.startup));
+}
+
+function printScoreboard(summary, placement, pendingByTier) {
+  console.log('Overall matched investments (pair layer, including non-sealed top 5)');
+  console.log(`  verified pairs:          ${summary.verified_pairs} across ${summary.startups} startups`);
+  console.log(`  pending review:          ${summary.pending_pairs}`);
+  console.log('  placement:');
+  console.log(`    any top-5 (sealed+live): ${placement.any_top5.pairs} pairs / ${placement.any_top5.startups} startups`);
+  console.log(`    sealed top-5:            ${placement.sealed_top5.pairs} pairs / ${placement.sealed_top5.startups} startups`);
+  console.log(`    live top-5, no seal:     ${placement.live_top5_unsealed.pairs} pairs / ${placement.live_top5_unsealed.startups} startups`);
+  console.log(`    outside top-5:           ${placement.outside_top5.pairs} pairs / ${placement.outside_top5.startups} startups`);
+  console.log(`    startups outside only:   ${placement.startups_with_only_outside_top5}`);
+  if (Object.keys(pendingByTier).length) {
+    console.log(`  pending by source tier:  ${JSON.stringify(pendingByTier)}`);
+  }
+}
+
 try {
-  const [{ rows: summary }, { rows: verified }, { rows: pending }] = await Promise.all([
+  const [{ rows: summaryRows }, { rows: verified }, { rows: pending }] = await Promise.all([
     pool.query(summarySql),
     pool.query(verifiedSql),
     pool.query(pendingSql),
   ]);
 
-  const pendingByTier = pending.reduce((acc, row) => {
-    acc[row.source_tier] = (acc[row.source_tier] || 0) + 1;
-    return acc;
-  }, {});
+  const summary = summaryRows[0];
+  const pendingByTier = countBy(pending, 'source_tier');
+  const placement = placementSummary(verified);
+  const startups = startupRollup(verified);
 
-  console.log(
-    JSON.stringify(
-      {
-        generated_at: new Date().toISOString(),
-        summary: summary[0],
-        pending_by_source_tier: pendingByTier,
-        verified_matched_investments: verified,
-        pending_review: pending,
-      },
-      null,
-      2,
-    ),
-  );
+  const payload = {
+    generated_at: new Date().toISOString(),
+    working_metric: 'overall_verified_pairs_including_non_sealed_top5',
+    summary: {
+      ...summary,
+      placement,
+    },
+    pending_by_source_tier: pendingByTier,
+    startups_with_verified_pairs: startups,
+    verified_matched_investments: verified,
+    pending_review: pending,
+  };
+
+  if (asSummary) {
+    printScoreboard(summary, placement, pendingByTier);
+    console.log('\nStartups with a verified post-prediction funder:');
+    for (const row of startups) {
+      console.log(
+        `  ${row.startup}  ${row.pairs} pair${row.pairs === 1 ? '' : 's'}  [${row.best_placement}]  ${row.investors.join(', ')}`,
+      );
+    }
+  } else {
+    console.log(JSON.stringify(payload, null, 2));
+  }
 } finally {
   await pool.end();
 }
