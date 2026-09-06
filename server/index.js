@@ -1584,7 +1584,7 @@ function normalizePlatformStatsPayload(raw, source) {
   const matches = Number(o.matches ?? 0) || 0;
   const pairStartups = Number(o.pair_funding_startups ?? 0) || 0;
   const pairHits = Number(o.pair_funding_hits ?? 0) || 0;
-  const pairRate = Number(o.pair_funding_rate_pct);
+  const pairRate = o.pair_funding_rate_pct == null ? null : Number(o.pair_funding_rate_pct);
   return {
     startups,
     startups_total: Number(o.startups_total ?? startups) || startups,
