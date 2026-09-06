@@ -300,6 +300,13 @@ const organizations = [
   ['Eniac Ventures', 'eniac.vc', ['Eniac', 'Eniac Ventures']],
   ['PeakSpan Capital', 'peakspancapital.com', ['PeakSpan Capital', 'PeakSpan']],
   ['Female Founders Fund', 'femalefoundersfund.com', ['Female Founders Fund']],
+  // Founders Village 2026-08-20 pre-seed/Series A roster (skip Tech Weekend — event, not a fund).
+  ['SpaceFund', 'spacefund.com', ['SpaceFund', 'Space Fund']],
+  ['Turbostart', 'turbostart.co', ['Turbostart', 'TurboStart']],
+  ['Canyon Angels', 'canyonangels.org', ['Canyon Angels']],
+  ['Breakers', 'breakers.vc', ['Breakers', 'Breakers VC']],
+  ['The Pay It Forward Company', 'pif.co', ['The Pay It Forward Company', 'Pay It Forward Company', 'PIF Company']],
+  ['Boot64 Ventures', 'boot64.com', ['Boot64 Ventures', 'Boot64']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership

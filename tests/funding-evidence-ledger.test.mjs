@@ -1089,11 +1089,20 @@ test('corroboration requires two independent sources or one reviewed trusted sou
 
 test('missing funding investors are seeded only from reviewed first-party profiles', () => {
   const script = readFileSync(new URL('../scripts/seed-missing-funding-investor-profiles.mjs', import.meta.url), 'utf8');
+  const orgs = readFileSync(new URL('../scripts/canonicalize-funding-investor-organizations.mjs', import.meta.url), 'utf8');
   assert.match(script, /first_party_profile_review/);
   assert.match(script, /conservative_unknowns_preserved/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /existing_candidates/);
   assert.doesNotMatch(script, /\.delete\(/);
+  for (const name of ['SpaceFund', 'Turbostart', 'Canyon Angels', 'Breakers', 'The Pay It Forward Company', 'Boot64 Ventures']) {
+    assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.doesNotMatch(script, /canonicalName:\s*'Tech Weekend'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Founders Village'/);
+  assert.doesNotMatch(orgs, /\['Tech Weekend'/);
+  assert.doesNotMatch(orgs, /\['Founders Village'/);
 });
 
 test('investor coverage resolve accepts headline-cleaned firm matches', () => {

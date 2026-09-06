@@ -1814,6 +1814,54 @@ const profiles = [
     thesis: 'Multi-stage venture firm backing transformative technology companies.',
     source: 'https://8vc.com/', type: 'VC', investorType: 'VC',
   },
+  // Founders Village 2026-08-20 roster — first-party firm sites only. Tech Weekend omitted (event).
+  {
+    canonicalName: 'SpaceFund', firm: 'SpaceFund', url: 'https://spacefund.com/',
+    sectors: ['Space', 'DeepTech', 'Infrastructure', 'Energy'],
+    stage: ['Pre-Seed', 'Seed', 'Series A'], geography: ['United States', 'Global'],
+    checkMin: 250000, checkMax: 1000000,
+    thesis: 'Early-stage space-only VC backing transportation, communications, habitation, supply chain, and space energy.',
+    source: 'https://spacefund.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Turbostart', firm: 'Turbostart', url: 'https://turbostart.co/',
+    sectors: ['AI/ML', 'SaaS', 'Fintech', 'HealthTech', 'DeepTech', 'Enterprise'],
+    stage: ['Pre-Seed', 'Seed', 'Series A'], geography: ['India', 'Global'],
+    checkMin: 250000, checkMax: 1000000,
+    thesis: 'India-rooted global accelerator and early-stage fund; cohort writes up to $1M at seed / pre-Series A.',
+    source: 'https://turbostart.co/', type: 'Accelerator', investorType: 'Accelerator',
+  },
+  {
+    canonicalName: 'Canyon Angels', firm: 'Canyon Angels', url: 'https://canyonangels.org/',
+    sectors: ['Technology', 'SaaS', 'AI/ML'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['United States', 'Arizona'],
+    checkMin: 250000, checkMax: 1000000,
+    thesis: 'Phoenix nonprofit angel network affiliated with Grand Canyon University; student-screened early-stage tech deals.',
+    source: 'https://canyonangels.org/', type: 'Angel', investorType: 'Angel',
+  },
+  {
+    canonicalName: 'Breakers', firm: 'Breakers', url: 'https://breakers.vc/',
+    sectors: ['AI/ML', 'SaaS', 'HealthTech', 'InsurTech', 'Consumer'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['United States', 'Canada', 'Pacific Northwest'],
+    checkMin: 250000, checkMax: 250000,
+    thesis: 'Generalist pre-seed/seed non-lead; typical check ~$250K. Active in the Pacific Northwest, Texas, and Canada.',
+    source: 'https://breakers.vc/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'The Pay It Forward Company', firm: 'The Pay It Forward Company', url: 'https://pif.co/',
+    sectors: ['Fintech', 'Logistics', 'Energy', 'Space', 'HealthTech', 'AI/ML'],
+    stage: ['Seed', 'Series A', 'Growth'], geography: ['Global'],
+    thesis: 'Impact-oriented VC and advisory platform pairing capital with ops support; donates 20% of GP profits.',
+    source: 'https://pif.co/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'Boot64 Ventures', firm: 'Boot64 Ventures', url: 'https://boot64.com/',
+    sectors: ['Technology', 'Small Business'],
+    stage: ['Pre-Seed', 'Seed'], geography: ['United States', 'Louisiana'],
+    checkMin: 250000, checkMax: 1000000,
+    thesis: 'Louisiana-focused early-stage fund for local, veteran, disadvantaged, and rural founders; pre-formation applicants welcome.',
+    source: 'https://boot64.com/', type: 'VC', investorType: 'VC',
+  },
 ];
 
 async function allInvestors() {
