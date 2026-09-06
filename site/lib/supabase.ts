@@ -113,7 +113,10 @@ export function bootstrapSupabase(): Promise<boolean> {
 
     try {
       if (window.__PYTHH_PUBLIC_CONFIG_PROMISE__) {
-        await window.__PYTHH_PUBLIC_CONFIG_PROMISE__;
+        await Promise.race([
+          window.__PYTHH_PUBLIC_CONFIG_PROMISE__,
+          new Promise<void>((resolve) => setTimeout(resolve, PUBLIC_CONFIG_TIMEOUT_MS)),
+        ]);
         const warmed = getSyncCredentials();
         if (warmed) {
           supabase = createSupabaseClient(warmed.url, warmed.key);
