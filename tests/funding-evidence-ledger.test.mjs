@@ -962,7 +962,8 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /Do NOT ingest Venice AI/);
   assert.match(script, /Do NOT ingest CarbonSix/);
   assert.match(script, /Do NOT ingest Wultra/);
-  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:|audited:venice:|audited:carbonsix:|audited:wultra:/);
+  assert.match(script, /Do NOT ingest Together AI/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:|audited:venice:|audited:carbonsix:|audited:wultra:|audited:together-ai:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1119,6 +1120,7 @@ test('missing funding investors are seeded only from reviewed first-party profil
     'Dragonfly', 'Coinbase Ventures', 'F-Prime Capital', 'North Island Ventures',
     'IMM Investment', 'Korea Development Bank', 'SV Investment', 'Cortentia', 'ASQ',
     'Seventure Partners', 'J&T Ventures', 'Elevator Ventures',
+    'Aramco Ventures', 'Vista Equity Partners', 'Emergence Capital', 'March Capital', 'Pegatron', 'S Ventures',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -1135,6 +1137,10 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.doesNotMatch(orgs, /\['Founders Village'/);
   assert.doesNotMatch(orgs, /\['Genesys Capital'/);
   assert.doesNotMatch(orgs, /\['Prime Capital'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'SentinelOne'/);
+  assert.doesNotMatch(orgs, /\['SentinelOne'/);
+  assert.doesNotMatch(orgs, /\['Aramco'/);
+  assert.doesNotMatch(orgs, /\['March'/);
 });
 
 test('investor coverage resolve accepts headline-cleaned firm matches', () => {

@@ -350,6 +350,14 @@ const organizations = [
   ['Seventure Partners', 'seventure.fr', ['Seventure Partners', 'Seventure']],
   ['J&T Ventures', 'jtventures.cz', ['J&T Ventures']],
   ['Elevator Ventures', 'elevator-ventures.com', ['Elevator Ventures']],
+  // Together AI $800M Series C (Business Wire / company blog 2026-07-01).
+  // GC + NVIDIA already in universe. Do not alias bare Aramco or SentinelOne.
+  ['Aramco Ventures', 'aramcoventures.com', ['Aramco Ventures']],
+  ['Vista Equity Partners', 'vistaequitypartners.com', ['Vista Equity Partners', 'Vista Equity']],
+  ['Emergence Capital', 'emcap.com', ['Emergence Capital', 'Emergence Capital Partners']],
+  ['March Capital', 'marchcp.com', ['March Capital']],
+  ['Pegatron', 'pegatroncorp.com', ['Pegatron']],
+  ['S Ventures', 'sentinelone.com', ['S Ventures']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership

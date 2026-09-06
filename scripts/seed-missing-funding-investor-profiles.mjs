@@ -2111,6 +2111,49 @@ const profiles = [
     thesis: 'Raiffeisen fintech investor; existing backer in Wultra’s €6.8M Series A.',
     source: 'https://www.elevator-ventures.com/en/home.html', type: 'VC', investorType: 'VC',
   },
+  // Together AI $800M Series C (company blog 2026-07-01). Skip unnamed others; GC + NVIDIA exist.
+  {
+    canonicalName: 'Aramco Ventures', firm: 'Aramco Ventures', url: 'https://aramcoventures.com/',
+    sectors: ['Energy', 'Technology', 'AI/ML'],
+    stage: ['Series B', 'Series C', 'Growth'], geography: ['Global'],
+    thesis: 'Saudi Aramco venture arm; led Together AI’s $800M Series C at an $8.3B valuation.',
+    source: 'https://aramcoventures.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'Vista Equity Partners', firm: 'Vista Equity Partners', url: 'https://www.vistaequitypartners.com/',
+    sectors: ['Technology', 'Enterprise', 'AI/ML'],
+    stage: ['Series C', 'Growth'], geography: ['United States', 'Global'],
+    thesis: 'Enterprise software PE/growth firm; participated in Together AI’s $800M Series C.',
+    source: 'https://www.vistaequitypartners.com/', type: 'PE', investorType: 'PE',
+  },
+  {
+    canonicalName: 'Emergence Capital', firm: 'Emergence Capital', url: 'https://www.emcap.com/',
+    sectors: ['SaaS', 'Enterprise', 'AI/ML'],
+    stage: ['Series A', 'Series B', 'Series C'], geography: ['United States'],
+    thesis: 'SaaS specialist; participated in Together AI’s $800M Series C.',
+    source: 'https://www.emcap.com/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'March Capital', firm: 'March Capital', url: 'https://marchcp.com/',
+    sectors: ['Enterprise', 'AI/ML', 'Cybersecurity'],
+    stage: ['Series B', 'Series C', 'Growth'], geography: ['United States'],
+    thesis: 'Santa Monica growth firm (marchcp.com, not marchcapital.com); Together AI Series C participant.',
+    source: 'https://marchcp.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Pegatron', firm: 'Pegatron', url: 'https://www.pegatroncorp.com/',
+    sectors: ['Hardware', 'Manufacturing', 'AI/ML'],
+    stage: ['Series C', 'Growth'], geography: ['Taiwan', 'Global'],
+    thesis: 'Taiwan electronics manufacturer; participated in Together AI’s $800M Series C.',
+    source: 'https://www.pegatroncorp.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  {
+    canonicalName: 'S Ventures', firm: 'S Ventures', url: 'https://www.sentinelone.com/s-ventures/',
+    sectors: ['Cybersecurity', 'AI/ML', 'Data'],
+    stage: ['Seed', 'Series A', 'Series B', 'Series C'], geography: ['United States'],
+    thesis: 'SentinelOne corporate venture; participated in Together AI’s $800M Series C.',
+    source: 'https://www.sentinelone.com/s-ventures/', type: 'Corporate', investorType: 'Corporate',
+  },
 ];
 
 async function allInvestors() {

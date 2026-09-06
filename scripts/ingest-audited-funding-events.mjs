@@ -376,6 +376,8 @@ const audited = [
   // Do NOT ingest Venice AI $65M (2026-07-01): 64 matches from Feb–May but no served-first-top5 snapshot.
   // Do NOT ingest CarbonSix $40M: SiliconANGLE already verified; matches start same day as the 2026-07-01 wire.
   // Do NOT ingest Wultra €6.8M: PR Newswire already verified 2026-07-01; matches written 2026-08-21 after announce.
+  // Do NOT ingest Together AI $800M Series C (2026-07-01): together.ai has 250 matches from Jan
+  // but no served-first-top5 snapshot. Do not freeze in this PR.
 ];
 
 async function allInvestors() {
