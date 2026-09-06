@@ -34,7 +34,7 @@ function massageConnectionString(connectionString) {
 const pool = new pg.Pool({ connectionString: massageConnectionString(conn), max: 1 });
 
 const verifiedSql = `
-  WITH investor_keys AS (
+  WITH   investor_keys AS (
     SELECT
       i.id AS investor_id,
       trim(both FROM regexp_replace(
@@ -60,11 +60,11 @@ const verifiedSql = `
   investor_firm AS (
     SELECT
       investor_id,
-      CASE
-        WHEN organization_id IS NOT NULL THEN 'org:' || organization_id::text
-        WHEN coalesce(firm_label, '') <> '' THEN 'label:' || firm_label
-        ELSE 'id:' || investor_id::text
-      END AS firm_key
+      array_remove(ARRAY[
+        'investor:' || investor_id::text,
+        CASE WHEN organization_id IS NOT NULL THEN 'org:' || organization_id::text END,
+        CASE WHEN coalesce(firm_label, '') <> '' THEN 'label:' || firm_label END
+      ], NULL) AS firm_keys
     FROM investor_keys
   ),
   verified AS (
@@ -81,7 +81,7 @@ const verifiedSql = `
       m.match_score,
       e.source_provider,
       left(e.source_url, 100) AS source_url,
-      f.firm_key
+      f.firm_keys
     FROM match_validation_evidence e
     JOIN startup_investor_matches m ON m.id = e.match_id
     JOIN startup_uploads su ON su.id = e.startup_id
@@ -98,30 +98,30 @@ const verifiedSql = `
       s.startup_id,
       s.investor_id,
       s.rank_position,
-      f.firm_key
+      f.firm_keys
     FROM funding_prediction_snapshots s
     JOIN investor_firm f ON f.investor_id = s.investor_id
     WHERE s.cohort_key = 'served-first-top5'
       AND s.rank_position BETWEEN 1 AND 5
   ),
   sealed_best AS (
-    SELECT DISTINCT ON (startup_id, firm_key)
+    SELECT DISTINCT ON (startup_id, firm_keys)
       startup_id,
       investor_id,
       rank_position,
-      firm_key
+      firm_keys
     FROM sealed
-    ORDER BY startup_id, firm_key, rank_position ASC
+    ORDER BY startup_id, firm_keys, rank_position ASC
   ),
   live_unique AS (
     SELECT
       m.startup_id,
       m.investor_id,
-      f.firm_key,
+      f.firm_keys,
       m.match_score,
       m.created_at,
       row_number() OVER (
-        PARTITION BY m.startup_id, f.firm_key
+        PARTITION BY m.startup_id, f.firm_keys
         ORDER BY m.match_score DESC NULLS LAST, m.created_at ASC, m.id ASC
       ) AS firm_dup_rank
     FROM startup_investor_matches m
@@ -133,7 +133,7 @@ const verifiedSql = `
     SELECT
       startup_id,
       investor_id,
-      firm_key,
+      firm_keys,
       row_number() OVER (
         PARTITION BY startup_id
         ORDER BY match_score DESC NULLS LAST, created_at ASC
@@ -154,19 +154,19 @@ const verifiedSql = `
     v.match_score,
     v.source_provider,
     v.source_url,
-    v.firm_key,
+    v.firm_keys,
     s.rank_position AS sealed_rank,
     lr.live_rank,
     CASE
-      WHEN s.firm_key IS NOT NULL THEN 'sealed_top5'
+      WHEN s.firm_keys IS NOT NULL THEN 'sealed_top5'
       WHEN lr.live_rank IS NOT NULL AND lr.live_rank <= 5 THEN 'live_top5_unsealed'
       ELSE 'outside_top5'
     END AS placement
   FROM verified v
   LEFT JOIN sealed_best s
-    ON s.startup_id = v.startup_id AND s.firm_key = v.firm_key
+    ON s.startup_id = v.startup_id AND s.firm_keys && v.firm_keys
   LEFT JOIN live_rank lr
-    ON lr.startup_id = v.startup_id AND lr.firm_key = v.firm_key
+    ON lr.startup_id = v.startup_id AND lr.firm_keys && v.firm_keys
   ORDER BY v.event_at DESC
 `;
 
