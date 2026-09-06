@@ -365,6 +365,10 @@ const audited = [
   // Founders Fund / Menlo — none of Harbert / Rally / MissionOG / Crosslink / Grotech /
   // Great North. Treat as scrape-lag, not a Hit@5 miss.
   // Do NOT ingest Transfyr $25M: company post 2026-08-26, seal 2026-08-29 15:46 UTC.
+  // Do NOT ingest Proception $11M seed: company is not in startup_uploads; FinSMEs/TC mixed with Tesla suit.
+  // Do NOT ingest Corgi $106M Series B1 (2026-05-28 PR): Corgi Insurance created 2026-07-01, no snapshot.
+  // Do NOT ingest Avatar Robotics $6.5M seed: PR Newswire 2026-08-05, proof-grade snapshot 2026-08-18
+  // (no served-first-top5). Announce is before predicted_at — scrape-lag, not a Hit@5 miss.
   // Do NOT ingest Scaled Cognition $100M: GlobeNewswire 2026-06-25, upload created same day, 0 matches.
   // Do NOT ingest Luxonis $14M: Business Wire / Pulse2 2026-07-02, upload created same day, 0 matches.
   // Do NOT ingest 10Beauty $23.5M: Business Wire 2026-07-01, upload created same day, 0 matches.

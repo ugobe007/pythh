@@ -949,11 +949,14 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.doesNotMatch(script, /audited:atorie:|audited:curaa:|audited:lupin-dental:|audited:eisen:/);
   assert.match(script, /Do NOT ingest Yardstik/);
   assert.match(script, /Do NOT ingest Transfyr/);
+  assert.match(script, /Do NOT ingest Proception/);
+  assert.match(script, /Do NOT ingest Corgi/);
+  assert.match(script, /Do NOT ingest Avatar Robotics/);
   assert.match(script, /Do NOT ingest Scaled Cognition/);
   assert.match(script, /Do NOT ingest Luxonis/);
   assert.match(script, /Do NOT ingest 10Beauty/);
   assert.match(script, /Do NOT ingest LinqAlpha/);
-  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1104,6 +1107,8 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.doesNotMatch(script, /\.delete\(/);
   for (const name of [
     'SpaceFund', 'Turbostart', 'Canyon Angels', 'Breakers', 'The Pay It Forward Company', 'Boot64 Ventures',
+    'First Round Capital', 'BoxGroup', 'TCV', 'Zone 2 Ventures', 'Quadri Ventures', 'Vocal Ventures',
+    'Nordstar', 'Repeat Ventures', 'AlleyCorp', 'defy.vc', 'Headline', 'REFASHIOND Ventures',
     'Genesys Cloud', 'Denali Growth Partners', 'Story Ventures', 'AVP', 'Atinum Investment', 'GFT Ventures',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -1114,9 +1119,13 @@ test('missing funding investors are seeded only from reviewed first-party profil
   assert.doesNotMatch(script, /canonicalName:\s*'Genesys'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Genesys Capital'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Karlie Kloss'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Prime Capital'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'8188 Capital'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Oliver Jung'/);
   assert.doesNotMatch(orgs, /\['Tech Weekend'/);
   assert.doesNotMatch(orgs, /\['Founders Village'/);
   assert.doesNotMatch(orgs, /\['Genesys Capital'/);
+  assert.doesNotMatch(orgs, /\['Prime Capital'/);
 });
 
 test('investor coverage resolve accepts headline-cleaned firm matches', () => {
