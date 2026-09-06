@@ -1978,6 +1978,52 @@ const profiles = [
     thesis: 'NYC supply-chain and industrial transformation fund; Avatar Robotics seed participant.',
     source: 'https://www.refashiond.com/', type: 'VC', investorType: 'VC',
   },
+  // Scaled Cognition $100M Series A — Genesys Cloud ≠ Genesys Capital (capital suffix strips).
+  {
+    canonicalName: 'Genesys Cloud', firm: 'Genesys Cloud', url: 'https://www.genesys.com/',
+    sectors: ['Enterprise', 'AI/ML', 'SaaS'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Global'],
+    thesis: 'Cloud CX platform; strategic investor in Scaled Cognition’s $100M Series A alongside Khosla.',
+    source: 'https://www.genesys.com/', type: 'Corporate', investorType: 'Corporate',
+  },
+  // Luxonis $14M Series A (Business Wire 2026-07-02). Taiwania already seeded.
+  {
+    canonicalName: 'Denali Growth Partners', firm: 'Denali Growth Partners', url: 'https://www.denaligrowth.com/',
+    sectors: ['Healthcare', 'Technology', 'Robotics'],
+    stage: ['Series A', 'Growth'], geography: ['United States'],
+    thesis: 'Boston growth-equity firm; led Luxonis’ $14M Series A for physical-AI perception.',
+    source: 'https://www.denaligrowth.com/', type: 'VC', investorType: 'Growth',
+  },
+  // 10Beauty $23.5M — skip celebrity angels (Kloss / Foster / Frankel / Beckham).
+  {
+    canonicalName: 'Story Ventures', firm: 'Story Ventures', url: 'https://www.storyventures.com/',
+    sectors: ['Consumer', 'Robotics', 'AI/ML'],
+    stage: ['Seed', 'Series A'], geography: ['United States'],
+    thesis: 'Early-stage firm that led 10Beauty’s $23.5M robotic-manicure expansion round.',
+    source: 'https://www.storyventures.com/', type: 'VC', investorType: 'VC',
+  },
+  // LinqAlpha $22M Series A (AVP first-party post 2026-07-02).
+  {
+    canonicalName: 'AVP', firm: 'AVP', url: 'https://avpcap.com/',
+    sectors: ['Technology', 'AI/ML', 'Fintech'],
+    stage: ['Series A', 'Series B', 'Growth'], geography: ['Europe', 'United States'],
+    thesis: 'Independent growth platform (avpcap.com); anchored LinqAlpha’s $22M Series A.',
+    source: 'https://avpcap.com/', type: 'VC', investorType: 'Growth',
+  },
+  {
+    canonicalName: 'Atinum Investment', firm: 'Atinum Investment', url: null,
+    sectors: ['Technology', 'AI/ML'],
+    stage: ['Series A', 'Series B'], geography: ['South Korea', 'Global'],
+    thesis: 'Korean institutional VC; co-anchored LinqAlpha’s $22M Series A (named on AVP’s first-party post).',
+    source: 'https://avpcap.com/linqalpha-raises-22-million/', type: 'VC', investorType: 'VC',
+  },
+  {
+    canonicalName: 'GFT Ventures', firm: 'GFT Ventures', url: 'https://www.gft.vc/',
+    sectors: ['AI/ML', 'DeepTech'],
+    stage: ['Seed', 'Series A'], geography: ['United States', 'Global'],
+    thesis: 'Palo Alto deep-tech firm (ex-Nvidia/Samsung); co-anchored LinqAlpha’s $22M Series A.',
+    source: 'https://www.gft.vc/', type: 'VC', investorType: 'VC',
+  },
 ];
 
 async function allInvestors() {

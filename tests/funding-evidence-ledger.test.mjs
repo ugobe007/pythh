@@ -36,6 +36,9 @@ test('normalizes common investor firm suffixes for deterministic resolution', ()
   assert.equal(normalizeEntityName('Acme Capital Partners'), 'acme');
   // Weak remainders keep the corporate token (Founders Fund ≠ "founders")
   assert.equal(normalizeEntityName('Founders Fund'), 'founders fund');
+  // Genesys ≠ Genesys Capital (weak token prevents suffix stripping)
+  assert.equal(normalizeEntityName('Genesys'), 'genesys');
+  assert.equal(normalizeEntityName('Genesys Capital'), 'genesys capital');
 });
 
 test('strips RSS/headline publisher suffixes and possessive person prefixes', () => {
@@ -949,7 +952,11 @@ test('audited event importer preserves explicit roles, evidence phrases, and inc
   assert.match(script, /Do NOT ingest Proception/);
   assert.match(script, /Do NOT ingest Corgi/);
   assert.match(script, /Do NOT ingest Avatar Robotics/);
-  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:/);
+  assert.match(script, /Do NOT ingest Scaled Cognition/);
+  assert.match(script, /Do NOT ingest Luxonis/);
+  assert.match(script, /Do NOT ingest 10Beauty/);
+  assert.match(script, /Do NOT ingest LinqAlpha/);
+  assert.doesNotMatch(script, /audited:yardstik:|audited:transfyr:|audited:proception:|audited:corgi:|audited:avatar-robotics:|audited:scaled-cognition:|audited:luxonis:|audited:10beauty:|audited:linqalpha:/);
 });
 
 test('delta analysis separates identity, candidate-generation, ranking, and temporal failures', () => {
@@ -1102,17 +1109,22 @@ test('missing funding investors are seeded only from reviewed first-party profil
     'SpaceFund', 'Turbostart', 'Canyon Angels', 'Breakers', 'The Pay It Forward Company', 'Boot64 Ventures',
     'First Round Capital', 'BoxGroup', 'TCV', 'Zone 2 Ventures', 'Quadri Ventures', 'Vocal Ventures',
     'Nordstar', 'Repeat Ventures', 'AlleyCorp', 'defy.vc', 'Headline', 'REFASHIOND Ventures',
+    'Genesys Cloud', 'Denali Growth Partners', 'Story Ventures', 'AVP', 'Atinum Investment', 'GFT Ventures',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   assert.doesNotMatch(script, /canonicalName:\s*'Tech Weekend'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Founders Village'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Genesys'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Genesys Capital'/);
+  assert.doesNotMatch(script, /canonicalName:\s*'Karlie Kloss'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Prime Capital'/);
   assert.doesNotMatch(script, /canonicalName:\s*'8188 Capital'/);
   assert.doesNotMatch(script, /canonicalName:\s*'Oliver Jung'/);
   assert.doesNotMatch(orgs, /\['Tech Weekend'/);
   assert.doesNotMatch(orgs, /\['Founders Village'/);
+  assert.doesNotMatch(orgs, /\['Genesys Capital'/);
   assert.doesNotMatch(orgs, /\['Prime Capital'/);
 });
 

@@ -326,6 +326,15 @@ const organizations = [
   ['defy.vc', 'defy.vc', ['defy.vc', 'Defy.vc', 'Defy Partners']],
   ['Headline', 'headline.com', ['Headline']],
   ['REFASHIOND Ventures', 'refashiond.com', ['REFASHIOND Ventures', 'Refashiond Ventures', 'Refashiond']],
+  // Scaled Cognition / Luxonis / 10Beauty / LinqAlpha 2026 Series A-style rosters.
+  // Khosla + Taiwania already canonical. Genesys Cloud ≠ Genesys Capital
+  // (normalizeEntityName strips "capital", so never use a bare "Genesys" org).
+  ['Genesys Cloud', 'genesys.com', ['Genesys Cloud']],
+  ['Denali Growth Partners', 'denaligrowth.com', ['Denali Growth Partners', 'Denali Growth']],
+  ['Story Ventures', 'storyventures.com', ['Story Ventures']],
+  ['AVP', 'avpcap.com', ['AVP']],
+  ['Atinum Investment', null, ['Atinum Investment']],
+  ['GFT Ventures', 'gft.vc', ['GFT Ventures']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
