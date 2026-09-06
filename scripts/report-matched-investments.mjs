@@ -5,9 +5,13 @@
  * layer — every verified funder we matched before the raise — including
  * live top-5 that never received a served-first-top5 seal.
  *
+ * Headline rate: among startups with a verified post-prediction funder,
+ * share where that funder sat in sealed or live top-5 (firm identity).
+ *
  * Usage:
  *   npm run outcomes:matched
  *   npm run outcomes:matched -- --summary
+ *   npm run outcomes:matched:summary
  */
 import 'dotenv/config';
 import pg from 'pg';
@@ -225,10 +229,79 @@ function uniqueStartups(rows, predicate = () => true) {
   return new Set(rows.filter(predicate).map((r) => r.startup_id)).size;
 }
 
+function isTop5Placement(placement) {
+  return placement === 'sealed_top5' || placement === 'live_top5_unsealed';
+}
+
+function pct(numerator, denominator) {
+  const n = Number(numerator);
+  const d = Number(denominator);
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return null;
+  return Math.round((n / d) * 1000) / 10;
+}
+
+function formatRate(numerator, denominator) {
+  const rate = pct(numerator, denominator);
+  return rate == null ? 'n/a' : `${numerator}/${denominator} = ${rate}%`;
+}
+
+function firmDedupedPairs(verified) {
+  const best = new Map();
+  for (const row of verified) {
+    const key = `${row.startup_id}|${row.firm_key}`;
+    const cur = best.get(key);
+    if (!cur || rankPlacement(row.placement) < rankPlacement(cur.placement)) {
+      best.set(key, row);
+    }
+  }
+  return [...best.values()];
+}
+
+function rateSummary(verified) {
+  const firms = firmDedupedPairs(verified);
+  const startupIds = [...new Set(verified.map((r) => r.startup_id))];
+  const startupHitAny = startupIds.filter((id) =>
+    verified.some((r) => r.startup_id === id && isTop5Placement(r.placement)),
+  ).length;
+  const startupHitSealed = startupIds.filter((id) =>
+    verified.some((r) => r.startup_id === id && r.placement === 'sealed_top5'),
+  ).length;
+  const firmTop5 = firms.filter((r) => isTop5Placement(r.placement)).length;
+  const pairTop5 = verified.filter((r) => isTop5Placement(r.placement)).length;
+  return {
+    headline: {
+      name: 'startup_hit_at_5_including_unsealed',
+      hits: startupHitAny,
+      startups: startupIds.length,
+      rate_pct: pct(startupHitAny, startupIds.length),
+    },
+    startup_hit_at_5_including_unsealed: {
+      hits: startupHitAny,
+      startups: startupIds.length,
+      rate_pct: pct(startupHitAny, startupIds.length),
+    },
+    startup_hit_at_5_sealed_only: {
+      hits: startupHitSealed,
+      startups: startupIds.length,
+      rate_pct: pct(startupHitSealed, startupIds.length),
+    },
+    firm_pair_top5: {
+      hits: firmTop5,
+      pairs: firms.length,
+      rate_pct: pct(firmTop5, firms.length),
+    },
+    raw_pair_top5: {
+      hits: pairTop5,
+      pairs: verified.length,
+      rate_pct: pct(pairTop5, verified.length),
+    },
+  };
+}
+
 function placementSummary(verified) {
   const sealedPairs = verified.filter((r) => r.placement === 'sealed_top5');
   const liveUnsealedPairs = verified.filter((r) => r.placement === 'live_top5_unsealed');
-  const anyTop5Pairs = verified.filter((r) => r.placement === 'sealed_top5' || r.placement === 'live_top5_unsealed');
+  const anyTop5Pairs = verified.filter((r) => isTop5Placement(r.placement));
   const outsidePairs = verified.filter((r) => r.placement === 'outside_top5');
   return {
     sealed_top5: { pairs: sealedPairs.length, startups: uniqueStartups(sealedPairs) },
@@ -277,10 +350,17 @@ function startupRollup(verified) {
     .sort((a, b) => b.pairs - a.pairs || a.startup.localeCompare(b.startup));
 }
 
-function printScoreboard(summary, placement, pendingByTier) {
+function printScoreboard(summary, placement, pendingByTier, rates) {
+  const headline = rates.startup_hit_at_5_including_unsealed;
   console.log('Overall matched investments (pair layer, including non-sealed top 5)');
-  console.log(`  verified pairs:          ${summary.verified_pairs} across ${summary.startups} startups`);
-  console.log(`  pending review:          ${summary.pending_pairs}`);
+  console.log(
+    `  HIT RATE:                 ${headline.rate_pct}%   ${headline.hits} of ${headline.startups} startups had a matched funder in top-5`,
+  );
+  console.log(`  sealed-only hit rate:     ${formatRate(rates.startup_hit_at_5_sealed_only.hits, rates.startup_hit_at_5_sealed_only.startups)}`);
+  console.log(`  firm-deduped pair top-5:  ${formatRate(rates.firm_pair_top5.hits, rates.firm_pair_top5.pairs)}`);
+  console.log(`  raw pair top-5:           ${formatRate(rates.raw_pair_top5.hits, rates.raw_pair_top5.pairs)}`);
+  console.log(`  verified pairs:           ${summary.verified_pairs} across ${summary.startups} startups`);
+  console.log(`  pending review:           ${summary.pending_pairs}`);
   console.log('  placement:');
   console.log(`    any top-5 (sealed+live): ${placement.any_top5.pairs} pairs / ${placement.any_top5.startups} startups`);
   console.log(`    sealed top-5:            ${placement.sealed_top5.pairs} pairs / ${placement.sealed_top5.startups} startups`);
@@ -302,14 +382,17 @@ try {
   const summary = summaryRows[0];
   const pendingByTier = countBy(pending, 'source_tier');
   const placement = placementSummary(verified);
+  const rates = rateSummary(verified);
   const startups = startupRollup(verified);
 
   const payload = {
     generated_at: new Date().toISOString(),
-    working_metric: 'overall_verified_pairs_including_non_sealed_top5',
+    working_metric: 'startup_hit_at_5_including_unsealed',
+    headline_rate_pct: rates.headline.rate_pct,
     summary: {
       ...summary,
       placement,
+      rates,
     },
     pending_by_source_tier: pendingByTier,
     startups_with_verified_pairs: startups,
@@ -318,7 +401,7 @@ try {
   };
 
   if (asSummary) {
-    printScoreboard(summary, placement, pendingByTier);
+    printScoreboard(summary, placement, pendingByTier, rates);
     console.log('\nStartups with a verified post-prediction funder:');
     for (const row of startups) {
       console.log(
