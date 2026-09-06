@@ -206,6 +206,8 @@
     "funding:participants": "node scripts/run-node.mjs scripts/enrich-funding-ledger-participants.mjs",
     "funding:participants:prediction-linked": "node scripts/run-node.mjs scripts/enrich-funding-ledger-participants.mjs --prediction-linked",
     "funding:participants:seed-indeterminate": "node scripts/run-node.mjs scripts/seed-indeterminate-funding-participants.mjs",
+    "funding:yc-batch:who": "node scripts/run-node.mjs scripts/seed-yc-batch-who.mjs",
+    "funding:yc-batch:who:apply": "node scripts/run-node.mjs scripts/seed-yc-batch-who.mjs --apply",
     "funding:ingest:audited:apply": "node scripts/run-node.mjs scripts/ingest-audited-funding-events.mjs --apply",
     "funding:corroborate:apply": "node scripts/run-node.mjs scripts/corroborate-funding-evidence-rounds.mjs --apply",
     "hit5:doctor": "node scripts/run-node.mjs scripts/doctor-hit5-ops.mjs",
