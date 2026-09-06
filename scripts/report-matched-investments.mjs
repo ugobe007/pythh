@@ -414,11 +414,9 @@ try {
   const summary = summaryRows[0];
   const pendingByTier = countBy(pending, 'source_tier');
   if (verified.length !== Number(summary.verified_pairs)) {
-    console.error(
+    throw new Error(
       `Refusing to print rates: placement query returned ${verified.length} rows but there are ${summary.verified_pairs} verified pairs. This is a join explosion (the 546-row / 24.4% board). Pull pair-scoreboard-v3.`,
     );
-    process.exitCode = 1;
-    return;
   }
   const placement = placementSummary(verified);
   const rates = rateSummary(verified);
