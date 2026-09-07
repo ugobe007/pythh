@@ -59,6 +59,7 @@ const STARTUP_SOURCES = [
   { name: 'Dealroom via Google News', url: 'https://news.google.com/rss/search?q=site:dealroom.co+(funding+OR+raises+OR+startup)&hl=en-US&gl=US&ceid=US:en', priority: 1, expectedYield: 10 },
   { name: 'AngelList via Google News', url: 'https://news.google.com/rss/search?q=site:angellist.com+OR+site:wellfound.com+(startup+OR+funding)&hl=en-US&gl=US&ceid=US:en', priority: 2, expectedYield: 8 },
   { name: 'GeekWire Fundings via Google News', url: 'https://news.google.com/rss/search?q=site:geekwire.com+(funding+OR+raises+OR+series)&hl=en-US&gl=US&ceid=US:en', priority: 1, expectedYield: 12 },
+  { name: 'Top Startups', url: 'https://topstartups.substack.com/feed', priority: 1, expectedYield: 15 },
   { name: 'VentureBeat', url: 'https://venturebeat.com/feed/', priority: 1, expectedYield: 15 },
   { name: 'FINSMES', url: 'https://www.finsmes.com/feed', priority: 1, expectedYield: 30 },
   { name: 'EU-Startups', url: 'https://www.eu-startups.com/feed/', priority: 1, expectedYield: 20 },

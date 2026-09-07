@@ -152,6 +152,12 @@ const TIER2 = [
     url: (name) => GN(`"${name}" site:geekwire.com`),
   },
   {
+    key: 'topstartups', label: 'Top Startups', tier: 2,
+    category: 'startup_news', timeout: 10000, strict: true,
+    type: 'GOOGLE_SITE',
+    url: (name) => GN(`"${name}" (site:topstartups.io OR site:topstartups.substack.com)`),
+  },
+  {
     key: 'alleywatch', label: 'AlleyWatch', tier: 2,
     category: 'regional', timeout: 10000, strict: true,
     type: 'GOOGLE_SITE',
