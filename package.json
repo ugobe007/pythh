@@ -325,6 +325,7 @@
     "purge:pending-pipeline": "node scripts/run-node.mjs scripts/purge-pending-startups-pipeline.js",
     "cleanup:junk-scan": "npx tsx scripts/cleanup-junk-startup-names.ts --dry-run",
     "cleanup:junk-scan:fix": "npx tsx scripts/cleanup-junk-startup-names.ts --fix",
+    "portfolio:export-csv": "node scripts/run-node.mjs scripts/export-pythiam-portfolio-csv.mjs",
     "portfolio:import": "node scripts/run-node.mjs scripts/import-portfolio-csv.js",
     "portfolio:regression": "node scripts/run-node.mjs scripts/portfolio-regression.js",
     "portfolio:refresh": "node scripts/run-node.mjs scripts/cron/portfolio-signal-refresh.js",
