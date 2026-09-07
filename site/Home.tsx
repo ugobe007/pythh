@@ -413,12 +413,8 @@ function LiveMatchHighlight() {
 
 function HeroSection({
   platformStats,
-  platformStatsReady,
-  portfolioMetrics,
 }: {
   platformStats: PlatformStats | null;
-  platformStatsReady: boolean;
-  portfolioMetrics: PortfolioHeadlineMetrics | null;
 }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
@@ -463,12 +459,8 @@ function HeroSection({
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
-  const matchCount = platformStats?.matches ?? 0;
-  const matchesNew7d = platformStats?.matches_new_7d ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
-  const fundedStartupCount =
-    platformStats?.funded_startups ?? portfolioMetrics?.verified_funded_picks ?? 0;
   const { headline: heroHeadline, subline: heroSubline } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
@@ -479,87 +471,13 @@ function HeroSection({
   return (
     <section
       className="relative pt-16 pb-12 lg:pb-14 overflow-hidden"
-      style={{
-        backgroundColor: PAGE,
-        backgroundImage:
-          "radial-gradient(ellipse 50% 40% at 50% 0%, oklch(0.696 0.17 162.48 / 0.06) 0%, transparent 60%)",
-      }}
+      style={{ backgroundColor: PAGE }}
     >
-      <div
-        className="absolute inset-0 opacity-[0.02] pointer-events-none"
-        style={{
-          backgroundImage:
-            "linear-gradient(oklch(0.6 0.01 264) 1px, transparent 1px), linear-gradient(90deg, oklch(0.6 0.01 264) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
 
-      <div className="container relative z-10 max-w-5xl mx-auto px-6 py-6 lg:py-8 text-center">
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-4">
-          <span
-            className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase px-3 py-1.5 rounded-full"
-            style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
-            Investor Intelligence · Live
-          </span>
-        </div>
-
-        {showHeroStats ? (
-          <StatStrip
-            cols={4}
-            compact
-            className="mb-6"
-            items={[
-              {
-                value: investorCount.toLocaleString(),
-                label: "Investors in Pythh",
-                sub: "angels, VCs & funds",
-                color: TEXT,
-              },
-              {
-                value:
-                  platformStats?.pair_funding_rate_pct != null
-                    ? `${platformStats.pair_funding_rate_pct}%`
-                    : "—",
-                label: "Funding rate",
-                sub:
-                  platformStats?.pair_funding_hits != null
-                  && platformStats?.pair_funding_startups
-                    ? `${platformStats.pair_funding_hits} of ${platformStats.pair_funding_startups} matched funders in top-5`
-                    : "sealed + live Hit@5",
-                color: G,
-                featured: true,
-              },
-              {
-                value: formatMatchFull(matchCount),
-                label: "Investor matches",
-                sub: matchesNew7d > 0 ? formatVelocitySub(matchesNew7d) : "pre-computed pairings",
-                color: AMBER,
-              },
-              {
-                value: fundedStartupCount.toLocaleString(),
-                label: "Startups funded",
-                sub:
-                  startupCount > 0
-                    ? `${Math.round((fundedStartupCount / startupCount) * 100)}% of tracked startups`
-                    : "unique tracked outcomes",
-                color: GOLD,
-                href: "/portfolio",
-              },
-            ]}
-          />
-        ) : !platformStatsReady ? (
-          <div
-            className="h-24 rounded-lg animate-pulse mb-6"
-            style={{ backgroundColor: "oklch(0.18 0.01 264)", border: `1px solid ${BORDER}` }}
-            aria-label="Loading live platform statistics"
-          />
-        ) : null}
-
+      <div className="container relative z-10 max-w-5xl mx-auto px-6 py-10 lg:py-16 text-center">
         <div className="max-w-3xl mx-auto">
         <h1
-          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
+          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[18ch]"
           style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
         >
           {heroHeadline}
@@ -621,38 +539,15 @@ function HeroSection({
           {error && (
             <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
           )}
-          <p className="text-[10px] mt-3" style={{ color: DIM }}>
-            Qualify investors · Draft outreach · Book meetings · You approve every send
-          </p>
         </form>
-        </div>
-        {portfolioMetrics?.total_picks != null && portfolioMetrics.verified_funded_picks != null && (
-          <a
-            href="/portfolio"
-            className="inline-flex flex-wrap items-center justify-center gap-x-1.5 text-xs mt-3 underline hover:no-underline"
-            style={{ color: G }}
-          >
-            <span>Public proof:</span>
-            <span>{portfolioMetrics.all_picks ?? portfolioMetrics.total_picks} virtual picks</span>
-            <span aria-hidden>·</span>
-            <span>{portfolioMetrics.acquisitions ?? portfolioMetrics.successful_exits ?? 0} acquired</span>
-            <ArrowRight size={12} aria-hidden />
-          </a>
-        )}
-        {showHeroStats && (
-          <p className="text-[10px] leading-relaxed mt-2 mx-auto max-w-[62ch]" style={{ color: DIM }}>
-            Live platform totals:{" "}
-            <span style={{ color: TEXT }}>{startupCount.toLocaleString()}</span> startups ·{" "}
-            <span style={{ color: TEXT }}>{investorCount.toLocaleString()}</span> investors ·{" "}
-            <span style={{ color: TEXT }}>{formatMatchFull(matchCount)}</span> matches
-            {fundedStartupCount > 0 && (
-              <>
-                {" · "}
-                <span style={{ color: TEXT }}>{fundedStartupCount.toLocaleString()}</span> funded
-              </>
-            )}
+        {showHeroStats && platformStats?.pair_funding_rate_pct != null && (
+          <p className="text-sm mt-8" style={{ color: DIM }}>
+            {platformStats.pair_funding_hits != null && platformStats.pair_funding_startups
+              ? `${platformStats.pair_funding_hits} of ${platformStats.pair_funding_startups} matched funders later invested`
+              : `${platformStats.pair_funding_rate_pct}% matched-funder hit rate`}
           </p>
         )}
+        </div>
       </div>
     </section>
   );
@@ -1665,10 +1560,10 @@ function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex flex-col mb-4">
               <span className="font-display font-bold text-lg text-white tracking-tight">pythh.ai</span>
-              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>SIGNAL SCIENCE</span>
+              <span className="text-[10px]" style={{ color: "oklch(0.5 0.01 264)" }}>AI for capital alignment</span>
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "oklch(0.45 0.01 264)" }}>
-              PYTHIA sees the investors you should be talking to — before you even know to ask. You approve. You show up.
+              Pythh aligns startups with the investors who later fund them. You approve every send.
             </p>
           </div>
           {cols.map((col) => (
@@ -1724,20 +1619,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
-      <SharedNavbar activePath="/" variant="hero" />
-      <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
-      <LiveMatchHighlight />
-      <DailyCapitalSnapshot />
-      <PortfolioTeaser />
+      <SharedNavbar
+        activePath="/"
+        variant="hero"
+        heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
+      />
+      <HeroSection platformStats={platformStats} />
       <HowItWorksSection />
-      <ReadinessMemoSection />
-      <SignalProofBar />
       <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
-      <GODScoreSection />
-      <AgentIntroSection />
-      <LiveSignalsSection />
-      <InvestorStrip />
-      <SignalArtTeaser />
       <NewsletterSection />
       <Footer />
     </div>

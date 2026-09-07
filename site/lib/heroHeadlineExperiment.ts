@@ -20,18 +20,18 @@ export const HERO_PRIMARY_CTA = 'Automate your raise';
 
 /** Locked public subline — raise automation without claiming send-before-approval. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your URL — Pythh qualifies investors, drafts outreach, and books meetings. Nothing is sent without your approval.';
+  'You build the company. Paste your URL — Pythh qualifies investors, drafts outreach, and books meetings. Nothing is sent without your approval.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
-      headline: 'You build the company. Pythh runs the raise.',
+      headline: 'AI for capital alignment.',
       subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
-    headline: 'You build the company. Pythh runs the raise.',
+    headline: 'AI for capital alignment.',
     subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };
