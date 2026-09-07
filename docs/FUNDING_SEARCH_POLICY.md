@@ -24,6 +24,7 @@ first-party feed is dead / Cloudflare-blocked). Canonical list:
 | https://dealroom.co/news/ | Google News `site:dealroom.co` | CF 403 on first-party |
 | https://www.angellist.com | Google News `site:angellist.com` / wellfound | No RSS (HTML catch-all) |
 | https://www.geekwire.com/fundings/ | Google News `site:geekwire.com` | `/fundings/feed/` is CF 403 |
+| https://topstartups.io | `https://topstartups.substack.com/feed` | `/rss/` is an HTML catch-all; weekly "Who got funded?" is on Substack |
 
 Do **not** store these hosts as a startup `website`. They are news sources.
 

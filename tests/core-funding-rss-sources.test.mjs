@@ -15,16 +15,19 @@ test('core funding RSS sources cover the operator news homepages', () => {
   assert.ok(homepages.includes('https://www.angellist.com'));
   assert.ok(homepages.includes('https://www.producthunt.com'));
   assert.ok(homepages.includes('https://www.geekwire.com/fundings/'));
-  assert.equal(CORE_FUNDING_RSS_SOURCES.filter((s) => s.firstParty).length, 3);
+  assert.ok(homepages.includes('https://topstartups.io'));
+  assert.equal(CORE_FUNDING_RSS_SOURCES.filter((s) => s.firstParty).length, 4);
   assert.ok(CORE_FUNDING_RSS_SOURCES.some((s) => s.url.includes('news.crunchbase.com/feed')));
   assert.ok(CORE_FUNDING_RSS_SOURCES.some((s) => s.url.includes('techcrunch.com/category/startups/feed')));
   assert.ok(CORE_FUNDING_RSS_SOURCES.some((s) => s.url.includes('producthunt.com/feed')));
+  assert.ok(CORE_FUNDING_RSS_SOURCES.some((s) => s.url.includes('topstartups.substack.com/feed')));
 });
 
 test('broken first-party Dealroom and AngelList feeds stay off', () => {
   assert.ok(BROKEN_FIRST_PARTY_CORE_FEEDS.includes('https://dealroom.co/blog/feed'));
   assert.ok(BROKEN_FIRST_PARTY_CORE_FEEDS.includes('https://www.angellist.com/blog/rss.xml'));
   assert.ok(BROKEN_FIRST_PARTY_CORE_FEEDS.includes('https://www.geekwire.com/fundings/feed/'));
+  assert.ok(BROKEN_FIRST_PARTY_CORE_FEEDS.includes('https://topstartups.io/rss/'));
   for (const url of BROKEN_FIRST_PARTY_CORE_FEEDS) {
     assert.equal(CORE_FUNDING_RSS_SOURCES.some((s) => s.url === url), false);
   }
@@ -38,6 +41,7 @@ test('high-volume discovery and inference hunt the core publishers', () => {
   assert.match(highVolume, /site:dealroom\.co/);
   assert.match(highVolume, /site:angellist\.com/);
   assert.match(highVolume, /site:geekwire\.com/);
+  assert.match(highVolume, /topstartups\.substack\.com\/feed/);
 
   const search = readFileSync(new URL('../scripts/search-startup-funding-evidence.mjs', import.meta.url), 'utf8');
   assert.match(search, /CORE_FUNDING_INFERENCE_SITE_QUERY/);
@@ -49,4 +53,6 @@ test('high-volume discovery and inference hunt the core publishers', () => {
   assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:angellist\.com/);
   assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:wellfound\.com/);
   assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:geekwire\.com/);
+  assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:topstartups\.io/);
+  assert.match(CORE_FUNDING_INFERENCE_SITE_QUERY, /site:topstartups\.substack\.com/);
 });
