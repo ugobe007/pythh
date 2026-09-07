@@ -296,6 +296,20 @@ export default function Matches() {
         ...getUtmParams(),
       });
       trackReturnVisitIfEligible('/matches');
+    } else {
+      // Awareness fix: /matches?url= is the dominant human entry (hero, /find-investors,
+      // share cards all route here). Previously page_view fired ONLY on the bare /matches
+      // path, so humans who landed with ?url= submitted URLs but were never counted as a
+      // page_view — producing an impossible url_submitted:page_view ratio that flags
+      // awareness as BLIND and blocks every downstream loop. Count the preview landing too,
+      // with a distinct source so it stays segmentable and never inflates url_submitted.
+      void trackFunnelEventOnce('pythh_matches_preview_landing_view', 'page_view', {
+        path: '/matches',
+        source: 'matches_preview_landing',
+        entry: 'url_param',
+        ...getUtmParams(),
+      });
+      trackReturnVisitIfEligible('/matches?url=');
     }
   }, [location]);
 

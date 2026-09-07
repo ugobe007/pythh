@@ -1,7 +1,77 @@
 {
   "version": 1,
-  "updated_at": "2026-06-27T00:00:00Z",
+  "updated_at": "2026-09-07T00:00:00Z",
   "findings": [
+    {
+      "id": "F-2026-0907-18",
+      "type": "funnel",
+      "friction_category": "missing_signals",
+      "audience": "both",
+      "title": "Awareness 'collapse' is partly an instrumentation mirage — /matches?url= entries fired url_submitted but NO page_view (SHIPPED FIX)",
+      "founder_problem": "N/A (measurement defect) — but it silently blocks every founder-facing loop: while awareness reads BLIND, Scout's decision rules forbid shipping preview/signup UI, so the whole funnel freezes on a false signal.",
+      "investor_problem": "Same — investor-side loops are also gated behind the (falsely) BLIND awareness stage.",
+      "evidence": {
+        "internal": "conversion-funnel-snapshot 2026-09-07: page_view=19/7d but human url_submitted=126/7d → url_submitted_per_page_view=663.2, a physically impossible ratio (you cannot submit a URL without viewing a page). Root cause found in site/pages/Matches.tsx L292: page_view fired ONLY when `!state.previewUrl`. The dominant human entry path (hero, /find-investors, share cards → /matches?url=) hits the else branch and fired no page_view — so real human landings went uncounted while their url_submitted (source=matches_preview) was counted. 160 instant_matches_viewed and 126 human url_submitted vs 19 page_view corroborate: humans ARE arriving; the landing event was suppressed.",
+        "strength": "validated (internal funnel data + located code defect)"
+      },
+      "pythh_opportunity": "Fire page_view on the /matches?url= preview-landing branch (distinct source 'matches_preview_landing' so it stays segmentable and never inflates url_submitted). This un-blinds the awareness stage, lets Scout unfreeze downstream preview/signup loops, and makes true awareness measurable. Expected: url_submitted_per_page_view collapses from 663 toward <5; human page_view rises toward parity with human url_submitted within 7d.",
+      "suggested_product_shape": "Instrumentation fix (shipped this run) + 7d verification: watch human_funnel.page_view and rates.url_submitted_per_page_view in conversion-funnel-snapshot; once ratio <100 the awareness BLIND flag clears and Product/Growth can resume preview→signup loops.",
+      "signup_lever": "awareness (measurement) — unblocks conversion + retention loops",
+      "confidence": "high",
+      "status": "addressed",
+      "status_update": "2026-09-07: SHIPPED — site/pages/Matches.tsx now fires page_view on the ?url= preview-landing branch. Verify next snapshot; if page_view still << human url_submitted, audit share-card/redirect entry that bypasses /matches.",
+      "code_changes": { "files": ["site/pages/Matches.tsx"] },
+      "handoff": {
+        "suggested_opportunity_id": "awareness_pageview_truth",
+        "title": "Un-blind awareness: count /matches?url= preview landings as page_view (verify ratio <100 in 7d)",
+        "priority": "P0",
+        "domain": "pipeline"
+      }
+    },
+    {
+      "id": "F-2026-0907-19",
+      "type": "market",
+      "friction_category": "pricing_terms",
+      "audience": "both",
+      "title": "Stealth-to-mega-round froth keeps distorting founder valuation expectations — reinforces the valuation reality-check widget (F-06)",
+      "founder_problem": "Headlines of near-instant mega-valuations reset what a normal founder thinks their round should look like, causing over/under-asking and stalled negotiations. A seed founder reading 'three months out of stealth, Series B at $1.2B' anchors to a number that has nothing to do with their round.",
+      "investor_problem": "Investors need defensible current comps; headline mega-rounds distort the anchor on both sides of the table.",
+      "evidence": {
+        "rss": "research-snapshot 2026-09-07: TechCrunch 'XDOF, just three months out of stealth, is in talks for a Series B at a $1.2B valuation' (friction category=pricing_terms, matched 'valuation'); Sifted 'Bessemer and Creandum set to back new AI infrastructure startup at $600m valuation' (pricing_terms). Two independent mega-valuation/froth hits in one scan — recurring pattern across cycles (see F-06 status_update).",
+        "strength": "hypothesis (external) corroborating validated recurring pattern"
+      },
+      "pythh_opportunity": "Ship the valuation reality-check widget from F-06 as a picky/skeptical TRUST asset in the preview: 'mega-rounds aren't your round — comparable {stage}/{sector} raises look like X'. Doubles as the antidote to AI-tool distrust (F-15): proof + filtering before any ask.",
+      "suggested_product_shape": "Stage/sector terms-benchmark widget in match preview sourced from internal startup_events + funding RSS; per-investor expected check size.",
+      "signup_lever": "conversion (richer, trust-building preview)",
+      "confidence": "medium",
+      "status": "open"
+    },
+    {
+      "id": "F-2026-0907-20",
+      "type": "competitor",
+      "friction_category": "workflow_tools",
+      "audience": "founder",
+      "title": "Startups.com owns a PUBLIC top-of-funnel awareness surface (who-will-fund-me, count social proof) — Pythh has no shareable awareness loop",
+      "founder_problem": "Founders discover investor-matching tools through public, shareable, count-heavy surfaces ('Matched with 2,132 investors'). Pythh's value lives behind a URL submit with no public artifact to share or index, so awareness has no organic engine — matching Scout's binding constraint (awareness/traffic).",
+      "investor_problem": "N/A — founder-side awareness benchmark.",
+      "evidence": {
+        "competitor": "agents/research/competitors/startups-com-investor-matching.md: who-will-fund-me.startups.com public landing + '2,132 investors matched' count social proof as a discovery/awareness loop feeding their form→'See My Matches' funnel.",
+        "internal": "conversion-funnel-snapshot 2026-09-07: awareness BLIND, page_view near zero, no share-card attributed url_submitted; north-star loop share_proof_cards defined but unbuilt.",
+        "strength": "validated (competitor live surface) + internal awareness gap"
+      },
+      "pythh_opportunity": "Build the share_proof_cards loop: after a preview, generate a public, shareable, honest 'signal-fit scorecard' card (e.g. '3 of 47 investors fit my signals — see who') that is indexable and routes back to /matches?url=. Beats their volume hype with picky evidence and creates the missing organic awareness engine. Now measurable thanks to the F-18 page_view fix.",
+      "suggested_product_shape": "Post-preview share card (OG image + /matches?url= deep link, source=share_preview) + SEO /find-investors/{sector} pages; measure page_view + UTM url_submitted from ref.",
+      "signup_lever": "awareness (organic acquisition loop)",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "share_proof_cards",
+      "handoff": {
+        "suggested_opportunity_id": "share_proof_cards",
+        "title": "Public share_proof_cards awareness loop (honest signal-fit scorecard → /matches?url=)",
+        "priority": "P1",
+        "domain": "growth"
+      }
+    },
     {
       "id": "F-competitor-startups-com-01",
       "type": "competitor",
