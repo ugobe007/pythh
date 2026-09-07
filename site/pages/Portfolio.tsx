@@ -591,6 +591,14 @@ export default function Portfolio() {
             Every startup crossing GOD 70 enters the virtual fund. We track funding, exits, and
             press-verified outcomes in public — proof the signal engine works.
           </p>
+          <a
+            href="/api/portfolio/export.csv"
+            download="pythiam-portfolio.csv"
+            className="inline-flex items-center gap-2 mt-5 text-sm font-mono font-semibold transition-colors"
+            style={{ color: CYAN }}
+          >
+            Download CSV
+          </a>
         </header>
 
         {/* Metrics strip */}

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   PYTHIAM_PORTFOLIO_CSV_COLUMNS,
@@ -64,4 +65,11 @@ test('CSV escapes commas and quotes and keeps a header row', () => {
   assert.equal(lines[0], PYTHIAM_PORTFOLIO_CSV_COLUMNS.join(','));
   assert.match(lines[1], /^"Foo, Bar",/);
   assert.equal(lines.length, 2);
+});
+
+test('portfolio page and API expose the investor-review CSV', () => {
+  const page = readFileSync(new URL('../site/pages/Portfolio.tsx', import.meta.url), 'utf8');
+  const server = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
+  assert.match(page, /\/api\/portfolio\/export\.csv/);
+  assert.match(server, /app\.get\('\/api\/portfolio\/export\.csv'/);
 });

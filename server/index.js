@@ -6721,6 +6721,7 @@ app.get('/api', (req, res) => {
       'GET /api/trending',
       'GET /api/matches?startup_id=...&limit=',
       'GET /api/matches/export.csv?startup_id=...&limit= (elite)',
+      'GET /api/portfolio/export.csv',
       'GET /api/matches/memo?startup_id=... (elite)',
       'POST /api/share/matches (elite)',
       'GET /api/share/matches/:token',
@@ -9890,45 +9891,83 @@ async function enrichPortfolioEntries(supabase, rows, { includeExitPropensity = 
   });
 }
 
+async function loadPublicPortfolioListing({
+  limit = 200,
+  status = null,
+  sort = 'god',
+  lite = false,
+  includeQuarantined = false,
+} = {}) {
+  const supabase = getSupabaseClient();
+  const excludeQuarantined = !includeQuarantined;
+  let query = supabase.from('portfolio_health').select('*').limit(limit);
+
+  if (status) query = query.eq('status', status);
+  if (excludeQuarantined) query = query.eq('entity_quarantined', false);
+
+  if (sort === 'health') {
+    query = query
+      .order('health_tier_rank', { ascending: true })
+      .order('god_delta', { ascending: true })
+      .order('entry_god_score', { ascending: false });
+  } else {
+    query = query.order('entry_god_score', { ascending: false });
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  let rows = data || [];
+  if (excludeQuarantined) {
+    rows = rows.filter((r) => r.status !== 'written_off');
+    rows = await filterPublicPortfolioRows(supabase, rows);
+  }
+  return enrichPortfolioEntries(supabase, rows, { includeExitPropensity: !lite });
+}
+
 // GET /api/portfolio — public listing from portfolio_health view (tiers + momentum)
 // sort=god (default) | health (review/watch first, then worst GOD delta)
 app.get('/api/portfolio', async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
     const limit = Math.min(parseInt(req.query.limit || '200', 10), 500);
     const status = req.query.status || null;
     const sort = String(req.query.sort || 'god').toLowerCase();
     const lite = req.query.lite === '1' || req.query.lite === 'true';
     const includeQuarantined =
       req.query.include_quarantined === '1' || req.query.include_quarantined === 'true';
-    const excludeQuarantined = !includeQuarantined;
 
-    let query = supabase.from('portfolio_health').select('*').limit(limit);
-
-    if (status) query = query.eq('status', status);
-    if (excludeQuarantined) query = query.eq('entity_quarantined', false);
-
-    if (sort === 'health') {
-      query = query
-        .order('health_tier_rank', { ascending: true })
-        .order('god_delta', { ascending: true })
-        .order('entry_god_score', { ascending: false });
-    } else {
-      query = query.order('entry_god_score', { ascending: false });
-    }
-
-    const { data, error } = await query;
-    if (error) return res.status(500).json({ error: error.message });
-
-    let rows = data || [];
-    if (excludeQuarantined) {
-      rows = rows.filter((r) => r.status !== 'written_off');
-      rows = await filterPublicPortfolioRows(supabase, rows);
-    }
-    const entries = await enrichPortfolioEntries(supabase, rows, { includeExitPropensity: !lite });
+    const entries = await loadPublicPortfolioListing({
+      limit,
+      status,
+      sort,
+      lite,
+      includeQuarantined,
+    });
 
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ entries, count: entries.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portfolio/export.csv — same public book as /portfolio, for LP review
+app.get('/api/portfolio/export.csv', async (req, res) => {
+  try {
+    const { portfolioEntriesToCsv } = await import('../lib/pythiamPortfolioCsv.mjs');
+    const sort = String(req.query.sort || 'health').toLowerCase();
+    const entries = await loadPublicPortfolioListing({
+      limit: 500,
+      status: req.query.status || null,
+      sort,
+      lite: false,
+      includeQuarantined: false,
+    });
+    const date = new Date().toISOString().slice(0, 10);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="pythiam-portfolio-${date}.csv"`);
+    res.send(portfolioEntriesToCsv(entries));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

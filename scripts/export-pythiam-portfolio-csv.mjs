@@ -24,7 +24,7 @@ const outArg = argValue('--out');
 const sort = argValue('--sort', 'health');
 const apiBase = argValue('--api', PORTFOLIO_API_URL);
 const today = new Date().toISOString().slice(0, 10);
-const outPath = path.resolve(outArg || `reports/pythiam-portfolio-${today}.csv`);
+const outPath = path.resolve(outArg || `lp/pythiam-portfolio-investor-review.csv`);
 
 const url = new URL(apiBase);
 url.searchParams.set('sort', sort);
