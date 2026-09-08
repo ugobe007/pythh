@@ -1456,7 +1456,7 @@ const GOD_PILLARS = [
     letter: "D",
     word: "Determination",
     color: G,
-    desc: "The rarest success trait in elite founders is pathological determination — no off-switch, and a borderline-delusional ability to run through any wall. It is not confidence or charisma; the most determined founders are often introverted. High determination predicts bigger companies, even when it takes longer. Most investors do not ask the right questions to uncover it.",
+    desc: "The rarest success trait in elite founders is pathological determination: no off-switch, and a borderline-delusional ability to run through any wall. It is not confidence or charisma; the most determined founders are often introverted, and high determination predicts bigger companies even when it takes longer — the trait Paul Graham calls the single best predictor of success, and the one most investors fail to measure correctly.",
     vcs: ["Most investors miss it"],
     signals: ["Prove someone wrong", "Prior failed businesses", "Irrational optimism"],
   },
