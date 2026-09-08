@@ -18,6 +18,9 @@ export type HeroHeadlineCopy = {
 
 export const HERO_PRIMARY_CTA = 'Automate your raise';
 
+/** Accent phrase in the locked H1 — rendered in brand emerald. */
+export const HERO_HEADLINE_ACCENT = 'Who Will Fund You';
+
 /** Locked public subline — paste-URL → thesis-aligned funders. */
 const TRUSTED_HERO_SUBLINE =
   'Paste your URL — Pythh finds investors who will fund your startup. We align your thesis with investors that "get it".';

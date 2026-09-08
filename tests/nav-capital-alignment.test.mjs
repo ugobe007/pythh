@@ -17,6 +17,8 @@ test('homepage hero leads with capital alignment and one CTA', () => {
   const home = readFileSync(new URL('../site/Home.tsx', import.meta.url), 'utf8');
   const hero = readFileSync(new URL('../site/lib/heroHeadlineExperiment.ts', import.meta.url), 'utf8');
   assert.match(hero, /We Find Investors Who Will Fund You/);
+  assert.match(hero, /HERO_HEADLINE_ACCENT = 'Who Will Fund You'/);
+  assert.match(home, /<HeroHeadline/);
   assert.match(hero, /Paste your URL — Pythh finds investors who will fund your startup/);
   assert.doesNotMatch(hero, /You build the company/);
   assert.match(hero, /HERO_PRIMARY_CTA = 'Automate your raise'/);
