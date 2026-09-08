@@ -25,13 +25,13 @@ const TRUSTED_HERO_SUBLINE =
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
-      headline: 'AI for capital alignment.',
+      headline: 'We Find Investors Who Will Fund You',
       subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
-    headline: 'AI for capital alignment.',
+    headline: 'We Find Investors Who Will Fund You',
     subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };

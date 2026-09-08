@@ -477,7 +477,7 @@ function HeroSection({
       <div className="container relative z-10 max-w-5xl mx-auto px-6 py-10 lg:py-16 text-center">
         <div className="max-w-3xl mx-auto">
         <h1
-          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[18ch]"
+          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
           style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
         >
           {heroHeadline}
