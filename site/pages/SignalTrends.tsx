@@ -570,7 +570,7 @@ export default function SignalTrends() {
             </p>
             <div className="space-y-3 mb-5">
               {[
-                { dim: "Team",     range: godWeightPtsLabel("team"),     weight: "Founder track record, team depth, cofounder dynamics",  color: "#a855f7" },
+                { dim: "Team",     range: godWeightPtsLabel("team"),     weight: "Founder track record, team depth, and determination proxies — not charisma",  color: "#a855f7" },
                 { dim: "Traction", range: godWeightPtsLabel("traction"), weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
                 { dim: "Market",   range: godWeightPtsLabel("market"),   weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
                 { dim: "Product",  range: godWeightPtsLabel("product"),  weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },

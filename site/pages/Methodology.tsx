@@ -6,7 +6,7 @@ import StartupCTA from "@/components/design/StartupCTA";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
 import { G, PAGE, BORDER, CARD, MUTED, DIM } from "@/lib/designTokens";
-import { godWeightPtsLabel, STARTUP_GOD_WEIGHT_SUMMARY, STARTUP_GOD_VISION_THESIS } from "@/lib/godScorePublicWeights";
+import { godWeightPtsLabel, STARTUP_GOD_WEIGHT_SUMMARY, STARTUP_GOD_VISION_THESIS, STARTUP_GOD_DETERMINATION_THESIS, STARTUP_GOD_DETERMINATION_PROXIES } from "@/lib/godScorePublicWeights";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ const GOD_DIMS = [
     label: "Team",
     weight: godWeightPtsLabel("team"),
     color: "#a855f7",
-    desc: "Founder background, domain expertise, repeat-founder status, technical depth, and advisor network. We score what founders have publicly demonstrated — not what they claim on an about page. A repeat founder who has already shipped something large — and is now pointing at a bigger destination — is the combination investors take seriously.",
+    desc: "Founder background, domain expertise, repeat-founder status, technical depth, and advisor network. We score what founders have publicly demonstrated — not what they claim on an about page. Pedigree and charisma are not substitutes for determination. A repeat founder who has already shipped something large — and is now pointing at a bigger destination — is the combination investors take seriously.",
   },
   {
     label: "Traction",
@@ -178,6 +178,21 @@ export default function Methodology() {
                 <p className="text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{d.desc}</p>
               </div>
             ))}
+          </div>
+
+          <div
+            className="p-5 rounded-xl mb-8"
+            style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
+          >
+            <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: G }}>
+              Determination — the D in GOD
+            </p>
+            <p className="text-sm leading-relaxed mb-2" style={{ color: "oklch(0.62 0.01 264)" }}>
+              {STARTUP_GOD_DETERMINATION_THESIS}
+            </p>
+            <p className="text-sm leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>
+              {STARTUP_GOD_DETERMINATION_PROXIES} Most investors do not ask the right questions to uncover it, and incorrectly ignore persistence.
+            </p>
           </div>
 
           {/* Score bands */}
