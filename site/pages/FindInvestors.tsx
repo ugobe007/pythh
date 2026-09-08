@@ -8,6 +8,7 @@ import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'wouter';
 import { ArrowRight, CheckCircle2, Users, Zap, Target, TrendingUp } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
+import HeroHeadline from '@/components/HeroHeadline';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from '@/lib/funnelAttribution';
 import {
@@ -174,9 +175,10 @@ export default function FindInvestors() {
         <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-4">
           No warm intro required
         </p>
-        <h1 className="text-3xl sm:text-5xl font-bold text-white leading-tight mb-4">
-          {heroCopy.headline}
-        </h1>
+        <HeroHeadline
+          headline={heroCopy.headline}
+          className="text-3xl sm:text-5xl font-bold text-white leading-tight mb-4"
+        />
         <p className="text-lg text-zinc-400 mb-8 max-w-2xl leading-relaxed">
           {heroCopy.subline}
         </p>

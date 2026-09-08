@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import SharedNavbar from "@/components/SharedNavbar";
+import HeroHeadline from "@/components/HeroHeadline";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
@@ -566,12 +567,11 @@ function HeroSection({
 
       <div className="container relative z-10 max-w-5xl mx-auto px-6 py-10 lg:py-16 text-center">
         <div className="max-w-3xl mx-auto">
-        <h1
+        <HeroHeadline
+          headline={heroHeadline}
           className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
           style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
-        >
-          {heroHeadline}
-        </h1>
+        />
 
         <p
           className="text-base sm:text-lg leading-relaxed mb-8 mx-auto max-w-[46ch]"
