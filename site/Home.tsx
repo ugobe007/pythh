@@ -411,10 +411,104 @@ function LiveMatchHighlight() {
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
 
-function HeroSection({
+function formatHeroPercent(n: number): string {
+  const rounded = Math.round(n * 10) / 10;
+  return `${Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)}%`;
+}
+
+function HeroStatusBar({
   platformStats,
+  portfolioMetrics,
 }: {
   platformStats: PlatformStats | null;
+  portfolioMetrics: PortfolioHeadlineMetrics | null;
+}) {
+  const startupsFunded =
+    (platformStats?.funded_startups && platformStats.funded_startups > 0
+      ? platformStats.funded_startups
+      : null) ??
+    (portfolioMetrics?.verified_funded_picks && portfolioMetrics.verified_funded_picks > 0
+      ? portfolioMetrics.verified_funded_picks
+      : null);
+  const matchPct = platformStats?.pair_funding_rate_pct;
+  const hits = platformStats?.pair_funding_hits;
+  const pairStartups = platformStats?.pair_funding_startups;
+  const investors = platformStats?.investors ?? 0;
+  const show =
+    (startupsFunded != null && startupsFunded > 0) ||
+    (matchPct != null && Number.isFinite(matchPct)) ||
+    investors > 0;
+  if (!show) return null;
+
+  const items = [
+    {
+      value: startupsFunded != null ? startupsFunded.toLocaleString() : "—",
+      label: "Startups funded",
+      href: "/portfolio",
+    },
+    {
+      value: matchPct != null && Number.isFinite(matchPct) ? formatHeroPercent(matchPct) : "—",
+      label: "Matches funded",
+      sub:
+        hits != null && pairStartups
+          ? `${hits} of ${pairStartups} later invested`
+          : undefined,
+    },
+    {
+      value: investors > 0 ? investors.toLocaleString() : "—",
+      label: "Investors",
+      href: "/investors",
+    },
+  ];
+
+  return (
+    <dl
+      id="hero-status-bar"
+      className="mt-10 grid grid-cols-3 gap-0 w-full max-w-2xl mx-auto border-t pt-8"
+      style={{ borderColor: BORDER }}
+      aria-label="Live platform proof"
+    >
+      {items.map((item) => {
+        const body = (
+          <>
+            <dt className="order-2 text-[11px] font-medium tracking-wide" style={{ color: MUTED }}>
+              {item.label}
+            </dt>
+            <dd
+              className="order-1 font-display font-bold tabular-nums mb-1"
+              style={{ color: TEXT, fontSize: "clamp(1.25rem, 3vw, 1.75rem)", letterSpacing: "-0.03em", lineHeight: 1 }}
+            >
+              {item.value}
+            </dd>
+            {item.sub ? (
+              <p className="order-3 text-[10px] font-mono mt-1" style={{ color: DIM }}>
+                {item.sub}
+              </p>
+            ) : null}
+          </>
+        );
+        return (
+          <div key={item.label} className="flex flex-col items-center px-2 text-center">
+            {item.href ? (
+              <a href={item.href} className="flex flex-col items-center transition-opacity hover:opacity-80">
+                {body}
+              </a>
+            ) : (
+              body
+            )}
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+function HeroSection({
+  platformStats,
+  portfolioMetrics,
+}: {
+  platformStats: PlatformStats | null;
+  portfolioMetrics: PortfolioHeadlineMetrics | null;
 }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
@@ -459,14 +553,10 @@ function HeroSection({
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
-  const startupCount = platformStats?.startups ?? 0;
-  const investorCount = platformStats?.investors ?? 0;
   const { headline: heroHeadline, subline: heroSubline } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
   );
-
-  const showHeroStats = startupCount > 0 && investorCount > 0;
 
   return (
     <section
@@ -477,7 +567,7 @@ function HeroSection({
       <div className="container relative z-10 max-w-5xl mx-auto px-6 py-10 lg:py-16 text-center">
         <div className="max-w-3xl mx-auto">
         <h1
-          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[18ch]"
+          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
           style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
         >
           {heroHeadline}
@@ -540,14 +630,8 @@ function HeroSection({
             <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
           )}
         </form>
-        {showHeroStats && platformStats?.pair_funding_rate_pct != null && (
-          <p className="text-sm mt-8" style={{ color: DIM }}>
-            {platformStats.pair_funding_hits != null && platformStats.pair_funding_startups
-              ? `${platformStats.pair_funding_hits} of ${platformStats.pair_funding_startups} matched funders later invested`
-              : `${platformStats.pair_funding_rate_pct}% matched-funder hit rate`}
-          </p>
-        )}
         </div>
+        <HeroStatusBar platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       </div>
     </section>
   );
@@ -1624,7 +1708,7 @@ export default function Home() {
         variant="hero"
         heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
       />
-      <HeroSection platformStats={platformStats} />
+      <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       <HowItWorksSection />
       <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <NewsletterSection />
