@@ -18,9 +18,9 @@ export type HeroHeadlineCopy = {
 
 export const HERO_PRIMARY_CTA = 'Automate your raise';
 
-/** Locked public subline — raise automation without claiming send-before-approval. */
+/** Locked public subline — paste-URL → thesis-aligned funders. */
 const TRUSTED_HERO_SUBLINE =
-  'You build the company. Paste your URL — Pythh qualifies investors, drafts outreach, and books meetings. Nothing is sent without your approval.';
+  'Paste your URL — Pythh finds investors who will fund your startup. We align your thesis with investors that "get it".';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
@@ -47,8 +47,7 @@ export function mergeHeroHeadlineCopy(
     // Keep the public promise stable. Historical growth experiments remain
     // useful for attribution, but must not overwrite the approved homepage.
     headline: defaults.headline,
-    // Keep the expectation-setting copy stable; stale experiments must not
-    // reintroduce claims that outreach happens before founder approval.
+    // Keep the public subline stable; stale experiments must not overwrite it.
     subline: TRUSTED_HERO_SUBLINE,
     // CTA label is fixed — experiment copy must not override (avoids stale "See my matches" from DB).
     cta: HERO_PRIMARY_CTA,
