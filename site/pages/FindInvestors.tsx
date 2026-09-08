@@ -15,8 +15,16 @@ import {
   mergeHeroHeadlineCopy,
   trackHeroHeadlineExposure,
   trackHeroUrlSubmitted,
-  HERO_PRIMARY_CTA,
 } from '@/lib/heroHeadlineExperiment';
+
+/**
+ * Awareness-landing primary CTA — decoupled from the locked home HERO_PRIMARY_CTA.
+ * Doctrine (Scout cta_doctrine): outcome-first, names the deliverable, Startups.com
+ * "See My Matches" parity. This surface's job is to convert manufactured SEO/social
+ * traffic into a preview, so the CTA states what the founder gets, not the mechanism.
+ * Registry variant: founder_find_investors_cta / find_investors_outcome_cta.
+ */
+const FIND_INVESTORS_PRIMARY_CTA = 'See my investor matches — free';
 import type { GrowthAssignment } from '@/lib/growthExperiment';
 import {
   buildLoginRedirectForSearch,
@@ -112,6 +120,52 @@ export default function FindInvestors() {
         <link rel="canonical" href="https://pythh.ai/find-investors" />
         <meta property="og:title" content="Find investors — free shortlist in 60 seconds" />
         <meta property="og:url" content="https://pythh.ai/find-investors" />
+        <meta property="og:description" content="Paste your startup URL and see ranked, thesis-fit investor matches in ~60 seconds. Free preview, no warm intro, no credit card." />
+        {/* JSON-LD: WebApplication + FAQ — seo_find_investors loop, richer SERP surface to manufacture organic awareness traffic. */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebApplication',
+            name: 'Pythh — Find Investors',
+            url: 'https://pythh.ai/find-investors',
+            applicationCategory: 'BusinessApplication',
+            offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+            description:
+              'Paste your startup URL to see ranked, thesis-fit VC and angel matches in ~60 seconds — scored on thesis, team, and timing. Free preview, no warm intro required.',
+          })}
+        </script>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: [
+              {
+                '@type': 'Question',
+                name: 'How do I find investors for my startup without a warm intro?',
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: 'Paste your startup URL into Pythh. It reads your site and returns a ranked shortlist of VCs and angels scored on thesis fit, stage, and timing — no warm intro needed. The preview is free.',
+                },
+              },
+              {
+                '@type': 'Question',
+                name: 'How fast can I see my investor matches?',
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: 'The free preview returns your ranked investor shortlist in about 60 seconds after you submit your startup URL — no credit card required.',
+                },
+              },
+              {
+                '@type': 'Question',
+                name: 'What makes Pythh matches different from an investor list?',
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: 'Pythh screens on thesis fit, check size, recency, and portfolio overlap and shows why each investor fits — evidence, not a keyword-matched database dump.',
+                },
+              },
+            ],
+          })}
+        </script>
       </Helmet>
 
       <SharedNavbar activePath="/find-investors" />
@@ -193,7 +247,7 @@ export default function FindInvestors() {
                 e.currentTarget.style.color = 'oklch(0.696 0.17 162.48)';
               }}
             >
-              {HERO_PRIMARY_CTA}
+              {FIND_INVESTORS_PRIMARY_CTA}
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

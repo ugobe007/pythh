@@ -399,6 +399,45 @@
       "promotion_note": "Shipped 2026-07-18 — Phase 2 Oracle UX; welcome=1 routes through /activate raise-plan before results."
     },
     {
+      "id": "founder_find_investors_cta",
+      "audience": "founder",
+      "name": "Outcome-first primary CTA on /find-investors awareness landing",
+      "status": "draft",
+      "parent_experiment": "founder_hero_headline_speed",
+      "benchmark": "startups_com",
+      "applies_when": "find_investors_landing",
+      "hypothesis": "The /find-investors SEO/awareness landing reused the locked home HERO_PRIMARY_CTA 'Automate your raise' — a generic mechanism label (cta_doctrine anti-pattern) on the exact surface that must convert manufactured search/social traffic into a preview. With awareness BLIND (23 page_view/7d, 6 founder_url_submitted/7d) the priority is capturing every arriving visitor. Repointing the primary CTA to an outcome-first, deliverable-named label — 'See my investor matches — free' (Startups.com 'See My Matches' parity) — plus WebApplication + FAQ JSON-LD for richer SERP surface should lift founder_url_submitted from this landing without touching the home hero (kept locked, headline experiment uncontaminated).",
+      "loops": ["seo_find_investors", "outbound_find_investors", "preview_cliffhanger"],
+      "variants": [
+        {
+          "key": "find_investors_outcome_cta",
+          "traffic_pct": 100,
+          "schema": {
+            "surface": "find_investors_landing",
+            "primary_action": "submit_url",
+            "primary_framing": "outcome_deliverable",
+            "routes_to": "/matches?url=",
+            "fires": "url_submitted + founder_url_submitted (source=find_investors_landing)",
+            "seo_addon": "jsonld_webapplication_faqpage"
+          },
+          "copy": {
+            "primary": "See my investor matches — free",
+            "value_line": "Free · ~60 seconds · No credit card"
+          },
+          "guardrails": {
+            "home_hero_cta_untouched": true,
+            "headline_experiment_uncontaminated": true,
+            "no_fabricated_counts": true
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_url_submitted",
+        "secondary": ["page_view", "instant_matches_viewed", "founder_signup_started"]
+      },
+      "promotion_note": "DRAFT 2026-09-08 — shipped in site/pages/FindInvestors.tsx (report-only allocation). Promote to running once founder_url_submitted from find_investors_landing exceeds control baseline (6/7d) and page_view on /find-investors climbs off 23/7d floor. Baseline captured 2026-09-08."
+    },
+    {
       "id": "pricing_oracle_cta",
       "audience": "founder",
       "name": "Oracle pricing page CTA",
