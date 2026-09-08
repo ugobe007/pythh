@@ -68,3 +68,26 @@ test('public Vision copy states large destination scale, especially repeat found
   assert.match(about, /category-scale ambition/);
   assert.match(support, /large visions, not small ones/);
 });
+
+test('public Determination copy is pathological persistence, not charisma', () => {
+  const pub = read('../site/lib/godScorePublicWeights.ts');
+  assert.match(pub, /STARTUP_GOD_DETERMINATION_THESIS/);
+  assert.match(pub, /pathological determination/);
+  assert.match(pub, /not confidence or charisma/);
+  assert.match(pub, /12 proxy signals/);
+  assert.match(pub, /prove someone or something wrong/);
+  assert.match(pub, /multiple previous failed businesses/);
+  assert.match(pub, /early-life adversity/);
+  assert.match(pub, /irrational optimism/);
+
+  const methodology = read('../site/pages/Methodology.tsx');
+  const about = read('../site/pages/About.tsx');
+  const support = read('../site/pages/Support.tsx');
+  const home = read('../site/Home.tsx');
+  assert.match(methodology, /STARTUP_GOD_DETERMINATION_THESIS/);
+  assert.match(methodology, /STARTUP_GOD_DETERMINATION_PROXIES/);
+  assert.match(about, /12 proxy signals/);
+  assert.match(support, /12 proxy signals/);
+  assert.match(home, /pathological determination/);
+  assert.doesNotMatch(home, /magnetic force of execution/);
+});

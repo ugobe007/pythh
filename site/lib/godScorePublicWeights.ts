@@ -32,3 +32,11 @@ export const STARTUP_GOD_WEIGHT_CHART_LABEL =
 /** What Vision measures for investors — scale of destination, not narrative polish. */
 export const STARTUP_GOD_VISION_THESIS =
   'Investors look for founders building large visions, not small ones — especially repeat founders who have done it before.';
+
+/** What Determination measures — the rare founder trait most investors miss. */
+export const STARTUP_GOD_DETERMINATION_THESIS =
+  'The rarest success trait in elite founders is pathological determination — a borderline-delusional ability to run through any wall, with no off-switch. It is not confidence or charisma; the most determined founders are often introverted and do not light up rooms. High determination predicts bigger companies, even when it takes longer.';
+
+/** Named public proxies (4 of 12). Do not invent the rest. */
+export const STARTUP_GOD_DETERMINATION_PROXIES =
+  'We use 12 proxy signals to screen for it — including a desperate desire to prove someone or something wrong, multiple previous failed businesses, early-life adversity, and irrational optimism when others would quit.';
