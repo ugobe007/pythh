@@ -294,8 +294,104 @@ function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', unsubscribeToke
   return lines.join('\n');
 }
 
+function publicSiteUrl(raw) {
+  const cleaned = String(raw || process.env.APP_BASE_URL || process.env.SITE_URL || 'https://pythh.ai')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!cleaned || /localhost|127\.0\.0\.1/i.test(cleaned)) return 'https://pythh.ai';
+  return cleaned;
+}
+
+function inspectMatchesUrl(personal, siteUrl) {
+  const base = publicSiteUrl(siteUrl);
+  return personal?.inspectUrl
+    ? `${base}/matches?url=${encodeURIComponent(personal.inspectUrl)}`
+    : `${base}/matches`;
+}
+
+function welcomeSubject(personal) {
+  const name = personal?.startupName;
+  if (personal?.matches?.length) {
+    return name ? `Your first matches for ${name}` : 'Your first investor matches';
+  }
+  if (personal?.inspectUrl) return 'You’re in — PYTHIA is scoring your startup';
+  return 'You’re in — The Pythh Daily Brief';
+}
+
+function buildWelcomeEmailHtml({ personal = null, siteUrl = 'https://pythh.ai', unsubscribeToken = '' } = {}) {
+  const base = publicSiteUrl(siteUrl);
+  const unsub = unsubscribeToken ? unsubscribeUrl(unsubscribeToken, base) : `${base}/newsletter`;
+  const inspect = inspectMatchesUrl(personal, base);
+  const name = personal?.startupName || 'your startup';
+  const matchesBlock = personal
+    ? renderYourMatches(personal, base)
+    : `<tr><td style="padding:16px 0;">
+        <div style="font:500 14px/1.5 'Helvetica Neue',Arial,sans-serif;color:${C.mute};">
+          Tomorrow&rsquo;s brief is funding news. Add a startup URL anytime to get ranked investors in the same email.
+        </div>
+      </td></tr>`;
+
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(welcomeSubject(personal))}</title></head>
+<body style="margin:0;padding:0;background:${C.bg};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};">
+<tr><td align="center" style="padding:24px 12px;">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+    <tr><td style="text-align:center;padding-bottom:10px;">
+      <div style="font:800 26px 'Helvetica Neue',Arial,sans-serif;color:${C.white};letter-spacing:-0.5px;">pythh<span style="color:${C.green};">.</span></div>
+      <div style="font:600 11px 'Helvetica Neue',Arial,sans-serif;letter-spacing:3px;text-transform:uppercase;color:${C.gold};margin-top:4px;">Welcome · Your matches</div>
+    </td></tr>
+    <tr><td style="padding:8px 0 4px;">
+      <div style="font:400 15px/1.6 'Helvetica Neue',Arial,sans-serif;color:${C.text};">
+        You&rsquo;re on the Daily Brief. ${personal?.matches?.length
+          ? `Here is the first shortlist for ${esc(name)}. Open any name on pythh.ai when you want the full reasoning.`
+          : personal?.inspectUrl
+            ? `PYTHIA is scoring ${esc(name)} now. Tomorrow&rsquo;s brief will include ranked investors plus funding news.`
+            : `Every morning: who got funded, who wrote the check, and &mdash; once you add a URL &mdash; your ranked investors.`}
+      </div>
+    </td></tr>
+    ${matchesBlock}
+    <tr><td style="padding:22px 0 8px;text-align:center;">
+      <a href="${esc(inspect)}" style="display:inline-block;padding:13px 26px;background:${C.green};color:#062018;text-decoration:none;border-radius:9px;font:700 14px 'Helvetica Neue',Arial,sans-serif;">Inspect your matches &rarr;</a>
+      <div style="margin-top:12px;font:400 12px 'Helvetica Neue',Arial,sans-serif;color:${C.dim};">Tomorrow: funding news in the same inbox.</div>
+    </td></tr>
+    <tr><td style="padding:22px 0;text-align:center;border-top:1px solid ${C.border};">
+      <div style="font:400 11px/1.6 'Helvetica Neue',Arial,sans-serif;color:${C.dim};">
+        Pythh · Daily matches + funding news<br>
+        <a href="${esc(unsub)}" style="color:${C.dim};text-decoration:underline;">Unsubscribe</a>
+      </div>
+    </td></tr>
+  </table>
+</td></tr></table>
+</body></html>`;
+}
+
+function buildWelcomeEmailText({ personal = null, siteUrl = 'https://pythh.ai', unsubscribeToken = '' } = {}) {
+  const base = publicSiteUrl(siteUrl);
+  const inspect = inspectMatchesUrl(personal, base);
+  const lines = [welcomeSubject(personal), ''];
+  if (personal?.matches?.length) {
+    lines.push(`First shortlist${personal.startupName ? ` · ${personal.startupName}` : ''}`);
+    personal.matches.slice(0, 5).forEach((m, i) => {
+      lines.push(`${i + 1}. ${m.investor?.firm_name || m.investor?.name} (${m.match_score}%)`);
+    });
+  } else if (personal?.inspectUrl) {
+    lines.push('PYTHIA is scoring your URL. Tomorrow’s brief will include ranked investors.');
+  } else {
+    lines.push('You’re on the Daily Brief. Add a startup URL to get ranked investors in the inbox.');
+  }
+  lines.push('', `Inspect: ${inspect}`, 'Tomorrow: funding news in the same inbox.');
+  if (unsubscribeToken) lines.push(`Unsubscribe: ${unsubscribeUrl(unsubscribeToken, base)}`);
+  return lines.join('\n');
+}
+
 module.exports = {
   buildBriefEmailHtml,
   buildBriefEmailText,
+  buildWelcomeEmailHtml,
+  buildWelcomeEmailText,
+  welcomeSubject,
+  publicSiteUrl,
   unsubscribeUrl,
 };

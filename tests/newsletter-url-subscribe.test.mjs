@@ -5,7 +5,15 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { normalizeEmail, normalizeStartupUrl, isValidEmail } = require('../server/lib/newsletterSubscribe.js');
-const { buildBriefEmailHtml, buildBriefEmailText } = require('../server/lib/newsletterEmail.js');
+const { sendSubscriberWelcome } = require('../server/lib/newsletterWelcome.js');
+const {
+  buildBriefEmailHtml,
+  buildBriefEmailText,
+  buildWelcomeEmailHtml,
+  buildWelcomeEmailText,
+  welcomeSubject,
+  publicSiteUrl,
+} = require('../server/lib/newsletterEmail.js');
 
 test('subscribe helpers normalize email and startup URL', () => {
   assert.equal(normalizeEmail('  Founder@Startup.COM '), 'founder@startup.com');
@@ -50,8 +58,55 @@ test('join form and subscribe API collect URL with email', () => {
   const send = readFileSync(new URL('../scripts/send-daily-brief.js', import.meta.url), 'utf8');
   assert.match(form, /Get daily matches/);
   assert.match(form, /Your startup website/);
+  assert.match(form, /Check your inbox/);
   assert.match(api, /upsertNewsletterSubscriber/);
   assert.match(api, /kickoffSubscriberUrlScore/);
+  assert.match(api, /sendSubscriberWelcome/);
   assert.match(send, /loadSubscriberMatches/);
   assert.match(send, /startup_url/);
+});
+
+test('welcome email leads with the shortlist and never links localhost', () => {
+  assert.equal(publicSiteUrl('http://localhost:5173'), 'https://pythh.ai');
+  const personal = {
+    startupName: 'Neon',
+    inspectUrl: 'https://neon.tech',
+    matches: [{ match_score: 88, investor: { firm_name: 'Accel' }, reasoning: 'Stage fit' }],
+    pending: false,
+  };
+  assert.equal(welcomeSubject(personal), 'Your first matches for Neon');
+  const html = buildWelcomeEmailHtml({ personal, siteUrl: 'http://localhost:5173' });
+  assert.match(html, /Your matches · Neon/);
+  assert.match(html, /Accel/);
+  assert.match(html, /https:\/\/pythh\.ai\/matches\?url=/);
+  assert.doesNotMatch(html, /localhost/);
+  assert.match(html, /Inspect your matches/);
+  const text = buildWelcomeEmailText({
+    personal: { startupName: 'Neon', inspectUrl: 'https://neon.tech', matches: [], pending: true },
+  });
+  assert.match(text, /scoring your URL/i);
+  assert.match(text, /Inspect: https:\/\/pythh.ai\/matches\?url=/);
+});
+
+test('welcome send skips when welcome_sent_at is already stamped', async () => {
+  const supabase = {
+    from() {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        maybeSingle: async () => ({
+          data: {
+            unsubscribe_token: 'tok',
+            welcome_sent_at: '2026-09-09T00:00:00Z',
+            startup_url: 'https://neon.tech',
+            startup_id: 'abc',
+          },
+          error: null,
+        }),
+      };
+    },
+  };
+  const out = await sendSubscriberWelcome(supabase, { email: 'founder@startup.com' });
+  assert.equal(out.sent, false);
+  assert.equal(out.reason, 'already_sent');
 });
