@@ -19,6 +19,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { getSupabaseClient } = require('../server/lib/supabaseClient');
 const { generateNewsletter } = require('../server/newsletter-generator');
 const { buildBriefEmailHtml, buildBriefEmailText } = require('../server/lib/newsletterEmail');
+const { loadSubscriberMatches } = require('../server/lib/subscriberMatches');
 
 const SITE_URL = process.env.APP_BASE_URL || process.env.SITE_URL || 'https://pythh.ai';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh Daily Brief <brief@pythh.ai>';
@@ -66,17 +67,43 @@ async function main() {
   }
 
   let recipients;
+  let supabase = null;
+  try {
+    supabase = getSupabaseClient();
+  } catch (err) {
+    if (!SINGLE_TO) throw err;
+    console.warn(`[daily-brief] No Supabase for personalization: ${err.message}`);
+  }
+
   if (SINGLE_TO) {
     recipients = [{ email: SINGLE_TO, unsubscribe_token: '' }];
+    if (supabase) {
+      const lookup = await supabase
+        .from('newsletter_subscribers')
+        .select('email, unsubscribe_token, startup_url, startup_id')
+        .eq('email', SINGLE_TO.trim().toLowerCase())
+        .maybeSingle();
+      if (lookup.data) recipients = [lookup.data];
+    }
     console.log(`[daily-brief] Single test send to ${SINGLE_TO}`);
   } else {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('newsletter_subscribers')
-      .select('email, unsubscribe_token')
+      .select('email, unsubscribe_token, startup_url, startup_id')
       .is('unsubscribed_at', null);
-    if (error) throw error;
-    recipients = data || [];
+    if (error && /startup_url|startup_id/i.test(error.message || '')) {
+      const retry = await supabase
+        .from('newsletter_subscribers')
+        .select('email, unsubscribe_token')
+        .is('unsubscribed_at', null);
+      if (retry.error) throw retry.error;
+      recipients = retry.data || [];
+    } else if (error) {
+      throw error;
+    } else {
+      recipients = data || [];
+    }
     if (LIMIT) recipients = recipients.slice(0, LIMIT);
   }
 
@@ -87,9 +114,21 @@ async function main() {
 
   console.log(`[daily-brief] Sending to ${recipients.length} recipient(s)…`);
   let sent = 0, failed = 0;
-  for (const { email, unsubscribe_token } of recipients) {
-    const html = buildBriefEmailHtml(nl, { siteUrl: SITE_URL, unsubscribeToken: unsubscribe_token });
-    const text = buildBriefEmailText(nl, { siteUrl: SITE_URL, unsubscribeToken: unsubscribe_token });
+  for (const rec of recipients) {
+    const { email, unsubscribe_token, startup_url, startup_id } = rec;
+    let personal = null;
+    if ((startup_url || startup_id) && supabase) {
+      try {
+        personal = await loadSubscriberMatches(supabase, {
+          startupUrl: startup_url,
+          startupId: startup_id,
+        });
+      } catch (err) {
+        console.warn(`[daily-brief] matches ${email}: ${err.message}`);
+      }
+    }
+    const html = buildBriefEmailHtml(nl, { siteUrl: SITE_URL, unsubscribeToken: unsubscribe_token, personal });
+    const text = buildBriefEmailText(nl, { siteUrl: SITE_URL, unsubscribeToken: unsubscribe_token, personal });
     const r = await sendViaResend({ to: email, subject, html, text });
     if (r.success) sent++;
     else { failed++; console.warn(`[daily-brief] FAILED ${email}: ${r.error}`); }

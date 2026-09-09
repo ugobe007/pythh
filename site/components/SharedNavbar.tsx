@@ -213,8 +213,8 @@ export default function SharedNavbar({
                 {heroCta.label}
               </button>
             ) : (
-              <StartupCTA href="/matches" size="sm" className="px-4 py-1.5">
-                Automate your raise
+              <StartupCTA href="/newsletter" size="sm" className="px-4 py-1.5">
+                Get daily matches
               </StartupCTA>
             )}
           </div>
@@ -287,8 +287,8 @@ export default function SharedNavbar({
                     {heroCta.label}
                   </button>
                 ) : (
-                  <StartupCTA href="/matches" size="sm" className="text-left">
-                    Automate your raise
+                  <StartupCTA href="/newsletter" size="sm" className="text-left">
+                    Get daily matches
                   </StartupCTA>
                 )}
               </div>

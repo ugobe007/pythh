@@ -4,7 +4,6 @@ import { Helmet } from "react-helmet-async";
 import StartupCTA from "@/components/design/StartupCTA";
 import {
   ArrowRight,
-  Mail,
   Zap,
   TrendingUp,
   Activity,
@@ -14,6 +13,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import NewsletterJoinForm from "@/components/NewsletterJoinForm";
 import SectionLabel from "@/components/design/SectionLabel";
 import {
   G,
@@ -509,6 +509,10 @@ const WHAT_YOU_GET = [
     desc: "The dominant signal across every company we track — investor receptivity, capital convergence, execution velocity.",
   },
   {
+    label: "Your matches",
+    desc: "If you left a startup URL at signup, every issue opens with your ranked investors and a link to inspect them on pythh.ai.",
+  },
+  {
     label: "Most interesting matches",
     desc: "The startup↔investor pairings PYTHIA rates highest right now, with the reasoning behind each one.",
   },
@@ -521,28 +525,6 @@ const WHAT_YOU_GET = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Newsletter() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setLoading(true);
-    try {
-      await fetch("/api/newsletter/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-    } catch {
-      // best-effort
-    } finally {
-      setLoading(false);
-      setSubmitted(true);
-    }
-  };
-
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
@@ -577,57 +559,16 @@ export default function Newsletter() {
               <span style={{ color: GOLD }}>where capital is moving.</span>
             </h1>
             <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
-              PYTHIA reads the entire venture signal field every day &mdash; the breakouts and the
-              reasons behind their scores, the signals that matter, and the money moving now.
+              Leave your email and startup URL. Every morning: funding news plus your ranked
+              investors. Open the site when a match is worth inspecting.
             </p>
           </div>
 
           {/* Subscribe */}
           <div className="p-4 border rounded-xl" style={{ backgroundColor: CARD, borderColor: BORDER }}>
-            {submitted ? (
-              <div
-                className="flex items-center gap-3 py-3 px-4 border rounded-lg"
-                style={{ backgroundColor: G_SUBTLE, borderColor: G_BORDER }}
-              >
-                <Zap size={16} style={{ color: G }} className="shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: G }}>
-                    You&rsquo;re in.
-                  </p>
-                  <p className="text-xs" style={{ color: MUTED }}>
-                    Tomorrow&rsquo;s brief lands in your inbox. Today&rsquo;s is below.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
-                <div
-                  className="flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg"
-                  style={{ backgroundColor: "oklch(0.11 0.01 264)", border: "1px solid oklch(0.28 0.01 264)" }}
-                >
-                  <Mail size={15} style={{ color: DIM }} className="shrink-0" />
-                  <input
-                    type="email"
-                    placeholder="founder@startup.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 bg-transparent text-sm outline-none min-w-0"
-                    style={{ color: TEXT }}
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all whitespace-nowrap"
-                  style={{ backgroundColor: GOLD, color: "oklch(0.1 0.01 70)", opacity: loading ? 0.7 : 1 }}
-                >
-                  {loading ? "Subscribing…" : <><span>Get it</span><ArrowRight size={14} /></>}
-                </button>
-              </form>
-            )}
+            <NewsletterJoinForm source="newsletter_page" />
             <p className="text-[11px] mt-2.5" style={{ color: DIM }}>
-              Free &middot; daily &middot; unsubscribe anytime.
+              Free &middot; daily matches + funding news &middot; unsubscribe anytime.
             </p>
           </div>
         </div>
