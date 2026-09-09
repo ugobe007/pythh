@@ -36,6 +36,7 @@ async function upsertNewsletterSubscriber(supabase, { email, url, source = 'webs
     email: normalizedEmail,
     source,
     startup_url: startupUrl,
+    startup_id: null,
   };
 
   if (startupUrl && supabase) {
