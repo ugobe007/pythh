@@ -10,6 +10,7 @@ import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import SharedNavbar from "@/components/SharedNavbar";
 import HeroHeadline from "@/components/HeroHeadline";
+import NewsletterJoinForm, { NEWSLETTER_JOIN_CTA } from "@/components/NewsletterJoinForm";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
@@ -30,18 +31,10 @@ import {
   mergeHeroHeadlineCopy,
   trackHeroHeadlineExposure,
   trackHeroUrlSubmitted,
-  HERO_PRIMARY_CTA,
 } from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import {
-  buildLoginRedirectForSearch,
-  shouldPromptSignInForNewSearch,
-} from "@/lib/anonymousPreviewSession";
-import { useAuth } from "@/_core/hooks/useAuth";
-import {
   ArrowRight,
-  ExternalLink,
-  Mail,
   Activity,
   Eye,
   Target,
@@ -511,13 +504,8 @@ function HeroSection({
   platformStats: PlatformStats | null;
   portfolioMetrics: PortfolioHeadlineMetrics | null;
 }) {
-  const [url, setUrl] = useState("");
-  const [error, setError] = useState(false);
-  const urlInputRef = useRef<HTMLInputElement>(null);
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
-  const [, navigate] = useLocation();
-  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
     loadHeroExperiments()
@@ -534,25 +522,6 @@ function HeroSection({
     sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
   }, []);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url.trim()) {
-      setError(true);
-      return;
-    }
-    setError(false);
-    const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
-    if (!loading && !isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
-      sessionStorage.setItem('pythia_url', normalized);
-      navigate(buildLoginRedirectForSearch(normalized));
-      return;
-    }
-    sessionStorage.setItem("pythia_url", normalized);
-    trackUrlSubmitted(normalized, "home_hero", founderExperiment);
-    trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
-    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
-  };
 
   const { headline: heroHeadline, subline: heroSubline } = mergeHeroHeadlineCopy(
     founderExperiment,
@@ -580,56 +549,16 @@ function HeroSection({
           {heroSubline}
         </p>
 
-        <form
+        <NewsletterJoinForm
           id="hero-cta"
-          onSubmit={handleSubmit}
-          className="w-full max-w-lg mx-auto"
-        >
-          <div
-            className="flex items-center gap-3 px-4 py-3.5 rounded-xl min-w-0 text-left transition-all mb-4"
-            style={{
-              backgroundColor: CARD,
-              border: `1px solid ${error ? "rgba(248,113,113,0.5)" : BORDER}`,
-            }}
-          >
-            <ExternalLink size={15} className="flex-shrink-0" style={{ color: error ? "#f87171" : DIM }} />
-            <input
-              ref={urlInputRef}
-              type="text"
-              placeholder="Enter your startup website"
-              value={url}
-              onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-              className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-zinc-400 placeholder:opacity-100"
-              style={{ color: TEXT }}
-              aria-label="Your startup URL"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-2 w-full px-7 py-3.5 rounded-lg text-sm font-semibold transition-colors"
-            style={{
-              backgroundColor: G,
-              border: `1px solid ${G}`,
-              color: "oklch(0.1 0.02 162.48)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = G_HOVER;
-              e.currentTarget.style.borderColor = G_HOVER;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = G;
-              e.currentTarget.style.borderColor = G;
-            }}
-          >
-            {HERO_PRIMARY_CTA}
-            <ArrowRight size={16} />
-          </button>
-
-          {error && (
-            <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
-          )}
-        </form>
+          source="home_hero"
+          cta={NEWSLETTER_JOIN_CTA}
+          onJoined={({ url }) => {
+            const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+            trackUrlSubmitted(normalized, "home_hero", founderExperiment);
+            trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
+          }}
+        />
         </div>
         <HeroStatusBar platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       </div>
@@ -642,22 +571,22 @@ const HOW_IT_WORKS_STEPS = [
     num: "01",
     icon: Zap,
     accent: G,
-    title: "Submit your URL",
-    body: "Pythh reads your public site, extracts signals, scores your startup across 5 dimensions, and returns aligned investors in seconds.",
+    title: "Email + URL",
+    body: "Subscribe with your email and startup website. No account, no raise workflow. We start scoring your public site the same day.",
   },
   {
     num: "02",
     icon: TrendingUp,
     accent: AMBER,
-    title: "Close the gaps",
-    body: "Answer focused questions. The wizard identifies your weakest GOD score dimensions and shows you exactly what to fix and when.",
+    title: "Daily matches + funding news",
+    body: "Every morning: who is getting funded, which firms wrote the check, and your ranked investors — in the inbox you already open.",
   },
   {
     num: "03",
     icon: FileText,
     accent: G_HOVER,
-    title: "Build your investor memo",
-    body: "Acknowledge tasks, set deadlines, and submit proof. Your readiness plan becomes an investor-ready memo for matched investors.",
+    title: "Inspect when you care",
+    body: "The email links back to pythh.ai when you want the full shortlist, GOD breakdown, and outreach. The site is the deep link, not the front door.",
   },
 ] as const;
 
@@ -1282,24 +1211,6 @@ function ScienceSection() {
 // ─── Newsletter ───────────────────────────────────────────────────────────────
 
 function NewsletterSection() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    try {
-      const response = await fetch("/api/newsletter/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (!response.ok) throw new Error("subscribe_failed");
-      setSubmitted(true);
-    } catch {
-      toast.error("We could not save your email. Please try again.");
-    }
-  };
 
   return (
     <section className="py-24 relative overflow-hidden" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
@@ -1316,31 +1227,9 @@ function NewsletterSection() {
             <span style={{ color: "oklch(0.769 0.188 70.08)" }}>before the noise.</span>
           </h2>
           <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
-            A daily snapshot of funding shifts, startup signals, and the investors PYTHIA is watching right now.
+            Daily funding news plus your ranked investors. Paste your URL once. Visit the site when a match is worth inspecting.
           </p>
-          {submitted ? (
-            <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-xl border"
-              style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", borderColor: "oklch(0.696 0.17 162.48 / 0.3)" }}>
-              <Zap size={16} style={{ color: "oklch(0.696 0.17 162.48)" }} />
-              <span className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>You're in. Your next Daily Signal is on the way.</span>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg border"
-                style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.3 0.01 264)" }}>
-                <Mail size={16} style={{ color: "oklch(0.5 0.01 264)" }} />
-                <input type="email" placeholder="founder@startup.com" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 bg-transparent text-sm outline-none" style={{ color: "oklch(0.94 0.005 264)" }} required />
-              </div>
-              <button type="submit"
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-200 whitespace-nowrap"
-                style={{ backgroundColor: "oklch(0.769 0.188 70.08)", color: "oklch(0.1 0.01 70)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 0 24px oklch(0.769 0.188 70.08 / 0.5)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-                Subscribe <ArrowRight size={16} />
-              </button>
-            </form>
-          )}
+          <NewsletterJoinForm source="home_newsletter" />
           <p className="text-xs mt-4" style={{ color: "oklch(0.45 0.01 264)" }}>No spam. Unsubscribe anytime.</p>
         </div>
       </div>
@@ -1706,7 +1595,7 @@ export default function Home() {
       <SharedNavbar
         activePath="/"
         variant="hero"
-        heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
+        heroCta={{ label: NEWSLETTER_JOIN_CTA, targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       <HowItWorksSection />

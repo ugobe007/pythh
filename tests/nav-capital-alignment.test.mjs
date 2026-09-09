@@ -11,6 +11,8 @@ test('top nav is Product + Pricing, not a seven-link bar', () => {
   assert.match(nav, /heading: "Investors"/);
   assert.doesNotMatch(nav, /Daily Signal — prominent/);
   assert.doesNotMatch(nav, /NAV_LINKS = \[/);
+  assert.match(nav, /Get daily matches/);
+  assert.doesNotMatch(nav, /Automate your raise/);
 });
 
 test('homepage hero leads with capital alignment and one CTA', () => {
@@ -21,7 +23,10 @@ test('homepage hero leads with capital alignment and one CTA', () => {
   assert.match(home, /<HeroHeadline/);
   assert.match(hero, /Paste your URL — Pythh finds investors who will fund your startup/);
   assert.doesNotMatch(hero, /You build the company/);
-  assert.match(hero, /HERO_PRIMARY_CTA = 'Automate your raise'/);
+  assert.match(hero, /HERO_PRIMARY_CTA = 'Get daily matches'/);
+  assert.match(home, /label: NEWSLETTER_JOIN_CTA/);
+  assert.match(home, /NewsletterJoinForm/);
+  assert.match(home, /NEWSLETTER_JOIN_CTA/);
   assert.match(home, /id="hero-cta"/);
   assert.match(home, /id="hero-status-bar"/);
   assert.match(home, /Startups funded/);

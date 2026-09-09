@@ -121,6 +121,36 @@ function renderSignals(nl) {
   </td></tr>`;
 }
 
+function renderYourMatches(personal, siteUrl) {
+  if (!personal) return '';
+  const base = (siteUrl || 'https://pythh.ai').replace(/\/+$/, '');
+  const inspect = personal.inspectUrl
+    ? `${base}/matches?url=${encodeURIComponent(personal.inspectUrl)}`
+    : `${base}/matches`;
+  const name = personal.startupName || 'your startup';
+  const rows = (personal.matches || []).slice(0, 5);
+  if (personal.pending && !rows.length) {
+    return sectionHeader('Your matches', C.green) + `<tr><td>
+      <div style="background:${C.panel};border:1px solid ${C.border};border-radius:10px;padding:16px;">
+        <div style="font:500 14px/1.5 'Helvetica Neue',Arial,sans-serif;color:${C.mute};">
+          PYTHIA is scoring ${esc(name)}. Tomorrow&rsquo;s brief will include your ranked investors.
+        </div>
+        <div style="margin-top:12px;"><a href="${esc(inspect)}" style="font:700 13px 'Helvetica Neue',Arial,sans-serif;color:${C.green};text-decoration:none;">Inspect on pythh.ai &rarr;</a></div>
+      </div>
+    </td></tr>`;
+  }
+  const items = rows.map((m, i) => `
+    <tr><td style="padding:9px 0;border-bottom:1px solid ${C.border};">
+      <span style="font:700 14px 'Helvetica Neue',Arial,sans-serif;color:${C.white};">${i + 1}. ${esc(m.investor?.firm_name || m.investor?.name || '—')}</span>
+      <span style="font:700 13px 'Helvetica Neue',Arial,sans-serif;color:${C.green};"> ${esc(m.match_score)}%</span>
+      ${m.reasoning ? `<div style="font:400 12px/1.5 'Helvetica Neue',Arial,sans-serif;color:${C.mute};margin-top:3px;">${esc(m.reasoning)}</div>` : ''}
+    </td></tr>`).join('');
+  return sectionHeader(`Your matches · ${name}`, C.green) + `<tr><td>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items}</table>
+    <div style="margin-top:14px;"><a href="${esc(inspect)}" style="font:700 13px 'Helvetica Neue',Arial,sans-serif;color:${C.green};text-decoration:none;">Inspect your matches on pythh.ai &rarr;</a></div>
+  </td></tr>`;
+}
+
 function renderMatches(nl) {
   const rows = (nl.topMatches || nl.hotMatches || []).slice(0, 4);
   if (!rows.length) return '';
@@ -168,12 +198,13 @@ function renderNews(nl, key, label) {
 }
 
 // ── Main builders ───────────────────────────────────────────────────────────────
-function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', unsubscribeToken = '' } = {}) {
+function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', unsubscribeToken = '', personal = null } = {}) {
   const base = siteUrl.replace(/\/+$/, '');
   const unsub = unsubscribeToken ? unsubscribeUrl(unsubscribeToken, base) : `${base}/newsletter`;
   const date = nl.date || new Date().toISOString().split('T')[0];
 
   const body = [
+    renderYourMatches(personal, base),
     renderEditorial(nl),
     renderHottest(nl),
     renderSignals(nl),
@@ -212,10 +243,22 @@ function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', unsubscribeToke
 </body></html>`;
 }
 
-function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', unsubscribeToken = '' } = {}) {
+function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', unsubscribeToken = '', personal = null } = {}) {
   const base = siteUrl.replace(/\/+$/, '');
   const date = nl.date || new Date().toISOString().split('T')[0];
   const lines = [`THE PYTHH DAILY BRIEF — ${date}`, ''];
+  if (personal) {
+    lines.push(`YOUR MATCHES${personal.startupName ? ` · ${personal.startupName}` : ''}`);
+    if (personal.matches?.length) {
+      personal.matches.slice(0, 5).forEach((m, i) => {
+        lines.push(`${i + 1}. ${m.investor?.firm_name || m.investor?.name} (${m.match_score}%)`);
+      });
+    } else {
+      lines.push('Scoring your URL — tomorrow’s brief will include ranked investors.');
+    }
+    if (personal.inspectUrl) lines.push(`Inspect: ${base}/matches?url=${encodeURIComponent(personal.inspectUrl)}`);
+    lines.push('');
+  }
   const ed = nl.editorial?.text || nl.editorial;
   if (ed) lines.push(`PYTHIA'S TAKE`, ed, '');
   if (nl.hottestStartups?.length) {

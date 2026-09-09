@@ -16,7 +16,7 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'Automate your raise';
+export const HERO_PRIMARY_CTA = 'Get daily matches';
 
 /** Accent phrase in the locked H1 — rendered in brand emerald. */
 export const HERO_HEADLINE_ACCENT = 'Who Will Fund You';

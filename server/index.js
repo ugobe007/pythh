@@ -2361,25 +2361,29 @@ app.get('/api/art/:date', async (req, res) => {
 
 // POST /api/newsletter/subscribe — save email to newsletter_subscribers
 app.post('/api/newsletter/subscribe', async (req, res) => {
-  const { email } = req.body || {};
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'Valid email required' });
-  }
+  const { email, url, source } = req.body || {};
   try {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-      .from('newsletter_subscribers')
-      .upsert(
-        { email: email.toLowerCase().trim(), source: 'website' },
-        { onConflict: 'email', ignoreDuplicates: false }
-      );
-    if (error) {
-      if (error.message?.includes('does not exist')) {
-        return res.status(503).json({ error: 'Subscriber table not yet set up — contact admin.' });
-      }
-      throw error;
+    const { upsertNewsletterSubscriber, kickoffSubscriberUrlScore } = require('./lib/newsletterSubscribe');
+    const result = await upsertNewsletterSubscriber(getSupabaseClient(), {
+      email,
+      url,
+      source: source || 'website',
+    });
+    if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+    res.json({
+      ok: true,
+      startup_url: result.startup_url || null,
+      pending_matches: !result.startup_id,
+    });
+    if (result.startup_url && !result.startup_id) {
+      setImmediate(() => {
+        kickoffSubscriberUrlScore(getSupabaseClient(), {
+          email: result.email,
+          startupUrl: result.startup_url,
+          startupId: result.startup_id,
+        }).catch((err) => console.warn('[newsletter] kickoff:', err.message));
+      });
     }
-    return res.json({ ok: true });
   } catch (err) {
     console.error('[newsletter] subscribe error:', err.message);
     return res.status(500).json({ error: 'Failed to subscribe. Please try again.' });
@@ -2399,10 +2403,19 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
     const newsletter = await generateNewsletter();
 
     // Get confirmed subscribers
-    const { data: subscribers, error: subError } = await supabase
+    let { data: subscribers, error: subError } = await supabase
       .from('newsletter_subscribers')
-      .select('email, unsubscribe_token')
+      .select('email, unsubscribe_token, startup_url, startup_id')
       .is('unsubscribed_at', null);
+    if (subError && /startup_url|startup_id/i.test(subError.message || '')) {
+      const retry = await supabase
+        .from('newsletter_subscribers')
+        .select('email, unsubscribe_token')
+        .is('unsubscribed_at', null);
+      if (retry.error) throw retry.error;
+      subscribers = retry.data;
+      subError = null;
+    }
 
     if (subError) throw subError;
     if (!subscribers || subscribers.length === 0) {
@@ -2416,14 +2429,26 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
     const { buildBriefEmailHtml, buildBriefEmailText } = require('./lib/newsletterEmail');
 
     // Send to all subscribers (personalized unsubscribe link per recipient)
+    const { loadSubscriberMatches } = require('./lib/subscriberMatches');
     let sent = 0;
     let failed = 0;
-    for (const { email, unsubscribe_token } of subscribers) {
+    for (const { email, unsubscribe_token, startup_url, startup_id } of subscribers) {
+      let personal = null;
+      if (startup_url || startup_id) {
+        try {
+          personal = await loadSubscriberMatches(supabase, {
+            startupUrl: startup_url,
+            startupId: startup_id,
+          });
+        } catch (err) {
+          console.warn(`[newsletter] matches ${email}:`, err.message);
+        }
+      }
       const result = await sendEmailViaResend({
         to: email,
         subject: `The Pythh Daily Brief — ${today}`,
-        html: buildBriefEmailHtml(newsletter, { siteUrl, unsubscribeToken: unsubscribe_token }),
-        text: buildBriefEmailText(newsletter, { siteUrl, unsubscribeToken: unsubscribe_token }),
+        html: buildBriefEmailHtml(newsletter, { siteUrl, unsubscribeToken: unsubscribe_token, personal }),
+        text: buildBriefEmailText(newsletter, { siteUrl, unsubscribeToken: unsubscribe_token, personal }),
       });
       if (result.success) sent++;
       else failed++;
