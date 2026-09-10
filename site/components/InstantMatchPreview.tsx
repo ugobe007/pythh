@@ -152,6 +152,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setStartupId(null);
     setPreview(null);
     setShortlistSaved(false);
+    setUnlockedIds([]);
     gateCompletedRef.current = false;
 
     async function submitUrl() {

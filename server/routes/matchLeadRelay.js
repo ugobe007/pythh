@@ -45,10 +45,33 @@ async function requireUser(req, res) {
   return user;
 }
 
+async function verifyStartupOwnership(client, userId, startupId) {
+  const { data, error } = await client
+    .from('startup_uploads')
+    .select('id, submitted_by')
+    .eq('id', startupId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return false;
+  // Allow if user submitted it or if submitted_by is null (anonymous submission that user can claim)
+  return data.submitted_by === userId || data.submitted_by === null;
+}
+
+async function verifyMatchExists(client, startupId, investorId) {
+  const { data, error } = await client
+    .from('startup_investor_matches')
+    .select('investor_id')
+    .eq('startup_id', startupId)
+    .eq('investor_id', investorId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return Boolean(data?.investor_id);
+}
+
 async function loadInvestor(client, investorId) {
   const { data, error } = await client
     .from('investors')
-    .select('id, email, email_best_guess, email_candidates, email_status')
+    .select('id, email, email_best_guess, email_candidates, email_status, email_has_mx')
     .eq('id', investorId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -84,7 +107,14 @@ router.get('/unlocks', async (req, res) => {
   if (!isUuid(startupId)) return res.status(400).json({ error: 'startup_id required' });
 
   try {
-    const { data, error } = await sb()
+    const client = sb();
+    
+    // Verify user owns this startup
+    if (!(await verifyStartupOwnership(client, user.id, startupId))) {
+      return res.status(403).json({ error: 'You do not have access to this startup.' });
+    }
+    
+    const { data, error } = await client
       .from('investor_unlocks')
       .select('investor_id')
       .eq('startup_id', startupId);
@@ -111,6 +141,17 @@ router.post('/unlock', async (req, res) => {
 
   try {
     const client = sb();
+    
+    // Verify user owns this startup
+    if (!(await verifyStartupOwnership(client, user.id, startupId))) {
+      return res.status(403).json({ error: 'You do not have access to this startup.' });
+    }
+    
+    // Verify this is an actual match
+    if (!(await verifyMatchExists(client, startupId, investorId))) {
+      return res.status(404).json({ error: 'This investor is not in your matches.' });
+    }
+    
     const investor = await loadInvestor(client, investorId);
     if (!investor) return res.status(404).json({ error: 'investor not found' });
     await recordUnlock(client, startupId, investorId);
@@ -147,6 +188,17 @@ router.post('/email', async (req, res) => {
 
   try {
     const client = sb();
+    
+    // Verify user owns this startup
+    if (!(await verifyStartupOwnership(client, user.id, startupId))) {
+      return res.status(403).json({ error: 'You do not have access to this startup.' });
+    }
+    
+    // Verify this is an actual match
+    if (!(await verifyMatchExists(client, startupId, investorId))) {
+      return res.status(404).json({ error: 'This investor is not in your matches.' });
+    }
+    
     const investor = await loadInvestor(client, investorId);
     if (!investor) return res.status(404).json({ error: 'investor not found' });
 
@@ -165,6 +217,21 @@ router.post('/email', async (req, res) => {
     }
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+    
+    // Check duplicate and cap atomically - duplicate check now includes error handling
+    const { data: already, error: duplicateErr } = await client
+      .from('investor_outreach')
+      .select('id, status')
+      .eq('startup_id', startupId)
+      .eq('investor_id', investorId)
+      .gte('created_at', since)
+      .limit(1);
+    if (duplicateErr) throw new Error(duplicateErr.message);
+    if (already?.length) {
+      return res.status(409).json({ error: 'Already emailed this investor through Pythh today.' });
+    }
+    
     const { count, error: countErr } = await client
       .from('investor_outreach')
       .select('id', { count: 'exact', head: true })
@@ -176,18 +243,6 @@ router.post('/email', async (req, res) => {
       return res.status(429).json({ error: 'Daily send limit reached. Try again tomorrow.' });
     }
 
-    const { data: already } = await client
-      .from('investor_outreach')
-      .select('id, status')
-      .eq('startup_id', startupId)
-      .eq('investor_id', investorId)
-      .eq('status', 'sent')
-      .gte('created_at', since)
-      .limit(1);
-    if (already?.length) {
-      return res.status(409).json({ error: 'Already emailed this investor through Pythh today.' });
-    }
-
     if (!process.env.RESEND_API_KEY) {
       return res.status(503).json({ error: 'Email relay is not configured yet.' });
     }
@@ -197,6 +252,34 @@ router.post('/email', async (req, res) => {
       .select('id, name')
       .eq('id', startupId)
       .maybeSingle();
+
+    // Reserve slot before sending to prevent race conditions
+    const outreachId = require('crypto').randomUUID();
+    const { error: reserveErr } = await client.from('investor_outreach').insert({
+      id: outreachId,
+      startup_id: startupId,
+      investor_id: investorId,
+      outreach_email: resolved.address,
+      email_type: resolved.type,
+      subject,
+      body_preview: body.slice(0, 500),
+      status: 'sending',
+      approved_by: user.id,
+      approved_at: now,
+      metadata: {
+        relay: true,
+        founder_reply_to: replyTo,
+        startup_name: startup?.name || null,
+      },
+    });
+    
+    // If insert fails (duplicate from race), reject
+    if (reserveErr) {
+      if (String(reserveErr.message || '').includes('duplicate') || reserveErr.code === '23505') {
+        return res.status(409).json({ error: 'Another send is in progress for this investor.' });
+      }
+      throw new Error(reserveErr.message);
+    }
 
     const fromAddress = getOutreachFromAddress();
     const fromName = process.env.OUTREACH_FROM_NAME || 'Pythh';
@@ -228,30 +311,30 @@ router.post('/email', async (req, res) => {
     );
 
     if (sendErr) {
+      // Mark as failed so it doesn't count against cap
+      await client.from('investor_outreach').update({ status: 'failed' }).eq('id', outreachId);
       console.error('[match-leads] resend', sendErr.message || sendErr);
       return res.status(502).json({ error: 'Could not send through Pythh. Try again.' });
     }
 
-    const { error: insertErr } = await client.from('investor_outreach').insert({
-      startup_id: startupId,
-      investor_id: investorId,
-      outreach_email: resolved.address,
-      email_type: resolved.type,
-      subject,
-      body_preview: body.slice(0, 500),
-      resend_message_id: sent?.id || null,
-      status: 'sent',
-      approved_by: user.id,
-      approved_at: new Date().toISOString(),
-      metadata: {
-        relay: true,
-        founder_reply_to: replyTo,
-        startup_name: startup?.name || null,
-        sent_at: new Date().toISOString(),
-        message_id: sent?.id || null,
-      },
-    });
-    if (insertErr) console.error('[match-leads] outreach insert', insertErr.message);
+    // Update to sent with message ID
+    const { error: updateErr } = await client.from('investor_outreach')
+      .update({
+        status: 'sent',
+        resend_message_id: sent?.id || null,
+        metadata: {
+          relay: true,
+          founder_reply_to: replyTo,
+          startup_name: startup?.name || null,
+          sent_at: new Date().toISOString(),
+          message_id: sent?.id || null,
+        },
+      })
+      .eq('id', outreachId);
+    
+    if (updateErr) {
+      console.error('[match-leads] outreach update', updateErr.message);
+    }
 
     return res.json({
       ok: true,
