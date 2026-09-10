@@ -10,12 +10,14 @@ export default function NewsletterJoinForm({
   requireUrl = true,
   cta = NEWSLETTER_JOIN_CTA,
   onJoined,
+  className = "mx-auto",
 }: {
   source: string;
   id?: string;
   requireUrl?: boolean;
   cta?: string;
   onJoined?: (payload: { email: string; url: string }) => void;
+  className?: string;
 }) {
   const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
@@ -65,7 +67,7 @@ export default function NewsletterJoinForm({
   }
 
   return (
-    <form id={id} onSubmit={handleSubmit} className="w-full max-w-lg mx-auto">
+    <form id={id} onSubmit={handleSubmit} className={`w-full max-w-lg ${className}`.trim()}>
       <div
         className="flex items-center gap-3 px-4 py-3.5 rounded-xl min-w-0 text-left mb-3"
         style={{ backgroundColor: CARD, border: `1px solid ${error && !url.trim() && requireUrl ? "rgba(248,113,113,0.5)" : BORDER}` }}

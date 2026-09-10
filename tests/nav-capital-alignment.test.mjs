@@ -36,4 +36,17 @@ test('homepage hero leads with capital alignment and one CTA', () => {
   assert.doesNotMatch(home, /<LiveMatchHighlight/);
   assert.doesNotMatch(home, /<SignalArtTeaser/);
   assert.doesNotMatch(home, /<AgentIntroSection/);
+  assert.match(home, /<HomeLiveMatches/);
+  assert.match(home, /<HomeLiveResults/);
+});
+
+test('homepage live board is matches plus funding results', () => {
+  const board = readFileSync(new URL('../site/components/HomeLiveNetwork.tsx', import.meta.url), 'utf8');
+  assert.match(board, /id="live-matches"/);
+  assert.match(board, /id="live-results"/);
+  assert.match(board, /useRecentMatches/);
+  assert.match(board, /\/api\/newsletter\/today/);
+  assert.match(board, /Who just got funded/);
+  assert.match(board, /Inspect the network/);
+  assert.doesNotMatch(board, /INVESTOR_SIGNALS/);
 });

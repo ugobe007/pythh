@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import SharedNavbar from "@/components/SharedNavbar";
 import HeroHeadline from "@/components/HeroHeadline";
 import NewsletterJoinForm, { NEWSLETTER_JOIN_CTA } from "@/components/NewsletterJoinForm";
+import { HomeLiveMatches, HomeLiveResults } from "@/components/HomeLiveNetwork";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
@@ -530,35 +531,36 @@ function HeroSection({
 
   return (
     <section
-      className="relative pt-16 pb-12 lg:pb-14 overflow-hidden"
+      className="relative pt-16 pb-10 lg:pb-12 overflow-hidden"
       style={{ backgroundColor: PAGE }}
     >
-
-      <div className="container relative z-10 max-w-5xl mx-auto px-6 py-10 lg:py-16 text-center">
-        <div className="max-w-3xl mx-auto">
-        <HeroHeadline
-          headline={heroHeadline}
-          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
-          style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
-        />
-
-        <p
-          className="text-base sm:text-lg leading-relaxed mb-8 mx-auto max-w-[46ch]"
-          style={{ color: MUTED }}
-        >
-          {heroSubline}
-        </p>
-
-        <NewsletterJoinForm
-          id="hero-cta"
-          source="home_hero"
-          cta={NEWSLETTER_JOIN_CTA}
-          onJoined={({ url }) => {
-            const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
-            trackUrlSubmitted(normalized, "home_hero", founderExperiment);
-            trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
-          }}
-        />
+      <div className="container relative z-10 max-w-6xl mx-auto px-6 py-10 lg:py-14">
+        <div className="grid lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)] gap-10 lg:gap-12 items-start">
+          <div className="lg:pt-2">
+            <HeroHeadline
+              headline={heroHeadline}
+              className="font-display font-bold leading-[1.12] mb-4 max-w-[18ch]"
+              style={{ fontSize: "clamp(2.1rem, 4.4vw, 3.25rem)", color: TEXT, letterSpacing: "-0.04em" }}
+            />
+            <p
+              className="text-base sm:text-lg leading-relaxed mb-8 max-w-[44ch]"
+              style={{ color: MUTED }}
+            >
+              {heroSubline}
+            </p>
+            <NewsletterJoinForm
+              id="hero-cta"
+              source="home_hero"
+              cta={NEWSLETTER_JOIN_CTA}
+              className="mx-0"
+              onJoined={({ url }) => {
+                const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+                trackUrlSubmitted(normalized, "home_hero", founderExperiment);
+                trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
+              }}
+            />
+          </div>
+          <HomeLiveMatches />
         </div>
         <HeroStatusBar platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       </div>
@@ -1598,6 +1600,11 @@ export default function Home() {
         heroCta={{ label: NEWSLETTER_JOIN_CTA, targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
+      <HomeLiveResults
+        pairRate={platformStats?.pair_funding_rate_pct}
+        pairHits={platformStats?.pair_funding_hits}
+        pairStartups={platformStats?.pair_funding_startups}
+      />
       <HowItWorksSection />
       <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <NewsletterSection />
