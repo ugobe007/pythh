@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
 import { AMBER, BORDER, CARD, DIM, G, GOLD, MUTED, TEXT } from "@/lib/designTokens";
 import { useEffect, useState } from "react";
+import { safeExternalUrl } from "@/lib/safeUrl";
 
 function investorLabel(m: RecentMatch) {
   if (m.investor_firm && m.investor_firm !== m.investor_name && m.investor_firm !== "-") {
@@ -16,6 +17,8 @@ function formatAmount(raw: string | null | undefined) {
   const s = String(raw).trim();
   if (!s) return "";
   if (/[$£€]/.test(s) && /[kmb]\b/i.test(s)) return s;
+  if (/\bmillion\b/i.test(s) || /\mbillion\b/i.test(s)) return s;
+  if (/\d+[kmb]\b/i.test(s)) return s;
   const n = Number(s.replace(/[^0-9.]/g, ""));
   if (!Number.isFinite(n) || n <= 0) return s;
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
@@ -193,6 +196,7 @@ export function HomeLiveResults({
             {moves.map((m) => {
               const amount = formatAmount(m.amount);
               const firms = (m.investors || []).slice(0, 3).join(", ");
+              const safeUrl = safeExternalUrl(m.url);
               const inner = (
                 <>
                   <div className="min-w-0">
@@ -207,10 +211,10 @@ export function HomeLiveResults({
                   ) : null}
                 </>
               );
-              return m.url ? (
+              return safeUrl ? (
                 <a
                   key={`${m.company}-${m.amount}-${m.url}`}
-                  href={m.url}
+                  href={safeUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center justify-between gap-3 px-4 py-3"
