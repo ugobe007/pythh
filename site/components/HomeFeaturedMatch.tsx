@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
@@ -77,16 +77,18 @@ export function matchReasons(m: RecentMatch): string[] {
 
 export default function HomeFeaturedMatch() {
   const { matches, loading } = useRecentMatches(FEATURED_MATCH_POOL);
-  const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
+  const initialIndex = useMemo(() => {
+    if (matches.length < 2) return 0;
+    return Math.floor(Date.now() / FEATURED_MATCH_ROTATE_MS) % matches.length;
+  }, [matches.length]);
+
+  const [index, setIndex] = useState(initialIndex);
+
   useEffect(() => {
-    if (matches.length < 2) {
-      setIndex(0);
-      return;
-    }
-    setIndex(Math.floor(Date.now() / FEATURED_MATCH_ROTATE_MS) % matches.length);
-  }, [matches]);
+    setIndex(initialIndex);
+  }, [initialIndex]);
 
   useEffect(() => {
     if (matches.length < 2 || paused) return;
