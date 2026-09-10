@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
+import { trpc } from '@/lib/trpc';
+import { hasPaidRaiseAccess } from '@/lib/pricingPlans';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
 import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
@@ -25,6 +27,7 @@ import { pinActiveStartup } from '@/lib/activeStartupContext';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
+import PaidRaisePanel from '@/components/PaidRaisePanel';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, TEXT } from '@/lib/designTokens';
@@ -100,6 +103,15 @@ interface Props {
 export default function InstantMatchPreview({ url }: Props) {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { data: subscription } = trpc.stripe.getSubscription.useQuery(undefined, {
+    enabled: Boolean(isAuthenticated),
+    retry: false,
+  });
+  const isPaid = hasPaidRaiseAccess({
+    plan: subscription?.plan,
+    status: subscription?.status,
+    role: user?.role,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -264,7 +276,7 @@ export default function InstantMatchPreview({ url }: Props) {
   }, [startupId, investorMix, url]);
 
   useEffect(() => {
-    if (!startupId || authLoading || !isAuthenticated) return;
+    if (!startupId || authLoading || !isAuthenticated || !isPaid) return;
     let cancelled = false;
     fetchLeadUnlocks(startupId)
       .then((ids) => {
@@ -274,7 +286,7 @@ export default function InstantMatchPreview({ url }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [startupId, authLoading, isAuthenticated]);
+  }, [startupId, authLoading, isAuthenticated, isPaid]);
 
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
@@ -385,14 +397,20 @@ export default function InstantMatchPreview({ url }: Props) {
               startupName={startupName}
               defaultOpen={i === 0}
               isAuthenticated={Boolean(isAuthenticated)}
+              isPaid={isPaid}
               unlocked={Boolean(investorId && unlockedIds.includes(investorId))}
               replyTo={user?.email}
               onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
-              onNeedSignup={(id, name, firm) => handleSignup('outreach', { id, name, firm })}
+              onNeedSignup={(id, name, firm) => handleSignup('save', { id, name, firm })}
+              onNeedPlan={() => navigate('/pricing')}
             />
           );
         })}
       </ul>
+
+      <div className="mb-6">
+        <PaidRaisePanel isPaid={isPaid} startupId={preview.startup?.id || startupId} />
+      </div>
 
       <div
         className="mt-2 pt-5"
@@ -437,9 +455,9 @@ export default function InstantMatchPreview({ url }: Props) {
             <ArrowRight className="w-4 h-4" />
           </Link>
         )}
-        {!isAuthenticated && (
+        {!isPaid && (
           <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
-            Free account · no card · outreach optional later
+            Matches are free. Email, calls, term sheets, and the PPT outline are on Scout.
           </p>
         )}
       </div>

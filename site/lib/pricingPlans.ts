@@ -48,6 +48,7 @@ export const SCOUT_PLAN: PricingPlanConfig = {
     "Unlimited match scans + full investor rankings",
     "Automated sends + 2-touch follow-up sequences",
     "Reply tracking, pipeline dashboard, investment memo export",
+    "Email investors through Pythh · PPT outline · term sheet development",
     "Full GOD score + readiness gap analysis",
   ],
 };
@@ -73,7 +74,8 @@ export const ORACLE_PLAN: PricingPlanConfig = {
     "10 PYTHIA campaigns · unlimited investors per campaign",
     "Everything in Scout + multi-segment parallel outreach",
     "Smart follow-up sequences (up to 5 touches)",
-    "Pre-meeting briefs, Q&A prep, meeting booking flow",
+    "Pre-meeting briefs, Q&A prep, investor call scheduling",
+    "PPT outline + term sheet development",
     "Full signal intel + co-investor context · 5 team seats",
   ],
 };
@@ -110,6 +112,42 @@ export const PAID_FOUNDER_PLANS = new Set<string>(["scout", "oracle", "pantheon"
 export function isPaidFounderPlan(plan: string | null | undefined): boolean {
   return !!plan && PAID_FOUNDER_PLANS.has(plan);
 }
+
+const PAID_SUB_STATUSES = new Set(["active", "trialing", "paused"]);
+
+/** Monthly Scout+ services: email relay, calls, term sheets, PPT outline. */
+export function hasPaidRaiseAccess(input: {
+  plan?: string | null;
+  status?: string | null;
+  role?: string | null;
+} | null | undefined): boolean {
+  if (!input) return false;
+  if (input.role === "admin") return true;
+  return isPaidFounderPlan(input.plan) && PAID_SUB_STATUSES.has(String(input.status || ""));
+}
+
+export const PAID_RAISE_SERVICES = [
+  {
+    id: "email",
+    label: "Email investors through Pythh",
+    detail: "We send from pythh.ai. Their address stays private.",
+  },
+  {
+    id: "calls",
+    label: "Schedule investor calls",
+    detail: "Propose times and prepare the brief before you get on the line.",
+  },
+  {
+    id: "terms",
+    label: "Term sheet development",
+    detail: "Structure the round on paper before you take someone else’s sheet.",
+  },
+  {
+    id: "deck",
+    label: "PPT outline",
+    detail: "What each slide should say and how to position the pitch.",
+  },
+] as const;
 
 /** Full rankings database (44+ investors) — Scout and above. */
 export function hasFullRankingsAccess(plan: string | null | undefined): boolean {
@@ -232,6 +270,26 @@ export const PRICING_FEATURE_ROWS: PlanFeatureRow[] = [
   },
   {
     label: "Full investor rankings (44+)",
+    scout: true,
+    oracle: true,
+    pantheon: true,
+  },
+  {
+    label: "Email investors through Pythh",
+    scout: true,
+    oracle: true,
+    pantheon: true,
+    highlight: true,
+  },
+  {
+    label: "PPT outline + pitch positioning",
+    scout: true,
+    oracle: true,
+    pantheon: true,
+    highlight: true,
+  },
+  {
+    label: "Term sheet development",
     scout: true,
     oracle: true,
     pantheon: true,

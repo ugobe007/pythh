@@ -31,6 +31,7 @@ test('preview leads expand all five and unlock without showing addresses', () =>
   assert.match(preview, /MatchInvestorLead/);
   assert.doesNotMatch(preview, /i === 0 && why/);
   assert.match(lead, /Unlock to email through Pythh/);
+  assert.match(lead, /Email, calls, and the deck outline are on Scout/);
   assert.match(lead, /Recent deals/);
   assert.match(lead, /Fit \$\{fitness\}\/100/);
   assert.doesNotMatch(lead, /likely to invest|% likely|probability/);
