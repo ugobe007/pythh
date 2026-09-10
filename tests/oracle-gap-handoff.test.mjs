@@ -16,7 +16,8 @@ test('new users see matches before signup and stay on matches after', async () =
   assert.match(preview, /apiUrl\(`\/api\/preview\/\$\{startupId\}/);
 
   const home = await read('site/Home.tsx');
-  assert.match(home, /\/matches\?url=\$\{encodeURIComponent\(normalized\)\}/);
+  assert.match(home, /NewsletterJoinForm/);
+  assert.match(home, /HomeLiveMatches/);
   assert.doesNotMatch(home, /signup\/founder\?intent=matches/);
 
   const matchesPage = await read('site/pages/Matches.tsx');
