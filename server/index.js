@@ -1264,8 +1264,10 @@ app.get('/api/recent-matches', async (req, res) => {
             startup_id,
             investor_id,
             match_score,
+            reasoning,
+            why_you_match,
             created_at,
-            startup_uploads!startup_id ( name, total_god_score, status ),
+            startup_uploads!startup_id ( name, total_god_score, status, sectors, stage, website ),
             investors!investor_id ( name, firm )
           `)
           .order('created_at', { ascending: false })
@@ -1290,9 +1292,13 @@ app.get('/api/recent-matches', async (req, res) => {
             investor_id: m.investor_id,
             startup_name: su.name,
             startup_god_score: su.total_god_score ?? null,
+            startup_sectors: Array.isArray(su.sectors) ? su.sectors : [],
+            startup_stage: su.stage || null,
             investor_name: invName || 'Investor',
             investor_firm: invFirm,
             match_score: Math.round(m.match_score || 0),
+            reasoning: m.reasoning || null,
+            why_you_match: m.why_you_match || null,
             created_at: m.created_at,
             time_ago: formatTimeAgo(new Date(m.created_at)),
           });

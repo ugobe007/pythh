@@ -14,9 +14,13 @@ export interface RecentMatch {
   investor_id: string;
   startup_name: string;
   startup_god_score: number | null;
+  startup_sectors?: string[];
+  startup_stage?: string | null;
   investor_name: string;
   investor_firm: string | null;
   match_score: number;
+  reasoning?: string | null;
+  why_you_match?: string | string[] | null;
   created_at: string;
   time_ago: string;
 }

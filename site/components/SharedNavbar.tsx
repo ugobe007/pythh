@@ -119,7 +119,7 @@ export default function SharedNavbar({
                 aria-haspopup="menu"
                 onClick={() => setProductOpen((o) => !o)}
               >
-                Product
+                Explore
                 <ChevronDown size={14} className={productOpen ? "rotate-180 transition-transform" : "transition-transform"} />
               </button>
               {productOpen && (
@@ -207,8 +207,8 @@ export default function SharedNavbar({
                   const el = document.getElementById(heroCta.targetId);
                   if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
                 }}
-                className="text-sm font-semibold px-4 py-1.5 rounded-md"
-                style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+                className="text-sm font-semibold px-4 rounded-md"
+                style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)", minHeight: 40 }}
               >
                 {heroCta.label}
               </button>
@@ -281,8 +281,8 @@ export default function SharedNavbar({
                       const el = document.getElementById(heroCta.targetId);
                       if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
                     }}
-                    className="text-sm font-semibold px-4 py-2 rounded-md"
-                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+                    className="text-sm font-semibold px-4 rounded-md"
+                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)", minHeight: 40 }}
                   >
                     {heroCta.label}
                   </button>

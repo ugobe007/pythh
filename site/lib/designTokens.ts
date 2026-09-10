@@ -16,8 +16,10 @@ export const BAR_EMERALD = G;
 export const G_HOVER = "oklch(0.78 0.17 162.48)";
 export const G_SUBTLE = "oklch(0.696 0.17 162.48 / 0.12)";
 export const G_BORDER = "oklch(0.696 0.17 162.48 / 0.35)";
-export const MUTED = "oklch(0.64 0.01 264)";
-export const DIM = "oklch(0.50 0.01 264)";
+/** AA-oriented secondary text on the near-black canvas (≥ ~4.5:1). */
+export const MUTED = "oklch(0.74 0.01 264)";
+/** Informative metadata — not decorative-only. */
+export const DIM = "oklch(0.64 0.01 264)";
 export const BORDER = "oklch(0.2 0.01 264)";
 export const CARD = "oklch(0.12 0.01 264)";
 export const PAGE = "oklch(0.09 0.01 264)";

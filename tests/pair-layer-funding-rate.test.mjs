@@ -27,20 +27,14 @@ assert.match(PAIR_LAYER_FUNDING_RATE_SQL, /event_at > m.created_at/);
 assert.match(PAIR_LAYER_FUNDING_RATE_SQL, /count\(DISTINCT startup_id\) FILTER \(WHERE hit = 1\)/);
 
 const home = readFileSync(new URL('../site/Home.tsx', import.meta.url), 'utf8');
-assert.match(home, /label: "Funding rate"/);
-assert.doesNotMatch(home, /label: "Startups tracked"/);
+const proof = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
+assert.match(home, /<HomeProofStrip/);
 assert.match(home, /pair_funding_rate_pct/);
-const investorTile = home.slice(
-  home.indexOf('label: "Investors in Pythh"'),
-  home.indexOf('label: "Funding rate"'),
-);
-const rateTile = home.slice(
-  home.indexOf('label: "Funding rate"'),
-  home.indexOf('label: "Investor matches"'),
-);
-assert.doesNotMatch(investorTile, /featured: true/);
-assert.match(rateTile, /featured: true/);
-assert.match(rateTile, /color: G/);
+assert.match(proof, /Verified outcome/);
+assert.match(proof, /Startups funded \(scale\)/);
+assert.match(proof, /not predictive quality/);
+assert.match(proof, /Methodology/);
+assert.doesNotMatch(proof, /label: "Startups tracked"/);
 
 const api = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
 assert.match(api, /attachPairLayerFundingRate/);

@@ -16,25 +16,25 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'Get daily matches';
+export const HERO_PRIMARY_CTA = 'Preview my matches';
 
-/** Accent phrase in the locked H1 — rendered in brand emerald. */
-export const HERO_HEADLINE_ACCENT = 'Who Will Fund You';
+/** Accent phrase in the H1 — rendered in brand emerald. */
+export const HERO_HEADLINE_ACCENT = 'most likely to fund your startup';
 
-/** Locked public subline — paste-URL → thesis-aligned funders. */
+/** Public subline — URL first, ranked matches to the inbox. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your URL — Pythh finds investors who will fund your startup. We align your thesis with investors that "get it".';
+  'Paste your website. Pythh analyzes your market, traction, and investor thesis fit, then sends ranked matches to your inbox every morning.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
-      headline: 'We Find Investors Who Will Fund You',
+      headline: 'Find the investors most likely to fund your startup.',
       subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
-    headline: 'We Find Investors Who Will Fund You',
+    headline: 'Find the investors most likely to fund your startup.',
     subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };
