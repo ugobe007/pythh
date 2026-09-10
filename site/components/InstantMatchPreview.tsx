@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { apiUrl } from '@/lib/apiConfig';
@@ -28,7 +28,7 @@ import { pinActiveStartup } from '@/lib/activeStartupContext';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import InlineMeta from '@/components/design/InlineMeta';
-import { G, AMBER, DIM, MUTED, TEXT } from '@/lib/designTokens';
+import { G, G_HOVER, AMBER, DIM, MUTED, TEXT } from '@/lib/designTokens';
 
 const PREVIEW_LIMIT = 5;
 
@@ -111,6 +111,20 @@ function investorCheckLabel(match: PreviewMatch): string | null {
   const max = formatCheckSize(investor?.check_size_max);
   if (min && max) return `${min}–${max}`;
   return min || max || null;
+}
+
+const NEXT_STEP_CTA_CLASS =
+  'inline-flex items-center justify-center gap-2 w-full px-7 rounded-lg text-[15px] font-semibold';
+const NEXT_STEP_CTA_STYLE = {
+  backgroundColor: G,
+  border: `1px solid ${G}`,
+  color: 'oklch(0.1 0.02 162.48)',
+  minHeight: 50,
+} as const;
+
+function paintNextStepCta(el: HTMLElement, hover: boolean) {
+  el.style.backgroundColor = hover ? G_HOVER : G;
+  el.style.borderColor = hover ? G_HOVER : G;
 }
 
 interface Props {
@@ -336,6 +350,20 @@ export default function InstantMatchPreview({ url }: Props) {
   const godScore =
     typeof preview.startup?.god_score === 'number' ? Math.round(preview.startup.god_score) : null;
   const fundingStage = preview.shortlist_mix?.funding_stage?.replace(/-/g, ' ');
+  const remaining = Math.max(0, total - visible.length);
+  const canConfirmRound = Boolean(isAuthenticated && preview.startup?.id && !fundingStage);
+  const nextCopy = !isAuthenticated
+    ? remaining > 0
+      ? `Save this shortlist to keep these ${visible.length} and unlock ${remaining.toLocaleString()} more in the network.`
+      : `Save this shortlist to keep these ${visible.length} matches.`
+    : canConfirmRound
+      ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top.'
+      : 'Shortlist is saved. New ranked matches go to your inbox each morning.';
+  const nextLabel = !isAuthenticated
+    ? `Save these ${visible.length} matches`
+    : canConfirmRound
+      ? 'Confirm your round'
+      : 'Get daily matches';
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
@@ -360,20 +388,6 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
       </div>
 
-      {!isAuthenticated && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <button
-            type="button"
-            onClick={() => handleSignup('save')}
-            className="text-sm font-semibold inline-flex items-center gap-1.5"
-            style={{ color: G }}
-          >
-            Save top {visible.length} — free account
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-xs" style={{ color: DIM }}>No card · outreach optional later</span>
-        </div>
-      )}
       {isAuthenticated && shortlistSaved && (
         <p className="mb-4 text-xs" style={{ color: G }}>Shortlist saved to your account.</p>
       )}
@@ -422,22 +436,55 @@ export default function InstantMatchPreview({ url }: Props) {
         })}
       </ul>
 
-      {total > visible.length && (
-        <p className="text-xs mb-4" style={{ color: DIM }}>
-          +{(total - visible.length).toLocaleString()} more after you save
+      <div
+        className="mt-2 pt-5"
+        style={{ borderTop: '1px solid oklch(0.2 0.01 264)' }}
+      >
+        <p className="text-sm mb-4" style={{ color: TEXT }}>
+          {nextCopy}
         </p>
-      )}
-
-      {isAuthenticated && preview.startup?.id && !preview.shortlist_mix?.funding_stage && (
-        <button
-          type="button"
-          onClick={() => setImproveMatchesOpen(true)}
-          className="text-xs underline"
-          style={{ color: MUTED }}
-        >
-          Confirm your round to improve fit
-        </button>
-      )}
+        {!isAuthenticated ? (
+          <button
+            type="button"
+            onClick={() => handleSignup('save')}
+            className={NEXT_STEP_CTA_CLASS}
+            style={NEXT_STEP_CTA_STYLE}
+            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
+          >
+            {nextLabel}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        ) : canConfirmRound ? (
+          <button
+            type="button"
+            onClick={() => setImproveMatchesOpen(true)}
+            className={NEXT_STEP_CTA_CLASS}
+            style={NEXT_STEP_CTA_STYLE}
+            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
+          >
+            {nextLabel}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        ) : (
+          <Link
+            href="/newsletter"
+            className={NEXT_STEP_CTA_CLASS}
+            style={NEXT_STEP_CTA_STYLE}
+            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
+          >
+            {nextLabel}
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        )}
+        {!isAuthenticated && (
+          <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
+            Free account · no card · outreach optional later
+          </p>
+        )}
+      </div>
 
       {improveMatchesOpen && preview.startup?.id && (
         <ImproveMatchesPanel
