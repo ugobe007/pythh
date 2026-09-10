@@ -28,6 +28,32 @@ describe('shapeMatchForApi', () => {
     assert.equal(out.fitness_methodology_version, 'fitness_v1');
   });
 
+  it('never returns investor email fields and includes recent deals', () => {
+    const out = shapeMatchForApi({
+      match_score: 72,
+      why_you_match: 'Stage match',
+      investor: {
+        id: '1',
+        name: 'Jane',
+        firm: 'Acme VC',
+        email: 'secret@acme.vc',
+        email_best_guess: 'guess@acme.vc',
+        email_status: 'inferred',
+        email_has_mx: true,
+        total_investments: 18,
+        last_investment_date: '2024-03-01',
+        notable_investments: [{ company: 'Cruise', round: 'Series B', year: 2021, amount: 1500000000 }],
+      },
+    });
+    assert.equal(out.investor.email, undefined);
+    assert.equal(out.investor.email_best_guess, undefined);
+    assert.equal(out.investor.contactable, true);
+    assert.equal(out.investor.total_investments, 18);
+    assert.equal(out.investor.recent_deals[0].company, 'Cruise');
+    assert.equal(out.investor.recent_deals[0].amount, 1500000000);
+    assert.doesNotMatch(JSON.stringify(out), /secret@acme\.vc|guess@acme\.vc/);
+  });
+
   it('coerces investor firm and name to strings', () => {
     const out = shapeMatchForApi({
       match_score: 72,
