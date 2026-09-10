@@ -10,6 +10,8 @@ const { createClient } = require('@supabase/supabase-js');
 const { getAuthedUserFromRequest } = require('../lib/pythhSession');
 const { getOutreachFromAddress } = require('../../lib/outreachFrom');
 const { investorHasContact, resolveInvestorEmail } = require('../../lib/recentInvestorDeals');
+const { buildDeckOutline } = require('../../lib/deckOutline');
+const { hasPaidRaiseAccess } = require('../../site/lib/pricingPlans.ts');
 
 const router = express.Router();
 const DAILY_EMAIL_CAP = 8;
@@ -39,7 +41,7 @@ function publicUnlockPayload({ investorId, contactable, unlocked = true }) {
 async function requireUser(req, res) {
   const user = await getAuthedUserFromRequest(req);
   if (!user?.id) {
-    res.status(401).json({ error: 'sign_in_required', message: 'Sign in to unlock and email through Pythh.' });
+    res.status(401).json({ error: 'sign_in_required', message: 'Sign in to unlock paid raise services.' });
     return null;
   }
   return user;
@@ -53,7 +55,6 @@ async function verifyStartupOwnership(client, userId, startupId) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return false;
-  // Allow if user submitted it or if submitted_by is null (anonymous submission that user can claim)
   return data.submitted_by === userId || data.submitted_by === null;
 }
 
@@ -66,6 +67,27 @@ async function verifyMatchExists(client, startupId, investorId) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   return Boolean(data?.investor_id);
+}
+
+async function requirePaidUser(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return null;
+  if (hasPaidRaiseAccess({ role: user.role })) return user;
+  try {
+    const { getSubscriptionByUserId } = require('../../site/db.ts');
+    const sub = await getSubscriptionByUserId(user.id).catch(() => null);
+    if (hasPaidRaiseAccess({ plan: sub?.plan, status: sub?.status, role: user.role })) {
+      return user;
+    }
+  } catch (err) {
+    console.error('[match-leads] subscription', err.message);
+  }
+  res.status(403).json({
+    error: 'plan_required',
+    message: 'Email, investor calls, term sheets, and the PPT outline are on a monthly plan.',
+    upgrade: '/pricing',
+  });
+  return null;
 }
 
 async function loadInvestor(client, investorId) {
@@ -131,7 +153,7 @@ router.get('/unlocks', async (req, res) => {
 });
 
 router.post('/unlock', async (req, res) => {
-  const user = await requireUser(req, res);
+  const user = await requirePaidUser(req, res);
   if (!user) return;
   const startupId = String(req.body?.startup_id || '');
   const investorId = String(req.body?.investor_id || '');
@@ -167,8 +189,66 @@ router.post('/unlock', async (req, res) => {
   }
 });
 
+router.post('/deck-outline', async (req, res) => {
+  const user = await requirePaidUser(req, res);
+  if (!user) return;
+  const startupId = String(req.body?.startup_id || req.query.startup_id || '');
+  if (!isUuid(startupId)) return res.status(400).json({ error: 'startup_id required' });
+
+  try {
+    const client = sb();
+    const { data: startup, error } = await client
+      .from('startup_uploads')
+      .select('id, name, tagline, description, website, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .eq('id', startupId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!startup) return res.status(404).json({ error: 'startup not found' });
+    if (!(await verifyStartupOwnership(client, user.id, startupId))) {
+      return res.status(403).json({ error: 'You do not have access to this startup.' });
+    }
+
+    const { data: matchRows } = await client
+      .from('startup_investor_matches')
+      .select('why_you_match, match_score, investors ( id, name, firm )')
+      .eq('startup_id', startupId)
+      .order('match_score', { ascending: false })
+      .limit(8);
+
+    const matches = (matchRows || []).map((row) => ({
+      why_you_match: row.why_you_match,
+      investor: Array.isArray(row.investors) ? row.investors[0] : row.investors,
+    }));
+
+    const outline = buildDeckOutline({
+      startup: {
+        name: startup.name,
+        tagline: startup.tagline,
+        description: startup.description,
+        sectors: startup.sectors,
+        stage: startup.stage,
+        god_score: startup.total_god_score,
+        score_components: {
+          team: startup.team_score,
+          traction: startup.traction_score,
+          market: startup.market_score,
+          product: startup.product_score,
+          vision: startup.vision_score,
+        },
+      },
+      matches,
+      fundingStage: startup.stage,
+    });
+
+    return res.json({ ok: true, outline });
+  } catch (err) {
+    console.error('[match-leads] deck-outline', err.message);
+    return res.status(500).json({ error: 'Could not build deck outline' });
+  }
+});
+
 router.post('/email', async (req, res) => {
-  const user = await requireUser(req, res);
+  const user = await requirePaidUser(req, res);
   if (!user) return;
   const startupId = String(req.body?.startup_id || '');
   const investorId = String(req.body?.investor_id || '');
