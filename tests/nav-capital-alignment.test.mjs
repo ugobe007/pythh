@@ -17,6 +17,7 @@ test('top nav is Explore + Pricing, not a seven-link bar', () => {
 
 test('homepage hero leads with one explained match and URL-first CTA', () => {
   const home = readFileSync(new URL('../site/Home.tsx', import.meta.url), 'utf8');
+  const proofStrip = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
   const hero = readFileSync(new URL('../site/lib/heroHeadlineExperiment.ts', import.meta.url), 'utf8');
   const form = readFileSync(new URL('../site/components/NewsletterJoinForm.tsx', import.meta.url), 'utf8');
   assert.match(hero, /Find the investors most likely to fund your startup/);
@@ -31,7 +32,7 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(form, /progressive/);
   assert.match(form, /Where should we send the full ranked list/);
   assert.match(home, /id="hero-cta"/);
-  assert.match(home, /id="hero-status-bar"/);
+  assert.match(proofStrip, /id="hero-status-bar"/);
   assert.match(home, /<HomeFeaturedMatch/);
   assert.match(home, /<HomeProofStrip/);
   assert.doesNotMatch(home, /Investor Intelligence · Live/);
