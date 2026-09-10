@@ -10,6 +10,33 @@ function firmLabel(m: RecentMatch) {
   return m.investor_name;
 }
 
+function formatStageLabel(stage: string | number | null | undefined): string | null {
+  if (stage == null || stage === "") return null;
+  const n = typeof stage === "number" ? stage : Number.parseInt(String(stage).trim(), 10);
+  const map: Record<number, string> = {
+    0: "Pre-seed",
+    1: "Pre-seed",
+    2: "Seed",
+    3: "Series A",
+    4: "Series B",
+    5: "Series C+",
+  };
+  if (Number.isFinite(n) && map[n]) return map[n];
+  const s = String(stage).trim();
+  return s && !/^\d+$/.test(s) ? s : null;
+}
+
+function isInternalReason(r: string): boolean {
+  return /investor tier|signal:\s*emerging|stage:\s*\d+\b/i.test(r);
+}
+
+function humanizeReason(r: string): string {
+  const stageMatch = r.match(/^Stage:\s*(.+)$/i);
+  if (!stageMatch) return r;
+  const label = formatStageLabel(stageMatch[1]);
+  return label ? `Stage: ${label}` : r;
+}
+
 export function matchReasons(m: RecentMatch): string[] {
   const reasons: string[] = [];
   const why = m.why_you_match;
@@ -23,7 +50,8 @@ export function matchReasons(m: RecentMatch): string[] {
       if (part.trim()) reasons.push(part.trim());
     }
   }
-  if (m.startup_stage) reasons.push(`Stage: ${m.startup_stage}`);
+  const stageLabel = formatStageLabel(m.startup_stage);
+  if (stageLabel) reasons.push(`Stage: ${stageLabel}`);
   const sector = m.startup_sectors?.find(Boolean);
   if (sector) reasons.push(`Sector: ${sector}`);
   if (m.reasoning) {
@@ -31,12 +59,16 @@ export function matchReasons(m: RecentMatch): string[] {
     if (first && first.length > 12 && first.length < 140) reasons.push(first);
   }
   const seen = new Set<string>();
-  return reasons.filter((r) => {
-    const key = r.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, 3);
+  return reasons
+    .map(humanizeReason)
+    .filter((r) => r && !isInternalReason(r))
+    .filter((r) => {
+      const key = r.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
 }
 
 export default function HomeFeaturedMatch() {
