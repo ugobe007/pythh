@@ -1,8 +1,8 @@
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
-import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
+import { uniqueMatchPairs, useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
 import { BORDER, CARD, DIM, G, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { safeExternalUrl } from "@/lib/safeUrl";
 
 function investorLabel(m: RecentMatch) {
@@ -28,10 +28,12 @@ function formatAmount(raw: string | null | undefined) {
 }
 
 const LIVE_TAPE_POOL = 9;
+const LIVE_TAPE_FETCH = 20;
 const LIVE_TAPE_ROTATE_MS = 8000;
 
 export function HomeLiveMatches({ limit = 3 }: { limit?: number }) {
-  const { matches, loading } = useRecentMatches(Math.max(limit, LIVE_TAPE_POOL));
+  const { matches: raw, loading } = useRecentMatches(LIVE_TAPE_FETCH);
+  const matches = useMemo(() => uniqueMatchPairs(raw, LIVE_TAPE_POOL), [raw]);
   const [offset, setOffset] = useState(0);
   const [paused, setPaused] = useState(false);
   const pageCount = matches.length > limit ? Math.ceil(matches.length / limit) : 1;

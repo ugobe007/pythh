@@ -110,6 +110,27 @@ export function useRecentMatches(limit = 5) {
   return { matches, loading };
 }
 
+/** Distinct startup + firm so a rotator does not look stuck on the same pair. */
+export function uniqueMatchPairs(matches: RecentMatch[], max = 8): RecentMatch[] {
+  const firms = new Set<string>();
+  const startups = new Set<string>();
+  const out: RecentMatch[] = [];
+  for (const m of matches) {
+    const firm = (
+      m.investor_firm && m.investor_firm !== "-"
+        ? m.investor_firm
+        : m.investor_name || ""
+    ).toLowerCase().trim();
+    const startup = (m.startup_name || "").toLowerCase().trim();
+    if (!firm || !startup || firms.has(firm) || startups.has(startup)) continue;
+    firms.add(firm);
+    startups.add(startup);
+    out.push(m);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function investorLabel(m: RecentMatch) {
   if (m.investor_firm && m.investor_firm !== m.investor_name && m.investor_firm !== "-") {
     return `${m.investor_name} · ${m.investor_firm}`;

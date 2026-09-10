@@ -87,11 +87,14 @@ test('homepage featured match and live tape rotate through a pool', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
   const tape = readFileSync(new URL('../site/components/HomeLiveNetwork.tsx', import.meta.url), 'utf8');
   assert.match(featured, /FEATURED_MATCH_POOL = 8/);
+  assert.match(featured, /FEATURED_MATCH_FETCH = 20/);
   assert.match(featured, /FEATURED_MATCH_ROTATE_MS = 8000/);
+  assert.match(featured, /uniqueMatchPairs/);
   assert.match(featured, /setInterval/);
   assert.match(featured, /prefers-reduced-motion/);
   assert.match(featured, /Rotating live investor match/);
   assert.match(tape, /LIVE_TAPE_POOL = 9/);
+  assert.match(tape, /uniqueMatchPairs/);
   assert.match(tape, /LIVE_TAPE_ROTATE_MS = 8000/);
   assert.match(tape, /setInterval/);
   assert.match(tape, /Rotating live matches/);

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
-import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
+import { uniqueMatchPairs, useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
 import { BORDER, CARD, DIM, G, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
 
 export const FEATURED_MATCH_POOL = 8;
+export const FEATURED_MATCH_FETCH = 20;
 export const FEATURED_MATCH_ROTATE_MS = 8000;
 
 function firmLabel(m: RecentMatch) {
@@ -76,7 +77,8 @@ export function matchReasons(m: RecentMatch): string[] {
 }
 
 export default function HomeFeaturedMatch() {
-  const { matches, loading } = useRecentMatches(FEATURED_MATCH_POOL);
+  const { matches: raw, loading } = useRecentMatches(FEATURED_MATCH_FETCH);
+  const matches = useMemo(() => uniqueMatchPairs(raw, FEATURED_MATCH_POOL), [raw]);
   const [paused, setPaused] = useState(false);
 
   const initialIndex = useMemo(() => {
@@ -136,7 +138,7 @@ export default function HomeFeaturedMatch() {
           <div className="h-3 w-2/3 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
       ) : match ? (
-        <div className="px-5 py-5 flex-1" aria-live="polite">
+        <div className="px-5 py-5 flex-1" aria-live="polite" key={match.match_id}>
           <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
           <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
             {firmLabel(match)}
