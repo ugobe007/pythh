@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'wouter';
 import { ChevronDown, ChevronUp, Lock, Mail, Loader2, Send } from 'lucide-react';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
@@ -93,10 +94,12 @@ type Props = {
   startupName: string;
   defaultOpen?: boolean;
   isAuthenticated: boolean;
+  isPaid: boolean;
   unlocked: boolean;
   replyTo?: string | null;
   onUnlocked: (investorId: string, contactable: boolean) => void;
   onNeedSignup: (investorId: string, name: string, firm?: string | null) => void;
+  onNeedPlan: () => void;
 };
 
 export default function MatchInvestorLead({
@@ -106,10 +109,12 @@ export default function MatchInvestorLead({
   startupName,
   defaultOpen = false,
   isAuthenticated,
+  isPaid,
   unlocked,
   replyTo,
   onUnlocked,
   onNeedSignup,
+  onNeedPlan,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const [unlocking, setUnlocking] = useState(false);
@@ -140,6 +145,10 @@ export default function MatchInvestorLead({
       onNeedSignup(investorId, inv?.name || label, inv?.firm);
       return;
     }
+    if (!isPaid) {
+      onNeedPlan();
+      return;
+    }
     setUnlocking(true);
     try {
       const result = await unlockMatchLead(startupId, investorId);
@@ -147,6 +156,10 @@ export default function MatchInvestorLead({
     } catch (err) {
       if (err instanceof Error && err.message === 'sign_in_required') {
         onNeedSignup(investorId, inv?.name || label, inv?.firm);
+        return;
+      }
+      if (err instanceof Error && err.message === 'plan_required') {
+        onNeedPlan();
         return;
       }
       setError(err instanceof Error ? err.message : 'Could not unlock');
@@ -175,6 +188,10 @@ export default function MatchInvestorLead({
     } catch (err) {
       if (err instanceof Error && err.message === 'sign_in_required') {
         onNeedSignup(investorId, inv?.name || label, inv?.firm);
+        return;
+      }
+      if (err instanceof Error && err.message === 'plan_required') {
+        onNeedPlan();
         return;
       }
       setError(err instanceof Error ? err.message : 'Could not send through Pythh');
@@ -257,7 +274,21 @@ export default function MatchInvestorLead({
             )}
           </div>
 
-          {!unlocked ? (
+          {!isPaid ? (
+            <div>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-2 text-sm font-semibold"
+                style={{ color: G }}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Email, calls, and the deck outline are on Scout
+              </Link>
+              <p className="mt-1 text-xs" style={{ color: DIM }}>
+                Monthly plan. We never hand you their address.
+              </p>
+            </div>
+          ) : !unlocked ? (
             <div>
               <button
                 type="button"

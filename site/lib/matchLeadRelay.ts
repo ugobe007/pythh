@@ -29,6 +29,10 @@ export async function unlockMatchLead(startupId: string, investorId: string): Pr
     const err = new Error('sign_in_required');
     throw err;
   }
+  if (res.status === 403) {
+    const err = new Error(data.error === 'plan_required' ? 'plan_required' : (data.error || data.message || 'access_denied'));
+    throw err;
+  }
   if (!res.ok) throw new Error(data.error || data.message || 'Could not unlock');
   return {
     unlocked: Boolean(data.unlocked),
@@ -57,6 +61,7 @@ export async function sendLeadEmail(payload: {
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) throw new Error('sign_in_required');
+  if (res.status === 403) throw new Error(data.error === 'plan_required' ? 'plan_required' : (data.error || data.message || 'access_denied'));
   if (!res.ok) {
     return {
       sent: false,
@@ -65,4 +70,22 @@ export async function sendLeadEmail(payload: {
     };
   }
   return { sent: Boolean(data.sent), contactable: data.contactable !== false };
+}
+
+export async function fetchDeckOutline(startupId: string): Promise<{
+  startup_name: string;
+  positioning: { thesis: string; say: string[]; avoid: string[] };
+  slides: Array<{ n: number; title: string; shouldSay: string; position: string }>;
+}> {
+  const res = await fetch(apiUrl('/api/matches/lead/deck-outline'), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ startup_id: startupId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('sign_in_required');
+  if (res.status === 403) throw new Error(data.error === 'plan_required' ? 'plan_required' : (data.error || data.message || 'access_denied'));
+  if (!res.ok) throw new Error(data.error || 'Could not build deck outline');
+  return data.outline;
 }
