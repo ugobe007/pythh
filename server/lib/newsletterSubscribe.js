@@ -87,7 +87,7 @@ async function upsertNewsletterSubscriber(supabase, { email, url, source = 'webs
  * Does not rematch or rewrite prediction clocks.
  */
 async function kickoffSubscriberUrlScore(supabase, { email, startupUrl, startupId }) {
-  if (!startupUrl || startupId) return;
+  if (!startupUrl || startupId) return { startupId: startupId || null };
   const port = process.env.PORT || 3002;
   const base = (process.env.APP_INTERNAL_URL || `http://127.0.0.1:${port}`).replace(/\/+$/, '');
   try {
@@ -101,8 +101,10 @@ async function kickoffSubscriberUrlScore(supabase, { email, startupUrl, startupI
     if (id && email && supabase) {
       await supabase.from('newsletter_subscribers').update({ startup_id: id }).eq('email', email);
     }
+    return { startupId: id || null };
   } catch (err) {
     console.warn('[newsletter] kickoff score:', err.message);
+    return { startupId: null, error: err.message };
   }
 }
 

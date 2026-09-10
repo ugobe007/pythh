@@ -58,8 +58,8 @@ export default function NewsletterJoinForm({
   if (submitted) {
     return (
       <p className="text-sm" style={{ color: G }} id={id}>
-        You&rsquo;re in. Tomorrow&rsquo;s brief includes funding news
-        {url.trim() ? " and your matches." : "."} Open the email to inspect them on pythh.ai.
+        You&rsquo;re in. Check your inbox for your first matches
+        {url.trim() ? "." : " once you add a URL."} Tomorrow&rsquo;s brief adds funding news.
       </p>
     );
   }

@@ -2375,15 +2375,26 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
       startup_url: result.startup_url || null,
       pending_matches: !result.startup_id,
     });
-    if (result.startup_url && !result.startup_id) {
-      setImmediate(() => {
-        kickoffSubscriberUrlScore(getSupabaseClient(), {
+    const { sendSubscriberWelcome } = require('./lib/newsletterWelcome');
+    setImmediate(() => {
+      (async () => {
+        const supabase = getSupabaseClient();
+        let startupId = result.startup_id || null;
+        if (result.startup_url && !startupId) {
+          const kicked = await kickoffSubscriberUrlScore(supabase, {
+            email: result.email,
+            startupUrl: result.startup_url,
+            startupId,
+          });
+          startupId = kicked?.startupId || startupId;
+        }
+        await sendSubscriberWelcome(supabase, {
           email: result.email,
           startupUrl: result.startup_url,
-          startupId: result.startup_id,
-        }).catch((err) => console.warn('[newsletter] kickoff:', err.message));
-      });
-    }
+          startupId,
+        });
+      })().catch((err) => console.warn('[newsletter] welcome:', err.message));
+    });
   } catch (err) {
     console.error('[newsletter] subscribe error:', err.message);
     return res.status(500).json({ error: 'Failed to subscribe. Please try again.' });
