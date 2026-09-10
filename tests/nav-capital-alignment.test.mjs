@@ -71,7 +71,12 @@ test('featured match and proof strip make scores and the pair claim readable', (
   assert.match(featured, /Why this match/);
   assert.match(featured, /Pre-seed/);
   assert.match(featured, /Series A/);
+  assert.match(featured, /FEATURED_MATCH_POOL = 8/);
+  assert.match(featured, /FEATURED_MATCH_ROTATE_MS/);
+  assert.match(featured, /prefers-reduced-motion/);
+  assert.match(featured, /setInterval/);
   assert.match(featured, /minHeight: 280/);
+  assert.doesNotMatch(featured, /useRecentMatches\(1\)/);
   assert.doesNotMatch(featured, /Loading the match/);
   assert.match(proof, /Verified outcome/);
   assert.match(proof, /Startups funded \(scale\)/);
