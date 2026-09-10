@@ -1,7 +1,11 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
-import { BORDER, CARD, DIM, G, G_BORDER, MUTED, TEXT } from "@/lib/designTokens";
+import { BORDER, CARD, DIM, G, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
+
+export const FEATURED_MATCH_POOL = 8;
+export const FEATURED_MATCH_ROTATE_MS = 8000;
 
 function firmLabel(m: RecentMatch) {
   if (m.investor_firm && m.investor_firm !== "-" && m.investor_firm !== m.investor_name) {
@@ -72,8 +76,30 @@ export function matchReasons(m: RecentMatch): string[] {
 }
 
 export default function HomeFeaturedMatch() {
-  const { matches, loading } = useRecentMatches(1);
-  const match = matches[0] ?? null;
+  const { matches, loading } = useRecentMatches(FEATURED_MATCH_POOL);
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (matches.length < 2) {
+      setIndex(0);
+      return;
+    }
+    setIndex(Math.floor(Date.now() / FEATURED_MATCH_ROTATE_MS) % matches.length);
+  }, [matches]);
+
+  useEffect(() => {
+    if (matches.length < 2 || paused) return;
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % matches.length);
+    }, FEATURED_MATCH_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [matches.length, paused]);
+
+  const match = matches[index] ?? matches[0] ?? null;
   const reasons = match ? matchReasons(match) : [];
   const fit = match ? Math.min(100, Math.max(0, Math.round(match.match_score))) : null;
 
@@ -81,15 +107,21 @@ export default function HomeFeaturedMatch() {
     <aside
       id="featured-match"
       className="rounded-xl text-left flex flex-col"
-      style={{ backgroundColor: CARD, border: `1px solid ${G_BORDER}`, minHeight: 280 }}
-      aria-label="Example investor match"
+      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 280 }}
+      aria-label="Rotating live investor match"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
       <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p className="text-[11px] font-medium tracking-wide" style={{ color: MUTED }}>
-          Example result
+        <p className="text-[11px] font-medium tracking-wide" style={{ color: PURPLE_ACCENT }}>
+          Live example
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {match?.time_ago ? `Updated ${match.time_ago}` : "Live network"}
+          {matches.length > 1
+            ? `${index + 1} of ${matches.length}`
+            : match?.time_ago
+              ? `Updated ${match.time_ago}`
+              : "Live network"}
         </span>
       </div>
 
@@ -102,7 +134,7 @@ export default function HomeFeaturedMatch() {
           <div className="h-3 w-2/3 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
       ) : match ? (
-        <div className="px-5 py-5 flex-1">
+        <div className="px-5 py-5 flex-1" aria-live="polite">
           <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
           <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
             {firmLabel(match)}
@@ -133,6 +165,26 @@ export default function HomeFeaturedMatch() {
               Ranked by thesis, stage, and observed investor behavior.
             </p>
           )}
+          {matches.length > 1 ? (
+            <div className="flex items-center gap-1.5 mt-1" role="tablist" aria-label="Rotate featured match">
+              {matches.map((m, i) => (
+                <button
+                  key={m.match_id || i}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Show match ${i + 1} of ${matches.length}`}
+                  onClick={() => setIndex(i)}
+                  className="rounded-full"
+                  style={{
+                    width: i === index ? 14 : 6,
+                    height: 6,
+                    backgroundColor: i === index ? PURPLE_ACCENT : BORDER,
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="px-5 py-8 text-[15px] leading-relaxed" style={{ color: MUTED }}>

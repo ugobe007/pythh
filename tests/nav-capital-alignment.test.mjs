@@ -57,6 +57,7 @@ test('homepage live board is a compact feed below the proof strip', () => {
   assert.match(board, /Who just got funded/);
   assert.match(board, /See all live matches/);
   assert.match(board, /limit = 3/);
+  assert.match(board, /LIVE_TAPE_POOL/);
   assert.doesNotMatch(board, /INVESTOR_SIGNALS/);
   assert.doesNotMatch(board, /Loading the match network/);
 });
@@ -80,4 +81,35 @@ test('featured match and proof strip make scores and the pair claim readable', (
   assert.match(proof, /Methodology/);
   assert.match(tokens, /MUTED = "oklch\(0\.74/);
   assert.doesNotMatch(indexHtml, /maximum-scale/);
+});
+
+test('homepage featured match and live tape rotate through a pool', () => {
+  const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
+  const tape = readFileSync(new URL('../site/components/HomeLiveNetwork.tsx', import.meta.url), 'utf8');
+  assert.match(featured, /FEATURED_MATCH_POOL = 8/);
+  assert.match(featured, /FEATURED_MATCH_ROTATE_MS = 8000/);
+  assert.match(featured, /setInterval/);
+  assert.match(featured, /prefers-reduced-motion/);
+  assert.match(featured, /Rotating live investor match/);
+  assert.match(tape, /LIVE_TAPE_POOL = 9/);
+  assert.match(tape, /LIVE_TAPE_ROTATE_MS = 8000/);
+  assert.match(tape, /setInterval/);
+  assert.match(tape, /Rotating live matches/);
+});
+
+test('homepage sections use purple chrome and keep emerald for scores and CTAs', () => {
+  const tokens = readFileSync(new URL('../site/lib/designTokens.ts', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('../site/Home.tsx', import.meta.url), 'utf8');
+  const proof = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
+  const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
+  assert.match(tokens, /PURPLE_ACCENT = "oklch\(0\.72 0\.16 305\)"/);
+  assert.match(tokens, /PURPLE_WASH = "oklch\(0\.14 0\.03 305\)"/);
+  assert.match(tokens, /export const PURPLE = G/);
+  assert.match(home, /PURPLE_WASH/);
+  assert.match(home, /PURPLE_ACCENT/);
+  assert.match(proof, /PURPLE_ACCENT/);
+  assert.match(proof, /color: G/);
+  assert.match(featured, /PURPLE_BORDER/);
+  assert.match(featured, /Investor fit: \{fit\}\/100/);
+  assert.match(featured, /color: G/);
 });

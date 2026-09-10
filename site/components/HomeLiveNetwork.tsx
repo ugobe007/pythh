@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
-import { BORDER, CARD, DIM, G, GOLD, MUTED, TEXT } from "@/lib/designTokens";
+import { BORDER, CARD, DIM, G, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
 import { useEffect, useState } from "react";
 import { safeExternalUrl } from "@/lib/safeUrl";
 
@@ -27,22 +27,50 @@ function formatAmount(raw: string | null | undefined) {
   return `$${n.toLocaleString()}`;
 }
 
+const LIVE_TAPE_POOL = 9;
+const LIVE_TAPE_ROTATE_MS = 8000;
+
 export function HomeLiveMatches({ limit = 3 }: { limit?: number }) {
-  const { matches, loading } = useRecentMatches(limit);
+  const { matches, loading } = useRecentMatches(Math.max(limit, LIVE_TAPE_POOL));
+  const [offset, setOffset] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const pageCount = matches.length > limit ? Math.ceil(matches.length / limit) : 1;
+  const visible = matches.length
+    ? Array.from({ length: Math.min(limit, matches.length) }, (_, i) => (
+      matches[(offset * limit + i) % matches.length]
+    ))
+    : [];
+
+  useEffect(() => {
+    if (pageCount < 2 || paused) return;
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    const id = window.setInterval(() => {
+      setOffset((n) => (n + 1) % pageCount);
+    }, LIVE_TAPE_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [pageCount, paused]);
 
   return (
     <aside
       id="live-matches"
       className="rounded-xl overflow-hidden text-left"
-      style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, minHeight: 220 }}
-      aria-label="Live matches"
+      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 220 }}
+      aria-label="Rotating live matches"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p className="text-[13px] font-medium" style={{ color: MUTED }}>
+        <p className="text-[13px] font-medium" style={{ color: PURPLE_ACCENT }}>
           Live market signal
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {loading ? "Refreshing" : "Updated continuously"}
+          {loading
+            ? "Refreshing"
+            : pageCount > 1
+              ? `${offset + 1} of ${pageCount}`
+              : "Updated continuously"}
         </span>
       </div>
       <div>
@@ -58,9 +86,9 @@ export function HomeLiveMatches({ limit = 3 }: { limit?: number }) {
             New pairings will land here as PYTHIA ranks startups against investors.
           </p>
         )}
-        {!loading && matches.map((m) => (
+        {!loading && visible.map((m, i) => (
           <Link
-            key={m.match_id}
+            key={`${m.match_id}-${i}`}
             href={m.startup_id ? `/startup/${encodeURIComponent(m.startup_id)}` : "/matches"}
             className="flex items-center justify-between gap-3 px-4 py-3 transition-colors"
             style={{ borderTop: `1px solid ${BORDER}` }}
@@ -137,11 +165,11 @@ export function HomeLiveResults() {
     <aside
       id="live-results"
       className="rounded-xl overflow-hidden text-left"
-      style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, minHeight: 220 }}
+      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 220 }}
       aria-label="Who just got funded"
     >
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p className="text-[13px] font-medium" style={{ color: MUTED }}>
+        <p className="text-[13px] font-medium" style={{ color: PURPLE_ACCENT }}>
           Who just got funded
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
