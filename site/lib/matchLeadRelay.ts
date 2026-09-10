@@ -30,7 +30,7 @@ export async function unlockMatchLead(startupId: string, investorId: string): Pr
     throw err;
   }
   if (res.status === 403) {
-    const err = new Error('plan_required');
+    const err = new Error(data.error === 'plan_required' ? 'plan_required' : (data.error || data.message || 'access_denied'));
     throw err;
   }
   if (!res.ok) throw new Error(data.error || data.message || 'Could not unlock');
@@ -61,7 +61,7 @@ export async function sendLeadEmail(payload: {
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) throw new Error('sign_in_required');
-  if (res.status === 403) throw new Error('plan_required');
+  if (res.status === 403) throw new Error(data.error === 'plan_required' ? 'plan_required' : (data.error || data.message || 'access_denied'));
   if (!res.ok) {
     return {
       sent: false,
@@ -85,7 +85,7 @@ export async function fetchDeckOutline(startupId: string): Promise<{
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) throw new Error('sign_in_required');
-  if (res.status === 403) throw new Error('plan_required');
+  if (res.status === 403) throw new Error(data.error === 'plan_required' ? 'plan_required' : (data.error || data.message || 'access_denied'));
   if (!res.ok) throw new Error(data.error || 'Could not build deck outline');
   return data.outline;
 }
