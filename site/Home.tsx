@@ -10,8 +10,10 @@ import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import SharedNavbar from "@/components/SharedNavbar";
 import HeroHeadline from "@/components/HeroHeadline";
-import NewsletterJoinForm, { NEWSLETTER_JOIN_CTA } from "@/components/NewsletterJoinForm";
+import NewsletterJoinForm, { PREVIEW_MATCHES_CTA } from "@/components/NewsletterJoinForm";
 import { HomeLiveMatches, HomeLiveResults } from "@/components/HomeLiveNetwork";
+import HomeFeaturedMatch from "@/components/HomeFeaturedMatch";
+import HomeProofStrip from "@/components/HomeProofStrip";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
@@ -33,6 +35,7 @@ import {
   trackHeroHeadlineExposure,
   trackHeroUrlSubmitted,
 } from "@/lib/heroHeadlineExperiment";
+import { persistJoinPreview, normalizeStartupPreviewUrl } from "@/lib/openFirstMatches";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import {
   ArrowRight,
@@ -406,105 +409,8 @@ function LiveMatchHighlight() {
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
 
-function formatHeroPercent(n: number): string {
-  const rounded = Math.round(n * 10) / 10;
-  return `${Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)}%`;
-}
-
-function HeroStatusBar({
-  platformStats,
-  portfolioMetrics,
-}: {
-  platformStats: PlatformStats | null;
-  portfolioMetrics: PortfolioHeadlineMetrics | null;
-}) {
-  const startupsFunded =
-    (platformStats?.funded_startups && platformStats.funded_startups > 0
-      ? platformStats.funded_startups
-      : null) ??
-    (portfolioMetrics?.verified_funded_picks && portfolioMetrics.verified_funded_picks > 0
-      ? portfolioMetrics.verified_funded_picks
-      : null);
-  const matchPct = platformStats?.pair_funding_rate_pct;
-  const hits = platformStats?.pair_funding_hits;
-  const pairStartups = platformStats?.pair_funding_startups;
-  const investors = platformStats?.investors ?? 0;
-  const show =
-    (startupsFunded != null && startupsFunded > 0) ||
-    (matchPct != null && Number.isFinite(matchPct)) ||
-    investors > 0;
-  if (!show) return null;
-
-  const items = [
-    {
-      value: startupsFunded != null ? startupsFunded.toLocaleString() : "—",
-      label: "Startups funded",
-      href: "/portfolio",
-    },
-    {
-      value: matchPct != null && Number.isFinite(matchPct) ? formatHeroPercent(matchPct) : "—",
-      label: "Matches funded",
-      sub:
-        hits != null && pairStartups
-          ? `${hits} of ${pairStartups} later invested`
-          : undefined,
-    },
-    {
-      value: investors > 0 ? investors.toLocaleString() : "—",
-      label: "Investors",
-      href: "/investors",
-    },
-  ];
-
-  return (
-    <dl
-      id="hero-status-bar"
-      className="mt-10 grid grid-cols-3 gap-0 w-full max-w-2xl mx-auto border-t pt-8"
-      style={{ borderColor: BORDER }}
-      aria-label="Live platform proof"
-    >
-      {items.map((item) => {
-        const body = (
-          <>
-            <dt className="order-2 text-[11px] font-medium tracking-wide" style={{ color: MUTED }}>
-              {item.label}
-            </dt>
-            <dd
-              className="order-1 font-display font-bold tabular-nums mb-1"
-              style={{ color: TEXT, fontSize: "clamp(1.25rem, 3vw, 1.75rem)", letterSpacing: "-0.03em", lineHeight: 1 }}
-            >
-              {item.value}
-            </dd>
-            {item.sub ? (
-              <p className="order-3 text-[10px] font-mono mt-1" style={{ color: DIM }}>
-                {item.sub}
-              </p>
-            ) : null}
-          </>
-        );
-        return (
-          <div key={item.label} className="flex flex-col items-center px-2 text-center">
-            {item.href ? (
-              <a href={item.href} className="flex flex-col items-center transition-opacity hover:opacity-80">
-                {body}
-              </a>
-            ) : (
-              body
-            )}
-          </div>
-        );
-      })}
-    </dl>
-  );
-}
-
-function HeroSection({
-  platformStats,
-  portfolioMetrics,
-}: {
-  platformStats: PlatformStats | null;
-  portfolioMetrics: PortfolioHeadlineMetrics | null;
-}) {
+function HeroSection() {
+  const [, navigate] = useLocation();
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
 
@@ -531,38 +437,41 @@ function HeroSection({
 
   return (
     <section
-      className="relative pt-16 pb-10 lg:pb-12 overflow-hidden"
+      className="relative pt-16 overflow-hidden"
       style={{ backgroundColor: PAGE }}
     >
-      <div className="container relative z-10 max-w-6xl mx-auto px-6 py-10 lg:py-14">
-        <div className="grid lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)] gap-10 lg:gap-12 items-start">
-          <div className="lg:pt-2">
+      <div className="container relative z-10 max-w-[1200px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
+        <div className="grid lg:grid-cols-[minmax(0,1.12fr)_minmax(300px,0.88fr)] gap-12 lg:gap-16 items-start">
+          <div>
             <HeroHeadline
               headline={heroHeadline}
-              className="font-display font-bold leading-[1.12] mb-4 max-w-[18ch]"
-              style={{ fontSize: "clamp(2.1rem, 4.4vw, 3.25rem)", color: TEXT, letterSpacing: "-0.04em" }}
+              className="font-display font-bold leading-[1.1] mb-5 max-w-[20ch]"
+              style={{ fontSize: "clamp(2.25rem, 4.6vw, 3.75rem)", color: TEXT, letterSpacing: "-0.04em" }}
             />
             <p
-              className="text-base sm:text-lg leading-relaxed mb-8 max-w-[44ch]"
-              style={{ color: MUTED }}
+              className="leading-relaxed mb-8 max-w-[44ch]"
+              style={{ color: MUTED, fontSize: "clamp(1.05rem, 1.6vw, 1.125rem)" }}
             >
               {heroSubline}
             </p>
             <NewsletterJoinForm
               id="hero-cta"
               source="home_hero"
-              cta={NEWSLETTER_JOIN_CTA}
+              cta={PREVIEW_MATCHES_CTA}
               className="mx-0"
-              onJoined={({ url }) => {
-                const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+              progressive
+              revealMatches
+              onJoined={({ url, email }) => {
+                const normalized = normalizeStartupPreviewUrl(url);
+                const path = persistJoinPreview(url, email);
                 trackUrlSubmitted(normalized, "home_hero", founderExperiment);
                 trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
+                navigate(path);
               }}
             />
           </div>
-          <HomeLiveMatches />
+          <HomeFeaturedMatch />
         </div>
-        <HeroStatusBar platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       </div>
     </section>
   );
@@ -571,48 +480,101 @@ function HeroSection({
 const HOW_IT_WORKS_STEPS = [
   {
     num: "01",
-    icon: Zap,
-    accent: G,
-    title: "Email + URL",
-    body: "Subscribe with your email and startup website. No account, no raise workflow. We start scoring your public site the same day.",
+    title: "You paste a URL",
+    give: "A public startup website.",
+    does: "Pythh reads market, traction, and thesis signals from the site.",
+    get: "A scored company profile the same day.",
   },
   {
     num: "02",
-    icon: TrendingUp,
-    accent: AMBER,
-    title: "Daily matches + funding news",
-    body: "Every morning: who is getting funded, which firms wrote the check, and your ranked investors — in the inbox you already open.",
+    title: "We rank investors",
+    give: "Your email, only after the preview.",
+    does: "Each morning we attach your shortlist to funding news.",
+    get: "Ranked matches in the inbox you already open.",
   },
   {
     num: "03",
-    icon: FileText,
-    accent: G_HOVER,
-    title: "Inspect when you care",
-    body: "The email links back to pythh.ai when you want the full shortlist, GOD breakdown, and outreach. The site is the deep link, not the front door.",
+    title: "You inspect when it matters",
+    give: "A click from the email.",
+    does: "The site opens the full why — fit, stage, and behavior.",
+    get: "A shortlist worth investigating, not a pilgrimage.",
   },
 ] as const;
 
 function HowItWorksSection() {
   return (
-    <section className="border-t py-14 lg:py-16" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
-      <div className="container max-w-[960px] mx-auto px-6">
-        <p className="text-center text-[11px] font-mono tracking-widest uppercase mb-8" style={{ color: DIM }}>
-          How it works
-        </p>
-        <div className="grid gap-px rounded-xl overflow-hidden" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", backgroundColor: BORDER }}>
-          {HOW_IT_WORKS_STEPS.map(({ num, icon: Icon, accent, title, body }) => (
-            <div key={num} className="p-6 flex flex-col gap-3" style={{ backgroundColor: PAGE }}>
-              <div className="flex items-center gap-2.5">
-                <span className="text-[10px] font-mono" style={{ color: DIM }}>{num}</span>
-                <span className="w-7 h-7 rounded-md flex items-center justify-center" style={{ border: `1px solid ${accent}33`, background: `${accent}14` }}>
-                  <Icon size={14} style={{ color: accent }} />
-                </span>
-              </div>
-              <h3 className="font-display font-bold text-base" style={{ color: TEXT }}>{title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{body}</p>
+    <section className="border-t py-12 lg:py-14" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
+      <div className="container max-w-[1200px] mx-auto px-6">
+        <h2 className="font-display font-bold mb-8" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
+          How Pythh decides
+        </h2>
+        <div className="grid gap-6 md:grid-cols-3">
+          {HOW_IT_WORKS_STEPS.map(({ num, title, give, does, get }) => (
+            <div key={num} className="pt-1">
+              <p className="text-[13px] font-mono mb-2" style={{ color: G }}>{num}</p>
+              <h3 className="font-display font-bold text-[1.35rem] mb-3" style={{ color: TEXT }}>{title}</h3>
+              <p className="text-[15px] leading-relaxed mb-2" style={{ color: MUTED }}><span style={{ color: TEXT }}>You provide</span> — {give}</p>
+              <p className="text-[15px] leading-relaxed mb-2" style={{ color: MUTED }}><span style={{ color: TEXT }}>Pythh</span> — {does}</p>
+              <p className="text-[15px] leading-relaxed" style={{ color: MUTED }}><span style={{ color: TEXT }}>You receive</span> — {get}</p>
             </div>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ExampleResultSection() {
+  return (
+    <section className="border-t py-12" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
+      <div className="container max-w-[1200px] mx-auto px-6">
+        <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
+          From URL to ranked investors
+        </h2>
+        <p className="text-[17px] leading-relaxed max-w-[52ch] mb-8" style={{ color: MUTED }}>
+          One annotated path. We do not rematch or rewrite prediction clocks when you subscribe.
+        </p>
+        <ol className="grid md:grid-cols-3 gap-6">
+          {[
+            { n: "1", t: "Public site", d: "Your website is the input. No deck required to start." },
+            { n: "2", t: "Thesis extract", d: "Market, traction, and stage signals become the scoring profile." },
+            { n: "3", t: "Ranked inbox", d: "Investor fit /100 plus why this firm — delivered the same day when we already have matches." },
+          ].map((s) => (
+            <li key={s.n} className="rounded-xl p-5" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+              <p className="text-[13px] font-mono mb-2" style={{ color: G }}>{s.n}</p>
+              <h3 className="font-display font-bold text-xl mb-2" style={{ color: TEXT }}>{s.t}</h3>
+              <p className="text-[15px] leading-relaxed" style={{ color: MUTED }}>{s.d}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+function VerifiedOutcomesSection({
+  pairHits,
+  pairStartups,
+  pairRate,
+}: {
+  pairHits?: number;
+  pairStartups?: number;
+  pairRate?: number | null;
+}) {
+  return (
+    <section className="border-t py-12" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
+      <div className="container max-w-[1200px] mx-auto px-6">
+        <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
+          What “later funded” means
+        </h2>
+        <p className="text-[17px] leading-relaxed max-w-[58ch] mb-4" style={{ color: MUTED }}>
+          {pairHits && pairStartups && pairRate != null
+            ? `${pairHits} of ${pairStartups} startups (${pairRate}%) in the sealed pair-layer set later took a check from an investor already in our top five. The clock is match.created_at. The outcome is a press-verified raise after that clock.`
+            : "A sealed pair-layer set counts startups whose later, press-verified funder was already in our top five. The clock is the first durable match, not the announce date."}
+        </p>
+        <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: G }}>
+          Read the methodology
+        </a>
       </div>
     </section>
   );
@@ -1213,26 +1175,28 @@ function ScienceSection() {
 // ─── Newsletter ───────────────────────────────────────────────────────────────
 
 function NewsletterSection() {
+  const [, navigate] = useLocation();
 
   return (
-    <section className="py-24 relative overflow-hidden" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-10 blur-3xl" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
+    <section className="py-14 lg:py-16 relative overflow-hidden" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
       <div className="container relative z-10">
         <div className="max-w-2xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
-            <span className="section-label">THE DAILY SIGNAL</span>
-            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
-          </div>
-          <h2 className="font-display font-bold mb-4" style={{ fontSize: "clamp(2rem, 4vw, 3rem)", color: "oklch(0.97 0.005 264)" }}>
-            Get the signal<br />
-            <span style={{ color: "oklch(0.769 0.188 70.08)" }}>before the noise.</span>
+          <h2 className="font-display font-bold mb-4" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", color: TEXT, letterSpacing: "-0.03em" }}>
+            Your first ranked matches arrive tomorrow morning.
           </h2>
-          <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
-            Daily funding news plus your ranked investors. Paste your URL once. Visit the site when a match is worth inspecting.
+          <p className="text-[17px] leading-relaxed mb-8" style={{ color: MUTED }}>
+            Paste your website. We send the shortlist to your inbox. No account required.
           </p>
-          <NewsletterJoinForm source="home_newsletter" />
-          <p className="text-xs mt-4" style={{ color: "oklch(0.45 0.01 264)" }}>No spam. Unsubscribe anytime.</p>
+          <NewsletterJoinForm
+            source="home_newsletter"
+            progressive
+            revealMatches
+            className="mx-auto"
+            onJoined={({ url, email }) => {
+              navigate(persistJoinPreview(url, email));
+            }}
+          />
+          <p className="text-[14px] mt-4" style={{ color: MUTED }}>No spam. Unsubscribe anytime.</p>
         </div>
       </div>
     </section>
@@ -1499,64 +1463,43 @@ function GODScoreSection() {
 function Footer() {
   const cols: { title: string; links: { label: string; href: string | null }[] }[] = [
     { title: "Product", links: [
-      { label: "How it works", href: "/oracle" },
-      { label: "Find my investors", href: "/find-investors" },
-      { label: "Start your raise", href: "/matches" },
-      { label: "Rankings", href: "/rankings" },
-      { label: "Investors", href: "/investors" },
-      { label: "Portfolio", href: "/portfolio" },
-      { label: "Platform", href: "/platform" },
+      { label: "Matches", href: "/matches" },
+      { label: "Newsletter", href: "/newsletter" },
       { label: "Pricing", href: "/pricing" },
+      { label: "Portfolio", href: "/portfolio" },
     ]},
     { title: "Resources", links: [
       { label: "Methodology", href: "/methodology" },
-      { label: "Newsletter", href: "/newsletter" },
       { label: "About", href: "/about" },
       { label: "Support", href: "/support" },
-    ]},
-    { title: "Company", links: [
       { label: "Pythiam Ventures", href: "/pythiam" },
-      { label: "About", href: "/about" },
-      { label: "Blog", href: null },
-      { label: "Careers", href: null },
-      { label: "Press", href: null },
     ]},
     { title: "Legal", links: [
       { label: "Privacy Policy", href: "/privacy" },
       { label: "Terms of Service", href: "/terms" },
-      { label: "Cookie Policy", href: "/privacy" },
     ]},
   ];
 
   return (
-    <footer className="border-t" style={{ backgroundColor: "oklch(0.11 0.01 264)", borderColor: "oklch(0.2 0.01 264)" }}>
-      <div className="container py-16">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
-          <div className="col-span-2 md:col-span-1">
-            <div className="flex flex-col mb-4">
-              <span className="font-display font-bold text-lg text-white tracking-tight">pythh.ai</span>
-              <span className="text-[10px]" style={{ color: "oklch(0.5 0.01 264)" }}>AI for capital alignment</span>
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "oklch(0.45 0.01 264)" }}>
-              Pythh aligns startups with the investors who later fund them. You approve every send.
+    <footer className="border-t" style={{ backgroundColor: "oklch(0.11 0.01 264)", borderColor: BORDER }}>
+      <div className="container max-w-[1200px] py-14">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 mb-10">
+          <div>
+            <p className="font-display font-bold text-lg text-white tracking-tight mb-2">pythh.ai</p>
+            <p className="text-[14px] leading-relaxed" style={{ color: MUTED }}>
+              Pythh aligns startups with the investors who later fund them.
             </p>
           </div>
           {cols.map((col) => (
             <div key={col.title}>
-              <h4 className="font-display font-semibold text-sm mb-4" style={{ color: "oklch(0.7 0.01 264)" }}>{col.title}</h4>
+              <h2 className="font-display font-semibold text-[15px] mb-4" style={{ color: TEXT }}>{col.title}</h2>
               <ul className="space-y-2.5">
                 {col.links.map(({ label, href }) => (
                   <li key={label}>
                     {href ? (
-                      <a
-                        href={href}
-                        className="text-xs transition-colors duration-150"
-                        style={{ color: "oklch(0.45 0.01 264)" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.7 0.01 264)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.45 0.01 264)")}
-                      >{label}</a>
+                      <a href={href} className="text-[14px]" style={{ color: MUTED }}>{label}</a>
                     ) : (
-                      <span className="text-xs" style={{ color: "oklch(0.3 0.01 264)" }}>{label}</span>
+                      <span className="text-[14px]" style={{ color: DIM }}>{label} · Coming soon</span>
                     )}
                   </li>
                 ))}
@@ -1564,13 +1507,12 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div className="pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: "oklch(0.2 0.01 264)" }}>
-          <p className="text-xs" style={{ color: "oklch(0.35 0.01 264)" }}>
-            © 2026 Pythh Capital. All rights reserved. Signals reflect investor intent and timing based on observed behavior. No guarantees. Just math.
+        <div className="pt-8 border-t" style={{ borderColor: BORDER }}>
+          <p className="text-[14px] leading-relaxed" style={{ color: MUTED }}>
+            © 2026 Pythh Capital. Signals reflect observed investor behavior. No guarantees.
+            {" "}
+            <a href="/privacy" className="underline underline-offset-2" style={{ color: MUTED }}>Privacy</a>
           </p>
-          <a href="/privacy" className="text-xs underline hover:no-underline" style={{ color: "oklch(0.52 0.01 264)" }}>
-            Privacy and data practices
-          </a>
         </div>
       </div>
     </footer>
@@ -1597,16 +1539,45 @@ export default function Home() {
       <SharedNavbar
         activePath="/"
         variant="hero"
-        heroCta={{ label: NEWSLETTER_JOIN_CTA, targetId: "hero-cta" }}
+        heroCta={{ label: PREVIEW_MATCHES_CTA, targetId: "hero-cta" }}
       />
-      <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
-      <HomeLiveResults
+      <HeroSection />
+      <HomeProofStrip
+        pairRate={platformStats?.pair_funding_rate_pct}
+        pairHits={platformStats?.pair_funding_hits}
+        pairStartups={platformStats?.pair_funding_startups}
+        startupsFunded={
+          platformStats?.funded_startups && platformStats.funded_startups > 0
+            ? platformStats.funded_startups
+            : portfolioMetrics?.verified_funded_picks ?? null
+        }
+        investors={platformStats?.investors}
+      />
+      <ExampleResultSection />
+      <HowItWorksSection />
+      <VerifiedOutcomesSection
         pairRate={platformStats?.pair_funding_rate_pct}
         pairHits={platformStats?.pair_funding_hits}
         pairStartups={platformStats?.pair_funding_startups}
       />
-      <HowItWorksSection />
-      <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
+      <section className="border-t" style={{ borderColor: BORDER }} aria-labelledby="live-market-heading">
+        <div className="container max-w-[1200px] mx-auto px-6 py-12">
+          <h2
+            id="live-market-heading"
+            className="font-display font-bold mb-2"
+            style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}
+          >
+            Live market signal
+          </h2>
+          <p className="text-[17px] leading-relaxed max-w-[52ch] mb-8" style={{ color: MUTED }}>
+            Freshness only — the same tape as the Daily Brief. It is not the pair-layer claim.
+          </p>
+          <div className="grid lg:grid-cols-2 gap-8 items-start">
+            <HomeLiveMatches limit={3} />
+            <HomeLiveResults />
+          </div>
+        </div>
+      </section>
       <NewsletterSection />
       <Footer />
     </div>

@@ -18,10 +18,12 @@ export default function HeroHeadline({
       </h1>
     );
   }
+  const afterAccent = headline.slice(idx + HERO_HEADLINE_ACCENT.length);
   return (
     <h1 className={className} style={style}>
       {headline.slice(0, idx)}
       <span style={{ color: G }}>{HERO_HEADLINE_ACCENT}</span>
+      {afterAccent}
     </h1>
   );
 }
