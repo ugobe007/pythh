@@ -29,9 +29,15 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(home, /PREVIEW_MATCHES_CTA/);
   assert.match(home, /NewsletterJoinForm/);
   assert.match(home, /progressive/);
+  assert.match(home, /revealMatches/);
+  assert.match(home, /persistJoinPreview/);
   assert.match(form, /progressive/);
+  assert.match(form, /revealMatches/);
+  assert.match(form, /See my matches/);
+  assert.match(form, /Opening your first five investor matches/);
   assert.match(form, /Where should we send the full ranked list/);
   assert.match(home, /id="hero-cta"/);
+  assert.match(proofStrip, /id="hero-status-bar"/);
   assert.match(home, /<HomeFeaturedMatch/);
   assert.match(home, /<HomeProofStrip/);
   assert.doesNotMatch(home, /Investor Intelligence · Live/);

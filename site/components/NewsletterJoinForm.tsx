@@ -13,6 +13,7 @@ export default function NewsletterJoinForm({
   onJoined,
   className = "mx-auto",
   progressive = false,
+  revealMatches = false,
 }: {
   source: string;
   id?: string;
@@ -21,6 +22,8 @@ export default function NewsletterJoinForm({
   onJoined?: (payload: { email: string; url: string }) => void;
   className?: string;
   progressive?: boolean;
+  /** After subscribe, the parent opens /matches?url= so the visitor sees their top 5. */
+  revealMatches?: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
@@ -71,8 +74,9 @@ export default function NewsletterJoinForm({
   if (submitted) {
     return (
       <p className="text-[15px] leading-relaxed" style={{ color: G }} id={id}>
-        You&rsquo;re in. Your first ranked matches arrive in your inbox.
-        Tomorrow&rsquo;s brief adds funding news.
+        {revealMatches
+          ? "Opening your first five investor matches…"
+          : "You’re in. Your first ranked matches arrive in your inbox. Tomorrow’s brief adds funding news."}
       </p>
     );
   }
@@ -144,7 +148,15 @@ export default function NewsletterJoinForm({
           e.currentTarget.style.borderColor = G;
         }}
       >
-        {loading ? "Subscribing…" : urlReady && progressive ? "Send my matches" : buttonLabel}
+        {loading
+          ? revealMatches
+            ? "Finding your matches…"
+            : "Subscribing…"
+          : urlReady && progressive
+            ? revealMatches
+              ? "See my matches"
+              : "Send my matches"
+            : buttonLabel}
         {!loading && <ArrowRight size={16} />}
       </button>
       {progressive && !urlReady && (

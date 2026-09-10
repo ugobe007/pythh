@@ -35,6 +35,7 @@ import {
   trackHeroHeadlineExposure,
   trackHeroUrlSubmitted,
 } from "@/lib/heroHeadlineExperiment";
+import { persistJoinPreview, normalizeStartupPreviewUrl } from "@/lib/openFirstMatches";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import {
   ArrowRight,
@@ -409,6 +410,7 @@ function LiveMatchHighlight() {
 
 
 function HeroSection() {
+  const [, navigate] = useLocation();
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
 
@@ -458,10 +460,13 @@ function HeroSection() {
               cta={PREVIEW_MATCHES_CTA}
               className="mx-0"
               progressive
-              onJoined={({ url }) => {
-                const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+              revealMatches
+              onJoined={({ url, email }) => {
+                const normalized = normalizeStartupPreviewUrl(url);
+                const path = persistJoinPreview(url, email);
                 trackUrlSubmitted(normalized, "home_hero", founderExperiment);
                 trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
+                navigate(path);
               }}
             />
           </div>
@@ -1170,6 +1175,7 @@ function ScienceSection() {
 // ─── Newsletter ───────────────────────────────────────────────────────────────
 
 function NewsletterSection() {
+  const [, navigate] = useLocation();
 
   return (
     <section className="py-14 lg:py-16 relative overflow-hidden" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
@@ -1181,7 +1187,15 @@ function NewsletterSection() {
           <p className="text-[17px] leading-relaxed mb-8" style={{ color: MUTED }}>
             Paste your website. We send the shortlist to your inbox. No account required.
           </p>
-          <NewsletterJoinForm source="home_newsletter" progressive className="mx-auto" />
+          <NewsletterJoinForm
+            source="home_newsletter"
+            progressive
+            revealMatches
+            className="mx-auto"
+            onJoined={({ url, email }) => {
+              navigate(persistJoinPreview(url, email));
+            }}
+          />
           <p className="text-[14px] mt-4" style={{ color: MUTED }}>No spam. Unsubscribe anytime.</p>
         </div>
       </div>
