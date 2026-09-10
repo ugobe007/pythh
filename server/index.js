@@ -6836,8 +6836,10 @@ app.use('/api/admin', adminImportDiscovered.default || adminImportDiscovered);
 
 // Match API routes
 const matchesRouter = require('./routes/matches');
+const matchLeadRelay = require('./routes/matchLeadRelay');
 const scanRouter = require('./routes/scan');
 const growthRouter = require('./routes/growth')(getSupabaseClient);
+app.use('/api/matches/lead', matchLeadRelay);
 app.use('/api/matches', matchesRouter);
 const pitchEventsRouter = require('./routes/pitchEvents');
 app.use('/api/pitch-events', pitchEventsRouter);

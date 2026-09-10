@@ -550,10 +550,14 @@ router.get('/:startupId', async (req, res) => {
           photo_url,
           email,
           email_best_guess,
+          email_candidates,
           email_status,
           email_has_mx,
           investment_thesis,
-          notable_investments
+          notable_investments,
+          portfolio_companies,
+          total_investments,
+          last_investment_date
         )
       `)
       .eq('startup_id', startupId)

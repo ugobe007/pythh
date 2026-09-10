@@ -11,7 +11,6 @@ import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
 import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
 import { recordMatchViewOnce, trackFunnelEventOnce } from '@/lib/matchEngagement';
-import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import {
   postSignupPathForAction,
   trackFounderGateStarted,
@@ -21,13 +20,13 @@ import {
   type GatedInvestorContext,
 } from '@/lib/founderSignupGate';
 import { persistFounderStartup } from '@/lib/founderAccount';
-import MatchExplainBlock from '@/components/MatchExplainBlock';
-import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { pinActiveStartup } from '@/lib/activeStartupContext';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
+import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
 import InlineMeta from '@/components/design/InlineMeta';
+import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, TEXT } from '@/lib/designTokens';
 
 const PREVIEW_LIMIT = 5;
@@ -55,25 +54,8 @@ type PreviewMatch = {
     startupStage?: string | null;
     investorStages?: string[];
   } | null;
-  investor?: {
-    id?: string;
-    name?: string;
-    firm?: string | null;
-    sectors?: string[] | null;
-    stage?: string | string[] | null;
-    check_size_min?: number | null;
-    check_size_max?: number | null;
-    investor_tier?: string | null;
-  };
+  investor?: LeadMatch['investor'];
 };
-
-function formatCheckSize(value?: number | null): string | null {
-  if (value == null || !Number.isFinite(Number(value))) return null;
-  const amount = Number(value);
-  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M`;
-  if (amount >= 1_000) return `$${Math.round(amount / 1_000).toLocaleString()}K`;
-  return `$${amount.toLocaleString()}`;
-}
 
 type ShortlistMix = {
   mode?: string;
@@ -96,22 +78,6 @@ type PreviewPayload = {
   matches?: PreviewMatch[];
   shortlist_mix?: ShortlistMix | null;
 };
-
-function investorStageLabel(match: PreviewMatch): string | null {
-  const investor = match.investor;
-  const stage = Array.isArray(investor?.stage)
-    ? investor.stage.filter(Boolean).join(', ')
-    : String(investor?.stage || '');
-  return stage.trim() || null;
-}
-
-function investorCheckLabel(match: PreviewMatch): string | null {
-  const investor = match.investor;
-  const min = formatCheckSize(investor?.check_size_min);
-  const max = formatCheckSize(investor?.check_size_max);
-  if (min && max) return `${min}–${max}`;
-  return min || max || null;
-}
 
 const NEXT_STEP_CTA_CLASS =
   'inline-flex items-center justify-center gap-2 w-full px-7 rounded-lg text-[15px] font-semibold';
@@ -145,6 +111,7 @@ export default function InstantMatchPreview({ url }: Props) {
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refreshed') === '1';
   const [startupId, setStartupId] = useState<string | null>(null);
   const [investorMix] = useState<InvestorMix>('balanced');
+  const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const gateCompletedRef = useRef(false);
@@ -185,6 +152,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setStartupId(null);
     setPreview(null);
     setShortlistSaved(false);
+    setUnlockedIds([]);
     gateCompletedRef.current = false;
 
     async function submitUrl() {
@@ -295,6 +263,19 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [startupId, investorMix, url]);
 
+  useEffect(() => {
+    if (!startupId || authLoading || !isAuthenticated) return;
+    let cancelled = false;
+    fetchLeadUnlocks(startupId)
+      .then((ids) => {
+        if (!cancelled) setUnlockedIds(ids);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [startupId, authLoading, isAuthenticated]);
+
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
 
@@ -394,44 +375,21 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <ul className="mb-4 divide-y" style={{ borderColor: 'oklch(0.2 0.01 264)' }}>
         {visible.map((m, i) => {
-          const inv = m.investor;
-          const fitness = Math.round(m.fitness_score ?? m.match_score ?? 0);
-          const stage = investorStageLabel(m);
-          const check = investorCheckLabel(m);
-          const why = normalizeWhyYouMatch(m.why_you_match);
+          const investorId = m.investor_id || m.investor?.id || '';
           return (
-            <li key={inv?.id || i} className="py-2">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium truncate min-w-0" style={{ color: TEXT }}>
-                  <span className="font-mono text-xs mr-2" style={{ color: DIM }}>#{i + 1}</span>
-                  {formatInvestorDisplayLabel(inv?.name, inv?.firm)}
-                </p>
-                <span className="text-xs font-mono shrink-0" style={{ color: G }}>
-                  {fitness} fit
-                </span>
-              </div>
-              <InlineMeta
-                items={[
-                  ...(m.investor_class ? [{ text: m.investor_class === 'angel' ? 'Angel' : 'VC', color: MUTED }] : []),
-                  ...(stage ? [{ text: stage, color: MUTED }] : []),
-                  ...(check ? [{ text: check, color: MUTED }] : []),
-                  ...(why ? [{ text: why.split(/\s*[·•]\s*|\n+/).filter(Boolean)[0], color: DIM }] : []),
-                ]}
-              />
-              {i === 0 && why && (
-                <div className="mt-1">
-                  <MatchExplainBlock
-                    startupId={preview.startup?.id || startupId || 'preview'}
-                    investorId={m.investor_id || inv?.id}
-                    investorName={formatInvestorDisplayLabel(inv?.name, inv?.firm)}
-                    whyYouMatch={m.why_you_match}
-                    matchScore={m.match_score}
-                    rank={i}
-                    source="instant_match_preview"
-                  />
-                </div>
-              )}
-            </li>
+            <MatchInvestorLead
+              key={investorId || i}
+              match={m}
+              rank={i}
+              startupId={preview.startup?.id || startupId || ''}
+              startupName={startupName}
+              defaultOpen={i === 0}
+              isAuthenticated={Boolean(isAuthenticated)}
+              unlocked={Boolean(investorId && unlockedIds.includes(investorId))}
+              replyTo={user?.email}
+              onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+              onNeedSignup={(id, name, firm) => handleSignup('outreach', { id, name, firm })}
+            />
           );
         })}
       </ul>
