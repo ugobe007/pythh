@@ -32,11 +32,6 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(form, /progressive/);
   assert.match(form, /Where should we send the full ranked list/);
   assert.match(home, /id="hero-cta"/);
-<<<<<<< HEAD
-  assert.match(proofStrip, /id="hero-status-bar"/);
-=======
-  assert.match(home, /<HomeProofStrip/);
->>>>>>> de0f125d (fix(home): show human match reasons instead of stage codes)
   assert.match(home, /<HomeFeaturedMatch/);
   assert.match(home, /<HomeProofStrip/);
   assert.doesNotMatch(home, /Investor Intelligence · Live/);
