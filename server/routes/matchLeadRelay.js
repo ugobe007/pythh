@@ -219,12 +219,13 @@ router.post('/email', async (req, res) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
     
-    // Check duplicate and cap atomically - duplicate check now includes error handling
+    // Check duplicate and cap atomically - only count successfully sent emails
     const { data: already, error: duplicateErr } = await client
       .from('investor_outreach')
       .select('id, status')
       .eq('startup_id', startupId)
       .eq('investor_id', investorId)
+      .eq('status', 'sent')
       .gte('created_at', since)
       .limit(1);
     if (duplicateErr) throw new Error(duplicateErr.message);
