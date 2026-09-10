@@ -1,4 +1,4 @@
-import { MUTED, TEXT, G, DIM, BORDER, PAGE } from "@/lib/designTokens";
+import { MUTED, TEXT, G, DIM, BORDER, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
 
 export default function HomeProofStrip({
   pairRate,
@@ -21,12 +21,12 @@ export default function HomeProofStrip({
     <section
       id="hero-status-bar"
       className="border-t"
-      style={{ borderColor: BORDER, backgroundColor: PAGE }}
+      style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }}
       aria-label="Verified pair-layer outcome"
     >
       <div className="container max-w-[1200px] mx-auto px-6 py-8 grid gap-8 lg:grid-cols-[1.4fr_1fr] items-start">
-        <div>
-          <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: MUTED }}>
+        <div style={{ borderLeft: `3px solid ${PURPLE_BORDER}`, paddingLeft: 16 }}>
+          <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
             Verified outcome
           </p>
           <p className="font-display font-bold tabular-nums leading-none mb-3" style={{ color: G, fontSize: "clamp(2.25rem, 5vw, 3.25rem)" }}>

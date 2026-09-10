@@ -1,7 +1,12 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
-import { useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
-import { BORDER, CARD, DIM, G, G_BORDER, MUTED, TEXT } from "@/lib/designTokens";
+import { uniqueMatchPairs, useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
+import { BORDER, CARD, DIM, G, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
+
+export const FEATURED_MATCH_POOL = 8;
+export const FEATURED_MATCH_FETCH = 20;
+export const FEATURED_MATCH_ROTATE_MS = 8000;
 
 function firmLabel(m: RecentMatch) {
   if (m.investor_firm && m.investor_firm !== "-" && m.investor_firm !== m.investor_name) {
@@ -72,8 +77,33 @@ export function matchReasons(m: RecentMatch): string[] {
 }
 
 export default function HomeFeaturedMatch() {
-  const { matches, loading } = useRecentMatches(1);
-  const match = matches[0] ?? null;
+  const { matches: raw, loading } = useRecentMatches(FEATURED_MATCH_FETCH);
+  const matches = useMemo(() => uniqueMatchPairs(raw, FEATURED_MATCH_POOL), [raw]);
+  const [paused, setPaused] = useState(false);
+
+  const initialIndex = useMemo(() => {
+    if (matches.length < 2) return 0;
+    return Math.floor(Date.now() / FEATURED_MATCH_ROTATE_MS) % matches.length;
+  }, [matches.length]);
+
+  const [index, setIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    setIndex(initialIndex);
+  }, [initialIndex]);
+
+  useEffect(() => {
+    if (matches.length < 2 || paused) return;
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % matches.length);
+    }, FEATURED_MATCH_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [matches.length, paused]);
+
+  const match = matches[index] ?? matches[0] ?? null;
   const reasons = match ? matchReasons(match) : [];
   const fit = match ? Math.min(100, Math.max(0, Math.round(match.match_score))) : null;
 
@@ -81,15 +111,21 @@ export default function HomeFeaturedMatch() {
     <aside
       id="featured-match"
       className="rounded-xl text-left flex flex-col"
-      style={{ backgroundColor: CARD, border: `1px solid ${G_BORDER}`, minHeight: 280 }}
-      aria-label="Example investor match"
+      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 280 }}
+      aria-label="Rotating live investor match"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
       <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p className="text-[11px] font-medium tracking-wide" style={{ color: MUTED }}>
-          Example result
+        <p className="text-[11px] font-medium tracking-wide" style={{ color: PURPLE_ACCENT }}>
+          Live example
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {match?.time_ago ? `Updated ${match.time_ago}` : "Live network"}
+          {matches.length > 1
+            ? `${index + 1} of ${matches.length}`
+            : match?.time_ago
+              ? `Updated ${match.time_ago}`
+              : "Live network"}
         </span>
       </div>
 
@@ -102,37 +138,59 @@ export default function HomeFeaturedMatch() {
           <div className="h-3 w-2/3 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
       ) : match ? (
-        <div className="px-5 py-5 flex-1">
-          <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
-          <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
-            {firmLabel(match)}
-          </p>
-          <p className="text-[15px] font-medium mb-1" style={{ color: G }}>
-            Investor fit: {fit}/100
-          </p>
-          <p className="text-[13px] mb-4" style={{ color: MUTED }}>
-            Startup GOD {match.startup_god_score ?? "—"}
-            {" · "}
-            <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
-              How scoring works
-            </a>
-          </p>
-          <p className="text-[11px] font-medium tracking-wide uppercase mb-2" style={{ color: DIM }}>
-            Why this match
-          </p>
-          {reasons.length ? (
-            <ul className="space-y-1.5 mb-4">
-              {reasons.map((r) => (
-                <li key={r} className="text-[14px] leading-snug" style={{ color: TEXT }}>
-                  {r}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[14px] leading-snug mb-4" style={{ color: MUTED }}>
-              Ranked by thesis, stage, and observed investor behavior.
+        <div className="px-5 py-5 flex-1" aria-live="polite">
+          <div key={match.match_id}>
+            <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
+            <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
+              {firmLabel(match)}
             </p>
-          )}
+            <p className="text-[15px] font-medium mb-1" style={{ color: G }}>
+              Investor fit: {fit}/100
+            </p>
+            <p className="text-[13px] mb-4" style={{ color: MUTED }}>
+              Startup GOD {match.startup_god_score ?? "—"}
+              {" · "}
+              <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
+                How scoring works
+              </a>
+            </p>
+            <p className="text-[11px] font-medium tracking-wide uppercase mb-2" style={{ color: DIM }}>
+              Why this match
+            </p>
+            {reasons.length ? (
+              <ul className="space-y-1.5 mb-4">
+                {reasons.map((r) => (
+                  <li key={r} className="text-[14px] leading-snug" style={{ color: TEXT }}>
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[14px] leading-snug mb-4" style={{ color: MUTED }}>
+                Ranked by thesis, stage, and observed investor behavior.
+              </p>
+            )}
+          </div>
+          {matches.length > 1 ? (
+            <div className="flex items-center gap-1.5 mt-1" role="tablist" aria-label="Rotate featured match">
+              {matches.map((m, i) => (
+                <button
+                  key={m.match_id || i}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={`Show match ${i + 1} of ${matches.length}`}
+                  onClick={() => setIndex(i)}
+                  className="rounded-full"
+                  style={{
+                    width: i === index ? 14 : 6,
+                    height: 6,
+                    backgroundColor: i === index ? PURPLE_ACCENT : BORDER,
+                  }}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="px-5 py-8 text-[15px] leading-relaxed" style={{ color: MUTED }}>

@@ -25,6 +25,7 @@ import InlineMeta from "@/components/design/InlineMeta";
 import {
   G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT, PAGE, CARD,
   G_BORDER, G_SUBTLE, G_HOVER, BAR_GREY,
+  PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH,
   deltaColor, godScoreColor,
 } from "@/lib/designTokens";
 import { type GrowthAssignment } from "@/lib/growthExperiment";
@@ -503,15 +504,18 @@ const HOW_IT_WORKS_STEPS = [
 
 function HowItWorksSection() {
   return (
-    <section className="border-t py-12 lg:py-14" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
+    <section className="border-t py-12 lg:py-14" style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }}>
       <div className="container max-w-[1200px] mx-auto px-6">
+        <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+          How it works
+        </p>
         <h2 className="font-display font-bold mb-8" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
           How Pythh decides
         </h2>
         <div className="grid gap-6 md:grid-cols-3">
           {HOW_IT_WORKS_STEPS.map(({ num, title, give, does, get }) => (
             <div key={num} className="pt-1">
-              <p className="text-[13px] font-mono mb-2" style={{ color: G }}>{num}</p>
+              <p className="text-[13px] font-mono mb-2" style={{ color: PURPLE_ACCENT }}>{num}</p>
               <h3 className="font-display font-bold text-[1.35rem] mb-3" style={{ color: TEXT }}>{title}</h3>
               <p className="text-[15px] leading-relaxed mb-2" style={{ color: MUTED }}><span style={{ color: TEXT }}>You provide</span> — {give}</p>
               <p className="text-[15px] leading-relaxed mb-2" style={{ color: MUTED }}><span style={{ color: TEXT }}>Pythh</span> — {does}</p>
@@ -528,6 +532,9 @@ function ExampleResultSection() {
   return (
     <section className="border-t py-12" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
       <div className="container max-w-[1200px] mx-auto px-6">
+        <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+          The path
+        </p>
         <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
           From URL to ranked investors
         </h2>
@@ -540,8 +547,8 @@ function ExampleResultSection() {
             { n: "2", t: "Thesis extract", d: "Market, traction, and stage signals become the scoring profile." },
             { n: "3", t: "Ranked inbox", d: "Investor fit /100 plus why this firm — delivered the same day when we already have matches." },
           ].map((s) => (
-            <li key={s.n} className="rounded-xl p-5" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-              <p className="text-[13px] font-mono mb-2" style={{ color: G }}>{s.n}</p>
+            <li key={s.n} className="rounded-xl p-5" style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}>
+              <p className="text-[13px] font-mono mb-2" style={{ color: PURPLE_ACCENT }}>{s.n}</p>
               <h3 className="font-display font-bold text-xl mb-2" style={{ color: TEXT }}>{s.t}</h3>
               <p className="text-[15px] leading-relaxed" style={{ color: MUTED }}>{s.d}</p>
             </li>
@@ -564,6 +571,9 @@ function VerifiedOutcomesSection({
   return (
     <section className="border-t py-12" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
       <div className="container max-w-[1200px] mx-auto px-6">
+        <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+          Pair-layer claim
+        </p>
         <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
           What “later funded” means
         </h2>
@@ -572,7 +582,7 @@ function VerifiedOutcomesSection({
             ? `${pairHits} of ${pairStartups} startups (${pairRate}%) in the sealed pair-layer set later took a check from an investor already in our top five. The clock is match.created_at. The outcome is a press-verified raise after that clock.`
             : "A sealed pair-layer set counts startups whose later, press-verified funder was already in our top five. The clock is the first durable match, not the announce date."}
         </p>
-        <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: G }}>
+        <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: PURPLE_ACCENT }}>
           Read the methodology
         </a>
       </div>
@@ -1178,9 +1188,12 @@ function NewsletterSection() {
   const [, navigate] = useLocation();
 
   return (
-    <section className="py-14 lg:py-16 relative overflow-hidden" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
+    <section className="py-14 lg:py-16 relative overflow-hidden" style={{ backgroundColor: PURPLE_WASH }}>
       <div className="container relative z-10">
         <div className="max-w-2xl mx-auto text-center">
+          <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+            Daily shortlist
+          </p>
           <h2 className="font-display font-bold mb-4" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", color: TEXT, letterSpacing: "-0.03em" }}>
             Your first ranked matches arrive tomorrow morning.
           </h2>
@@ -1560,8 +1573,11 @@ export default function Home() {
         pairHits={platformStats?.pair_funding_hits}
         pairStartups={platformStats?.pair_funding_startups}
       />
-      <section className="border-t" style={{ borderColor: BORDER }} aria-labelledby="live-market-heading">
+      <section className="border-t" style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }} aria-labelledby="live-market-heading">
         <div className="container max-w-[1200px] mx-auto px-6 py-12">
+          <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+            Live tape
+          </p>
           <h2
             id="live-market-heading"
             className="font-display font-bold mb-2"

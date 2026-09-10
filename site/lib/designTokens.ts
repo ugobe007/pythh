@@ -5,8 +5,14 @@ export const G = "oklch(0.696 0.17 162.48)";
 export const CYAN = "oklch(0.42 0.01 264)";
 export const AMBER = "oklch(0.78 0.14 65)";
 export const GOLD = "oklch(0.769 0.188 70.08)";
-/** Legacy alias — maps to emerald for accents */
+/** Legacy alias — maps to emerald for accents. Do not flip globally. */
 export const PURPLE = G;
+/** Section chrome — purple bands that break up emerald-on-black. */
+export const PURPLE_ACCENT = "oklch(0.72 0.16 305)";
+export const PURPLE_HOVER = "oklch(0.78 0.14 305)";
+export const PURPLE_BORDER = "oklch(0.52 0.10 305)";
+export const PURPLE_SUBTLE = "oklch(0.72 0.16 305 / 0.12)";
+export const PURPLE_WASH = "oklch(0.14 0.03 305)";
 export const VIOLET = "oklch(0.55 0.01 264)";
 export const VIOLET_HOVER = "oklch(0.65 0.01 264)";
 export const VIOLET_BORDER = "oklch(0.28 0.01 264)";
