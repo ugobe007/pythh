@@ -138,37 +138,39 @@ export default function HomeFeaturedMatch() {
           <div className="h-3 w-2/3 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
       ) : match ? (
-        <div className="px-5 py-5 flex-1" aria-live="polite" key={match.match_id}>
-          <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
-          <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
-            {firmLabel(match)}
-          </p>
-          <p className="text-[15px] font-medium mb-1" style={{ color: G }}>
-            Investor fit: {fit}/100
-          </p>
-          <p className="text-[13px] mb-4" style={{ color: MUTED }}>
-            Startup GOD {match.startup_god_score ?? "—"}
-            {" · "}
-            <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
-              How scoring works
-            </a>
-          </p>
-          <p className="text-[11px] font-medium tracking-wide uppercase mb-2" style={{ color: DIM }}>
-            Why this match
-          </p>
-          {reasons.length ? (
-            <ul className="space-y-1.5 mb-4">
-              {reasons.map((r) => (
-                <li key={r} className="text-[14px] leading-snug" style={{ color: TEXT }}>
-                  {r}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[14px] leading-snug mb-4" style={{ color: MUTED }}>
-              Ranked by thesis, stage, and observed investor behavior.
+        <div className="px-5 py-5 flex-1" aria-live="polite">
+          <div key={match.match_id}>
+            <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
+            <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
+              {firmLabel(match)}
             </p>
-          )}
+            <p className="text-[15px] font-medium mb-1" style={{ color: G }}>
+              Investor fit: {fit}/100
+            </p>
+            <p className="text-[13px] mb-4" style={{ color: MUTED }}>
+              Startup GOD {match.startup_god_score ?? "—"}
+              {" · "}
+              <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
+                How scoring works
+              </a>
+            </p>
+            <p className="text-[11px] font-medium tracking-wide uppercase mb-2" style={{ color: DIM }}>
+              Why this match
+            </p>
+            {reasons.length ? (
+              <ul className="space-y-1.5 mb-4">
+                {reasons.map((r) => (
+                  <li key={r} className="text-[14px] leading-snug" style={{ color: TEXT }}>
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[14px] leading-snug mb-4" style={{ color: MUTED }}>
+                Ranked by thesis, stage, and observed investor behavior.
+              </p>
+            )}
+          </div>
           {matches.length > 1 ? (
             <div className="flex items-center gap-1.5 mt-1" role="tablist" aria-label="Rotate featured match">
               {matches.map((m, i) => (
