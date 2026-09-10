@@ -8,6 +8,12 @@ const PLACEHOLDER_STARTUP =
 
 const ROLE_BEFORE_PAREN = /\b(Venture|Vice|Operations|Partner|Principal|Associate|Managing)\s*\(/i;
 
+/** Single-token participles / gerunds that are headline words, not brands. */
+const HEADLINE_TOKEN =
+  /^(Declining|Rising|Falling|Growing|Winning|Losing|Coming|Going|Looking|Making|Taking|Setting|Building|Launching|Unveiling|Replacing|Answering)$/i;
+
+const MIN_PUBLIC_FEED_MATCH_SCORE = 50;
+
 function isCleanStartupNameForFeed(name) {
   if (!name || name.trim() === '') return false;
   const n = name.trim();
@@ -22,6 +28,24 @@ function isCleanStartupNameForFeed(name) {
     return false;
   }
   return true;
+}
+
+function isPublicFeedStartup({ name, website, entityGate, status } = {}) {
+  if (status && status !== 'approved') return false;
+  if (!isCleanStartupNameForFeed(name)) return false;
+  const gate = String(entityGate || '').toLowerCase();
+  if (gate !== 'qualified') return false;
+  const w = String(website || '').trim();
+  if (!w) return false;
+  const n = String(name || '').trim();
+  if (HEADLINE_TOKEN.test(n)) return false;
+  if (/\bnot$/i.test(n)) return false;
+  return true;
+}
+
+function isPublicFeedMatchScore(score) {
+  const n = Number(score);
+  return Number.isFinite(n) && n >= MIN_PUBLIC_FEED_MATCH_SCORE;
 }
 
 function isCleanInvestorNameForFeed(name, firm) {
@@ -48,4 +72,7 @@ function isCleanInvestorNameForFeed(name, firm) {
 module.exports = {
   isCleanStartupNameForFeed,
   isCleanInvestorNameForFeed,
+  isPublicFeedStartup,
+  isPublicFeedMatchScore,
+  MIN_PUBLIC_FEED_MATCH_SCORE,
 };
