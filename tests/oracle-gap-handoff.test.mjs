@@ -6,8 +6,10 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
 test('new users see matches before signup and stay on matches after', async () => {
   const preview = await read('site/components/InstantMatchPreview.tsx');
-  assert.match(preview, /Ranked by thesis, team, and timing/);
-  assert.match(preview, /Save this shortlist/);
+  assert.match(preview, /Save this shortlist to keep these/);
+  assert.match(preview, /Save these \$\{visible\.length\} matches/);
+  assert.match(preview, /Confirm your round/);
+  assert.match(preview, /Get daily matches/);
   assert.match(preview, /handleSignup\('save'\)/);
   assert.doesNotMatch(preview, /Your fundraising workflow/);
   assert.doesNotMatch(preview, /Start investor outreach/);
