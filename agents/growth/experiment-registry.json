@@ -438,6 +438,46 @@
       "promotion_note": "DRAFT 2026-09-08 — shipped in site/pages/FindInvestors.tsx (report-only allocation). Promote to running once founder_url_submitted from find_investors_landing exceeds control baseline (6/7d) and page_view on /find-investors climbs off 23/7d floor. Baseline captured 2026-09-08."
     },
     {
+      "id": "founder_global_nav_cta",
+      "audience": "founder",
+      "name": "Global navbar primary CTA routes to preview (not newsletter)",
+      "status": "draft",
+      "parent_experiment": "founder_hero_headline_speed",
+      "benchmark": "startups_com",
+      "applies_when": "shared_navbar_default (all awareness surfaces)",
+      "hypothesis": "The site-wide SharedNavbar default CTA — the single most-viewed CTA in the product, rendered on every awareness landing (home, /find-investors, /matches, blog, rankings) — was 'Get daily matches' routing to /newsletter, a passive email brochure. On an awareness-BLIND funnel (73 human page_views/7d, 168 human url_submitted/7d) the highest-frequency CTA pointed visitors AWAY from the traffic-manufacturing preview funnel into a low-intent email list. Repointing it to an outcome-first label — 'See my investor matches' (Startups.com 'See My Matches' parity) routing to /matches (fires url_submitted -> instant_matches_viewed on human preview) — converts persistent nav impressions into preview traffic without touching the locked home hero or the headline experiment. One primary per surface preserved; newsletter demoted to /newsletter footer + Explore menu link.",
+      "loops": ["outbound_find_investors", "seo_find_investors", "preview_cliffhanger"],
+      "variants": [
+        {
+          "key": "nav_cta_to_matches",
+          "traffic_pct": 100,
+          "schema": {
+            "surface": "shared_navbar_default",
+            "primary_action": "route_to_preview",
+            "primary_framing": "outcome_deliverable",
+            "routes_to": "/matches",
+            "previous_routes_to": "/newsletter",
+            "fires": "url_submitted + instant_matches_viewed (source=matches_preview)"
+          },
+          "copy": {
+            "primary": "See my investor matches",
+            "previous": "Get daily matches"
+          },
+          "guardrails": {
+            "home_hero_cta_untouched": true,
+            "headline_experiment_uncontaminated": true,
+            "single_primary_per_surface": true,
+            "no_fabricated_counts": true
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "instant_matches_viewed",
+        "secondary": ["url_submitted", "page_view", "founder_signup_started"]
+      },
+      "promotion_note": "DRAFT 2026-09-11 — shipped in site/components/SharedNavbar.tsx (report-only allocation). Baseline 7d (human_funnel): page_view=73, url_submitted=168, instant_matches_viewed(ui)=150. Promote to running once instant_matches_viewed (matches_preview source) climbs above 150/7d and human page_view climbs off the 73/7d floor. Owner review required before status=running."
+    },
+    {
       "id": "pricing_oracle_cta",
       "audience": "founder",
       "name": "Oracle pricing page CTA",
