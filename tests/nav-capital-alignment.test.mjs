@@ -62,14 +62,14 @@ test('homepage live board is a compact feed below the proof strip', () => {
   assert.doesNotMatch(board, /Loading the match network/);
 });
 
-test('featured match is a three-row name tape and proof strip keeps the pair claim', () => {
+test('featured match is a five-row name tape and proof strip keeps the pair claim', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
   const proof = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
   const tokens = readFileSync(new URL('../site/lib/designTokens.ts', import.meta.url), 'utf8');
   const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
-  assert.match(featured, /FEATURED_PAGE_SIZE = 3/);
+  assert.match(featured, /FEATURED_PAGE_SIZE = 5/);
   assert.match(featured, /Live matches/);
-  assert.match(featured, /minHeight: 280/);
+  assert.match(featured, /minHeight: 420/);
   assert.doesNotMatch(featured, /Investor fit:/);
   assert.doesNotMatch(featured, /Startup GOD/);
   assert.doesNotMatch(featured, /Why this match/);
@@ -87,8 +87,8 @@ test('featured match is a three-row name tape and proof strip keeps the pair cla
 test('homepage featured match and live tape rotate through a pool', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
   const tape = readFileSync(new URL('../site/components/HomeLiveNetwork.tsx', import.meta.url), 'utf8');
-  assert.match(featured, /FEATURED_PAGE_SIZE = 3/);
-  assert.match(featured, /FEATURED_MATCH_POOL = 9/);
+  assert.match(featured, /FEATURED_PAGE_SIZE = 5/);
+  assert.match(featured, /FEATURED_MATCH_POOL = 15/);
   assert.match(featured, /FEATURED_MATCH_FETCH = 20/);
   assert.match(featured, /FEATURED_MATCH_ROTATE_MS = 8000/);
   assert.match(featured, /uniqueMatchPairs/);
