@@ -183,7 +183,7 @@ const compression = require('compression');
 const logger = require('./logger');
 const { getSupabaseClient, paginateStartupUploads } = require('./lib/supabaseClient');
 const { scheduleShadowImpression } = require('./lib/capitalGraphShadow');
-const { isCleanStartupNameForFeed, isCleanInvestorNameForFeed } = require('./lib/feedNameGuards');
+const { isCleanInvestorNameForFeed, isPublicFeedStartup } = require('./lib/feedNameGuards');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
 // Supabase outage guard: avoid hammering upstream during 522/timeout windows.
@@ -1162,7 +1162,7 @@ app.get('/api/hot-matches', async (req, res) => {
               investor_id,
               match_score,
               created_at,
-              startup_uploads!startup_id ( name, total_god_score, sectors, stage, status ),
+              startup_uploads!startup_id ( name, total_god_score, sectors, stage, status, website, entity_gate ),
               investors!investor_id ( name, firm )
             `)
             .order('match_score', { ascending: false })
@@ -1181,12 +1181,9 @@ app.get('/api/hot-matches', async (req, res) => {
         const deduped = [];
         for (const m of matches) {
           if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
-          const status = m.startup_uploads?.status;
-          if (!status || status !== 'approved') continue;
-          const startupName = m.startup_uploads?.name || '';
+          if (!isPublicFeedStartup(m.startup_uploads)) continue;
           const invName = m.investors?.name || '';
           const invFirm = m.investors?.firm || null;
-          if (!isCleanStartupNameForFeed(startupName)) continue;
           if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
           seenStartups.add(m.startup_id);
           deduped.push(m);
@@ -1267,7 +1264,7 @@ app.get('/api/recent-matches', async (req, res) => {
             reasoning,
             why_you_match,
             created_at,
-            startup_uploads!startup_id ( name, total_god_score, status, sectors, stage, website ),
+            startup_uploads!startup_id ( name, total_god_score, status, sectors, stage, website, entity_gate ),
             investors!investor_id ( name, firm )
           `)
           .order('created_at', { ascending: false })
@@ -1280,8 +1277,7 @@ app.get('/api/recent-matches', async (req, res) => {
         for (const m of rows || []) {
           if (!m.startup_id || seen.has(m.startup_id)) continue;
           const su = m.startup_uploads;
-          if (!su || su.status !== 'approved') continue;
-          if (!isCleanStartupNameForFeed(su.name)) continue;
+          if (!isPublicFeedStartup(su)) continue;
           const invName = m.investors?.name || '';
           const invFirm = m.investors?.firm || null;
           if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;

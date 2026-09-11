@@ -62,17 +62,18 @@ test('homepage live board is a compact feed below the proof strip', () => {
   assert.doesNotMatch(board, /Loading the match network/);
 });
 
-test('featured match and proof strip make scores and the pair claim readable', () => {
+test('featured match is a three-row name tape and proof strip keeps the pair claim', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
   const proof = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
   const tokens = readFileSync(new URL('../site/lib/designTokens.ts', import.meta.url), 'utf8');
   const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
-  assert.match(featured, /Investor fit:/);
-  assert.match(featured, /How scoring works/);
-  assert.match(featured, /Why this match/);
-  assert.match(featured, /Pre-seed/);
-  assert.match(featured, /Series A/);
+  assert.match(featured, /FEATURED_PAGE_SIZE = 3/);
+  assert.match(featured, /Live matches/);
   assert.match(featured, /minHeight: 280/);
+  assert.doesNotMatch(featured, /Investor fit:/);
+  assert.doesNotMatch(featured, /Startup GOD/);
+  assert.doesNotMatch(featured, /Why this match/);
+  assert.doesNotMatch(featured, /matchReasons/);
   assert.doesNotMatch(featured, /Loading the match/);
   assert.match(proof, /Verified outcome/);
   assert.match(proof, /Startups funded \(scale\)/);
@@ -86,13 +87,14 @@ test('featured match and proof strip make scores and the pair claim readable', (
 test('homepage featured match and live tape rotate through a pool', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
   const tape = readFileSync(new URL('../site/components/HomeLiveNetwork.tsx', import.meta.url), 'utf8');
-  assert.match(featured, /FEATURED_MATCH_POOL = 8/);
+  assert.match(featured, /FEATURED_PAGE_SIZE = 3/);
+  assert.match(featured, /FEATURED_MATCH_POOL = 9/);
   assert.match(featured, /FEATURED_MATCH_FETCH = 20/);
   assert.match(featured, /FEATURED_MATCH_ROTATE_MS = 8000/);
   assert.match(featured, /uniqueMatchPairs/);
   assert.match(featured, /setInterval/);
   assert.match(featured, /prefers-reduced-motion/);
-  assert.match(featured, /Rotating live investor match/);
+  assert.match(featured, /Rotating live investor matches/);
   assert.match(tape, /LIVE_TAPE_POOL = 9/);
   assert.match(tape, /uniqueMatchPairs/);
   assert.match(tape, /LIVE_TAPE_ROTATE_MS = 8000/);
@@ -113,6 +115,6 @@ test('homepage sections use purple chrome and keep emerald for scores and CTAs',
   assert.match(proof, /PURPLE_ACCENT/);
   assert.match(proof, /color: G/);
   assert.match(featured, /PURPLE_BORDER/);
-  assert.match(featured, /Investor fit: \{fit\}\/100/);
+  assert.match(featured, /See all live matches/);
   assert.match(featured, /color: G/);
 });

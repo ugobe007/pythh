@@ -4,7 +4,8 @@ import { ArrowRight } from "lucide-react";
 import { uniqueMatchPairs, useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
 import { BORDER, CARD, DIM, G, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
 
-export const FEATURED_MATCH_POOL = 8;
+export const FEATURED_PAGE_SIZE = 3;
+export const FEATURED_MATCH_POOL = 9;
 export const FEATURED_MATCH_FETCH = 20;
 export const FEATURED_MATCH_ROTATE_MS = 8000;
 
@@ -15,177 +16,95 @@ function firmLabel(m: RecentMatch) {
   return m.investor_name;
 }
 
-function formatStageLabel(stage: string | number | null | undefined): string | null {
-  if (stage == null || stage === "") return null;
-  const n = typeof stage === "number" ? stage : Number.parseInt(String(stage).trim(), 10);
-  const map: Record<number, string> = {
-    0: "Pre-seed",
-    1: "Pre-seed",
-    2: "Seed",
-    3: "Series A",
-    4: "Series B",
-    5: "Series C+",
-  };
-  if (Number.isFinite(n) && map[n]) return map[n];
-  const s = String(stage).trim();
-  return s && !/^\d+$/.test(s) ? s : null;
-}
-
-function isInternalReason(r: string): boolean {
-  return /investor tier|signal:\s*emerging|stage:\s*\d+\b/i.test(r);
-}
-
-function humanizeReason(r: string): string {
-  const stageMatch = r.match(/^Stage:\s*(.+)$/i);
-  if (!stageMatch) return r;
-  const label = formatStageLabel(stageMatch[1]);
-  return label ? `Stage: ${label}` : r;
-}
-
-export function matchReasons(m: RecentMatch): string[] {
-  const reasons: string[] = [];
-  const why = m.why_you_match;
-  if (Array.isArray(why)) {
-    for (const item of why) {
-      const t = String(item || "").trim();
-      if (t) reasons.push(t);
-    }
-  } else if (typeof why === "string" && why.trim()) {
-    for (const part of why.split(/\s*[·•|\n]+\s*/)) {
-      if (part.trim()) reasons.push(part.trim());
-    }
-  }
-  const stageLabel = formatStageLabel(m.startup_stage);
-  if (stageLabel) reasons.push(`Stage: ${stageLabel}`);
-  const sector = m.startup_sectors?.find(Boolean);
-  if (sector) reasons.push(`Sector: ${sector}`);
-  if (m.reasoning) {
-    const first = String(m.reasoning).split(/[.!\n]/)[0]?.trim();
-    if (first && first.length > 12 && first.length < 140) reasons.push(first);
-  }
-  const seen = new Set<string>();
-  return reasons
-    .map(humanizeReason)
-    .filter((r) => r && !isInternalReason(r))
-    .filter((r) => {
-      const key = r.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 3);
-}
-
 export default function HomeFeaturedMatch() {
   const { matches: raw, loading } = useRecentMatches(FEATURED_MATCH_FETCH);
   const matches = useMemo(() => uniqueMatchPairs(raw, FEATURED_MATCH_POOL), [raw]);
   const [paused, setPaused] = useState(false);
+  const pageCount = matches.length ? Math.ceil(matches.length / FEATURED_PAGE_SIZE) : 0;
 
-  const initialIndex = useMemo(() => {
-    if (matches.length < 2) return 0;
-    return Math.floor(Date.now() / FEATURED_MATCH_ROTATE_MS) % matches.length;
-  }, [matches.length]);
+  const initialPage = useMemo(() => {
+    if (pageCount < 2) return 0;
+    return Math.floor(Date.now() / FEATURED_MATCH_ROTATE_MS) % pageCount;
+  }, [pageCount]);
 
-  const [index, setIndex] = useState(initialIndex);
-
-  useEffect(() => {
-    setIndex(initialIndex);
-  }, [initialIndex]);
+  const [page, setPage] = useState(initialPage);
 
   useEffect(() => {
-    if (matches.length < 2 || paused) return;
+    setPage(initialPage);
+  }, [initialPage]);
+
+  useEffect(() => {
+    if (pageCount < 2 || paused) return;
     const reduce = typeof window !== "undefined"
       && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     if (reduce) return;
     const id = window.setInterval(() => {
-      setIndex((i) => (i + 1) % matches.length);
+      setPage((n) => (n + 1) % pageCount);
     }, FEATURED_MATCH_ROTATE_MS);
     return () => window.clearInterval(id);
-  }, [matches.length, paused]);
+  }, [pageCount, paused]);
 
-  const match = matches[index] ?? matches[0] ?? null;
-  const reasons = match ? matchReasons(match) : [];
-  const fit = match ? Math.min(100, Math.max(0, Math.round(match.match_score))) : null;
+  const visible = matches.slice(
+    page * FEATURED_PAGE_SIZE,
+    page * FEATURED_PAGE_SIZE + FEATURED_PAGE_SIZE,
+  );
 
   return (
     <aside
       id="featured-match"
       className="rounded-xl text-left flex flex-col"
       style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 280 }}
-      aria-label="Rotating live investor match"
+      aria-label="Rotating live investor matches"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
       <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
         <p className="text-[11px] font-medium tracking-wide" style={{ color: PURPLE_ACCENT }}>
-          Live example
+          Live matches
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {matches.length > 1
-            ? `${index + 1} of ${matches.length}`
-            : match?.time_ago
-              ? `Updated ${match.time_ago}`
-              : "Live network"}
+          {pageCount > 1 ? `${page + 1} of ${pageCount}` : "Live network"}
         </span>
       </div>
 
-      {loading && !match ? (
-        <div className="flex-1 px-5 py-6" aria-hidden>
-          <div className="h-6 w-2/3 rounded mb-3 animate-pulse" style={{ backgroundColor: BORDER }} />
-          <div className="h-4 w-1/3 rounded mb-6 animate-pulse" style={{ backgroundColor: BORDER }} />
-          <div className="h-3 w-full rounded mb-2 animate-pulse" style={{ backgroundColor: BORDER }} />
-          <div className="h-3 w-5/6 rounded mb-2 animate-pulse" style={{ backgroundColor: BORDER }} />
-          <div className="h-3 w-2/3 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+      {loading && visible.length === 0 ? (
+        <div className="flex-1 px-5 py-4 space-y-3" aria-hidden>
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
-      ) : match ? (
-        <div className="px-5 py-5 flex-1" aria-live="polite">
-          <div key={match.match_id}>
-            <p className="text-[13px] mb-1" style={{ color: MUTED }}>{match.startup_name}</p>
-            <p className="font-display font-bold text-xl leading-tight mb-3" style={{ color: TEXT }}>
-              {firmLabel(match)}
-            </p>
-            <p className="text-[15px] font-medium mb-1" style={{ color: G }}>
-              Investor fit: {fit}/100
-            </p>
-            <p className="text-[13px] mb-4" style={{ color: MUTED }}>
-              Startup GOD {match.startup_god_score ?? "—"}
-              {" · "}
-              <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
-                How scoring works
-              </a>
-            </p>
-            <p className="text-[11px] font-medium tracking-wide uppercase mb-2" style={{ color: DIM }}>
-              Why this match
-            </p>
-            {reasons.length ? (
-              <ul className="space-y-1.5 mb-4">
-                {reasons.map((r) => (
-                  <li key={r} className="text-[14px] leading-snug" style={{ color: TEXT }}>
-                    {r}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[14px] leading-snug mb-4" style={{ color: MUTED }}>
-                Ranked by thesis, stage, and observed investor behavior.
-              </p>
-            )}
-          </div>
-          {matches.length > 1 ? (
-            <div className="flex items-center gap-1.5 mt-1" role="tablist" aria-label="Rotate featured match">
-              {matches.map((m, i) => (
+      ) : visible.length ? (
+        <div className="flex-1" aria-live="polite">
+          {visible.map((m, i) => (
+            <Link
+              key={`${m.match_id}-${i}`}
+              href={m.startup_id ? `/startup/${encodeURIComponent(m.startup_id)}` : "/matches"}
+              className="flex items-baseline justify-between gap-4 px-5 py-4"
+              style={{ borderTop: i === 0 ? undefined : `1px solid ${BORDER}` }}
+            >
+              <span className="font-display font-bold text-[1.05rem] leading-tight truncate" style={{ color: TEXT }}>
+                {m.startup_name}
+              </span>
+              <span className="text-[14px] truncate text-right flex-shrink-0 max-w-[55%]" style={{ color: MUTED }}>
+                {firmLabel(m)}
+              </span>
+            </Link>
+          ))}
+          {pageCount > 1 ? (
+            <div className="flex items-center gap-1.5 px-5 pb-4" role="tablist" aria-label="Rotate featured matches">
+              {Array.from({ length: pageCount }, (_, i) => (
                 <button
-                  key={m.match_id || i}
+                  key={i}
                   type="button"
                   role="tab"
-                  aria-selected={i === index}
-                  aria-label={`Show match ${i + 1} of ${matches.length}`}
-                  onClick={() => setIndex(i)}
+                  aria-selected={i === page}
+                  aria-label={`Show matches page ${i + 1} of ${pageCount}`}
+                  onClick={() => setPage(i)}
                   className="rounded-full"
                   style={{
-                    width: i === index ? 14 : 6,
+                    width: i === page ? 14 : 6,
                     height: 6,
-                    backgroundColor: i === index ? PURPLE_ACCENT : BORDER,
+                    backgroundColor: i === page ? PURPLE_ACCENT : BORDER,
                   }}
                 />
               ))}
