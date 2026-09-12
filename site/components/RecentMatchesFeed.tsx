@@ -70,13 +70,12 @@ async function fetchHotMatches(limit: number): Promise<RecentMatch[]> {
 }
 
 async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
-  const [recentResult, hot] = await Promise.all([
-    fetchMatchList(`/api/recent-matches?limit=${limit}`)
-      .then((list) => list as RecentMatch[])
-      .catch(() => [] as RecentMatch[]),
-    fetchHotMatches(Math.max(limit, 20)),
-  ]);
+  const hotPromise = fetchHotMatches(Math.max(limit, 20));
+  const recentResult = await fetchMatchList(`/api/recent-matches?limit=${limit}`)
+    .then((list) => list as RecentMatch[])
+    .catch(() => [] as RecentMatch[]);
   if (recentResult.length >= limit) return recentResult;
+  const hot = await hotPromise;
   if (recentResult.length === 0) return hot;
   const seen = new Set(
     recentResult.map((m) => `${(m.startup_name || "").toLowerCase()}|${m.startup_id || m.startup_name || ""}`),
