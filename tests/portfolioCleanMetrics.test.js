@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { applyCleanPortfolioMetrics } = require('../server/lib/portfolioTrackRecord');
+const { applyCleanPortfolioMetrics, postEntryFundingSets, averageVerifiedMoic } = require('../server/lib/portfolioTrackRecord');
 
 test('headline portfolio metrics exclude quarantined positions and their events', () => {
   const positions = [
@@ -30,4 +30,22 @@ test('headline portfolio metrics exclude quarantined positions and their events'
   assert.equal(metrics.verified_funded_rate_pct, 66.7);
   assert.equal(metrics.win_rate_pct, 100);
   assert.equal(metrics.total_virtual_deployed_usd, 300000);
+});
+
+test('verified avg MOIC uses clean early post-entry verified picks only', () => {
+  const picks = [
+    { id: 'a', moic: 6, entity_quarantined: false, entered_late: false, entry_date: '2026-01-01' },
+    { id: 'b', moic: 50, entity_quarantined: false, entered_late: true, entry_date: '2026-01-01' },
+    { id: 'c', moic: 1, entity_quarantined: false, entered_late: false, entry_date: '2026-01-01' },
+    { id: 'd', moic: 2, entity_quarantined: true, entered_late: false, entry_date: '2026-01-01' },
+  ];
+  const events = [
+    { portfolio_id: 'a', event_type: 'funding_round', event_date: '2026-03-01', verified: true },
+    { portfolio_id: 'b', event_type: 'funding_round', event_date: '2026-03-01', verified: true },
+    { portfolio_id: 'c', event_type: 'funding_round', event_date: '2025-12-01', verified: true },
+    { portfolio_id: 'd', event_type: 'funding_round', event_date: '2026-03-01', verified: true },
+  ];
+  const { verifiedFundedIds } = postEntryFundingSets(picks, events);
+  assert.deepEqual([...verifiedFundedIds].sort(), ['a', 'b', 'd']);
+  assert.equal(averageVerifiedMoic(picks, verifiedFundedIds), 6);
 });

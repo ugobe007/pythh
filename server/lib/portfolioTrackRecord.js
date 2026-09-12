@@ -83,6 +83,35 @@ function applyCleanPortfolioMetrics(metrics, positions = [], outcomeEvents = [])
   };
 }
 
+function postEntryFundingSets(picks = [], fundingEvents = []) {
+  const pickById = new Map((picks || []).map((p) => [p.id, p]));
+  const fundedIds = new Set();
+  const verifiedFundedIds = new Set();
+  for (const ev of fundingEvents || []) {
+    if (!ev.portfolio_id) continue;
+    if (ev.event_type && ev.event_type !== 'funding_round') continue;
+    const pick = pickById.get(ev.portfolio_id);
+    if (!pick?.entry_date || !ev.event_date) continue;
+    const eventMs = new Date(ev.event_date).getTime();
+    const entryMs = new Date(pick.entry_date).getTime();
+    if (!Number.isFinite(eventMs) || !Number.isFinite(entryMs) || eventMs < entryMs) continue;
+    fundedIds.add(ev.portfolio_id);
+    if (ev.verified) verifiedFundedIds.add(ev.portfolio_id);
+  }
+  return { fundedIds, verifiedFundedIds, pickById };
+}
+
+/** Mean MOIC on clean early picks with a press-verified raise after Oracle entry. */
+function averageVerifiedMoic(picks, verifiedFundedIds) {
+  const moics = (picks || [])
+    .filter((p) => !p.entity_quarantined && !p.entered_late)
+    .filter((p) => verifiedFundedIds.has(p.id) && p.moic != null)
+    .map((p) => Number(p.moic))
+    .filter((n) => Number.isFinite(n));
+  if (!moics.length) return null;
+  return Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100;
+}
+
 function enrichPortfolioMetrics(metrics) {
   if (!metrics || typeof metrics !== 'object') return metrics || {};
   const total = Number(metrics.total_picks) || 0;
@@ -147,44 +176,40 @@ async function computeTrackRecord(supabase) {
     .maybeSingle();
   if (metricsErr) throw new Error(metricsErr.message);
 
-  const metrics = enrichPortfolioMetrics(metricsRow || {});
-
   const { data: picks, error: picksErr } = await supabase
     .from('virtual_portfolio')
-    .select('id, entry_god_score, entry_date, moic, status');
+    .select('id, entry_god_score, entry_date, moic, status, entity_quarantined, entered_late, virtual_check_usd');
   if (picksErr) throw new Error(picksErr.message);
 
-  const { data: fundingEvents, error: evErr } = await supabase
+  const { data: outcomeEvents, error: evErr } = await supabase
     .from('portfolio_events')
     .select(
       'portfolio_id, event_type, event_date, verified, amount_usd, source_url, headline, lead_investor'
     )
-    .eq('event_type', 'funding_round');
+    .in('event_type', ['funding_round', 'acquisition', 'ipo']);
   if (evErr) throw new Error(evErr.message);
 
-  const fundedIds = new Set();
-  const verifiedFundedIds = new Set();
+  const fundingEvents = (outcomeEvents || []).filter((e) => e.event_type === 'funding_round');
+  const metrics = applyCleanPortfolioMetrics(
+    enrichPortfolioMetrics(metricsRow || {}),
+    picks || [],
+    outcomeEvents || []
+  );
+  const { fundedIds, verifiedFundedIds, pickById } = postEntryFundingSets(picks || [], fundingEvents);
   const firstFundingDays = [];
 
-  for (const ev of fundingEvents || []) {
-    if (!ev.portfolio_id) continue;
-    fundedIds.add(ev.portfolio_id);
-    if (ev.verified) verifiedFundedIds.add(ev.portfolio_id);
-  }
-
-  const pickById = new Map((picks || []).map((p) => [p.id, p]));
 
   for (const id of fundedIds) {
     const pick = pickById.get(id);
     if (!pick?.entry_date) continue;
     const entryMs = new Date(pick.entry_date).getTime();
-    const eventsForPick = (fundingEvents || []).filter((e) => e.portfolio_id === id);
-    const first = eventsForPick.sort(
-      (a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-    )[0];
+    const first = (fundingEvents || [])
+      .filter((e) => e.portfolio_id === id && e.event_date)
+      .map((e) => ({ e, ms: new Date(e.event_date).getTime() }))
+      .filter((row) => Number.isFinite(row.ms) && row.ms >= entryMs)
+      .sort((a, b) => a.ms - b.ms)[0];
     if (first) {
-      const days = Math.round((new Date(first.event_date).getTime() - entryMs) / 86_400_000);
-      if (days >= 0) firstFundingDays.push(days);
+      firstFundingDays.push(Math.round((first.ms - entryMs) / 86_400_000));
     }
   }
 
@@ -194,10 +219,7 @@ async function computeTrackRecord(supabase) {
       ? null
       : firstFundingDays[Math.floor(firstFundingDays.length / 2)];
 
-  const verifiedMoics = (picks || [])
-    .filter((p) => verifiedFundedIds.has(p.id) && p.moic != null)
-    .map((p) => Number(p.moic))
-    .filter((n) => Number.isFinite(n));
+  const verifiedAvgMoic = averageVerifiedMoic(picks || [], verifiedFundedIds);
 
   const byGodTier = GOD_TIERS.map(({ label, min, max }) => {
     const tierPicks = (picks || []).filter(
@@ -251,11 +273,9 @@ async function computeTrackRecord(supabase) {
       entry_god_threshold: entryThreshold,
       oracle_picks_at_threshold: oraclePicks.length,
       median_days_to_funding: medianDaysToFunding,
-      verified_avg_moic: verifiedMoics.length
-        ? Math.round((verifiedMoics.reduce((a, b) => a + b, 0) / verifiedMoics.length) * 100) / 100
-        : null,
+      verified_avg_moic: verifiedAvgMoic,
       moic_note:
-        'Avg MOIC includes signal-inferred valuations. Verified avg MOIC uses picks with press-confirmed raises only.',
+        'Verified avg MOIC is the mean mark on clean early picks with a press-confirmed raise after Oracle entry.',
     },
     by_god_tier: byGodTier,
     featured_pick: featuredPick,
@@ -263,7 +283,7 @@ async function computeTrackRecord(supabase) {
     methodology: {
       funded: 'Pick logged at least one funding_round portfolio event after Oracle entry.',
       verified_funded:
-        'Funding event has source URL plus parsed raise amount from Google News headline match.',
+        'Press-verified funding_round on or after Oracle entry (source URL + classifier-safe headline).',
       exited: 'Pick status is exited, acquired, or IPO.',
       entry_bar: `GOD ≥ ${entryThreshold} at virtual check-in.`,
     },
@@ -275,5 +295,7 @@ module.exports = {
   GOD_TIERS,
   enrichPortfolioMetrics,
   applyCleanPortfolioMetrics,
+  postEntryFundingSets,
+  averageVerifiedMoic,
   computeTrackRecord,
 };
