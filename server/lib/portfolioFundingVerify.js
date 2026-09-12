@@ -7,17 +7,93 @@ const AMOUNT_RE = /\$\s*(\d[\d,.]*)\s*(million|billion|M|B)\b/gi;
 const ROUND_RE = /\b(pre[- ]?seed|seed|series\s+[a-e]\+?|mezzanine|mezz(?:anine)?\s+round|growth\s+round|late\s+stage)\b/i;
 const INVESTOR_RE = /\b(led\s+by|co[- ]?led\s+by|backed\s+by)\s+([A-Z][A-Za-z\s,&]+?)(?:\s+and\s+|\.|,|\n)/;
 
+function parseMoneyToken(numStr, unit) {
+  const num = parseFloat(String(numStr || '').replace(/,/g, ''));
+  if (!Number.isFinite(num) || num <= 0) return null;
+  const u = String(unit || '').toLowerCase();
+  let mult = 1;
+  if (u.startsWith('b')) mult = 1_000_000_000;
+  else if (u === 'mm' || u.startsWith('m')) mult = 1_000_000;
+  else if (u.startsWith('k') || u.startsWith('thousand')) mult = 1_000;
+  else return null;
+  const usd = Math.round(num * mult);
+  if (usd < 100_000 || usd > 15_000_000_000) return null;
+  return usd;
+}
+
 function extractAmountUsd(text) {
   let match;
   let amount = null;
   const re = new RegExp(AMOUNT_RE.source, 'gi');
   while ((match = re.exec(text)) !== null) {
-    const num = parseFloat(match[1].replace(/,/g, ''));
-    const mult = match[2].toLowerCase().startsWith('b') ? 1_000_000_000 : 1_000_000;
-    amount = Math.round(num * mult);
+    amount = parseMoneyToken(match[1], match[2]);
     break;
   }
   return amount;
+}
+
+const VALUATION_RES = [
+  /(?:pre[-\s]?money|post[-\s]?money)\s+valuation(?:\s+of)?\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million|thousand)?/i,
+  /valuation(?:\s+of)?\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million|thousand)?/i,
+  /(?:at(?:\s+a)?|hits?|reached|reaching|with(?:\s+a)?)\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?(?:\s+(?:pre[-\s]?money|post[-\s]?money))?\s+valuation/i,
+  /\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?\s+(?:pre[-\s]?money\s+|post[-\s]?money\s+)?valuation/i,
+  /valued\s+(?:at\s+)?(?:around\s+|nearly\s+|about\s+|over\s+)?\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?/i,
+];
+
+/** Press-stated company valuation — not the raise amount. */
+function extractValuationUsd(text) {
+  const raw = String(text || '');
+  if (!raw) return null;
+  for (const re of VALUATION_RES) {
+    const m = raw.match(re);
+    if (!m) continue;
+    const usd = parseMoneyToken(m[1], m[2]);
+    if (usd) return usd;
+  }
+  return null;
+}
+
+const RUMOR_HEADLINE_RE = /\b(eyes|reportedly|in talks|set to raise|poised to raise|seeking(?: to)?(?: raise)?|looking to raise|rumou?r(?:ed)?|sources say|could raise|talks to raise)\b/i;
+
+function isRumorFundingHeadline(text) {
+  return RUMOR_HEADLINE_RE.test(String(text || ''));
+}
+
+const ACQUISITION_HEADLINE_RE = /\b(acquires?|acquired|acquisition)\b/i;
+const FUNDING_ROUND_HEADLINE_RE = /\b(raises?|raised|series\s+[a-e]|seed\s+round|funding\s+round)\b/i;
+
+function shouldReclassifyAsAcquisition(event) {
+  const text = String(event?.headline || '');
+  if (!text) return false;
+  if (event?.event_type === 'acquisition') return false;
+  if (!ACQUISITION_HEADLINE_RE.test(text)) return false;
+  if (FUNDING_ROUND_HEADLINE_RE.test(text)) return false;
+  return true;
+}
+
+/**
+ * Fill post-money on a press-verified funding row only.
+ * Prefer an explicit valuation in the headline; else typical-dilution estimate.
+ */
+function proposeVerifiedPostMoney(event) {
+  if (!event?.verified) return null;
+  if (event.event_type && event.event_type !== 'funding_round') return null;
+  const headline = String(event.headline || '');
+  if (isRumorFundingHeadline(headline)) return null;
+  const existing = Number(event.post_money_usd);
+  if (existing > 0) return null;
+  const explicit = extractValuationUsd(headline);
+  if (explicit) return { post_money_usd: explicit, basis: 'headline_valuation' };
+  const amount = Number(event.amount_usd) || extractAmountUsd(headline);
+  if (!(amount > 0)) return null;
+  const { estimatePostMoneyFromRound } = require('./stageValuationBenchmarks');
+  const est = estimatePostMoneyFromRound({
+    amountUsd: amount,
+    roundType: event.round_type,
+    headline,
+  });
+  if (!(est > amount)) return null;
+  return { post_money_usd: est, basis: 'dilution_estimate' };
 }
 
 function extractRoundType(text) {
@@ -184,8 +260,12 @@ function assessFundingSignal(companyName, { homeText = '', newsItems = [], websi
 module.exports = {
   FUNDING_RE,
   extractAmountUsd,
+  extractValuationUsd,
   extractRoundType,
   extractLeadInvestor,
+  isRumorFundingHeadline,
+  shouldReclassifyAsAcquisition,
+  proposeVerifiedPostMoney,
   parseGoogleNewsRss,
   assessFundingSignal,
   assessVerifiedNewsHit,
