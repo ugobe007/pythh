@@ -35,7 +35,7 @@ function extractAmountUsd(text) {
 const VALUATION_RES = [
   /(?:pre[-\s]?money|post[-\s]?money)\s+valuation(?:\s+of)?\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million|thousand)?/i,
   /valuation(?:\s+of)?\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million|thousand)?/i,
-  /(?:at(?:\s+a)?|hits?|reached|reaching|with(?:\s+a)?)\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?(?:\s+(?:pre[-\s]?money|post[-\s]?money))?\s+valuation/i,
+  /(?:at(?:\s+a)?|hits?|reaches?|reached|reaching|with(?:\s+a)?)\s+\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?(?:\s+(?:pre[-\s]?money|post[-\s]?money))?\s+valuation/i,
   /\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?\s+(?:pre[-\s]?money\s+|post[-\s]?money\s+)?valuation/i,
   /valued\s+(?:at\s+)?(?:around\s+|nearly\s+|about\s+|over\s+)?\$?\s*([\d,.]+)\s*(k|m|mm|b|bn|billion|million)?/i,
 ];
@@ -47,6 +47,8 @@ function extractValuationUsd(text) {
   for (const re of VALUATION_RES) {
     const m = raw.match(re);
     if (!m) continue;
+    const around = raw.slice(Math.max(0, (m.index || 0) - 6), (m.index || 0) + m[0].length);
+    if (/€|eur(?:os?)?\b/i.test(around) && !/\$|usd\b/i.test(around)) continue;
     const usd = parseMoneyToken(m[1], m[2]);
     if (usd) return usd;
   }
@@ -61,25 +63,65 @@ function isRumorFundingHeadline(text) {
 
 const ACQUISITION_HEADLINE_RE = /\b(acquires?|acquired|acquisition)\b/i;
 const FUNDING_ROUND_HEADLINE_RE = /\b(raises?|raised|series\s+[a-e]|seed\s+round|funding\s+round)\b/i;
+const NON_EQUITY_HEADLINE_RE = /\b(debt|credit facility|loan facility|venture debt|convertible notes?|line of credit|term loan|facility|dao|budget|grant|treasury)\b/i;
+const FOREIGN_NAME_SUFFIX_RE = /\s+(power|mobility|energy|inc\.?|corp\.?|therapeutics|biosciences|dao)\b/i;
 
-function shouldReclassifyAsAcquisition(event) {
+function companyIsAcquisitionTarget(headline, companyName) {
+  const text = String(headline || '');
+  const name = String(companyName || '').trim();
+  if (!text || !name) return false;
+  const token = escapeRegExp(name);
+  if (new RegExp(`\\bacquires?\\s+${token}\\b`, 'i').test(text)) return true;
+  if (new RegExp(`\\bacquisition\\s+of\\s+${token}\\b`, 'i').test(text)) return true;
+  if (new RegExp(`\\b${token}\\s+(?:is |was |to be )?acquired\\b`, 'i').test(text)) return true;
+  return false;
+}
+
+function isMismatchedFundingHeadline(headline, companyName) {
+  const text = String(headline || '');
+  const name = String(companyName || '').trim();
+  if (!text || !name) return false;
+  const nameLc = name.toLowerCase();
+  const raiseSubject = text.match(/^["']?([\w .&'+-]+?)\s+(?:raises?|raised|secures?|lands|closes|grabs|nabs|announces)\b/i);
+  if (raiseSubject) {
+    const subject = raiseSubject[1].trim().toLowerCase();
+    if (subject && !subject.includes(nameLc) && !nameLc.includes(subject)) return true;
+  }
+  const tokens = name.split(/\s+/).filter(Boolean);
+  if (tokens.length === 1) {
+    const suffixHit = new RegExp(`\\b${escapeRegExp(name)}${FOREIGN_NAME_SUFFIX_RE.source}`, 'i').test(text);
+    if (suffixHit) return true;
+  }
+  return false;
+}
+
+function shouldReclassifyAsAcquisition(event, company) {
   const text = String(event?.headline || '');
-  if (!text) return false;
+  const name = typeof company === 'string' ? company : company?.name;
+  if (!text || !name) return false;
   if (event?.event_type === 'acquisition') return false;
   if (!ACQUISITION_HEADLINE_RE.test(text)) return false;
   if (FUNDING_ROUND_HEADLINE_RE.test(text)) return false;
-  return true;
+  return companyIsAcquisitionTarget(text, name);
 }
 
 /**
  * Fill post-money on a press-verified funding row only.
  * Prefer an explicit valuation in the headline; else typical-dilution estimate.
  */
-function proposeVerifiedPostMoney(event) {
+function proposeVerifiedPostMoney(event, company) {
   if (!event?.verified) return null;
   if (event.event_type && event.event_type !== 'funding_round') return null;
   const headline = String(event.headline || '');
+  if (!headline) return null;
   if (isRumorFundingHeadline(headline)) return null;
+  if (NON_EQUITY_HEADLINE_RE.test(headline)) return null;
+  const name = typeof company === 'string' ? company : company?.name;
+  const website = typeof company === 'string' ? null : company?.website;
+  if (isMismatchedFundingHeadline(headline, name)) return null;
+  if (name && !companyMentioned(headline, name) && !(Number(event.amount_usd) > 0)) return null;
+  if (isInvalidFundingHeadline(headline, name)) return null;
+  if (isLikelyWrongEntity(headline, name, website)) return null;
   const existing = Number(event.post_money_usd);
   if (existing > 0) return null;
   const explicit = extractValuationUsd(headline);
@@ -264,6 +306,8 @@ module.exports = {
   extractRoundType,
   extractLeadInvestor,
   isRumorFundingHeadline,
+  isMismatchedFundingHeadline,
+  companyIsAcquisitionTarget,
   shouldReclassifyAsAcquisition,
   proposeVerifiedPostMoney,
   parseGoogleNewsRss,

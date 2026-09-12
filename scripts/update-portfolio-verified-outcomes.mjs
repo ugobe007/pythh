@@ -30,7 +30,7 @@ const {
   shouldReclassifyAsAcquisition,
   proposeVerifiedPostMoney,
 } = require('../server/lib/portfolioFundingVerify.js');
-const { syncPortfolioMoicToDb } = require('../server/lib/portfolioAnalytics.js');
+const { syncPortfolioMoicToDb, computeVerifiedMoic } = require('../server/lib/portfolioAnalytics.js');
 const { applyCleanPortfolioMetrics, enrichPortfolioMetrics, computeTrackRecord } = require('../server/lib/portfolioTrackRecord.js');
 
 const APPLY = process.argv.includes('--apply');
@@ -140,7 +140,7 @@ async function main() {
   const picks = await fetchAll(
     client,
     'virtual_portfolio',
-    'id, startup_id, status, entry_date, entity_quarantined, startup_uploads(id, name, website)'
+    'id, startup_id, status, entry_date, entity_quarantined, entry_valuation_usd, exit_valuation_usd, moic, startup_uploads(id, name, website)'
   );
   const pickByStartup = new Map();
   const companyById = new Map();
@@ -169,7 +169,7 @@ async function main() {
     const company = companyById.get(ev.startup_id);
     const name = company?.name || ev.startup_id || 'unknown';
 
-    if (shouldReclassifyAsAcquisition(ev)) {
+    if (shouldReclassifyAsAcquisition(ev, company || name)) {
       console.log(`  ↔ acquisition ${name}: ${(ev.headline || '').slice(0, 72)}`);
       if (APPLY) {
         const { error } = await client
@@ -211,7 +211,7 @@ async function main() {
     }
 
     if (writeOffStartups.has(ev.startup_id)) continue;
-    const proposal = proposeVerifiedPostMoney(ev);
+    const proposal = proposeVerifiedPostMoney(ev, company || name);
     if (!proposal) continue;
     console.log(
       `  $ ${name}: post-money ${proposal.post_money_usd.toLocaleString('en-US')} (${proposal.basis}) · ${(ev.headline || '').slice(0, 56)}`
@@ -230,12 +230,46 @@ async function main() {
     }
   }
 
-  console.log(`\n📐 Recalculating MOIC (${APPLY ? 'apply' : 'dry-run'})…`);
-  const moic = await syncPortfolioMoicToDb(client, { apply: APPLY });
-  const lifted = (moic.changes || [])
-    .filter((c) => Number(c.delta) > 0)
-    .sort((a, b) => Number(b.delta) - Number(a.delta))
-    .slice(0, 12);
+  const pricedLifts = [];
+  const roundsByPortfolio = new Map();
+  for (const ev of events) {
+    if (ev.event_type !== 'funding_round' || !ev.verified || !Number(ev.post_money_usd)) continue;
+    if (!ev.portfolio_id) continue;
+    if (!roundsByPortfolio.has(ev.portfolio_id)) roundsByPortfolio.set(ev.portfolio_id, []);
+    roundsByPortfolio.get(ev.portfolio_id).push(ev);
+  }
+  for (const p of picks) {
+    if (p.entity_quarantined) continue;
+    const su = Array.isArray(p.startup_uploads) ? p.startup_uploads[0] : p.startup_uploads;
+    const result = computeVerifiedMoic({
+      status: p.status,
+      entryValuation: p.entry_valuation_usd,
+      exitValuation: p.exit_valuation_usd,
+      verifiedRounds: roundsByPortfolio.get(p.id) || [],
+      signalEvents: [],
+      entryDate: p.entry_date,
+    });
+    const prior = Number(p.moic) || 1;
+    if (result.basis === 'verified_round' && result.moic > prior + 0.01) {
+      pricedLifts.push({
+        name: su?.name || p.id,
+        prior_moic: Math.round(prior * 100) / 100,
+        moic: Math.round(result.moic * 100) / 100,
+        basis: result.basis,
+        delta: Math.round((result.moic - prior) * 100) / 100,
+      });
+    }
+  }
+  pricedLifts.sort((a, b) => b.delta - a.delta);
+
+  let moic = { updated: 0, would_update: picks.length, changes: pricedLifts };
+  if (APPLY) {
+    console.log('\n📐 Recalculating MOIC (apply)…');
+    moic = await syncPortfolioMoicToDb(client, { apply: true });
+  } else {
+    console.log('\n📐 MOIC preview from priced verified rounds (dry-run, no signal accretion)…');
+  }
+  const lifted = pricedLifts.slice(0, 12);
 
   const after = APPLY ? await snapshotScoreboard(client) : null;
   if (after) printScoreboard('After', after);
