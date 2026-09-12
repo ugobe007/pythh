@@ -357,6 +357,47 @@ const audited = [
       ['Pi Labs', 'participant', 'PARTICIPATED_IN_ROUND', 'Existing investors Antler, Findus Ventures, E2MC, and Pi Labs also participated'],
     ],
   },
+  // Post-#163 matched-startup hunt: trusted post-seal add-ons still sitting as untrusted observed / missing.
+  {
+    key: 'audited:spiro:add-on:2026-06-22:55000000', startupId: '81ac7923-e24b-4e61-b444-ca588729522b', startupName: 'Spiro',
+    roundType: 'Equity', amountUsd: 55_000_000, announcedAt: '2026-06-22T09:46:00Z', participantListComplete: true,
+    sourceUrl: 'https://thenextweb.com/news/spiro-takes-55m-from-chinas-newtrails-as-it-nears-a-1bn-valuation',
+    sourcePublisher: 'The Next Web',
+    sourceTitle: 'Spiro raises $55 million in additional funding from NewTrails Capital', verificationStatus: 'verified',
+    participants: [
+      ['NewTrails Capital', 'lead', 'INVESTED_IN', 'secured an additional $55mn from NewTrails Capital'],
+    ],
+  },
+  {
+    key: 'audited:starcloud:series-a-ext:2026-08-21:250000000', startupId: 'cb775eac-6d4c-4dfd-b630-f8b75d7663eb', startupName: 'Starcloud',
+    roundType: 'Series A', amountUsd: 250_000_000, announcedAt: '2026-08-21T14:00:00Z', participantListComplete: true,
+    sourceUrl: 'https://techcrunch.com/2026/08/21/starcloud-raises-200-million-for-orbital-data-centers-as-launch-options-dry-up/',
+    sourcePublisher: 'TechCrunch',
+    sourceTitle: 'Starcloud raises $250 million in Series A extension funding', verificationStatus: 'verified',
+    participants: [
+      ['Manhattan West', 'lead', 'LED_ROUND', 'funding extension was led by Manhattan West Ventures'],
+      ['NVIDIA', 'participant', 'PARTICIPATED_IN_ROUND', 'included participation from Nvidia and Cisco'],
+      ['Cisco', 'participant', 'PARTICIPATED_IN_ROUND', 'included participation from Nvidia and Cisco'],
+      ['Benchmark', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included Benchmark, EQT, Soma, NFX'],
+      ['EQT', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included Benchmark, EQT, Soma, NFX'],
+      ['Soma Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included Benchmark, EQT, Soma, NFX'],
+      ['NFX', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included Benchmark, EQT, Soma, NFX'],
+      ['776', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included 776, Cedar Capital, Goanna Capital, and Standard Capital'],
+      ['Cedar Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included 776, Cedar Capital, Goanna Capital, and Standard Capital'],
+      ['Goanna Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included 776, Cedar Capital, Goanna Capital, and Standard Capital'],
+      ['Standard Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'Other participants included 776, Cedar Capital, Goanna Capital, and Standard Capital'],
+    ],
+  },
+  // Do NOT ingest Deep Cogito $43M Series A: SiliconANGLE 2026-08-26 18:34 EDT
+  // (22:34 UTC) is before predicted_at 2026-08-28 22:18 UTC. Same scrape-lag
+  // pattern as Runable/Yardstik. Cascade search on the sealed row found nothing
+  // post-clock. TQ Ventures / Benchmark / Nexus / Atreides / SPC / Zscaler.
+  // Do NOT ingest Adaptyv Bio $40M Series A: company blog 2026-08-25, ACE
+  // 2026-08-26, FinSMEs 2026-08-31 — all before predicted_at 2026-08-28 22:19
+  // UTC on the qualified adaptyv.ai row. The raise is Adaptyv Bio
+  // (adaptyvbio.com / Lausanne wet lab); do not attach it to adaptyv.ai.
+  // Do NOT ingest Breedr $27M Series B: Partech / Axios / AgFunder 2026-08-26
+  // before predicted_at 2026-08-28 22:19 UTC. First-party breedr.co.
   // Do NOT ingest Runable: TechCrunch published 2026-08-26 11:00 UTC, before predicted_at 2026-08-26 13:44 UTC.
   // SiliconANGLE 2026-08-27 is a next-day rewrite (scrape-lag pattern per Transfyr/Remepy).
   // Do NOT ingest Yardstik $30M Series B: SiliconANGLE 2026-08-27 13:00 UTC is before
