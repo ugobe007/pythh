@@ -23,30 +23,56 @@ function independentSource(row) {
   return assessFundingSource(row).identity;
 }
 
-async function main() {
+const EVENT_COLS = 'id,startup_id,canonical_round_key,startup_name_raw,round_type,amount_usd,announced_at,source_url,source_title,source_publisher,verification_status,metadata';
+
+async function pageEvents(filter) {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await db.from('funding_evidence_events')
-      .select('id,canonical_round_key,startup_name_raw,round_type,amount_usd,announced_at,source_url,source_title,source_publisher,verification_status,metadata')
-      .in('verification_status', ['observed', 'corroborated']).range(offset, offset + 999);
+    let query = db.from('funding_evidence_events').select(EVENT_COLS).range(offset, offset + 999);
+    query = filter(query);
+    const { data, error } = await query;
     if (error) throw error;
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
+  return rows;
+}
+
+async function main() {
+  const observedRows = await pageEvents((query) =>
+    query.in('verification_status', ['observed', 'corroborated']),
+  );
+  const startupIds = [...new Set(observedRows.map((row) => row.startup_id).filter(Boolean))];
+  const verifiedRows = [];
+  for (let offset = 0; offset < startupIds.length; offset += 80) {
+    const { data, error } = await db.from('funding_evidence_events')
+      .select(EVENT_COLS)
+      .eq('verification_status', 'verified')
+      .in('startup_id', startupIds.slice(offset, offset + 80));
+    if (error) throw error;
+    verifiedRows.push(...(data || []));
+  }
+  // Cluster verified issuer wires with untrusted Pulse2/FinSMEs copies so the
+  // observed sibling can promote. Never rewrite a verified row.
+  const rows = [...observedRows, ...verifiedRows];
   // Soft-merge unknown vs typed round/amount keys so Pulse2+FinSMEs / TNW+Pulse2 can corroborate.
   const clustered = clusterCompatibleRoundEvents(rows.filter((row) => row.canonical_round_key));
   const eligible = [];
   for (const cluster of clustered) {
     const events = cluster.events;
     const canonicalRoundKey = cluster.key;
-    if (!events.every(event => isPromotionSafeStartupName(event.startup_name_raw))) continue;
-    const financingSafe = events.every(event => classifyFundingEvidence({
-      event_type: 'FUNDING',
-      source_title: event.source_title,
-      frame_confidence: 1,
-      extraction_meta: { decision: 'ACCEPT', graph_safe: true },
-    }).eligible);
-    if (!financingSafe) continue;
+    // Verified rows already passed promotion checks; only gate on unverified siblings.
+    const unverifiedEvents = events.filter(event => event.verification_status !== 'verified');
+    if (unverifiedEvents.length > 0) {
+      if (!unverifiedEvents.every(event => isPromotionSafeStartupName(event.startup_name_raw))) continue;
+      const financingSafe = unverifiedEvents.every(event => classifyFundingEvidence({
+        event_type: 'FUNDING',
+        source_title: event.source_title,
+        frame_confidence: 1,
+        extraction_meta: { decision: 'ACCEPT', graph_safe: true },
+      }).eligible);
+      if (!financingSafe) continue;
+    }
     const domains = [...new Set(events.map(independentSource).filter(Boolean))];
     const trusted = events.map(event => ({ event, assessment: assessFundingSource(event) })).filter(row => row.assessment.trusted);
     if (domains.length < 2 && trusted.length === 0) continue;
@@ -62,6 +88,10 @@ async function main() {
       const previousIds = [...(event.metadata?.corroboration?.evidence_event_ids || [])].sort();
       const sameEvidence = previousIds.length === evidenceEventIds.length
         && previousIds.every((id, index) => id === evidenceEventIds[index]);
+      if (event.verification_status === 'verified') {
+        alreadyCurrent++;
+        continue;
+      }
       if (event.verification_status === desiredStatus && sameEvidence) {
         alreadyCurrent++;
         continue;

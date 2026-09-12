@@ -1019,6 +1019,18 @@ const seeds = [
       ['WEX Venture Capital', 'participant', 'PARTICIPATED_IN_ROUND', 'participation from Capital One Ventures, Max Levchin\'s SciFi VC, F-Prime, Commerce Ventures, WEX Venture Capital'],
     ],
   },
+  {
+    key: 'spiro-addon-55m-newtrails',
+    eventIds: ['aa923c18-a968-4d69-bb29-ef9eb8c308fd'],
+    evidenceUrl: 'https://thenextweb.com/news/spiro-takes-55m-from-chinas-newtrails-as-it-nears-a-1bn-valuation',
+    evidencePublisher: 'The Next Web',
+    evidenceTitle: 'Spiro raises $55 million in additional funding from NewTrails Capital',
+    participantListComplete: true,
+    replaceParticipants: true,
+    participants: [
+      ['NewTrails Capital', 'lead', 'INVESTED_IN', 'secured an additional $55mn from NewTrails Capital'],
+    ],
+  },
 ];
 
 /** Reject every event on a canonical_round_key (valuation noise / duplicate mis-amount). */

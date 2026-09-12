@@ -1114,6 +1114,14 @@ test('Hit@5 pending triage script measures horizon maturity and hunts untrusted 
   assert.match(script, /duplicate_firm_excluded_startups/);
 });
 
+test('Hit@5 gap unlocks skip untrusted copies once a trusted sibling exists', () => {
+  const script = readFileSync(new URL('../scripts/list-hit5-mature-gap-unlocks.mjs', import.meta.url), 'utf8');
+  assert.match(script, /clusterCompatibleRoundEvents/);
+  assert.match(script, /trustedSiblingIds/);
+  assert.match(script, /canonical_round_key/);
+  assert.match(script, /untrusted_observed/);
+});
+
 test('corroboration requires two independent sources or one reviewed trusted source', () => {
   const script = readFileSync(new URL('../scripts/corroborate-funding-evidence-rounds.mjs', import.meta.url), 'utf8');
   assert.match(script, /domains\.length < 2/);
@@ -1124,6 +1132,8 @@ test('corroboration requires two independent sources or one reviewed trusted sou
   assert.match(script, /canonical_round_key/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /loadFundingEvidenceLedger/);
+  assert.match(script, /verification_status', 'verified'/);
+  assert.match(script, /Never rewrite a verified row/);
 });
 
 test('missing funding investors are seeded only from reviewed first-party profiles', () => {
