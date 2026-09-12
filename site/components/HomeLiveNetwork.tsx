@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { uniqueMatchPairs, useRecentMatches } from "@/components/RecentMatchesFeed";
 import { BORDER, CARD, DIM, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
-import { LIVEWIRE_PAGE_SIZE, LivewireMatchPanel } from "@/components/LivewireMatchPanel";
+import { LIVEWIRE_PAGE_SIZE, LivewireMatchPanel, livewirePageCount } from "@/components/LivewireMatchPanel";
 import { useEffect, useMemo, useState } from "react";
 import { safeExternalUrl } from "@/lib/safeUrl";
 
@@ -58,7 +58,7 @@ export function HomeLiveMatches({ limit = LIVEWIRE_PAGE_SIZE }: { limit?: number
   const [page, setPage] = useState(0);
   const [paused, setPaused] = useState(false);
   const size = Math.max(limit, LIVEWIRE_PAGE_SIZE);
-  const pageCount = matches.length > size ? Math.ceil(matches.length / size) : 1;
+  const pageCount = livewirePageCount(matches.length, size);
 
   useEffect(() => {
     if (pageCount < 2 || paused) return;
@@ -215,9 +215,7 @@ export function HomeLiveTape() {
   const matches = useMemo(() => uniqueMatchPairs(raw, LIVE_TAPE_POOL), [raw]);
   const [page, setPage] = useState(0);
   const [paused, setPaused] = useState(false);
-  const pageCount = Math.max(2, matches.length > LIVEWIRE_PAGE_SIZE
-    ? Math.ceil(matches.length / LIVEWIRE_PAGE_SIZE)
-    : 1);
+  const pageCount = livewirePageCount(matches.length, LIVEWIRE_PAGE_SIZE, 2);
   const nextPage = (page + 1) % pageCount;
 
   useEffect(() => {

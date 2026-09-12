@@ -35,11 +35,18 @@ export function livewireHeaderStatus(loading: boolean, visibleCount: number, pag
   return "Live network";
 }
 
-/** Always fill `size` rows by wrapping — never leave a short last page. */
+/** Full pages only — leftover rows stay off the tape so two panels never overlap. */
+export function livewirePageCount(itemCount: number, size = LIVEWIRE_PAGE_SIZE, minPages = 1) {
+  if (itemCount <= 0) return 1;
+  const full = Math.floor(itemCount / size);
+  return Math.max(minPages, full || 1);
+}
+
+/** Always fill `size` rows. Uses full pages; wraps only when the pool is shorter than one page. */
 export function fillTapePage<T>(items: T[], page: number, size: number): T[] {
   if (!items.length || size <= 0) return [];
   const count = Math.min(size, items.length);
-  const pages = Math.max(1, Math.ceil(items.length / count));
+  const pages = Math.max(1, Math.floor(items.length / count) || 1);
   const start = (page % pages) * count;
   return Array.from({ length: count }, (_, i) => items[(start + i) % items.length]);
 }

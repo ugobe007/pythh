@@ -5,6 +5,7 @@ import {
   LivewireMatchPanel,
   firmLabel,
   livewireMeta,
+  livewirePageCount,
   livewireTimeLabel,
 } from "@/components/LivewireMatchPanel";
 
@@ -19,9 +20,7 @@ export default function HomeFeaturedMatch() {
   const { matches: raw, loading } = useRecentMatches(FEATURED_MATCH_FETCH);
   const matches = useMemo(() => uniqueMatchPairs(raw, FEATURED_MATCH_POOL), [raw]);
   const [paused, setPaused] = useState(false);
-  const pageCount = matches.length > FEATURED_PAGE_SIZE
-    ? Math.ceil(matches.length / FEATURED_PAGE_SIZE)
-    : 1;
+  const pageCount = livewirePageCount(matches.length, FEATURED_PAGE_SIZE);
 
   const initialPage = useMemo(() => {
     if (pageCount < 2) return 0;
