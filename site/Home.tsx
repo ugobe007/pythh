@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import SharedNavbar from "@/components/SharedNavbar";
 import HeroHeadline from "@/components/HeroHeadline";
 import NewsletterJoinForm, { PREVIEW_MATCHES_CTA } from "@/components/NewsletterJoinForm";
-import { HomeLiveMatches, HomeLiveResults } from "@/components/HomeLiveNetwork";
+import { HomeLiveTape } from "@/components/HomeLiveNetwork";
 import HomeFeaturedMatch from "@/components/HomeFeaturedMatch";
 import HomeProofStrip from "@/components/HomeProofStrip";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
@@ -1588,10 +1588,7 @@ export default function Home() {
           <p className="text-[17px] leading-relaxed max-w-[52ch] mb-8" style={{ color: MUTED }}>
             Freshness only — the same tape as the Daily Brief. It is not the pair-layer claim.
           </p>
-          <div className="grid lg:grid-cols-2 gap-8 items-start">
-            <HomeLiveMatches limit={3} />
-            <HomeLiveResults />
-          </div>
+          <HomeLiveTape />
         </div>
       </section>
       <NewsletterSection />
