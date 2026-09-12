@@ -106,9 +106,7 @@ export default function HomeFeaturedMatch() {
           Livewire matches
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {loading && visible.length === 0
-            ? "Refreshing"
-            : `${visible.length || FEATURED_PAGE_SIZE} just now`}
+          {pageCount > 1 ? `${page + 1} of ${pageCount}` : "Live network"}
         </span>
       </div>
 
