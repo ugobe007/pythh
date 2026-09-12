@@ -19,7 +19,7 @@ test('new users see matches before signup and stay on matches after', async () =
 
   const home = await read('site/Home.tsx');
   assert.match(home, /NewsletterJoinForm/);
-  assert.match(home, /HomeLiveMatches/);
+  assert.match(home, /HomeLiveTape/);
   assert.doesNotMatch(home, /signup\/founder\?intent=matches/);
 
   const matchesPage = await read('site/pages/Matches.tsx');
