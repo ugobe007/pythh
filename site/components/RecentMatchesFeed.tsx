@@ -52,30 +52,47 @@ function mapHotMatch(raw: Record<string, unknown>): RecentMatch {
   };
 }
 
+async function fetchHotMatches(limit: number): Promise<RecentMatch[]> {
+  try {
+    const r = await fetch(`/api/hot-matches?limit_count=${limit}`);
+    if (!r.ok) return [];
+    const d = await r.json();
+    const list = Array.isArray(d.matches) ? d.matches : [];
+    return list.map((m) => mapHotMatch(m as Record<string, unknown>));
+  } catch {
+    return [];
+  }
+}
+
 async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
+  let recent: RecentMatch[] = [];
   try {
     const r = await fetch(`/api/recent-matches?limit=${limit}`);
     if (r.ok) {
       const d = await r.json();
-      const list = Array.isArray(d.matches) ? d.matches : [];
-      if (list.length > 0) return list as RecentMatch[];
+      recent = Array.isArray(d.matches) ? d.matches as RecentMatch[] : [];
     }
   } catch {
-    // fall through
+    recent = [];
   }
 
-  try {
-    const r = await fetch(`/api/hot-matches?limit_count=${limit}`);
-    if (r.ok) {
-      const d = await r.json();
-      const list = Array.isArray(d.matches) ? d.matches : [];
-      if (list.length > 0) return list.map((m) => mapHotMatch(m as Record<string, unknown>));
-    }
-  } catch {
-    // fall through
-  }
+  if (recent.length >= limit) return recent;
 
-  return [];
+  const hot = await fetchHotMatches(Math.max(limit, 20));
+  if (recent.length === 0) return hot;
+
+  const seen = new Set(
+    recent.map((m) => `${(m.startup_name || "").toLowerCase()}|${m.startup_id || ""}`),
+  );
+  const merged = [...recent];
+  for (const m of hot) {
+    const key = `${(m.startup_name || "").toLowerCase()}|${m.startup_id || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(m);
+    if (merged.length >= limit) break;
+  }
+  return merged;
 }
 
 export function useRecentMatches(limit = 5) {

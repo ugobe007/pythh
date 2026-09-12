@@ -44,8 +44,7 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.doesNotMatch(home, /<LiveMatchHighlight/);
   assert.doesNotMatch(home, /<SignalArtTeaser/);
   assert.doesNotMatch(home, /<AgentIntroSection/);
-  assert.match(home, /<HomeLiveMatches/);
-  assert.match(home, /<HomeLiveResults/);
+  assert.match(home, /<HomeLiveTape/);
 });
 
 test('homepage live board is a compact feed below the proof strip', () => {
@@ -55,8 +54,9 @@ test('homepage live board is a compact feed below the proof strip', () => {
   assert.match(board, /useRecentMatches/);
   assert.match(board, /\/api\/newsletter\/today/);
   assert.match(board, /Who just got funded/);
-  assert.match(board, /See all live matches/);
-  assert.match(board, /limit = 3/);
+  assert.match(board, /HomeLiveTape/);
+  assert.match(board, /LivewireMatchPanel/);
+  assert.match(board, /LIVEWIRE_PAGE_SIZE/);
   assert.match(board, /LIVE_TAPE_POOL/);
   assert.doesNotMatch(board, /INVESTOR_SIGNALS/);
   assert.doesNotMatch(board, /Loading the match network/);
@@ -64,14 +64,15 @@ test('homepage live board is a compact feed below the proof strip', () => {
 
 test('featured match is a six-row livewire tape and proof strip keeps the pair claim', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
+  const panel = readFileSync(new URL('../site/components/LivewireMatchPanel.tsx', import.meta.url), 'utf8');
   const proof = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
   const tokens = readFileSync(new URL('../site/lib/designTokens.ts', import.meta.url), 'utf8');
   const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
-  assert.match(featured, /FEATURED_PAGE_SIZE = 6/);
-  assert.match(featured, /Livewire matches/);
-  assert.match(featured, /Inspect the network/);
-  assert.match(featured, /ScoreBadge/);
-  assert.match(featured, /minHeight: 480/);
+  assert.match(featured, /FEATURED_PAGE_SIZE = LIVEWIRE_PAGE_SIZE/);
+  assert.match(panel, /LIVEWIRE_PAGE_SIZE = 6/);
+  assert.match(panel, /Livewire matches/);
+  assert.match(panel, /Inspect the network/);
+  assert.match(featured, /LivewireMatchPanel/);
   assert.doesNotMatch(featured, /Investor fit:/);
   assert.doesNotMatch(featured, /Startup GOD/);
   assert.doesNotMatch(featured, /Why this match/);
@@ -89,19 +90,20 @@ test('featured match is a six-row livewire tape and proof strip keeps the pair c
 test('homepage featured match and live tape rotate through a pool', () => {
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
   const tape = readFileSync(new URL('../site/components/HomeLiveNetwork.tsx', import.meta.url), 'utf8');
-  assert.match(featured, /FEATURED_PAGE_SIZE = 6/);
+  assert.match(featured, /FEATURED_PAGE_SIZE = LIVEWIRE_PAGE_SIZE/);
   assert.match(featured, /FEATURED_MATCH_POOL = 18/);
   assert.match(featured, /FEATURED_MATCH_FETCH = 20/);
   assert.match(featured, /FEATURED_MATCH_ROTATE_MS = 8000/);
   assert.match(featured, /uniqueMatchPairs/);
   assert.match(featured, /setInterval/);
   assert.match(featured, /prefers-reduced-motion/);
-  assert.match(featured, /Rotating live investor matches/);
-  assert.match(tape, /LIVE_TAPE_POOL = 9/);
+  assert.match(featured, /LivewireMatchPanel/);
+  assert.match(tape, /LIVE_TAPE_POOL = 18/);
   assert.match(tape, /uniqueMatchPairs/);
   assert.match(tape, /LIVE_TAPE_ROTATE_MS = 8000/);
   assert.match(tape, /setInterval/);
-  assert.match(tape, /Rotating live matches/);
+  assert.match(tape, /LivewireMatchPanel/);
+  assert.match(tape, /id="live-matches-next"/);
 });
 
 test('homepage sections use purple chrome and keep emerald for scores and CTAs', () => {
@@ -109,6 +111,7 @@ test('homepage sections use purple chrome and keep emerald for scores and CTAs',
   const home = readFileSync(new URL('../site/Home.tsx', import.meta.url), 'utf8');
   const proof = readFileSync(new URL('../site/components/HomeProofStrip.tsx', import.meta.url), 'utf8');
   const featured = readFileSync(new URL('../site/components/HomeFeaturedMatch.tsx', import.meta.url), 'utf8');
+  const panel = readFileSync(new URL('../site/components/LivewireMatchPanel.tsx', import.meta.url), 'utf8');
   assert.match(tokens, /PURPLE_ACCENT = "oklch\(0\.72 0\.16 305\)"/);
   assert.match(tokens, /PURPLE_WASH = "oklch\(0\.14 0\.03 305\)"/);
   assert.match(tokens, /export const PURPLE = G/);
@@ -116,8 +119,9 @@ test('homepage sections use purple chrome and keep emerald for scores and CTAs',
   assert.match(home, /PURPLE_ACCENT/);
   assert.match(proof, /PURPLE_ACCENT/);
   assert.match(proof, /color: G/);
-  assert.match(featured, /PURPLE_BORDER/);
-  assert.match(featured, /PURPLE_ACCENT/);
-  assert.match(featured, /Inspect the network/);
-  assert.match(featured, /GOLD/);
+  assert.match(featured, /LivewireMatchPanel/);
+  assert.match(panel, /PURPLE_BORDER/);
+  assert.match(panel, /PURPLE_ACCENT/);
+  assert.match(panel, /Inspect the network/);
+  assert.match(panel, /GOLD/);
 });

@@ -1246,7 +1246,7 @@ app.get('/api/hot-matches', async (req, res) => {
 // GET /api/recent-matches — latest startup↔investor pairings (by created_at)
 app.get('/api/recent-matches', async (req, res) => {
   try {
-    const limitCount = Math.min(Math.max(parseInt(req.query.limit, 10) || 5, 1), 20);
+    const limitCount = Math.min(Math.max(parseInt(req.query.limit, 10) || 5, 1), 24);
 
     const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
       cacheKey: `api:recent-matches:${limitCount}`,
@@ -1268,7 +1268,7 @@ app.get('/api/recent-matches', async (req, res) => {
             investors!investor_id ( name, firm )
           `)
           .order('created_at', { ascending: false })
-          .limit(100);
+          .limit(400);
 
         if (error) throw error;
 

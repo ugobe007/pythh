@@ -1,125 +1,30 @@
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
-import { uniqueMatchPairs, useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
-import { BORDER, CARD, DIM, G, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
+import { uniqueMatchPairs, useRecentMatches } from "@/components/RecentMatchesFeed";
+import { BORDER, CARD, DIM, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
+import { LIVEWIRE_PAGE_SIZE, LivewireMatchPanel, livewirePageCount } from "@/components/LivewireMatchPanel";
 import { useEffect, useMemo, useState } from "react";
 import { safeExternalUrl } from "@/lib/safeUrl";
 
-function investorLabel(m: RecentMatch) {
-  if (m.investor_firm && m.investor_firm !== m.investor_name && m.investor_firm !== "-") {
-    return m.investor_firm;
-  }
-  return m.investor_name;
+function parseAmountUsd(raw: string | null | undefined) {
+  if (raw == null || raw === "") return null;
+  const s = String(raw).trim();
+  const n = Number(String(s).replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (/[.]/.test(s) && /b/i.test(s)) return Math.round(n * 1_000_000_000);
+  if (/b/i.test(s) && n < 1000) return Math.round(n * 1_000_000_000);
+  if (/m/i.test(s) && n < 100_000) return Math.round(n * 1_000_000);
+  if (/k/i.test(s) && n < 100_000) return Math.round(n * 1_000);
+  return Math.round(n);
 }
 
 function formatAmount(raw: string | null | undefined) {
-  if (!raw) return "";
-  const s = String(raw).trim();
-  if (!s) return "";
-  if (/[$£€]/.test(s) && /[kmb]\b/i.test(s)) return s;
-  if (/\bmillion\b/i.test(s) || /\mbillion\b/i.test(s)) return s;
-  if (/\d+[kmb]\b/i.test(s)) return s;
-  const n = Number(s.replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(n) || n <= 0) return s;
+  const n = parseAmountUsd(raw);
+  if (!(n > 0)) return "";
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
   return `$${n.toLocaleString()}`;
-}
-
-const LIVE_TAPE_POOL = 9;
-const LIVE_TAPE_FETCH = 20;
-const LIVE_TAPE_ROTATE_MS = 8000;
-
-export function HomeLiveMatches({ limit = 3 }: { limit?: number }) {
-  const { matches: raw, loading } = useRecentMatches(LIVE_TAPE_FETCH);
-  const matches = useMemo(() => uniqueMatchPairs(raw, LIVE_TAPE_POOL), [raw]);
-  const [offset, setOffset] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const pageCount = matches.length > limit ? Math.ceil(matches.length / limit) : 1;
-  const visible = matches.length
-    ? Array.from({ length: Math.min(limit, matches.length) }, (_, i) => (
-      matches[(offset * limit + i) % matches.length]
-    ))
-    : [];
-
-  useEffect(() => {
-    if (pageCount < 2 || paused) return;
-    const reduce = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reduce) return;
-    const id = window.setInterval(() => {
-      setOffset((n) => (n + 1) % pageCount);
-    }, LIVE_TAPE_ROTATE_MS);
-    return () => window.clearInterval(id);
-  }, [pageCount, paused]);
-
-  return (
-    <aside
-      id="live-matches"
-      className="rounded-xl overflow-hidden text-left"
-      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 220 }}
-      aria-label="Rotating live matches"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p className="text-[13px] font-medium" style={{ color: PURPLE_ACCENT }}>
-          Live market signal
-        </p>
-        <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {loading
-            ? "Refreshing"
-            : pageCount > 1
-              ? `${offset + 1} of ${pageCount}`
-              : "Updated continuously"}
-        </span>
-      </div>
-      <div>
-        {loading && (
-          <div className="px-4 py-5 space-y-3" aria-hidden>
-            <div className="h-10 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
-            <div className="h-10 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
-            <div className="h-10 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
-          </div>
-        )}
-        {!loading && matches.length === 0 && (
-          <p className="px-4 py-6 text-[15px]" style={{ color: MUTED }}>
-            New pairings will land here as PYTHIA ranks startups against investors.
-          </p>
-        )}
-        {!loading && visible.map((m, i) => (
-          <Link
-            key={`${m.match_id}-${i}`}
-            href={m.startup_id ? `/startup/${encodeURIComponent(m.startup_id)}` : "/matches"}
-            className="flex items-center justify-between gap-3 px-4 py-3 transition-colors"
-            style={{ borderTop: `1px solid ${BORDER}` }}
-          >
-            <div className="min-w-0">
-              <p className="text-[15px] font-semibold truncate" style={{ color: TEXT }}>
-                {m.startup_name}
-                <span style={{ color: MUTED, fontWeight: 500 }}> → </span>
-                {investorLabel(m)}
-              </p>
-              <p className="text-[13px] mt-0.5" style={{ color: DIM }}>
-                {m.time_ago}
-              </p>
-            </div>
-            <span className="text-[13px] font-medium flex-shrink-0" style={{ color: G }}>
-              {Math.round(m.match_score)}/100
-            </span>
-          </Link>
-        ))}
-      </div>
-      <Link
-        href="/matches"
-        className="flex items-center justify-between px-4 py-3 text-[14px]"
-        style={{ borderTop: `1px solid ${BORDER}`, color: G }}
-      >
-        See all live matches <ArrowRight size={14} />
-      </Link>
-    </aside>
-  );
 }
 
 interface MoneyMove {
@@ -129,6 +34,54 @@ interface MoneyMove {
   investors?: string[];
   url?: string | null;
   source?: string;
+}
+
+const JUNK_SOURCE_RE = /dev\.to|reddit\.com|substack\.com|medium\.com/i;
+const JUNK_COMPANY_RE = /^(word art|sophie davies|goodspeed studio|wireframer|qz\.com|financialcontent|ciccone|needham massachusetts)/i;
+
+export function isPublicFundingMove(m: MoneyMove | null | undefined) {
+  if (!m?.company) return false;
+  if (JUNK_COMPANY_RE.test(m.company.trim())) return false;
+  const origin = `${m.source || ""} ${m.url || ""}`;
+  if (JUNK_SOURCE_RE.test(origin)) return false;
+  const usd = parseAmountUsd(m.amount);
+  return usd != null && usd >= 1_000_000;
+}
+
+const LIVE_TAPE_POOL = 18;
+const LIVE_TAPE_FETCH = 20;
+const LIVE_TAPE_ROTATE_MS = 8000;
+
+export function HomeLiveMatches({ limit = LIVEWIRE_PAGE_SIZE }: { limit?: number }) {
+  const { matches: raw, loading } = useRecentMatches(LIVE_TAPE_FETCH);
+  const matches = useMemo(() => uniqueMatchPairs(raw, LIVE_TAPE_POOL), [raw]);
+  const [page, setPage] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const size = Math.max(limit, LIVEWIRE_PAGE_SIZE);
+  const pageCount = livewirePageCount(matches.length, size);
+
+  useEffect(() => {
+    if (pageCount < 2 || paused) return;
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    const id = window.setInterval(() => {
+      setPage((n) => (n + 1) % pageCount);
+    }, LIVE_TAPE_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [pageCount, paused]);
+
+  return (
+    <LivewireMatchPanel
+      id="live-matches"
+      matches={matches}
+      loading={loading}
+      page={page}
+      pageCount={pageCount}
+      onPage={setPage}
+      onPause={setPaused}
+    />
+  );
 }
 
 interface LiveBrief {
@@ -160,18 +113,22 @@ export function HomeLiveResults() {
   }, []);
 
   const moves = (brief?.moneyMoves || brief?.fundingRounds || [])
-    .filter((m) => m?.company)
+    .filter(isPublicFundingMove)
     .slice(0, 6);
 
   return (
     <aside
       id="live-results"
-      className="rounded-xl overflow-hidden text-left"
-      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 220 }}
+      className="rounded-xl overflow-hidden text-left flex flex-col"
+      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 480 }}
       aria-label="Who just got funded"
     >
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p className="text-[13px] font-medium" style={{ color: PURPLE_ACCENT }}>
+      <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
+        <p
+          className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase flex items-center gap-2"
+          style={{ color: PURPLE_ACCENT }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: PURPLE_ACCENT }} aria-hidden />
           Who just got funded
         </p>
         <span className="text-[12px] font-mono" style={{ color: DIM }}>
@@ -179,32 +136,45 @@ export function HomeLiveResults() {
         </span>
       </div>
       {!ready && (
-        <div className="px-4 py-5 space-y-3" aria-hidden>
-          <div className="h-10 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
-          <div className="h-10 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
-          <div className="h-10 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+        <div className="flex-1 px-5 py-4 space-y-3" aria-hidden>
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
       )}
       {ready && moves.length === 0 && (
-        <p className="px-4 py-6 text-[15px]" style={{ color: MUTED }}>
+        <p className="flex-1 px-5 py-8 text-[15px] leading-relaxed" style={{ color: MUTED }}>
           Today&rsquo;s funding tape is still compiling.
         </p>
       )}
-      {moves.map((m) => {
+      {moves.map((m, i) => {
         const amount = formatAmount(m.amount);
         const firms = (m.investors || []).slice(0, 3).join(", ");
         const safeUrl = safeExternalUrl(m.url);
         const inner = (
           <>
             <div className="min-w-0">
-              <p className="text-[15px] font-semibold truncate" style={{ color: TEXT }}>{m.company}</p>
-              <p className="text-[13px] mt-0.5 truncate" style={{ color: DIM }}>
+              <p className="font-display font-bold text-[1.02rem] leading-tight truncate" style={{ color: TEXT }}>
+                {m.company}
+              </p>
+              <p className="text-[12px] font-mono mt-1 truncate" style={{ color: DIM }}>
                 {m.stage && m.stage !== "Unknown" ? m.stage : "Raise"}
-                {firms ? ` · ${firms}` : m.source ? ` · ${m.source}` : ""}
+                {firms ? ` -- ${firms}` : ""}
               </p>
             </div>
             {amount ? (
-              <span className="text-[14px] font-medium flex-shrink-0" style={{ color: GOLD }}>{amount}</span>
+              <span
+                className="flex-shrink-0 inline-flex items-center justify-center rounded-full text-[11px] font-mono font-semibold tabular-nums px-2.5"
+                style={{
+                  minWidth: 36,
+                  height: 36,
+                  color: GOLD,
+                  border: "1px solid oklch(0.769 0.188 70.08 / 0.45)",
+                  background: "oklch(0.769 0.188 70.08 / 0.08)",
+                }}
+              >
+                {amount}
+              </span>
             ) : null}
           </>
         );
@@ -214,16 +184,16 @@ export function HomeLiveResults() {
             href={safeUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-between gap-3 px-4 py-3"
-            style={{ borderTop: `1px solid ${BORDER}` }}
+            className="flex items-center justify-between gap-4 px-5 py-3.5"
+            style={{ borderTop: i === 0 ? undefined : `1px solid ${BORDER}` }}
           >
             {inner}
           </a>
         ) : (
           <div
             key={`${m.company}-${m.amount}`}
-            className="flex items-center justify-between gap-3 px-4 py-3"
-            style={{ borderTop: `1px solid ${BORDER}` }}
+            className="flex items-center justify-between gap-4 px-5 py-3.5"
+            style={{ borderTop: i === 0 ? undefined : `1px solid ${BORDER}` }}
           >
             {inner}
           </div>
@@ -231,11 +201,54 @@ export function HomeLiveResults() {
       })}
       <Link
         href="/newsletter"
-        className="flex items-center justify-between px-4 py-3 text-[14px]"
-        style={{ borderTop: `1px solid ${BORDER}`, color: G }}
+        className="mt-auto flex items-center justify-between px-5 py-3 text-[14px]"
+        style={{ borderTop: `1px solid ${BORDER}`, color: PURPLE_ACCENT }}
       >
         Read today&rsquo;s brief <ArrowRight size={14} />
       </Link>
     </aside>
+  );
+}
+
+export function HomeLiveTape() {
+  const { matches: raw, loading } = useRecentMatches(LIVE_TAPE_FETCH);
+  const matches = useMemo(() => uniqueMatchPairs(raw, LIVE_TAPE_POOL), [raw]);
+  const [page, setPage] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const pageCount = livewirePageCount(matches.length, LIVEWIRE_PAGE_SIZE, 2);
+  const nextPage = (page + 1) % pageCount;
+
+  useEffect(() => {
+    if (pageCount < 2 || paused) return;
+    const reduce = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    const id = window.setInterval(() => {
+      setPage((n) => (n + 1) % pageCount);
+    }, LIVE_TAPE_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, [pageCount, paused]);
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-8 items-stretch">
+      <LivewireMatchPanel
+        id="live-matches"
+        matches={matches}
+        loading={loading}
+        page={page}
+        pageCount={pageCount}
+        onPage={setPage}
+        onPause={setPaused}
+      />
+      <LivewireMatchPanel
+        id="live-matches-next"
+        matches={matches}
+        loading={loading}
+        page={nextPage}
+        pageCount={pageCount}
+        onPage={(n) => setPage((n + pageCount - 1) % pageCount)}
+        onPause={setPaused}
+      />
+    </div>
   );
 }
