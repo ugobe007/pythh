@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 const {
   classifyFundingEvidence,
+  clusterCompatibleRoundEvents,
   isServeGradeStartupIdentity,
   normalizeEntityName,
 } = loadFundingEvidenceLedger();
@@ -121,6 +122,13 @@ function eventTime(event) {
 }
 
 function fundingGaps(events, predictedAt, horizonEnd) {
+  const clustered = clusterCompatibleRoundEvents(events.filter((row) => row.canonical_round_key));
+  const trustedSiblingIds = new Set();
+  for (const cluster of clustered) {
+    if (cluster.events.some((event) => trustedOutcome(event))) {
+      for (const event of cluster.events) trustedSiblingIds.add(event.id);
+    }
+  }
   const gaps = [];
   for (const event of events) {
     const at = eventTime(event);
@@ -135,6 +143,8 @@ function fundingGaps(events, predictedAt, horizonEnd) {
     if (!eligible || event.verification_status === 'rejected') continue;
     if (trustedOutcome(event) && discoveredAt >= predictedAt) continue;
     if (event.verification_status === 'observed' && !assessFundingSource(event).trusted) {
+      // Already unlocked: Pulse2/FinSMEs copy of a trusted issuer-wire / corroborated cluster.
+      if (trustedSiblingIds.has(event.id)) continue;
       gaps.push({
         kind: 'untrusted_observed',
         event_id: event.id,
@@ -161,7 +171,7 @@ function fundingGaps(events, predictedAt, horizonEnd) {
 
 const [snapshots, events, memberships] = await Promise.all([
   all('funding_prediction_snapshots', 'id,cohort_key,startup_id,investor_id,rank_position,predicted_at'),
-  all('funding_evidence_events', 'id,startup_id,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,source_title,metadata'),
+  all('funding_evidence_events', 'id,startup_id,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,source_title,canonical_round_key,metadata'),
   all('investor_organization_memberships', 'investor_id,organization_id'),
 ]);
 const allSets = buildPredictionSets(snapshots);
