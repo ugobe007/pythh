@@ -61,14 +61,18 @@ async function main() {
   for (const cluster of clustered) {
     const events = cluster.events;
     const canonicalRoundKey = cluster.key;
-    if (!events.every(event => isPromotionSafeStartupName(event.startup_name_raw))) continue;
-    const financingSafe = events.every(event => classifyFundingEvidence({
-      event_type: 'FUNDING',
-      source_title: event.source_title,
-      frame_confidence: 1,
-      extraction_meta: { decision: 'ACCEPT', graph_safe: true },
-    }).eligible);
-    if (!financingSafe) continue;
+    // Verified rows already passed promotion checks; only gate on unverified siblings.
+    const unverifiedEvents = events.filter(event => event.verification_status !== 'verified');
+    if (unverifiedEvents.length > 0) {
+      if (!unverifiedEvents.every(event => isPromotionSafeStartupName(event.startup_name_raw))) continue;
+      const financingSafe = unverifiedEvents.every(event => classifyFundingEvidence({
+        event_type: 'FUNDING',
+        source_title: event.source_title,
+        frame_confidence: 1,
+        extraction_meta: { decision: 'ACCEPT', graph_safe: true },
+      }).eligible);
+      if (!financingSafe) continue;
+    }
     const domains = [...new Set(events.map(independentSource).filter(Boolean))];
     const trusted = events.map(event => ({ event, assessment: assessFundingSource(event) })).filter(row => row.assessment.trusted);
     if (domains.length < 2 && trusted.length === 0) continue;
