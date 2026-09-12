@@ -4,8 +4,8 @@ import { ArrowRight } from "lucide-react";
 import { uniqueMatchPairs, useRecentMatches, type RecentMatch } from "@/components/RecentMatchesFeed";
 import { BORDER, CARD, DIM, G, MUTED, PURPLE_ACCENT, PURPLE_BORDER, TEXT } from "@/lib/designTokens";
 
-export const FEATURED_PAGE_SIZE = 3;
-export const FEATURED_MATCH_POOL = 9;
+export const FEATURED_PAGE_SIZE = 5;
+export const FEATURED_MATCH_POOL = 15;
 export const FEATURED_MATCH_FETCH = 20;
 export const FEATURED_MATCH_ROTATE_MS = 8000;
 
@@ -53,7 +53,7 @@ export default function HomeFeaturedMatch() {
     <aside
       id="featured-match"
       className="rounded-xl text-left flex flex-col"
-      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 280 }}
+      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}`, minHeight: 420 }}
       aria-label="Rotating live investor matches"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
@@ -72,6 +72,8 @@ export default function HomeFeaturedMatch() {
           <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
           <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
           <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+          <div className="h-12 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
         </div>
       ) : visible.length ? (
         <div className="flex-1" aria-live="polite">
@@ -79,7 +81,7 @@ export default function HomeFeaturedMatch() {
             <Link
               key={`${m.match_id}-${i}`}
               href={m.startup_id ? `/startup/${encodeURIComponent(m.startup_id)}` : "/matches"}
-              className="flex items-baseline justify-between gap-4 px-5 py-4"
+              className="flex items-baseline justify-between gap-4 px-5 py-5"
               style={{ borderTop: i === 0 ? undefined : `1px solid ${BORDER}` }}
             >
               <span className="font-display font-bold text-[1.05rem] leading-tight truncate" style={{ color: TEXT }}>
