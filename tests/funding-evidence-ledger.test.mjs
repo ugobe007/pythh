@@ -1124,6 +1124,8 @@ test('corroboration requires two independent sources or one reviewed trusted sou
   assert.match(script, /canonical_round_key/);
   assert.match(script, /process\.argv\.includes\('--apply'\)/);
   assert.match(script, /loadFundingEvidenceLedger/);
+  assert.match(script, /verification_status', 'verified'/);
+  assert.match(script, /Never rewrite a verified row/);
 });
 
 test('missing funding investors are seeded only from reviewed first-party profiles', () => {
