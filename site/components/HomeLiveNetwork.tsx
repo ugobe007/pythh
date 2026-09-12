@@ -215,8 +215,9 @@ export function HomeLiveTape() {
   const matches = useMemo(() => uniqueMatchPairs(raw, LIVE_TAPE_POOL), [raw]);
   const [page, setPage] = useState(0);
   const [paused, setPaused] = useState(false);
-  const pageCount = livewirePageCount(matches.length, LIVEWIRE_PAGE_SIZE, 2);
-  const nextPage = (page + 1) % pageCount;
+  const pageCount = livewirePageCount(matches.length, LIVEWIRE_PAGE_SIZE);
+  const showSecond = pageCount >= 2;
+  const nextPage = showSecond ? (page + 1) % pageCount : 0;
 
   useEffect(() => {
     if (pageCount < 2 || paused) return;
@@ -230,7 +231,7 @@ export function HomeLiveTape() {
   }, [pageCount, paused]);
 
   return (
-    <div className="grid lg:grid-cols-2 gap-8 items-stretch">
+    <div className={showSecond ? "grid lg:grid-cols-2 gap-8 items-stretch" : ""}>
       <LivewireMatchPanel
         id="live-matches"
         matches={matches}
@@ -240,15 +241,17 @@ export function HomeLiveTape() {
         onPage={setPage}
         onPause={setPaused}
       />
-      <LivewireMatchPanel
-        id="live-matches-next"
-        matches={matches}
-        loading={loading}
-        page={nextPage}
-        pageCount={pageCount}
-        onPage={(n) => setPage((n + pageCount - 1) % pageCount)}
-        onPause={setPaused}
-      />
+      {showSecond ? (
+        <LivewireMatchPanel
+          id="live-matches-next"
+          matches={matches}
+          loading={loading}
+          page={nextPage}
+          pageCount={pageCount}
+          onPage={(n) => setPage((n + pageCount - 1) % pageCount)}
+          onPause={setPaused}
+        />
+      ) : null}
     </div>
   );
 }
