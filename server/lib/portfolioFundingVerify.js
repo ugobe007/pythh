@@ -50,12 +50,16 @@ function extractValuationUsd(text) {
     const around = raw.slice(Math.max(0, (m.index || 0) - 6), (m.index || 0) + m[0].length);
     if (/€|eur(?:os?)?\b/i.test(around) && !/\$|usd\b/i.test(around)) continue;
     const usd = parseMoneyToken(m[1], m[2]);
-    if (usd) return usd;
+    if (usd) {
+      const isPreMoney = /\bpre[-\s]?money\b/i.test(m[0]);
+      if (isPreMoney) return null;
+      return usd;
+    }
   }
   return null;
 }
 
-const RUMOR_HEADLINE_RE = /\b(eyes|reportedly|in talks|set to raise|poised to raise|seeking(?: to)?(?: raise)?|looking to raise|rumou?r(?:ed)?|sources say|could raise|talks to raise)\b/i;
+const RUMOR_HEADLINE_RE = /\b(eyes\s+\$|reportedly|in talks|set to raise|poised to raise|seeking to raise|looking to raise|rumou?r(?:ed)?|sources say|could raise|talks to raise)\b/i;
 
 function isRumorFundingHeadline(text) {
   return RUMOR_HEADLINE_RE.test(String(text || ''));
@@ -64,7 +68,7 @@ function isRumorFundingHeadline(text) {
 const ACQUISITION_HEADLINE_RE = /\b(acquires?|acquired|acquisition)\b/i;
 const FUNDING_ROUND_HEADLINE_RE = /\b(raises?|raised|series\s+[a-e]|seed\s+round|funding\s+round)\b/i;
 const NON_EQUITY_HEADLINE_RE = /\b(debt|credit facility|loan facility|venture debt|convertible notes?|line of credit|term loan|facility|dao|budget|grant|treasury)\b/i;
-const FOREIGN_NAME_SUFFIX_RE = /\s+(power|mobility|energy|inc\.?|corp\.?|therapeutics|biosciences|dao)\b/i;
+const FOREIGN_NAME_SUFFIX_RE = /\s+(power|mobility|energy|therapeutics|biosciences|dao)\b/i;
 
 function companyIsAcquisitionTarget(headline, companyName) {
   const text = String(headline || '');
