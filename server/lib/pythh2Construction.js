@@ -323,6 +323,7 @@ function selectPythh2Book(candidates, options = {}) {
     const counts = {};
     const deferred = [];
     for (const row of eligible) {
+      if (picks.length >= cfg.target) break;
       if (row.god < threshold) continue;
       const n = counts[row.industry] || 0;
       if (n >= cap) {
@@ -331,7 +332,6 @@ function selectPythh2Book(candidates, options = {}) {
       }
       picks.push(row);
       counts[row.industry] = n + 1;
-      if (picks.length >= cfg.target) break;
     }
     return { picks, counts, deferred };
   };
