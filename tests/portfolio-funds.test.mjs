@@ -47,6 +47,7 @@ test('portfolio page exposes both vintages', () => {
   assert.match(page, /Pythh_1/);
   assert.match(page, /Pythh_2/);
   assert.match(page, /fund=\$\{fund\}/);
+  assert.match(page, /if \(fund === "pythh_1"\)/);
   const api = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
   assert.match(api, /\/api\/portfolio\/funds/);
   assert.match(api, /fund_key: fundKey/);

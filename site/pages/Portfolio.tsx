@@ -468,6 +468,9 @@ export default function Portfolio() {
     setMetricsLoading(true);
     setSlowHint(false);
     setError(null);
+    setEntries([]);
+    setMetrics(null);
+    if (fund === "pythh_2") setAnalytics(null);
 
     // Surface a "still loading" hint if a cold backend is slow to wake.
     const slowTimer = setTimeout(() => setSlowHint(true), 6000);
@@ -477,9 +480,11 @@ export default function Portfolio() {
       .catch(() => {})
       .finally(() => setMetricsLoading(false));
 
-    fetchJson<PortfolioAnalytics>(`/api/portfolio/analytics?fund=${fund}`)
-      .then((data) => setAnalytics(data ?? null))
-      .catch(() => {});
+    if (fund === "pythh_1") {
+      fetchJson<PortfolioAnalytics>(`/api/portfolio/analytics?fund=${fund}`)
+        .then((data) => setAnalytics(data ?? null))
+        .catch(() => {});
+    }
 
     try {
       const sortQ = sortBy === "health" ? "health" : "god";
@@ -566,7 +571,7 @@ export default function Portfolio() {
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),
           label: "Virtual capital",
-          sub: "$100K / pick",
+          sub: fund === "pythh_2" ? "open vintage · $100K / pick" : "$100K / pick",
         },
       ]
     : [];
