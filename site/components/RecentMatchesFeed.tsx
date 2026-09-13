@@ -30,7 +30,7 @@ const MEMORY_TTL_MS = 15_000;
 const SESSION_TTL_MS = 5 * 60_000;
 const SESSION_KEY = "pythh_livewire_matches";
 
-let memoryCache: { at: number; matches: RecentMatch[] } | null = null;
+let memoryCache: { at: number; limit: number; matches: RecentMatch[] } | null = null;
 let inflight: Promise<RecentMatch[]> | null = null;
 
 function formatTimeAgo(iso: string) {
@@ -82,16 +82,22 @@ function writeSessionMatches(matches: RecentMatch[]) {
   }
 }
 
-export function peekCachedMatches(): RecentMatch[] {
+export function peekCachedMatches(limit?: number): RecentMatch[] {
   if (memoryCache && Date.now() - memoryCache.at < MEMORY_TTL_MS && memoryCache.matches.length) {
-    return memoryCache.matches;
+    if (!limit || memoryCache.matches.length >= limit) {
+      return memoryCache.matches;
+    }
   }
-  return readSessionMatches();
+  const session = readSessionMatches();
+  if (!limit || session.length >= limit) {
+    return session;
+  }
+  return [];
 }
 
-function cacheMatches(matches: RecentMatch[]) {
+function cacheMatches(matches: RecentMatch[], limit: number) {
   if (!matches.length) return;
-  memoryCache = { at: Date.now(), matches };
+  memoryCache = { at: Date.now(), limit, matches };
   writeSessionMatches(matches);
 }
 
@@ -121,7 +127,7 @@ async function loadRecentMatches(limit: number): Promise<RecentMatch[]> {
 
 async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
   const now = Date.now();
-  if (memoryCache && now - memoryCache.at < MEMORY_TTL_MS && memoryCache.matches.length) {
+  if (memoryCache && now - memoryCache.at < MEMORY_TTL_MS && memoryCache.matches.length >= limit) {
     return memoryCache.matches;
   }
   if (inflight) return inflight;
@@ -129,7 +135,7 @@ async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
   inflight = (async () => {
     try {
       const matches = await loadRecentMatches(limit);
-      cacheMatches(matches);
+      cacheMatches(matches, limit);
       return matches;
     } finally {
       inflight = null;
@@ -139,8 +145,8 @@ async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
 }
 
 export function useRecentMatches(limit = 5) {
-  const [matches, setMatches] = useState<RecentMatch[]>(() => peekCachedMatches());
-  const [loading, setLoading] = useState(() => peekCachedMatches().length === 0);
+  const [matches, setMatches] = useState<RecentMatch[]>(() => peekCachedMatches(limit));
+  const [loading, setLoading] = useState(() => peekCachedMatches(limit).length === 0);
 
   useEffect(() => {
     let cancelled = false;
