@@ -619,7 +619,7 @@ export default function Portfolio() {
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: MUTED }}>
             {fund === "pythh_2"
-              ? "Second virtual vintage. Pythh_1 stays locked so its MOIC is not diluted. New picks land here."
+              ? "Second virtual vintage. Top GOD first, then industry mix. Early names only — each pick starts at 1.0× until press-verified evidence. Pythh_1 stays locked."
               : "First virtual vintage. Locked cohort — marks move only on press-verified evidence. New picks go to Pythh_2."}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -1169,7 +1169,7 @@ export default function Portfolio() {
         ) : filtered.length === 0 ? (
           <p className="text-center py-24 text-sm" style={{ color: MUTED }}>
             {fund === "pythh_2"
-              ? "Pythh_2 is open and empty. New picks land here so Pythh_1 MOIC stays a locked vintage."
+              ? "Pythh_2 has no picks yet. Construction takes top GOD first, then mixes industry types."
               : "No entries yet — Pythh_1 is the locked first book."}
           </p>
         ) : (

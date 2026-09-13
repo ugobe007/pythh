@@ -10312,48 +10312,50 @@ app.post('/api/admin/portfolio/seed', async (req, res) => {
       return res.status(423).json({ error: 'fund_locked', message: lockNote(fundKey) });
     }
     const supabase = getSupabaseClient();
-    const threshold = parseInt(req.body?.threshold || '70', 10);
+    const { selectPythh2Book, buildPythh2InsertRow, DEFAULTS } = require('./lib/pythh2Construction');
+    const target = Math.min(parseInt(req.body?.target || String(DEFAULTS.target), 10), 60);
+    const minGod = parseInt(req.body?.threshold || req.body?.min_god || String(DEFAULTS.minGod), 10);
 
-    const { data: startups, error: err1 } = await supabase
-      .from('startup_uploads')
-      .select('id, name, stage, total_god_score, valuation_usd, created_at')
-      .eq('status', 'approved')
-      .eq('entity_gate', 'qualified')
-      .gte('total_god_score', threshold)
-      .order('total_god_score', { ascending: false });
+    const page = 1000;
+    let from = 0;
+    const startups = [];
+    while (true) {
+      const { data, error: err1 } = await supabase
+        .from('startup_uploads')
+        .select('id, name, website, tagline, sectors, stage, status, entity_gate, total_god_score, valuation_usd, total_funding_usd')
+        .eq('status', 'approved')
+        .eq('entity_gate', 'qualified')
+        .gte('total_god_score', DEFAULTS.minGodFloor)
+        .order('total_god_score', { ascending: false })
+        .range(from, from + page - 1);
+      if (err1) return res.status(500).json({ error: err1.message });
+      startups.push(...(data || []));
+      if (!data || data.length < page) break;
+      from += page;
+    }
 
-    if (err1) return res.status(500).json({ error: err1.message });
+    const { data: existing } = await supabase.from('virtual_portfolio').select('startup_id');
+    const existingIds = new Set((existing || []).map((e) => e.startup_id));
+    const book = selectPythh2Book(startups, { takenIds: existingIds, target, minGod });
 
-    const { data: existing } = await supabase.from('virtual_portfolio').select('startup_id').eq('status', 'active');
-    const existingIds = new Set((existing || []).map(e => e.startup_id));
-
-    let added = 0, skipped = 0;
+    let added = 0;
     const errors = [];
-
-    for (const su of (startups || [])) {
-      if (existingIds.has(su.id)) { skipped++; continue; }
-      const godScore = su.total_god_score || threshold;
-      const entryVal = su.valuation_usd || _estimateEntryValuation(su.stage, godScore);
-
-      const { error } = await supabase.from('virtual_portfolio').insert({
-        startup_id: su.id,
-        entry_date: su.created_at || new Date().toISOString(),
-        entry_stage: su.stage || null,
-        entry_god_score: godScore,
-        entry_valuation_usd: entryVal,
-        entry_rationale: `Auto-seeded: GOD ${godScore} ≥ ${threshold}`,
-        virtual_check_usd: 100000,
-        current_valuation_usd: entryVal,
-        moic: 1.0,
-        added_by: 'admin-seed',
-        fund_key: fundKey,
-      });
-
+    const now = new Date();
+    for (const su of book.picks) {
+      const { error } = await supabase.from('virtual_portfolio').insert(
+        buildPythh2InsertRow(su, { now, addedBy: 'admin-seed' }),
+      );
       if (error && error.code !== '23505') errors.push(`${su.name}: ${error.message}`);
       else added++;
     }
 
-    res.json({ added, skipped, errors, fund: fundKey });
+    res.json({
+      added,
+      skipped: book.skipped.length,
+      errors,
+      fund: fundKey,
+      stats: book.stats,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

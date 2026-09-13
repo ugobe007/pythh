@@ -24,7 +24,7 @@ const FUNDS = {
     lock_date: null,
     inception: '2026-09-13',
     check_usd: 100000,
-    thesis: 'Second virtual vintage. New picks after Pythh_1 lock. Empty until a pick is added here.',
+    thesis: 'Second virtual vintage. Top GOD first, then industry mix. Early entry only — new picks start at 1.0× until press-verified evidence.',
   },
 };
 
