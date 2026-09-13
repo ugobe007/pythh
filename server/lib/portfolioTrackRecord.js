@@ -194,11 +194,18 @@ async function computeTrackRecord(supabase, { fundKey } = {}) {
   if (evErr) throw new Error(evErr.message);
 
   const fundingEvents = (outcomeEvents || []).filter((e) => e.event_type === 'funding_round');
+  const baseMetrics = wanted === PYTHH_1 ? enrichPortfolioMetrics(metricsRow || {}) : {};
   const metrics = applyCleanPortfolioMetrics(
-    enrichPortfolioMetrics(metricsRow || {}),
+    baseMetrics,
     picks || [],
     outcomeEvents || []
   );
+  // Recompute avg_moic from fund-filtered positions
+  const early = (picks || []).filter((p) => !p.entity_quarantined && !p.entered_late && p.moic != null);
+  const moics = early.map((p) => Number(p.moic)).filter((n) => Number.isFinite(n));
+  metrics.avg_moic = moics.length
+    ? Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100
+    : null;
   const { fundedIds, verifiedFundedIds, pickById } = postEntryFundingSets(picks || [], fundingEvents);
   const firstFundingDays = [];
 

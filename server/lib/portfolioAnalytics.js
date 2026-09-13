@@ -419,10 +419,12 @@ async function computePortfolioValue(supabase, { fundKey } = {}) {
   const irrMeaningful =
     irr != null && fundAgeDays != null && fundAgeDays >= 365 && Math.abs(irr) < 3;
 
-  // Headline avg MOIC: portfolio_metrics view (synced per-position marks, early clean cohort).
-  const { data: metricsRow } = await supabase.from('portfolio_metrics').select('avg_moic').maybeSingle();
+  // Headline avg MOIC: compute from fund-filtered early positions (not global view).
+  const earlyMoics = rows
+    .filter((p) => !p.entity_quarantined && !p.entered_late && Number.isFinite(Number(p.moic)))
+    .map((p) => Number(p.moic));
   const headlineAvgMoic =
-    metricsRow?.avg_moic != null ? Number(metricsRow.avg_moic) : avgMoicEarly;
+    earlyMoics.length ? Math.round((earlyMoics.reduce((a, b) => a + b, 0) / earlyMoics.length) * 100) / 100 : avgMoicEarly;
 
   return {
     positions,
@@ -598,12 +600,15 @@ function compareToBenchmarks(metrics, value) {
 }
 
 /** Data-driven strategy + trend read from picks, sectors, and GOD-tier conversion. */
-async function describeStrategyAndTrend(supabase, metrics, trackRecord) {
-  const { data: picks } = await supabase
+async function describeStrategyAndTrend(supabase, metrics, trackRecord, { fundKey } = {}) {
+  const { filterByFund, PYTHH_1, resolveFundKey } = require('./portfolioFunds');
+  const wanted = resolveFundKey(fundKey || PYTHH_1);
+  
+  const { data: picksRaw } = await supabase
     .from('virtual_portfolio')
-    .select('startup_id, status, entry_god_score, entry_stage, entry_date');
+    .select('startup_id, status, entry_god_score, entry_stage, entry_date, fund_key');
 
-  const rows = picks || [];
+  const rows = filterByFund(picksRaw || [], wanted);
 
   // Sector concentration via startup_uploads.
   const ids = rows.map((r) => r.startup_id).filter(Boolean);

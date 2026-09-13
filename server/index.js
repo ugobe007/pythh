@@ -9947,7 +9947,7 @@ async function enrichPortfolioEntries(supabase, rows, { includeExitPropensity = 
   });
 }
 
-// GET /api/portfolio — public listing from portfolio_health view (tiers + momentum)
+  // GET /api/portfolio — public listing from portfolio_health view (tiers + momentum)
 // sort=god (default) | health (review/watch first, then worst GOD delta)
 app.get('/api/portfolio', async (req, res) => {
   try {
@@ -9962,7 +9962,15 @@ app.get('/api/portfolio', async (req, res) => {
     const { resolveFundKey } = require('./lib/portfolioFunds');
     const fundKey = resolveFundKey(req.query.fund);
 
-    let query = supabase.from('portfolio_health').select('*').limit(limit);
+    // Get fund IDs first so we can filter BEFORE limiting
+    const { data: fundRows, error: fundErr } = await supabase
+      .from('virtual_portfolio')
+      .select('id')
+      .eq('fund_key', fundKey);
+    if (fundErr) return res.status(500).json({ error: fundErr.message });
+    const fundIds = new Set((fundRows || []).map((r) => r.id));
+
+    let query = supabase.from('portfolio_health').select('*').in('id', Array.from(fundIds)).limit(limit);
 
     if (status) query = query.eq('status', status);
     if (excludeQuarantined) query = query.eq('entity_quarantined', false);
@@ -9980,13 +9988,6 @@ app.get('/api/portfolio', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
 
     let rows = data || [];
-    const { data: fundRows, error: fundErr } = await supabase
-      .from('virtual_portfolio')
-      .select('id')
-      .eq('fund_key', fundKey);
-    if (fundErr) return res.status(500).json({ error: fundErr.message });
-    const fundIds = new Set((fundRows || []).map((r) => r.id));
-    rows = rows.filter((r) => fundIds.has(r.id));
     if (excludeQuarantined) {
       rows = rows.filter((r) => r.status !== 'written_off');
       rows = await filterPublicPortfolioRows(supabase, rows);
@@ -10060,13 +10061,12 @@ app.get('/api/portfolio/metrics', async (req, res) => {
     const outcomes = (outcomeRowsRes.data || []).filter((e) => positionIds.has(e.portfolio_id));
     const base = fundKey === PYTHH_1 ? enrichPortfolioMetrics(metricsRes.data || {}) : {};
     const metrics = applyCleanPortfolioMetrics(base, positions, outcomes);
-    if (fundKey !== PYTHH_1) {
-      const early = positions.filter((p) => !p.entity_quarantined && !p.entered_late && p.moic != null);
-      const moics = early.map((p) => Number(p.moic)).filter((n) => Number.isFinite(n));
-      metrics.avg_moic = moics.length
-        ? Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100
-        : null;
-    }
+    // Recompute avg_moic from fund-filtered positions for all vintages
+    const early = positions.filter((p) => !p.entity_quarantined && !p.entered_late && p.moic != null);
+    const moics = early.map((p) => Number(p.moic)).filter((n) => Number.isFinite(n));
+    metrics.avg_moic = moics.length
+      ? Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100
+      : null;
     metrics.verified_avg_moic = trackRecord?.oracle?.verified_avg_moic ?? null;
     metrics.headline_avg_moic = metrics.avg_moic;
     metrics.fund = getFund(fundKey);
@@ -10111,9 +10111,10 @@ app.get('/api/portfolio/analytics', async (req, res) => {
       computeSignalVelocity(supabase).catch((e) => ({ error: e.message })),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
-    const metrics = enrichPortfolioMetrics(metricsRes.data || {});
-    const benchmarks = compareToBenchmarks(metrics, value);
-    const { strategy, trend } = await describeStrategyAndTrend(supabase, metrics, trackRecord);
+    // Use fund-scoped metrics from trackRecord for benchmarks and strategy
+    const fundMetrics = trackRecord?.oracle || enrichPortfolioMetrics(metricsRes.data || {});
+    const benchmarks = compareToBenchmarks(fundMetrics, value);
+    const { strategy, trend } = await describeStrategyAndTrend(supabase, fundMetrics, trackRecord, { fundKey });
     const follow_on = followOnRes && !followOnRes.error ? followOnRes : null;
     const signal = signalRes && !signalRes.error ? signalRes : null;
     const velocity = velocityRes && !velocityRes.error ? velocityRes : null;
