@@ -16,6 +16,7 @@ test('livewire meta uses today + GOD without inventing a 60-day hold', async () 
     livewireHeaderStatus,
     livewirePageCount,
   } = require('../site/components/LivewireMatchPanel.tsx');
+  const { uniqueMatchPairs } = require('../site/components/RecentMatchesFeed.tsx');
 
   assert.equal(livewireTimeLabel('just now'), 'today');
   assert.equal(livewireTimeLabel('12m ago'), 'today');
@@ -45,6 +46,14 @@ test('livewire meta uses today + GOD without inventing a 60-day hold', async () 
   assert.equal(livewireHeaderStatus(true, 0, 0, 2), 'Refreshing');
   assert.equal(livewireHeaderStatus(false, 6, 1, 3), '2 of 3');
   assert.equal(livewireHeaderStatus(false, 6, 0, 1), 'Live network');
+
+  const surfaced = uniqueMatchPairs([
+    { startup_name: 'AssetPlus', investor_firm: 'Headline', investor_name: 'A', match_score: 50 },
+    { startup_name: 'Summit Wealth', investor_firm: 'Headline', investor_name: 'B', match_score: 55 },
+    { startup_name: 'Scotch', investor_firm: 'Coinbase Ventures', investor_name: 'C', match_score: 65 },
+    { startup_name: 'AssetPlus', investor_firm: 'Headline', investor_name: 'A', match_score: 50 },
+  ], 18);
+  assert.deepEqual(surfaced.map((m) => m.startup_name), ['AssetPlus', 'Summit Wealth', 'Scotch']);
 });
 
 test('live tape renders two filled livewire match panels', () => {
@@ -52,6 +61,7 @@ test('live tape renders two filled livewire match panels', () => {
   assert.match(tape, /id="live-matches"/);
   assert.match(tape, /id="live-matches-next"/);
   assert.match(tape, /nextPage/);
+  assert.match(tape, /showSecond/);
   assert.match(tape, /livewirePageCount/);
   assert.doesNotMatch(tape, /showFunding/);
 });

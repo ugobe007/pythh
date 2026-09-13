@@ -7,6 +7,7 @@ import { useEffect, useState, useRef } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CircleDot } from "lucide-react";
 import { G, G_BORDER, AMBER, MUTED, DIM, BORDER, TEXT, CARD } from "@/lib/designTokens";
+import { apiUrl, fetchTimeoutSignal } from "@/lib/apiConfig";
 
 export interface RecentMatch {
   match_id: string;
@@ -52,12 +53,16 @@ function mapHotMatch(raw: Record<string, unknown>): RecentMatch {
   };
 }
 
+async function fetchMatchList(path: string): Promise<unknown[]> {
+  const r = await fetch(apiUrl(path), { signal: fetchTimeoutSignal(8000) });
+  if (!r.ok) return [];
+  const d = await r.json();
+  return Array.isArray(d.matches) ? d.matches : [];
+}
+
 async function fetchHotMatches(limit: number): Promise<RecentMatch[]> {
   try {
-    const r = await fetch(`/api/hot-matches?limit_count=${limit}`);
-    if (!r.ok) return [];
-    const d = await r.json();
-    const list = Array.isArray(d.matches) ? d.matches : [];
+    const list = await fetchMatchList(`/api/hot-matches?limit_count=${limit}`);
     return list.map((m) => mapHotMatch(m as Record<string, unknown>));
   } catch {
     return [];
@@ -65,28 +70,19 @@ async function fetchHotMatches(limit: number): Promise<RecentMatch[]> {
 }
 
 async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
-  let recent: RecentMatch[] = [];
-  try {
-    const r = await fetch(`/api/recent-matches?limit=${limit}`);
-    if (r.ok) {
-      const d = await r.json();
-      recent = Array.isArray(d.matches) ? d.matches as RecentMatch[] : [];
-    }
-  } catch {
-    recent = [];
-  }
-
-  if (recent.length >= limit) return recent;
-
-  const hot = await fetchHotMatches(Math.max(limit, 20));
-  if (recent.length === 0) return hot;
-
+  const hotPromise = fetchHotMatches(Math.max(limit, 20));
+  const recentResult = await fetchMatchList(`/api/recent-matches?limit=${limit}`)
+    .then((list) => list as RecentMatch[])
+    .catch(() => [] as RecentMatch[]);
+  if (recentResult.length >= limit) return recentResult;
+  const hot = await hotPromise;
+  if (recentResult.length === 0) return hot;
   const seen = new Set(
-    recent.map((m) => `${(m.startup_name || "").toLowerCase()}|${m.startup_id || ""}`),
+    recentResult.map((m) => `${(m.startup_name || "").toLowerCase()}|${m.startup_id || m.startup_name || ""}`),
   );
-  const merged = [...recent];
+  const merged = [...recentResult];
   for (const m of hot) {
-    const key = `${(m.startup_name || "").toLowerCase()}|${m.startup_id || ""}`;
+    const key = `${(m.startup_name || "").toLowerCase()}|${m.startup_id || m.startup_name || ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     merged.push(m);
@@ -127,10 +123,9 @@ export function useRecentMatches(limit = 5) {
   return { matches, loading };
 }
 
-/** Distinct startup + firm so a rotator does not look stuck on the same pair. */
+/** Distinct startup↔firm pairs. Same firm on two startups must both surface. */
 export function uniqueMatchPairs(matches: RecentMatch[], max = 8): RecentMatch[] {
-  const firms = new Set<string>();
-  const startups = new Set<string>();
+  const pairs = new Set<string>();
   const out: RecentMatch[] = [];
   for (const m of matches) {
     const firm = (
@@ -139,9 +134,10 @@ export function uniqueMatchPairs(matches: RecentMatch[], max = 8): RecentMatch[]
         : m.investor_name || ""
     ).toLowerCase().trim();
     const startup = (m.startup_name || "").toLowerCase().trim();
-    if (!firm || !startup || firms.has(firm) || startups.has(startup)) continue;
-    firms.add(firm);
-    startups.add(startup);
+    if (!firm || !startup) continue;
+    const key = `${startup}|${firm}`;
+    if (pairs.has(key)) continue;
+    pairs.add(key);
     out.push(m);
     if (out.length >= max) break;
   }

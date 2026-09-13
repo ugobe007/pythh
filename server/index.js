@@ -1254,51 +1254,61 @@ app.get('/api/recent-matches', async (req, res) => {
       fetcher: async () => {
         const supabase = getSupabaseClient();
 
-        const { data: rows, error } = await supabase
-          .from('startup_investor_matches')
-          .select(`
-            id,
-            startup_id,
-            investor_id,
-            match_score,
-            reasoning,
-            why_you_match,
-            created_at,
-            startup_uploads!startup_id ( name, total_god_score, status, sectors, stage, website, entity_gate ),
-            investors!investor_id ( name, firm )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(400);
-
-        if (error) throw error;
-
+        const PAGE = 80;
+        const MAX_SCAN = 800;
         const seen = new Set();
         const matches = [];
-        for (const m of rows || []) {
-          if (!m.startup_id || seen.has(m.startup_id)) continue;
-          const su = m.startup_uploads;
-          if (!isPublicFeedStartup(su)) continue;
-          const invName = m.investors?.name || '';
-          const invFirm = m.investors?.firm || null;
-          if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
-          seen.add(m.startup_id);
-          matches.push({
-            match_id: m.id,
-            startup_id: m.startup_id,
-            investor_id: m.investor_id,
-            startup_name: su.name,
-            startup_god_score: su.total_god_score ?? null,
-            startup_sectors: Array.isArray(su.sectors) ? su.sectors : [],
-            startup_stage: su.stage || null,
-            investor_name: invName || 'Investor',
-            investor_firm: invFirm,
-            match_score: Math.round(m.match_score || 0),
-            reasoning: m.reasoning || null,
-            why_you_match: m.why_you_match || null,
-            created_at: m.created_at,
-            time_ago: formatTimeAgo(new Date(m.created_at)),
-          });
-          if (matches.length >= limitCount) break;
+        let offset = 0;
+
+        while (matches.length < limitCount && offset < MAX_SCAN) {
+          const { data: rows, error } = await supabase
+            .from('startup_investor_matches')
+            .select(`
+              id,
+              startup_id,
+              investor_id,
+              match_score,
+              reasoning,
+              why_you_match,
+              created_at,
+              startup_uploads!startup_id ( name, total_god_score, status, sectors, stage, website, entity_gate ),
+              investors!investor_id ( name, firm )
+            `)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + PAGE - 1);
+
+          if (error) throw error;
+          if (!rows || rows.length === 0) break;
+
+          for (const m of rows) {
+            if (!m.startup_id || seen.has(m.startup_id)) continue;
+            const su = m.startup_uploads;
+            if (!isPublicFeedStartup(su)) continue;
+            const invName = m.investors?.name || '';
+            const invFirm = m.investors?.firm || null;
+            if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
+            seen.add(m.startup_id);
+            matches.push({
+              match_id: m.id,
+              startup_id: m.startup_id,
+              investor_id: m.investor_id,
+              startup_name: su.name,
+              startup_god_score: su.total_god_score ?? null,
+              startup_sectors: Array.isArray(su.sectors) ? su.sectors : [],
+              startup_stage: su.stage || null,
+              investor_name: invName || 'Investor',
+              investor_firm: invFirm,
+              match_score: Math.round(m.match_score || 0),
+              reasoning: m.reasoning || null,
+              why_you_match: m.why_you_match || null,
+              created_at: m.created_at,
+              time_ago: formatTimeAgo(new Date(m.created_at)),
+            });
+            if (matches.length >= limitCount) break;
+          }
+
+          offset += rows.length;
+          if (rows.length < PAGE) break;
         }
 
         return { matches, timestamp: new Date().toISOString() };
