@@ -1255,7 +1255,7 @@ app.get('/api/recent-matches', async (req, res) => {
         const supabase = getSupabaseClient();
 
         // Slim ids first, then hydrate names. An 800-row embed join was 30–40s cold.
-        const SCAN = 400;
+        const SCAN = 1000;
         const { data: rows, error } = await supabase
           .from('startup_investor_matches')
           .select('id, startup_id, investor_id, match_score, created_at')

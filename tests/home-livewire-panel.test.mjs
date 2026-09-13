@@ -80,7 +80,7 @@ test('recent-matches is one slim query, not an 800-row scan', () => {
   const end = src.indexOf("app.get('/api/live-pairings'");
   assert.ok(start > 0 && end > start);
   const handler = src.slice(start, end);
-  assert.match(handler, /SCAN = 400/);
+  assert.match(handler, /SCAN = 1000/);
   assert.match(handler, /select\('id, startup_id, investor_id, match_score, created_at'\)/);
   assert.match(handler, /startupsById/);
   assert.match(handler, /investorsById/);
