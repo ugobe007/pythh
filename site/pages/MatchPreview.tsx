@@ -11,7 +11,14 @@ import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import { pinActiveStartup } from '@/lib/activeStartupContext';
-import { getUtmParams, trackReturnVisitIfEligible } from '@/lib/funnelAttribution';
+import {
+  getUtmParams,
+  trackReturnVisitIfEligible,
+  captureUtmFromUrl,
+  isShareCardReferral,
+  buildShareUrl,
+  trackShareCardCreated,
+} from '@/lib/funnelAttribution';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 import { founderSignupPath } from '@/lib/safeUrl';
@@ -57,13 +64,17 @@ export default function MatchPreview() {
   const [error, setError] = useState<string | null>(null);
   const [peterPanelOpen, setPeterPanelOpen] = useState(false);
   const [peterInvestor, setPeterInvestor] = useState<GatedInvestorContext | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!startupId) return;
+    // Persist share-card UTMs so any downstream url_submitted stays attributed to the loop.
+    captureUtmFromUrl();
+    const fromShare = isShareCardReferral();
     void trackFunnelEventOnce(`pythh_share_preview_view:${startupId}`, 'page_view', {
       path: `/matches/preview/${startupId}`,
       startup_id: startupId,
-      source: 'share_preview',
+      source: fromShare ? 'share_card' : 'share_preview',
       ...getUtmParams(),
     });
     trackReturnVisitIfEligible(`/matches/preview/${startupId}`);
@@ -260,14 +271,28 @@ export default function MatchPreview() {
         )}
 
         {previewUrl && (
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-2 pt-2">
             <button
               type="button"
-              onClick={() => navigator.clipboard.writeText(previewUrl)}
-              className="text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-800 px-3 py-1.5 rounded-md"
+              onClick={() => {
+                const shareUrl = buildShareUrl(previewUrl, 'match_preview');
+                void navigator.clipboard?.writeText(shareUrl);
+                trackShareCardCreated({
+                  surface: 'match_preview',
+                  startupId: startup.id,
+                  shareUrl,
+                  totalMatches: total_matches,
+                });
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2500);
+              }}
+              className="px-5 py-2 rounded-lg border border-emerald-500/50 text-emerald-300 text-sm font-semibold hover:bg-emerald-500/10 transition-colors"
             >
-              Copy share link
+              {copied ? 'Link copied — paste it anywhere ✓' : `Share your ${total_matches.toLocaleString()} matches →`}
             </button>
+            <p className="text-xs text-zinc-500">
+              Founders who share their proof card send other founders to Pythh — that&apos;s how you get seen.
+            </p>
           </div>
         )}
       </div>

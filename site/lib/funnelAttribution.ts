@@ -83,3 +83,45 @@ export function markFirstPreviewSeen(): void {
     localStorage.setItem(FIRST_PREVIEW_KEY, String(Date.now()));
   }
 }
+
+/* ---- share_proof_cards loop: outbound traffic manufacture + self-instrumentation ---- */
+
+/** True when the current landing arrived via a shared proof card (?ref=share_card). */
+export function isShareCardReferral(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('ref') === 'share_card';
+}
+
+/**
+ * Append attribution params to a shareable URL so referred traffic is measurable.
+ * Awareness is BLIND until shared links carry utm_source=share_card — this closes that gap.
+ */
+export function buildShareUrl(baseUrl: string, campaign = 'proof_card'): string {
+  if (!baseUrl) return baseUrl;
+  try {
+    const u = new URL(baseUrl);
+    u.searchParams.set('ref', 'share_card');
+    u.searchParams.set('utm_source', 'share_card');
+    u.searchParams.set('utm_medium', 'referral');
+    u.searchParams.set('utm_campaign', campaign);
+    return u.toString();
+  } catch {
+    return baseUrl;
+  }
+}
+
+/** Fire share_card_created — the outbound half of the share_proof_cards awareness loop. */
+export function trackShareCardCreated(context: {
+  surface: string;
+  startupId?: string;
+  shareUrl?: string;
+  totalMatches?: number;
+}): void {
+  void trackFunnelEvent('share_card_created', {
+    source: context.surface,
+    startup_id: context.startupId,
+    share_url: context.shareUrl,
+    total_matches: context.totalMatches,
+    ...getUtmParams(),
+  });
+}

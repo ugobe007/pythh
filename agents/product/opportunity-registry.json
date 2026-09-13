@@ -188,7 +188,7 @@
       "metric": "url_submitted_per_day",
       "baseline": "~469 url_submitted/day (mostly API); 6 page_view/7d",
       "target": "2x outbound-attributed url_submitted; page_view > 100/week",
-      "next_step": "ESCALATING: page_view shipped on Home/FindInvestors/Matches/Art yet only 6 fire/7d — awareness is the TRUE binding constraint (see funnel_truth_weakest_stage). Audit why page_view under-fires + Growth outbound to /find-investors becomes P0 once the diagnostic flips.",
+      "next_step": "SHIPPED 2026-09-13 (product): share_proof_cards loop instrumented end-to-end on /matches/preview/:id — 'Copy share link' upgraded to a proof-framed 'Share your N matches' action that (a) fires share_card_created and (b) stamps the shared URL with ?ref=share_card&utm_source=share_card so referred landings are attributable (was BLIND). Files: site/lib/funnelAttribution.ts, site/pages/MatchPreview.tsx. Success metric (7d): share_card_created > 0 AND page_view/url_submitted attributed to utm_source=share_card. Once share_card traffic is visible, Growth seeds outbound to /find-investors + share prompts on InstantMatchPreview.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
