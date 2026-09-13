@@ -183,7 +183,7 @@ const compression = require('compression');
 const logger = require('./logger');
 const { getSupabaseClient, paginateStartupUploads } = require('./lib/supabaseClient');
 const { scheduleShadowImpression } = require('./lib/capitalGraphShadow');
-const { isCleanInvestorNameForFeed, isPublicFeedStartup } = require('./lib/feedNameGuards');
+const { feedInvestorKey, isCleanInvestorNameForFeed, isPublicFeedStartup } = require('./lib/feedNameGuards');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
 // Supabase outage guard: avoid hammering upstream during 522/timeout windows.
@@ -1249,13 +1249,13 @@ app.get('/api/recent-matches', async (req, res) => {
     const limitCount = Math.min(Math.max(parseInt(req.query.limit, 10) || 5, 1), 24);
 
     const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
-      cacheKey: `api:recent-matches:${limitCount}`,
+      cacheKey: `api:recent-matches:one-firm:${limitCount}`,
       ttlMs: 25_000,
       fetcher: async () => {
         const supabase = getSupabaseClient();
 
         // Slim ids first, then hydrate names. An 800-row embed join was 30–40s cold.
-        const SCAN = 400;
+        const SCAN = 1000;
         const { data: rows, error } = await supabase
           .from('startup_investor_matches')
           .select('id, startup_id, investor_id, match_score, created_at')
@@ -1284,17 +1284,21 @@ app.get('/api/recent-matches', async (req, res) => {
           hydrate('investors', 'id, name, firm', investorIds, investorsById),
         ]);
 
-        const seen = new Set();
+        const seenStartups = new Set();
+        const seenFirms = new Set();
         const matches = [];
         for (const m of rows || []) {
-          if (!m.startup_id || seen.has(m.startup_id)) continue;
+          if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
           const su = startupsById.get(m.startup_id);
           if (!isPublicFeedStartup(su)) continue;
           const inv = investorsById.get(m.investor_id) || {};
           const invName = inv.name || '';
           const invFirm = inv.firm || null;
           if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
-          seen.add(m.startup_id);
+          const firmKey = feedInvestorKey(invName, invFirm);
+          if (!firmKey || seenFirms.has(firmKey)) continue;
+          seenStartups.add(m.startup_id);
+          seenFirms.add(firmKey);
           matches.push({
             match_id: m.id,
             startup_id: m.startup_id,
