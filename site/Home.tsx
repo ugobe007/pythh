@@ -775,7 +775,7 @@ function PortfolioTeaser() {
             <div className="flex items-center gap-2 mb-2">
               <Target size={14} style={{ color: "oklch(0.696 0.17 162.48)" }} />
               <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                Public proof · Virtual portfolio
+                Public proof · Pythh_1
               </span>
             </div>
             <h2 className="font-display font-bold text-2xl lg:text-3xl text-white mb-2">

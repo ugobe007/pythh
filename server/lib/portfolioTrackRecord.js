@@ -169,17 +169,21 @@ function mapPerformerRow(row, verifiedFundedIds, fundingEvents) {
   };
 }
 
-async function computeTrackRecord(supabase) {
+async function computeTrackRecord(supabase, { fundKey } = {}) {
+  const { filterByFund, PYTHH_1, resolveFundKey } = require('./portfolioFunds');
+  const wanted = resolveFundKey(fundKey || PYTHH_1);
+
   const { data: metricsRow, error: metricsErr } = await supabase
     .from('portfolio_metrics')
     .select('*')
     .maybeSingle();
   if (metricsErr) throw new Error(metricsErr.message);
 
-  const { data: picks, error: picksErr } = await supabase
+  const { data: picksRaw, error: picksErr } = await supabase
     .from('virtual_portfolio')
-    .select('id, entry_god_score, entry_date, moic, status, entity_quarantined, entered_late, virtual_check_usd');
+    .select('id, entry_god_score, entry_date, moic, status, entity_quarantined, entered_late, virtual_check_usd, fund_key');
   if (picksErr) throw new Error(picksErr.message);
+  const picks = filterByFund(picksRaw || [], wanted);
 
   const { data: outcomeEvents, error: evErr } = await supabase
     .from('portfolio_events')
@@ -243,6 +247,7 @@ async function computeTrackRecord(supabase) {
   const { data: topRows, error: topErr } = await supabase
     .from('virtual_portfolio')
     .select(PERFORMER_SELECT)
+    .eq('fund_key', wanted)
     .eq('entity_quarantined', false)
     .eq('entered_late', false)
     .not('moic', 'is', null)
@@ -263,7 +268,7 @@ async function computeTrackRecord(supabase) {
     .maybeSingle();
   if (featuredErr) throw new Error(featuredErr.message);
 
-  const featuredPick = featuredRow
+  const featuredPick = featuredRow && picks.some((p) => p.id === featuredRow.id)
     ? mapPerformerRow(featuredRow, verifiedFundedIds, fundingEvents)
     : null;
 

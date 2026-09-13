@@ -440,6 +440,8 @@ function Collapsible({
   );
 }
 
+type FundKey = "pythh_1" | "pythh_2";
+
 export default function Portfolio() {
   const [entries, setEntries] = useState<PortfolioEntry[]>([]);
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
@@ -448,6 +450,7 @@ export default function Portfolio() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [slowHint, setSlowHint] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fund, setFund] = useState<FundKey>("pythh_1");
   const [filter, setFilter] = useState<"all" | "active" | "exited">("all");
   const [tierFilter, setTierFilter] = useState<"all" | HealthTier>("all");
   const [sortBy, setSortBy] = useState<"health" | "god">("health");
@@ -458,7 +461,7 @@ export default function Portfolio() {
 
   useEffect(() => {
     loadData();
-  }, [sortBy]);
+  }, [sortBy, fund]);
 
   async function loadData() {
     setListLoading(true);
@@ -469,19 +472,19 @@ export default function Portfolio() {
     // Surface a "still loading" hint if a cold backend is slow to wake.
     const slowTimer = setTimeout(() => setSlowHint(true), 6000);
 
-    fetchJson<{ metrics: PortfolioMetrics | null }>("/api/portfolio/metrics")
+    fetchJson<{ metrics: PortfolioMetrics | null }>(`/api/portfolio/metrics?fund=${fund}`)
       .then((metricsData) => setMetrics(metricsData.metrics ?? null))
       .catch(() => {})
       .finally(() => setMetricsLoading(false));
 
-    fetchJson<PortfolioAnalytics>("/api/portfolio/analytics")
+    fetchJson<PortfolioAnalytics>(`/api/portfolio/analytics?fund=${fund}`)
       .then((data) => setAnalytics(data ?? null))
       .catch(() => {});
 
     try {
       const sortQ = sortBy === "health" ? "health" : "god";
       const listData = await fetchJson<{ entries?: PortfolioEntry[] }>(
-        `/api/portfolio?sort=${sortQ}&limit=80&lite=1`
+        `/api/portfolio?sort=${sortQ}&limit=80&lite=1&fund=${fund}`
       );
       setEntries(listData.entries ?? []);
     } catch {
@@ -585,12 +588,37 @@ export default function Portfolio() {
         <header className="mb-10 pb-10 border-b" style={{ borderColor: BORDER }}>
           <SectionLabel className="mb-3">Oracle scoreboard</SectionLabel>
           <h1 className="font-display font-bold text-3xl md:text-4xl tracking-tight mb-3">
-            The Oracle&apos;s Picks
+            {fund === "pythh_2" ? "Pythh_2" : "Pythh_1"}
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: MUTED }}>
-            Every startup crossing GOD 70 enters the virtual fund. We track funding, exits, and
-            press-verified outcomes in public — proof the signal engine works.
+            {fund === "pythh_2"
+              ? "Second virtual vintage. Pythh_1 stays locked so its MOIC is not diluted. New picks land here."
+              : "First virtual vintage. Locked cohort — marks move only on press-verified evidence. New picks go to Pythh_2."}
           </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {([
+              { key: "pythh_1" as const, label: "Pythh_1", hint: "locked first book" },
+              { key: "pythh_2" as const, label: "Pythh_2", hint: "open second book" },
+            ]).map((f) => {
+              const on = fund === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => { setFund(f.key); setShowAll(false); }}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-mono uppercase tracking-wider"
+                  style={{
+                    color: on ? G : MUTED,
+                    border: `1px solid ${on ? G : BORDER}`,
+                    background: on ? "oklch(0.696 0.17 162.48 / 0.08)" : "transparent",
+                  }}
+                >
+                  {f.label}
+                  <span className="ml-2 normal-case tracking-normal opacity-70">{f.hint}</span>
+                </button>
+              );
+            })}
+          </div>
         </header>
 
         {/* Metrics strip */}
@@ -1113,7 +1141,9 @@ export default function Portfolio() {
           </p>
         ) : filtered.length === 0 ? (
           <p className="text-center py-24 text-sm" style={{ color: MUTED }}>
-            No entries yet — portfolio builds automatically as startups cross GOD 70.
+            {fund === "pythh_2"
+              ? "Pythh_2 is open and empty. New picks land here so Pythh_1 MOIC stays a locked vintage."
+              : "No entries yet — Pythh_1 is the locked first book."}
           </p>
         ) : (
           <>

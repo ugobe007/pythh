@@ -9959,6 +9959,8 @@ app.get('/api/portfolio', async (req, res) => {
     const includeQuarantined =
       req.query.include_quarantined === '1' || req.query.include_quarantined === 'true';
     const excludeQuarantined = !includeQuarantined;
+    const { resolveFundKey } = require('./lib/portfolioFunds');
+    const fundKey = resolveFundKey(req.query.fund);
 
     let query = supabase.from('portfolio_health').select('*').limit(limit);
 
@@ -9978,6 +9980,13 @@ app.get('/api/portfolio', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
 
     let rows = data || [];
+    const { data: fundRows, error: fundErr } = await supabase
+      .from('virtual_portfolio')
+      .select('id')
+      .eq('fund_key', fundKey);
+    if (fundErr) return res.status(500).json({ error: fundErr.message });
+    const fundIds = new Set((fundRows || []).map((r) => r.id));
+    rows = rows.filter((r) => fundIds.has(r.id));
     if (excludeQuarantined) {
       rows = rows.filter((r) => r.status !== 'written_off');
       rows = await filterPublicPortfolioRows(supabase, rows);
@@ -9986,6 +9995,37 @@ app.get('/api/portfolio', async (req, res) => {
 
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ entries, count: entries.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portfolio/funds — named vintages (Pythh_1 locked, Pythh_2 open)
+app.get('/api/portfolio/funds', async (req, res) => {
+  try {
+    const { listFunds, isFundLocked, lockNote } = Object.assign(
+      require('./lib/portfolioFunds'),
+      require('./lib/fundLock'),
+    );
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('virtual_portfolio').select('id, fund_key, status');
+    if (error) return res.status(500).json({ error: error.message });
+    const counts = new Map();
+    for (const row of data || []) {
+      const key = row.fund_key || 'pythh_1';
+      const cur = counts.get(key) || { positions: 0, active: 0 };
+      cur.positions += 1;
+      if (row.status === 'active') cur.active += 1;
+      counts.set(key, cur);
+    }
+    const funds = listFunds().map((fund) => ({
+      ...fund,
+      locked: isFundLocked(fund.key),
+      lock_note: lockNote(fund.key),
+      positions: counts.get(fund.key)?.positions || 0,
+      active: counts.get(fund.key)?.active || 0,
+    }));
+    res.json({ funds });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -10000,26 +10040,36 @@ const {
 
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
+    const { filterByFund, resolveFundKey, getFund, PYTHH_1 } = require('./lib/portfolioFunds');
+    const fundKey = resolveFundKey(req.query.fund);
     const supabase = getSupabaseClient();
     const [metricsRes, trackRecord, totalEv, fundingEv, productEv, positionsRes, outcomeRowsRes] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
-      computeTrackRecord(supabase),
+      computeTrackRecord(supabase, { fundKey }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
-      supabase.from('virtual_portfolio').select('id, status, entry_date, entity_quarantined, entered_late, virtual_check_usd'),
+      supabase.from('virtual_portfolio').select('id, status, entry_date, entity_quarantined, entered_late, virtual_check_usd, fund_key, moic'),
       supabase.from('portfolio_events').select('portfolio_id, event_type, event_date, verified').in('event_type', ['funding_round', 'acquisition', 'ipo']),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
     if (positionsRes.error) return res.status(500).json({ error: positionsRes.error.message });
     if (outcomeRowsRes.error) return res.status(500).json({ error: outcomeRowsRes.error.message });
-    const metrics = applyCleanPortfolioMetrics(
-      enrichPortfolioMetrics(metricsRes.data || {}),
-      positionsRes.data || [],
-      outcomeRowsRes.data || []
-    );
+    const positions = filterByFund(positionsRes.data || [], fundKey);
+    const positionIds = new Set(positions.map((p) => p.id));
+    const outcomes = (outcomeRowsRes.data || []).filter((e) => positionIds.has(e.portfolio_id));
+    const base = fundKey === PYTHH_1 ? enrichPortfolioMetrics(metricsRes.data || {}) : {};
+    const metrics = applyCleanPortfolioMetrics(base, positions, outcomes);
+    if (fundKey !== PYTHH_1) {
+      const early = positions.filter((p) => !p.entity_quarantined && !p.entered_late && p.moic != null);
+      const moics = early.map((p) => Number(p.moic)).filter((n) => Number.isFinite(n));
+      metrics.avg_moic = moics.length
+        ? Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100
+        : null;
+    }
     metrics.verified_avg_moic = trackRecord?.oracle?.verified_avg_moic ?? null;
     metrics.headline_avg_moic = metrics.avg_moic;
+    metrics.fund = getFund(fundKey);
     metrics.total_events = totalEv.count ?? 0;
     metrics.funding_event_count = fundingEv.count ?? 0;
     metrics.product_event_count = productEv.count ?? 0;
@@ -10046,11 +10096,13 @@ const { computeSignalVelocity } = require('./lib/signalVelocity');
 
 app.get('/api/portfolio/analytics', async (req, res) => {
   try {
+    const { resolveFundKey } = require('./lib/portfolioFunds');
+    const fundKey = resolveFundKey(req.query.fund);
     const supabase = getSupabaseClient();
     const [metricsRes, value, trackRecord, followOnRes, signalRes, velocityRes] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
-      computePortfolioValue(supabase),
-      computeTrackRecord(supabase),
+      computePortfolioValue(supabase, { fundKey }),
+      computeTrackRecord(supabase, { fundKey }),
       // Secondary late-stage fund; never let it break the main analytics response.
       computeFollowOnValue(supabase).catch((e) => ({ error: e.message })),
       // Predictive hit-rate proof sheet; never let it break the main analytics response.
@@ -10247,8 +10299,10 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
 app.post('/api/admin/portfolio/seed', async (req, res) => {
   try {
     const { isFundLocked, lockNote } = require('./lib/fundLock');
-    if (isFundLocked()) {
-      return res.status(423).json({ error: 'fund_locked', message: lockNote() });
+    const { PYTHH_2, resolveFundKey } = require('./lib/portfolioFunds');
+    const fundKey = resolveFundKey(req.body?.fund || PYTHH_2);
+    if (isFundLocked(fundKey)) {
+      return res.status(423).json({ error: 'fund_locked', message: lockNote(fundKey) });
     }
     const supabase = getSupabaseClient();
     const threshold = parseInt(req.body?.threshold || '70', 10);
@@ -10285,13 +10339,14 @@ app.post('/api/admin/portfolio/seed', async (req, res) => {
         current_valuation_usd: entryVal,
         moic: 1.0,
         added_by: 'admin-seed',
+        fund_key: fundKey,
       });
 
       if (error && error.code !== '23505') errors.push(`${su.name}: ${error.message}`);
       else added++;
     }
 
-    res.json({ added, skipped, errors });
+    res.json({ added, skipped, errors, fund: fundKey });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

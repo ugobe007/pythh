@@ -214,11 +214,14 @@ function xirr(flows) {
  * rounds and recorded exits — never from signal-inferred valuations. The looser
  * signal-implied value is reported separately for transparency.
  */
-async function computePortfolioValue(supabase) {
+async function computePortfolioValue(supabase, { fundKey } = {}) {
+  const { filterByFund, PYTHH_1, resolveFundKey } = require('./portfolioFunds');
+  const wanted = resolveFundKey(fundKey || PYTHH_1);
+
   const [picksRes, eventsRes] = await Promise.all([
     supabase
       .from('virtual_portfolio')
-      .select('id, startup_id, status, virtual_check_usd, moic, entry_valuation_usd, current_valuation_usd, exit_valuation_usd, entry_date, exit_date, entity_quarantined, entered_late'),
+      .select('id, startup_id, status, virtual_check_usd, moic, entry_valuation_usd, current_valuation_usd, exit_valuation_usd, entry_date, exit_date, entity_quarantined, entered_late, fund_key'),
     supabase
       .from('portfolio_events')
       .select('portfolio_id, startup_id, event_type, verified, post_money_usd, event_date')
@@ -227,7 +230,7 @@ async function computePortfolioValue(supabase) {
   if (picksRes.error) throw new Error(picksRes.error.message);
   if (eventsRes.error) throw new Error(eventsRes.error.message);
 
-  const rows = picksRes.data || [];
+  const rows = filterByFund(picksRes.data || [], wanted);
 
   // Index verified funding rounds (priced evidence) + signal events (accretion) by position.
   const roundsByPortfolio = new Map();
