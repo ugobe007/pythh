@@ -1254,61 +1254,64 @@ app.get('/api/recent-matches', async (req, res) => {
       fetcher: async () => {
         const supabase = getSupabaseClient();
 
-        const PAGE = 80;
-        const MAX_SCAN = 800;
+        // Slim ids first, then hydrate names. An 800-row embed join was 30–40s cold.
+        const SCAN = 400;
+        const { data: rows, error } = await supabase
+          .from('startup_investor_matches')
+          .select('id, startup_id, investor_id, match_score, created_at')
+          .order('created_at', { ascending: false })
+          .limit(SCAN);
+
+        if (error) throw error;
+
+        const startupIds = [...new Set((rows || []).map((m) => m.startup_id).filter(Boolean))];
+        const investorIds = [...new Set((rows || []).map((m) => m.investor_id).filter(Boolean))];
+
+        const startupsById = new Map();
+        const investorsById = new Map();
+        const IN_CHUNK = 80;
+        const hydrate = async (table, columns, ids, into) => {
+          const slices = [];
+          for (let i = 0; i < ids.length; i += IN_CHUNK) slices.push(ids.slice(i, i + IN_CHUNK));
+          await Promise.all(slices.map(async (slice) => {
+            const { data, error: hydrateErr } = await supabase.from(table).select(columns).in('id', slice);
+            if (hydrateErr) throw hydrateErr;
+            for (const row of data || []) into.set(row.id, row);
+          }));
+        };
+        await Promise.all([
+          hydrate('startup_uploads', 'id, name, total_god_score, status, website, entity_gate', startupIds, startupsById),
+          hydrate('investors', 'id, name, firm', investorIds, investorsById),
+        ]);
+
         const seen = new Set();
         const matches = [];
-        let offset = 0;
-
-        while (matches.length < limitCount && offset < MAX_SCAN) {
-          const { data: rows, error } = await supabase
-            .from('startup_investor_matches')
-            .select(`
-              id,
-              startup_id,
-              investor_id,
-              match_score,
-              reasoning,
-              why_you_match,
-              created_at,
-              startup_uploads!startup_id ( name, total_god_score, status, sectors, stage, website, entity_gate ),
-              investors!investor_id ( name, firm )
-            `)
-            .order('created_at', { ascending: false })
-            .range(offset, offset + PAGE - 1);
-
-          if (error) throw error;
-          if (!rows || rows.length === 0) break;
-
-          for (const m of rows) {
-            if (!m.startup_id || seen.has(m.startup_id)) continue;
-            const su = m.startup_uploads;
-            if (!isPublicFeedStartup(su)) continue;
-            const invName = m.investors?.name || '';
-            const invFirm = m.investors?.firm || null;
-            if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
-            seen.add(m.startup_id);
-            matches.push({
-              match_id: m.id,
-              startup_id: m.startup_id,
-              investor_id: m.investor_id,
-              startup_name: su.name,
-              startup_god_score: su.total_god_score ?? null,
-              startup_sectors: Array.isArray(su.sectors) ? su.sectors : [],
-              startup_stage: su.stage || null,
-              investor_name: invName || 'Investor',
-              investor_firm: invFirm,
-              match_score: Math.round(m.match_score || 0),
-              reasoning: m.reasoning || null,
-              why_you_match: m.why_you_match || null,
-              created_at: m.created_at,
-              time_ago: formatTimeAgo(new Date(m.created_at)),
-            });
-            if (matches.length >= limitCount) break;
-          }
-
-          offset += rows.length;
-          if (rows.length < PAGE) break;
+        for (const m of rows || []) {
+          if (!m.startup_id || seen.has(m.startup_id)) continue;
+          const su = startupsById.get(m.startup_id);
+          if (!isPublicFeedStartup(su)) continue;
+          const inv = investorsById.get(m.investor_id) || {};
+          const invName = inv.name || '';
+          const invFirm = inv.firm || null;
+          if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
+          seen.add(m.startup_id);
+          matches.push({
+            match_id: m.id,
+            startup_id: m.startup_id,
+            investor_id: m.investor_id,
+            startup_name: su.name,
+            startup_god_score: su.total_god_score ?? null,
+            startup_sectors: [],
+            startup_stage: null,
+            investor_name: invName || 'Investor',
+            investor_firm: invFirm,
+            match_score: Math.round(m.match_score || 0),
+            reasoning: null,
+            why_you_match: null,
+            created_at: m.created_at,
+            time_ago: formatTimeAgo(new Date(m.created_at)),
+          });
+          if (matches.length >= limitCount) break;
         }
 
         return { matches, timestamp: new Date().toISOString() };
