@@ -9970,6 +9970,12 @@ app.get('/api/portfolio', async (req, res) => {
     if (fundErr) return res.status(500).json({ error: fundErr.message });
     const fundIds = new Set((fundRows || []).map((r) => r.id));
 
+    // If fundIds is empty, return early with empty result (Pythh_2 starts empty)
+    if (fundIds.size === 0) {
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      return res.json({ entries: [], count: 0 });
+    }
+
     let query = supabase.from('portfolio_health').select('*').in('id', Array.from(fundIds)).limit(limit);
 
     if (status) query = query.eq('status', status);
