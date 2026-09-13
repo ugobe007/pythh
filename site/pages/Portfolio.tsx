@@ -460,10 +460,12 @@ export default function Portfolio() {
     setPanels((p) => ({ ...p, [k]: !p[k] }));
 
   useEffect(() => {
-    loadData();
+    const controller = new AbortController();
+    loadData(controller);
+    return () => controller.abort();
   }, [sortBy, fund]);
 
-  async function loadData() {
+  async function loadData(controller?: AbortController) {
     setListLoading(true);
     setMetricsLoading(true);
     setSlowHint(false);
@@ -475,14 +477,28 @@ export default function Portfolio() {
     // Surface a "still loading" hint if a cold backend is slow to wake.
     const slowTimer = setTimeout(() => setSlowHint(true), 6000);
 
+    const currentFund = fund;
+
     fetchJson<{ metrics: PortfolioMetrics | null }>(`/api/portfolio/metrics?fund=${fund}`)
-      .then((metricsData) => setMetrics(metricsData.metrics ?? null))
+      .then((metricsData) => {
+        if (!controller?.signal.aborted && currentFund === fund) {
+          setMetrics(metricsData.metrics ?? null);
+        }
+      })
       .catch(() => {})
-      .finally(() => setMetricsLoading(false));
+      .finally(() => {
+        if (!controller?.signal.aborted && currentFund === fund) {
+          setMetricsLoading(false);
+        }
+      });
 
     if (fund === "pythh_1") {
       fetchJson<PortfolioAnalytics>(`/api/portfolio/analytics?fund=${fund}`)
-        .then((data) => setAnalytics(data ?? null))
+        .then((data) => {
+          if (!controller?.signal.aborted && currentFund === fund) {
+            setAnalytics(data ?? null);
+          }
+        })
         .catch(() => {});
     }
 
@@ -491,13 +507,19 @@ export default function Portfolio() {
       const listData = await fetchJson<{ entries?: PortfolioEntry[] }>(
         `/api/portfolio?sort=${sortQ}&limit=80&lite=1&fund=${fund}`
       );
-      setEntries(listData.entries ?? []);
+      if (!controller?.signal.aborted && currentFund === fund) {
+        setEntries(listData.entries ?? []);
+      }
     } catch {
-      setError("Portfolio is taking longer than usual to load. Please refresh in a moment.");
+      if (!controller?.signal.aborted && currentFund === fund) {
+        setError("Portfolio is taking longer than usual to load. Please refresh in a moment.");
+      }
     } finally {
       clearTimeout(slowTimer);
-      setSlowHint(false);
-      setListLoading(false);
+      if (!controller?.signal.aborted && currentFund === fund) {
+        setSlowHint(false);
+        setListLoading(false);
+      }
     }
   }
 
@@ -597,7 +619,7 @@ export default function Portfolio() {
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: MUTED }}>
             {fund === "pythh_2"
-              ? "Second virtual vintage. Pythh_1 stays locked so its MOIC is not diluted. New picks land here."
+              ? "Second virtual vintage. Top GOD first, then industry mix. Early names only — each pick starts at 1.0× until press-verified evidence. Pythh_1 stays locked."
               : "First virtual vintage. Locked cohort — marks move only on press-verified evidence. New picks go to Pythh_2."}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -1147,7 +1169,7 @@ export default function Portfolio() {
         ) : filtered.length === 0 ? (
           <p className="text-center py-24 text-sm" style={{ color: MUTED }}>
             {fund === "pythh_2"
-              ? "Pythh_2 is open and empty. New picks land here so Pythh_1 MOIC stays a locked vintage."
+              ? "Pythh_2 has no picks yet. Construction takes top GOD first, then mixes industry types."
               : "No entries yet — Pythh_1 is the locked first book."}
           </p>
         ) : (

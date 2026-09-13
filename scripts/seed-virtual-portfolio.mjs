@@ -21,7 +21,7 @@ const { isFundLocked, lockNote } = require('../server/lib/fundLock.js');
 const { estimateEntryValuationUsd } = require('../server/lib/stageValuationBenchmarks.js');
 if (isFundLocked()) {
   console.error('🔒  ' + lockNote());
-  console.error('    Seeding is disabled. Set PORTFOLIO_UNLOCK=true to open a new vintage.');
+  console.error('    Pythh_1 is locked. Seed the open vintage with: npm run portfolio:seed-pythh-2');
   process.exit(1);
 }
 

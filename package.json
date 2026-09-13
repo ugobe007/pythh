@@ -337,6 +337,8 @@
     "portfolio:refresh:dry": "node scripts/run-node.mjs scripts/cron/portfolio-signal-refresh.js --dry-run",
     "portfolio:digest": "node scripts/run-node.mjs scripts/portfolio-digest.mjs",
     "portfolio:digest:dry": "node scripts/run-node.mjs scripts/portfolio-digest.mjs --dry-run",
+    "portfolio:seed-pythh-2": "node scripts/run-node.mjs scripts/seed-pythh-2.mjs",
+    "portfolio:seed-pythh-2:apply": "node scripts/run-node.mjs scripts/seed-pythh-2.mjs --apply",
     "digest:investor": "node scripts/run-node.mjs scripts/investor-dealflow-digest.mjs --to signed-up",
     "digest:investor:dry": "node scripts/run-node.mjs scripts/investor-dealflow-digest.mjs --dry-run --to signed-up",
     "digest:investor:all": "node scripts/run-node.mjs scripts/investor-dealflow-digest.mjs --to all",
