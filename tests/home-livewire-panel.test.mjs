@@ -53,7 +53,15 @@ test('livewire meta uses today + GOD without inventing a 60-day hold', async () 
     { startup_name: 'Scotch', investor_firm: 'Coinbase Ventures', investor_name: 'C', match_score: 65 },
     { startup_name: 'AssetPlus', investor_firm: 'Headline', investor_name: 'A', match_score: 50 },
   ], 18);
-  assert.deepEqual(surfaced.map((m) => m.startup_name), ['AssetPlus', 'Summit Wealth', 'Scotch']);
+  assert.deepEqual(surfaced.map((m) => m.startup_name), ['AssetPlus', 'Scotch']);
+  assert.deepEqual(surfaced.map((m) => m.investor_firm), ['Headline', 'Coinbase Ventures']);
+});
+
+test('feedInvestorKey collapses Headline name and firm to one tape slot', () => {
+  const { feedInvestorKey } = require('../server/lib/feedNameGuards.js');
+  assert.equal(feedInvestorKey('Headline', 'Headline'), 'headline');
+  assert.equal(feedInvestorKey('Jane Doe', 'Headline'), 'headline');
+  assert.equal(feedInvestorKey('Coinbase Ventures', '-'), 'coinbase ventures');
 });
 
 test('live tape renders two filled livewire match panels', () => {
@@ -80,6 +88,8 @@ test('recent-matches is one slim query, not an 800-row scan', () => {
   assert.doesNotMatch(handler, /PAGE\s*=\s*80/);
   assert.doesNotMatch(handler, /startup_uploads!startup_id/);
   assert.doesNotMatch(handler, /reasoning,\s*why_you_match/);
+  assert.match(handler, /seenFirms/);
+  assert.match(handler, /one-firm/);
 });
 
 test('livewire first paint fetches recent-matches only', () => {

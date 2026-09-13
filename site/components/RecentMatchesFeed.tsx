@@ -28,7 +28,7 @@ export interface RecentMatch {
 
 const MEMORY_TTL_MS = 15_000;
 const SESSION_TTL_MS = 5 * 60_000;
-const SESSION_KEY = "pythh_livewire_matches";
+const SESSION_KEY = "pythh_livewire_matches_v2";
 
 let memoryCache: { at: number; limit: number; matches: RecentMatch[] } | null = null;
 let inflight: Promise<RecentMatch[]> | null = null;
@@ -175,9 +175,10 @@ export function useRecentMatches(limit = 5) {
   return { matches, loading };
 }
 
-/** Distinct startup↔firm pairs. Same firm on two startups must both surface. */
+/** One startup and one firm per row so the tape does not look prescripted. */
 export function uniqueMatchPairs(matches: RecentMatch[], max = 8): RecentMatch[] {
-  const pairs = new Set<string>();
+  const firms = new Set<string>();
+  const startups = new Set<string>();
   const out: RecentMatch[] = [];
   for (const m of matches) {
     const firm = (
@@ -187,9 +188,9 @@ export function uniqueMatchPairs(matches: RecentMatch[], max = 8): RecentMatch[]
     ).toLowerCase().trim();
     const startup = (m.startup_name || "").toLowerCase().trim();
     if (!firm || !startup) continue;
-    const key = `${startup}|${firm}`;
-    if (pairs.has(key)) continue;
-    pairs.add(key);
+    if (firms.has(firm) || startups.has(startup)) continue;
+    firms.add(firm);
+    startups.add(startup);
     out.push(m);
     if (out.length >= max) break;
   }

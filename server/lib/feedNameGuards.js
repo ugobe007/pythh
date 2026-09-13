@@ -63,6 +63,14 @@ function isPublicFeedStartup(su) {
   return isCleanStartupNameForFeed(su.name);
 }
 
+/** Public tape key: prefer firm label so Headline / Headline partner rows collapse. */
+function feedInvestorKey(name, firm) {
+  const f = String(firm || '').trim();
+  const n = String(name || '').trim();
+  const label = f && f !== '-' ? f : n;
+  return label.toLowerCase();
+}
+
 function isCleanInvestorNameForFeed(name, firm) {
   if (!name || name.trim() === '') return false;
   const n = name.trim();
@@ -88,5 +96,6 @@ module.exports = {
   isCleanStartupNameForFeed,
   isCleanInvestorNameForFeed,
   isPublicFeedStartup,
+  feedInvestorKey,
   unwrapFeedName,
 };
