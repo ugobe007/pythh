@@ -23,8 +23,8 @@ const FUNDS = {
     locked: false,
     lock_date: null,
     inception: '2026-09-13',
-    check_usd: 100000,
-    thesis: 'Second virtual vintage. Top GOD first, then industry mix. Early entry only — new picks start at 1.0× until press-verified evidence.',
+    check_usd: 150000,
+    thesis: 'Second virtual vintage. Top GOD first, then industry mix. $150K / pick, 50-name book. New picks start at 1.0× until press-verified evidence.',
   },
 };
 

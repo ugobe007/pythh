@@ -10313,7 +10313,7 @@ app.post('/api/admin/portfolio/seed', async (req, res) => {
     }
     const supabase = getSupabaseClient();
     const { selectPythh2Book, buildPythh2InsertRow, DEFAULTS } = require('./lib/pythh2Construction');
-    const target = Math.min(parseInt(req.body?.target || String(DEFAULTS.target), 10), 60);
+    const target = Math.min(parseInt(req.body?.target || String(DEFAULTS.target), 10), 80);
     const minGod = parseInt(req.body?.threshold || req.body?.min_god || String(DEFAULTS.minGod), 10);
 
     const page = 1000;

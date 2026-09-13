@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 const require = createRequire(import.meta.url);
 const {
+  DEFAULTS,
   assignIndustry,
   websiteOwnedByName,
   eligibilityReason,
@@ -105,6 +106,14 @@ test('buildPythh2InsertRow starts at 1.0× on today and does not backdate', () =
   assert.equal(row.entity_quarantined, false);
   assert.ok(row.entry_valuation_usd < 200_000_000);
   assert.match(row.entry_rationale, /GOD 91/);
+  assert.equal(row.virtual_check_usd, 150_000);
+});
+
+test('Pythh_2 defaults are a 50-name book at $150K', () => {
+  assert.equal(DEFAULTS.target, 50);
+  assert.equal(DEFAULTS.checkUsd, 150_000);
+  const funds = require('../server/lib/portfolioFunds.js');
+  assert.equal(funds.getFund('pythh_2').check_usd, 150000);
 });
 
 test('admin seed and portfolio copy use construction, not a GOD dump', () => {
@@ -113,6 +122,7 @@ test('admin seed and portfolio copy use construction, not a GOD dump', () => {
   assert.match(api, /buildPythh2InsertRow/);
   const page = readFileSync(new URL('../site/pages/Portfolio.tsx', import.meta.url), 'utf8');
   assert.match(page, /Top GOD first/);
+  assert.match(page, /\$150K \/ pick/);
   const funds = readFileSync(new URL('../server/lib/portfolioFunds.js', import.meta.url), 'utf8');
   assert.match(funds, /industry mix/);
 });

@@ -20,13 +20,13 @@ const { estimateEntryValuationUsd } = require('./stageValuationBenchmarks');
 const { PYTHH_2 } = require('./portfolioFunds');
 
 const DEFAULTS = {
-  target: 30,
+  target: 50,
   minGod: 85,
   minGodFloor: 80,
-  sectorCap: 4,
+  sectorCap: 6,
   maxEntryValuationUsd: 200_000_000,
   maxFundingUsd: 75_000_000,
-  checkUsd: 100_000,
+  checkUsd: 150_000,
 };
 
 const INDUSTRIES = [
@@ -113,6 +113,8 @@ const LATE_OR_PUBLIC_NAMES = new Set([
   'securityscorecard', 'athelas', 'brick-and-mortar', 'jimmywales',
   'certik', 'devs', 'eclipse', 'huawei', 'lime rock',
   'nvidia', 'tesla', 'bytedance', 'tencent', 'alibaba', 'baidu',
+  'intercom', 'anyscale', 'together ai', 'zola', 'nebius', 'agiloft',
+  'clay', 'shadowfax', 'yubico', 'shippo',
 ]);
 
 const QUARANTINE_NAMES = new Set([
@@ -149,6 +151,7 @@ const FEATURE_NAME = /^[A-Za-z][A-Za-z0-9]*-to-[A-Za-z]/;
 const GENERIC_NAMES = new Set([
   'docs', 'four', 'five', 'three', 'apps', 'app', 'taming', 'whats',
   'software', 'platform', 'company', 'everyone', 'dark', 'underscore',
+  'beta', 'pennsylvania',
 ]);
 
 function normalizeName(name) {

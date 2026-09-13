@@ -593,7 +593,7 @@ export default function Portfolio() {
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),
           label: "Virtual capital",
-          sub: fund === "pythh_2" ? "open vintage · $100K / pick" : "$100K / pick",
+          sub: fund === "pythh_2" ? "open vintage · $150K / pick" : "$100K / pick",
         },
       ]
     : [];
@@ -1208,7 +1208,7 @@ export default function Portfolio() {
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[
               { step: "01", title: "GOD ≥ 70", desc: "Auto-added when a startup clears the investment-grade bar." },
-              { step: "02", title: "$100K virtual", desc: "Logged at an assumed seed entry (~$12M)." },
+              { step: "02", title: fund === "pythh_2" ? "$150K virtual" : "$100K virtual", desc: fund === "pythh_2" ? "Pythh_2 check. 50-name book. Logged at assumed seed entry." : "Logged at an assumed seed entry (~$12M)." },
               { step: "03", title: "Signal accretion", desc: "Rounds, partnerships, customers, hires, IP mark it up." },
               { step: "04", title: "Verify", desc: "Press-confirmed raises upgrade signal detections." },
               { step: "05", title: "Health tiers", desc: "Core · Watch · Review — momentum vs. maturity." },

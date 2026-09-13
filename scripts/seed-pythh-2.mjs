@@ -117,13 +117,21 @@ async function main() {
 
   if (alreadyTwo > 0) {
     console.log(`\n   Pythh_2 already has ${alreadyTwo} rows — inserting only new picks.\n`);
+    const { error: checkErr, count: checkCount } = await supabase
+      .from('virtual_portfolio')
+      .update({ virtual_check_usd: DEFAULTS.checkUsd })
+      .eq('fund_key', PYTHH_2)
+      .neq('virtual_check_usd', DEFAULTS.checkUsd)
+      .select('id', { count: 'exact', head: true });
+    if (checkErr) console.warn(`  ⚠  check sync: ${checkErr.message}`);
+    else console.log(`   synced check to $${DEFAULTS.checkUsd.toLocaleString()} on existing Pythh_2 rows`);
   }
 
   const now = new Date();
   let added = 0;
   let failed = 0;
   for (const su of book.picks) {
-    const row = buildPythh2InsertRow(su, { now, addedBy: 'pythh-2-construction' });
+    const row = buildPythh2InsertRow(su, { now, addedBy: 'pythh-2-construction', checkUsd: DEFAULTS.checkUsd });
     const { error } = await supabase.from('virtual_portfolio').insert(row);
     if (error) {
       console.warn(`  ⚠  ${su.name}: ${error.message}`);
