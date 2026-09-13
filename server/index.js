@@ -1254,31 +1254,45 @@ app.get('/api/recent-matches', async (req, res) => {
       fetcher: async () => {
         const supabase = getSupabaseClient();
 
-        // One slim page — a 800-row paged join was 30–40s on a cold Fly box.
+        // Slim ids first, then hydrate names. An 800-row embed join was 30–40s cold.
+        const SCAN = 400;
         const { data: rows, error } = await supabase
           .from('startup_investor_matches')
-          .select(`
-            id,
-            startup_id,
-            investor_id,
-            match_score,
-            created_at,
-            startup_uploads!startup_id ( name, total_god_score, status, website, entity_gate ),
-            investors!investor_id ( name, firm )
-          `)
+          .select('id, startup_id, investor_id, match_score, created_at')
           .order('created_at', { ascending: false })
-          .limit(120);
+          .limit(SCAN);
 
         if (error) throw error;
+
+        const startupIds = [...new Set((rows || []).map((m) => m.startup_id).filter(Boolean))];
+        const investorIds = [...new Set((rows || []).map((m) => m.investor_id).filter(Boolean))];
+
+        const startupsById = new Map();
+        const investorsById = new Map();
+        const IN_CHUNK = 80;
+        const hydrate = async (table, columns, ids, into) => {
+          const slices = [];
+          for (let i = 0; i < ids.length; i += IN_CHUNK) slices.push(ids.slice(i, i + IN_CHUNK));
+          await Promise.all(slices.map(async (slice) => {
+            const { data, error: hydrateErr } = await supabase.from(table).select(columns).in('id', slice);
+            if (hydrateErr) throw hydrateErr;
+            for (const row of data || []) into.set(row.id, row);
+          }));
+        };
+        await Promise.all([
+          hydrate('startup_uploads', 'id, name, total_god_score, status, website, entity_gate', startupIds, startupsById),
+          hydrate('investors', 'id, name, firm', investorIds, investorsById),
+        ]);
 
         const seen = new Set();
         const matches = [];
         for (const m of rows || []) {
           if (!m.startup_id || seen.has(m.startup_id)) continue;
-          const su = m.startup_uploads;
+          const su = startupsById.get(m.startup_id);
           if (!isPublicFeedStartup(su)) continue;
-          const invName = m.investors?.name || '';
-          const invFirm = m.investors?.firm || null;
+          const inv = investorsById.get(m.investor_id) || {};
+          const invName = inv.name || '';
+          const invFirm = inv.firm || null;
           if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
           seen.add(m.startup_id);
           matches.push({
