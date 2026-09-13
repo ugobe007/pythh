@@ -65,3 +65,26 @@ test('live tape renders two filled livewire match panels', () => {
   assert.match(tape, /livewirePageCount/);
   assert.doesNotMatch(tape, /showFunding/);
 });
+
+test('recent-matches is one slim query, not an 800-row scan', () => {
+  const src = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
+  const start = src.indexOf("app.get('/api/recent-matches'");
+  const end = src.indexOf("app.get('/api/live-pairings'");
+  assert.ok(start > 0 && end > start);
+  const handler = src.slice(start, end);
+  assert.match(handler, /\.limit\(120\)/);
+  assert.match(handler, /id,\s*startup_id,\s*investor_id,\s*match_score,\s*created_at/);
+  assert.doesNotMatch(handler, /MAX_SCAN/);
+  assert.doesNotMatch(handler, /PAGE\s*=\s*80/);
+  assert.doesNotMatch(handler, /reasoning,\s*why_you_match/);
+});
+
+test('livewire first paint fetches recent-matches only', () => {
+  const src = readFileSync(new URL('../site/components/RecentMatchesFeed.tsx', import.meta.url), 'utf8');
+  assert.match(src, /peekCachedMatches/);
+  assert.match(src, /pythh_livewire_matches/);
+  assert.match(src, /if \(inflight\) return inflight/);
+  assert.match(src, /if \(recent\.length > 0\) return recent/);
+  assert.doesNotMatch(src, /Promise\.all\(/);
+  assert.doesNotMatch(src, /const hotPromise = fetchHotMatches/);
+});
