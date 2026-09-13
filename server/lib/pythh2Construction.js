@@ -121,7 +121,7 @@ const QUARANTINE_NAMES = new Set([
 ]);
 
 const LATE_STAGES = new Set([
-  '4', '5', '6', 'series c', 'series c+', 'series d', 'series e',
+  '4', '5', '6', 'series b', 'series b+', 'series c', 'series c+', 'series d', 'series e',
   'ipo', 'public', 'growth', 'late stage', 'late-stage', 'mezzanine',
 ]);
 

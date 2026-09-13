@@ -79,7 +79,8 @@ async function main() {
   const takenIds = (existing || []).map((r) => r.startup_id);
   const alreadyTwo = (existing || []).filter((r) => r.fund_key === PYTHH_2).length;
 
-  const book = selectPythh2Book(startups, { takenIds, target, minGod });
+  const effectiveTarget = Math.max(0, target - alreadyTwo);
+  const book = selectPythh2Book(startups, { takenIds, target: effectiveTarget, minGod });
   console.log(`   pool ${book.stats.considered} · eligible ${book.stats.eligible} · pick ${book.stats.picked}`);
   console.log(`   GOD ${book.stats.minGod}–${book.stats.maxGod} avg ${book.stats.avgGod}`);
   console.log(`   industries: ${book.stats.byIndustry.map((s) => `${s.industry} ${s.count}`).join(' · ')}`);

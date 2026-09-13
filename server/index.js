@@ -10334,9 +10334,11 @@ app.post('/api/admin/portfolio/seed', async (req, res) => {
       from += page;
     }
 
-    const { data: existing } = await supabase.from('virtual_portfolio').select('startup_id');
+    const { data: existing } = await supabase.from('virtual_portfolio').select('startup_id, fund_key');
     const existingIds = new Set((existing || []).map((e) => e.startup_id));
-    const book = selectPythh2Book(startups, { takenIds: existingIds, target, minGod });
+    const alreadyInFund = (existing || []).filter((e) => e.fund_key === fundKey).length;
+    const effectiveTarget = Math.max(0, target - alreadyInFund);
+    const book = selectPythh2Book(startups, { takenIds: existingIds, target: effectiveTarget, minGod });
 
     let added = 0;
     const errors = [];
