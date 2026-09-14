@@ -1,7 +1,76 @@
 {
   "version": 1,
-  "updated_at": "2026-09-07T00:00:00Z",
+  "updated_at": "2026-09-14T00:00:00Z",
   "findings": [
+    {
+      "id": "F-2026-0914-21",
+      "type": "funnel",
+      "friction_category": "missing_signals",
+      "audience": "both",
+      "title": "Awareness read BLIND again — but this time it's a STALE THRESHOLD, not suppressed page_view (SHIPPED FIX)",
+      "founder_problem": "N/A (measurement defect) — but it silently freezes the entire fleet: while awareness reads BLIND, Scout's decision rules forbid shipping preview/signup UI, so every downstream loop halts on a false signal. This is the F-18 failure mode resurrected by a threshold that never got recalibrated after the human-funnel migration.",
+      "investor_problem": "Same — investor-side loops are gated behind the (falsely) BLIND awareness stage.",
+      "evidence": {
+        "internal": "conversion-funnel-snapshot 2026-09-14: human page_view=119/7d, human url_submitted=125/7d → url_submitted_per_page_view=105 (a HEALTHY ~1.05x parity ratio — F-18 fix worked). But the blind guard flagged awareness BLIND because both scripts (conversion-funnel-snapshot.mjs L290, orchestrator-brief.mjs L92) tested `urlPv > 100`. That cutoff was calibrated for the RAW-url era (F-18 defect showed 663%). On human-only near-parity data 105% > 100 trips it. orchestrator-brief.mjs then CASCADES: previewBlind=awarenessBlind||…, signupBlind=previewBlind||… (L93-94) → one false positive marks ALL THREE stages BLIND, so weakestStage returns awareness(score 0) and the fleet is ordered to 'manufacture traffic' while the real leak sits untouched.",
+        "strength": "validated (internal funnel data + located code defect in two scripts)"
+      },
+      "pythh_opportunity": "Raise the suppression cutoff from >100 to >300 (≥3x page_views) in both scripts — only genuine page_view suppression (F-18's 663%) should trip BLIND; healthy human near-parity (~105%) must pass. After fix: awareness/preview/signup all read NOT blind, and the binding constraint correctly flips to Preview→signup=0% (see F-2026-0914-22). This un-freezes Growth/Product to work the true leak.",
+      "suggested_product_shape": "Threshold fix (shipped this run) + 7d guard: watch funnel_blind_flags in conversion-funnel-snapshot; awareness should stay false while human page_view stays >20 and urlPv < 300. If a future entry path drops page_view, urlPv climbs toward 300+ and the guard re-fires correctly.",
+      "signup_lever": "awareness (measurement) — unfreezes conversion + retention loops for the whole fleet",
+      "confidence": "high",
+      "status": "addressed",
+      "status_update": "2026-09-14: SHIPPED — URL_PV_SUPPRESSION_RATIO=300 replaces the >100 cutoff in scripts/conversion-funnel-snapshot.mjs and scripts/orchestrator-brief.mjs. Verified: brief weakest_stage flipped from awareness(BLIND) to signup(Preview→signup, rate 0, not blind).",
+      "code_changes": { "files": ["scripts/conversion-funnel-snapshot.mjs", "scripts/orchestrator-brief.mjs"] },
+      "handoff": {
+        "suggested_opportunity_id": "awareness_blind_threshold_truth",
+        "title": "Un-freeze fleet: fix stale url:pv>100 blind threshold (verify awareness stays not-blind at healthy parity)",
+        "priority": "P0",
+        "domain": "pipeline"
+      }
+    },
+    {
+      "id": "F-2026-0914-22",
+      "type": "funnel",
+      "friction_category": "investor_outreach",
+      "audience": "founder",
+      "title": "TRUE binding constraint is Preview→signup = 0% — 98 real human preview views, 0 signups; even the 4 who STARTED all abandoned",
+      "founder_problem": "Founders reach the value moment at real (if modest) volume — 98 human preview views/7d — and not one creates an account. Worse than a gate problem: of 4 who started signup (founder_preview_to_started=4.1%), 0 completed (started_to_completed=0). Both sub-steps leak: too few previewers START (4.1%) and everyone who starts ABANDONS. This regressed from F-14's finding that starters converted near-fully — the started→completed step broke.",
+      "investor_problem": "Investor-side acquisition still 0; a leaking founder funnel means no founder inventory to surface to investors.",
+      "evidence": {
+        "internal": "conversion-funnel-snapshot 2026-09-14: human preview views=98, signup_per_preview=0, founder_signup_started=4, founder_signup_completed=0, founder_preview_to_started=4.1, founder_started_to_completed=0. match_viewed=370, match_intro_requested=0 (0 intros despite heavy match viewing), match_explain_viewed=32. pricing_viewed=7, checkout_started=0.",
+        "strength": "validated (internal funnel data) — measured 0% at the binding stage on non-blind volume"
+      },
+      "pythh_opportunity": "Now that the false BLIND flag is cleared (F-21), Growth/Product can legally work this. Two leaks to attack: (1) preview→started 4.1% — put a one-primary-CTA outcome button ('See your top N signal-fit investors → save your shortlist') AFTER the evidence reveal, matching Startups.com 'See My Matches' singularity; (2) started→completed 0/4 — audit the signup form for a hard break (this is a regression, likely a broken field/redirect, worth a live repro before copy work).",
+      "suggested_product_shape": "Growth: preview_cliffhanger + founder_gate_cta variant with singular outcome CTA post-reveal; instrument founder_signup_started→completed per-field. Product: live-repro the started→completed=0/4 break (regression audit) before any copy A/B.",
+      "signup_lever": "conversion (the binding constraint)",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "preview_to_signup_conversion",
+      "handoff": {
+        "suggested_opportunity_id": "preview_to_signup_conversion",
+        "title": "Work the true leak: Preview→signup 0% (4.1% start, 0/4 complete) — singular outcome CTA post-reveal + repro the started→completed break",
+        "priority": "P0",
+        "domain": "conversion"
+      }
+    },
+    {
+      "id": "F-2026-0914-23",
+      "type": "market",
+      "friction_category": "investor_outreach",
+      "audience": "founder",
+      "title": "YC Demo Day + Insight 'diversifying while everyone bets on OpenAI/Anthropic' = a fresh, distractible founder cohort with active investor discovery intent",
+      "founder_problem": "A YC Demo Day cohort just hit the market — hundreds of founders simultaneously building investor lists and gauging who is actively deploying beyond the AI-mega-cap concentration. They have peak investor-discovery intent for a ~2-week window but no signal-fit tool; they default to spreadsheets and warm-intro scramble. This is an awareness-timing window Pythh's low top-of-funnel (17 human page_views/day) is missing.",
+      "investor_problem": "Investors (per Insight Partners) are consciously diversifying away from the OpenAI/Anthropic concentration — they need thesis-fit dealflow outside the obvious AI names, which a signal-fit digest could serve.",
+      "evidence": {
+        "rss": "research-snapshot 2026-09-14: TechCrunch 'The 9 buzziest startups from Y Combinator's latest Demo Day, according to VCs' and 'Insight Partners' Deven Parekh on why the firm is diversifying while everyone else bets the farm on OpenAI and Anthropic'; Sifted 'US VC FirstMark: Europe is underrated right now'. Recurring valuation-froth signal continues (Mecka AI ~$500M Sequoia-led).",
+        "strength": "hypothesis (external) — acquisition-timing signal, corroborates F-12 (first-time founder cohort) and F-05 (deployment-timing)"
+      },
+      "pythh_opportunity": "Awareness-timing play: aim the outbound_find_investors + share_proof_cards loops at the just-graduated YC cohort and 'who's deploying beyond AI mega-caps' framing while intent is peak. Pairs with the deployment-timing signal (F-05): 'these N matched funds are actively diversifying into your sector'.",
+      "suggested_product_shape": "Growth: time-boxed outbound + SEO /find-investors landing keyed to demo-day/first-cheque intent; Research: monitor demo-day cadence as a recurring awareness trigger.",
+      "signup_lever": "awareness (timing) + conversion",
+      "confidence": "medium",
+      "status": "open"
+    },
     {
       "id": "F-2026-0907-18",
       "type": "funnel",

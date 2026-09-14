@@ -286,8 +286,15 @@ async function main() {
   const humanPv = humanPageViews;
   const humanUrl = humanUrlSubmitted;
   const urlPv = report.rates.url_submitted_per_page_view;
+  // Suppression guard: url_submitted_per_page_view is a HUMAN-only ratio (humanUrl/humanPv).
+  // Healthy funnels sit near parity (~100%) — returning visitors legitimately submit ≥1 URL
+  // per page_view. Only a physically-impossible ratio (F-18 defect showed 663% when the
+  // /matches?url= landing branch dropped page_view) indicates suppressed page_view and a truly
+  // BLIND awareness stage. The old >100 cutoff was calibrated for the raw-url era and false-flags
+  // healthy near-parity (125/119=105%), cascading a full-funnel freeze. Use ≥3x as the defect line.
+  const URL_PV_SUPPRESSION_RATIO = 300;
   report.funnel_blind_flags = {
-    awareness: humanPv <= 20 || humanUrl < 1 || (urlPv != null && urlPv > 100),
+    awareness: humanPv <= 20 || humanUrl < 1 || (urlPv != null && urlPv > URL_PV_SUPPRESSION_RATIO),
     preview: humanPv <= 20 || humanUrl < 1 || previewViews < 5,
     signup: previewViews < 5,
     human_page_views_7d: humanPv,

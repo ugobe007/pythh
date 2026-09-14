@@ -71,6 +71,14 @@ function buildOrchestratorRates(funnel) {
 const PAGE_VIEW_FLOOR_7D = 20;
 /** Conservative daily human page views needed to support ~1 signup/day at early funnel conversion. */
 const TRAFFIC_TARGET_PER_DAY = 50;
+/**
+ * url_submitted_per_page_view is a HUMAN-only ratio. Healthy funnels sit near parity (~100%) —
+ * returning visitors legitimately submit ≥1 URL per page_view. Only a physically-impossible ratio
+ * (F-18 defect showed 663% when the /matches?url= landing branch dropped page_view) means page_view
+ * is suppressed and awareness is truly BLIND. The old >100 cutoff false-flagged healthy near-parity
+ * (125/119=105%) and cascaded a full-funnel freeze (awareness→preview→signup). Use ≥3x as defect line.
+ */
+const URL_PV_SUPPRESSION_RATIO = 300;
 
 function awarenessTrafficScore(humanPageViews, windowDays) {
   const perDay = humanPageViews / Math.max(windowDays || 7, 1);
@@ -89,7 +97,7 @@ function buildFunnelBlindFlags(funnel, rates) {
   const awarenessBlind =
     humanPageViews <= PAGE_VIEW_FLOOR_7D ||
     humanUrlSubmitted < 1 ||
-    (urlPerPv != null && urlPerPv > 100);
+    (urlPerPv != null && urlPerPv > URL_PV_SUPPRESSION_RATIO);
   const previewBlind = awarenessBlind || previewViews < 5;
   const signupBlind = previewBlind || previewViews < 5;
 
