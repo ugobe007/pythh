@@ -19,11 +19,18 @@ export default function HeroHeadline({
     );
   }
   const afterAccent = headline.slice(idx + HERO_HEADLINE_ACCENT.length);
+  const periodBreak = afterAccent.startsWith('.');
   return (
     <h1 className={className} style={style}>
       {headline.slice(0, idx)}
       <span style={{ color: G }}>{HERO_HEADLINE_ACCENT}</span>
-      {afterAccent}
+      {periodBreak ? (
+        <>
+          .
+          <br />
+          {afterAccent.slice(1).trimStart()}
+        </>
+      ) : afterAccent}
     </h1>
   );
 }

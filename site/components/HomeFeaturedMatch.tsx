@@ -16,7 +16,11 @@ export const FEATURED_MATCH_ROTATE_MS = 8000;
 
 export { firmLabel, livewireMeta, livewireTimeLabel };
 
-export default function HomeFeaturedMatch() {
+export default function HomeFeaturedMatch({
+  orientation = "vertical",
+}: {
+  orientation?: "vertical" | "horizontal";
+}) {
   const { matches: raw, loading } = useRecentMatches(FEATURED_MATCH_FETCH);
   const matches = useMemo(() => uniqueMatchPairs(raw, FEATURED_MATCH_POOL), [raw]);
   const [paused, setPaused] = useState(false);
@@ -53,6 +57,7 @@ export default function HomeFeaturedMatch() {
       pageCount={pageCount}
       onPage={setPage}
       onPause={setPaused}
+      orientation={orientation}
     />
   );
 }
