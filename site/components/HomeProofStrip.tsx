@@ -56,7 +56,7 @@ export default function HomeProofStrip({
 }) {
   const rate = pairRate != null && Number.isFinite(pairRate) ? pairRate : null;
   const hasPrimary = Boolean(rate != null && pairHits && pairStartups);
-  if (!hasPrimary && !startupsFunded && !investors) return null;
+  if (!hasPrimary && !startupsFunded && !investors && variant !== "panel") return null;
 
   if (variant === "panel") {
     return (
