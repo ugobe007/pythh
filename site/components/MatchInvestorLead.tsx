@@ -6,6 +6,7 @@ import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { parseExplainBullets } from '@/components/MatchExplainBlock';
 import InlineMeta from '@/components/design/InlineMeta';
 import { sendLeadEmail, unlockMatchLead } from '@/lib/matchLeadRelay';
+import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { G, G_HOVER, AMBER, DIM, MUTED, TEXT, BORDER, CARD } from '@/lib/designTokens';
 
 export type LeadDeal = {
@@ -278,14 +279,25 @@ export default function MatchInvestorLead({
             <div>
               <Link
                 href="/pricing"
+                onClick={() => {
+                  void trackFunnelEvent('pricing_bridge_clicked', {
+                    startup_id: startupId,
+                    investor_id: investorId,
+                    investor_name: inv?.name || label,
+                    rank,
+                    match_score: fitness,
+                    source: 'match_lead_use_to_paid',
+                    variant: 'oracle_bridge_outcome',
+                  });
+                }}
                 className="inline-flex items-center gap-2 text-sm font-semibold"
                 style={{ color: G }}
               >
-                <Lock className="w-3.5 h-3.5" />
-                Email, calls, and the deck outline are on Scout
+                <Send className="w-3.5 h-3.5" />
+                Let PYTHIA write &amp; send this intro →
               </Link>
               <p className="mt-1 text-xs" style={{ color: DIM }}>
-                Monthly plan. We never hand you their address.
+                14-day free trial · we send from pythh.ai — their address stays private.
               </p>
             </div>
           ) : !unlocked ? (

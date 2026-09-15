@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-17T00:00:00Z",
+  "updated_at": "2026-09-15T00:00:00Z",
   "experiments": [
     {
       "id": "founder_hero_signup_cta",
@@ -507,6 +507,48 @@
         "primary": "checkout_completed",
         "secondary": ["pricing_viewed", "checkout_started", "checkout_cancelled"]
       }
+    },
+    {
+      "id": "founder_match_lead_pricing_bridge",
+      "audience": "founder",
+      "name": "Use → paid bridge: outcome CTA + instrumentation on match-lead paywall",
+      "status": "draft",
+      "parent_experiment": "founder_hero_entry",
+      "benchmark": "startups_com",
+      "applies_when": "match_lead_card AND isPaid=false (post-preview match usage surface)",
+      "hypothesis": "The ONLY Use → paid path on the match-usage surface (MatchInvestorLead, the card a founder opens after reading 'Why this investor' evidence — 26 match_explain_viewed, 363 match_viewed/7d) was a generic feature-negative link ('Email, calls, and the deck outline are on Scout') that fired ZERO instrumentation. That is why Use → paid reads as uninstrumented: pricing_viewed=6/7d could not be attributed to match usage and checkout_started=0 had no upstream signal. Replacing it with ONE outcome-first primary CTA ('Let PYTHIA write & send this intro →') that fires a new pricing_bridge_clicked funnel event should (a) make the Use → paid bridge measurable in 7d and (b) lift pricing_viewed attributed to match usage without adding a competing green primary on the anon preview (signup focus preserved — this CTA only renders for isPaid=false authenticated/preview match cards).",
+      "loops": ["pricing_oracle_bridge", "match_explain"],
+      "variants": [
+        {
+          "key": "oracle_bridge_outcome",
+          "traffic_pct": 100,
+          "schema": {
+            "surface": "match_lead_card",
+            "renders_when": "isPaid=false",
+            "primary_action": "route_to_pricing",
+            "primary_framing": "outcome_deliverable",
+            "routes_to": "/pricing",
+            "fires": "pricing_bridge_clicked (source=match_lead_use_to_paid)",
+            "previous_label": "Email, calls, and the deck outline are on Scout",
+            "previous_fired": "nothing"
+          },
+          "copy": {
+            "primary": "Let PYTHIA write & send this intro →",
+            "value_line": "14-day free trial · we send from pythh.ai — their address stays private."
+          },
+          "guardrails": {
+            "single_primary_per_surface": true,
+            "no_competing_signup_primary_on_preview": true,
+            "no_fabricated_counts": true,
+            "address_never_exposed": true
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "pricing_bridge_clicked",
+        "secondary": ["pricing_viewed", "checkout_started", "checkout_completed"]
+      },
+      "promotion_note": "DRAFT 2026-09-15 — shipped in site/components/MatchInvestorLead.tsx (report-only allocation). Baseline 7d (human_funnel): match_viewed=363, match_explain_viewed=26, pricing_viewed=6, checkout_started=0, pricing_bridge_clicked=0 (event did not exist). Promote to running once pricing_bridge_clicked > 0 and pricing_viewed attributed to source=match_lead_use_to_paid climbs off the 6/7d floor. Owner review required before status=running."
     }
   ]
 }
