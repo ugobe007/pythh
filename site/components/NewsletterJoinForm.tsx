@@ -102,13 +102,13 @@ export default function NewsletterJoinForm({
       <div
         className="flex items-center gap-3 px-4 rounded-xl min-w-0 text-left mb-3"
         style={{
-          backgroundColor: emphasis ? "oklch(0.96 0.005 264)" : CARD,
+          backgroundColor: emphasis ? "#000" : CARD,
           border: `${emphasis ? 2 : 1}px solid ${error && !url.trim() && requireUrl ? "rgba(248,113,113,0.5)" : emphasis ? G : BORDER}`,
           boxShadow: emphasis ? `0 0 0 4px oklch(0.696 0.17 162.48 / 0.22)` : undefined,
-          minHeight: emphasis ? 64 : 52,
+          minHeight: emphasis ? 80 : 52,
         }}
       >
-        <ExternalLink size={emphasis ? 18 : 15} className="flex-shrink-0" style={{ color: emphasis ? "oklch(0.32 0.06 162)" : DIM }} />
+        <ExternalLink size={emphasis ? 22 : 15} className="flex-shrink-0" style={{ color: emphasis ? MUTED : DIM }} />
         <input
           id={`${id || "join"}-url`}
           type="text"
@@ -117,8 +117,8 @@ export default function NewsletterJoinForm({
           placeholder="https://yourstartup.com"
           value={url}
           onChange={(e) => { setUrl(e.target.value); if (error) setError(""); }}
-          className={`flex-1 min-w-0 bg-transparent outline-none ${emphasis ? "text-[17px] placeholder:text-zinc-500" : "text-[15px] placeholder:text-zinc-400"}`}
-          style={{ color: emphasis ? "oklch(0.18 0.02 264)" : TEXT }}
+          className={`flex-1 min-w-0 bg-transparent outline-none ${emphasis ? "text-[30px] placeholder:text-zinc-400" : "text-[15px] placeholder:text-zinc-400"}`}
+          style={{ color: emphasis ? MUTED : TEXT }}
           aria-label="Your startup URL"
           required={requireUrl}
         />

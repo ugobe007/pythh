@@ -40,6 +40,8 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(form, /Where should we send the full ranked list/);
   assert.match(form, /Paste your startup URL/);
   assert.match(form, /Start here/);
+  assert.match(form, /text-\[30px\]/);
+  assert.match(form, /backgroundColor: emphasis \? "#000"/);
   assert.match(home, /id="hero-cta"/);
   assert.match(proofStrip, /id="hero-status-bar"/);
   assert.match(proofStrip, /variant === "panel"/);

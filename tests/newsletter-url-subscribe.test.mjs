@@ -60,6 +60,7 @@ test('join form and subscribe API collect URL with email', () => {
   assert.match(form, /Preview my matches/);
   assert.match(form, /https:\/\/yourstartup.com/);
   assert.match(form, /Paste your startup URL/);
+  assert.match(form, /text-\[30px\]/);
   assert.match(form, /Where should we send the full ranked list/);
   assert.match(form, /Your first ranked matches arrive in your inbox/);
   assert.match(form, /See my matches/);
