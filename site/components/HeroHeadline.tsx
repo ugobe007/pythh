@@ -23,14 +23,18 @@ export default function HeroHeadline({
   return (
     <h1 className={className} style={style}>
       {headline.slice(0, idx)}
-      <span style={{ color: G }}>{HERO_HEADLINE_ACCENT}</span>
       {periodBreak ? (
         <>
-          .
+          <span style={{ color: G, whiteSpace: "nowrap" }}>{HERO_HEADLINE_ACCENT}.</span>
           <br />
           {afterAccent.slice(1).trimStart()}
         </>
-      ) : afterAccent}
+      ) : (
+        <>
+          <span style={{ color: G }}>{HERO_HEADLINE_ACCENT}</span>
+          {afterAccent}
+        </>
+      )}
     </h1>
   );
 }
