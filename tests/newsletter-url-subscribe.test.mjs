@@ -58,7 +58,8 @@ test('join form and subscribe API collect URL with email', () => {
   const send = readFileSync(new URL('../scripts/send-daily-brief.js', import.meta.url), 'utf8');
   assert.match(form, /Get daily matches/);
   assert.match(form, /Preview my matches/);
-  assert.match(form, /Your startup website/);
+  assert.match(form, /https:\/\/yourstartup.com/);
+  assert.match(form, /Paste your startup URL/);
   assert.match(form, /Where should we send the full ranked list/);
   assert.match(form, /Your first ranked matches arrive in your inbox/);
   assert.match(form, /See my matches/);

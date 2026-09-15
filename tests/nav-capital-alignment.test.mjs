@@ -11,7 +11,8 @@ test('top nav is Explore + Pricing, not a seven-link bar', () => {
   assert.match(nav, /heading: "Investors"/);
   assert.doesNotMatch(nav, /Daily Signal — prominent/);
   assert.doesNotMatch(nav, /NAV_LINKS = \[/);
-  assert.match(nav, /Get daily matches/);
+  assert.match(nav, /See my investor matches/);
+  assert.match(nav, /heroCta/);
   assert.doesNotMatch(nav, /Automate your raise/);
 });
 
