@@ -458,7 +458,7 @@ function HeroSection({
           <div className="lg:pl-[min(8vw,96px)]">
             <HeroHeadline
               headline={heroHeadline}
-              className="font-display font-bold leading-[1.1] mb-5 max-w-[20ch]"
+              className="font-display font-bold leading-[1.1] mb-5 max-w-[36rem]"
               style={{ fontSize: "clamp(2.25rem, 4.6vw, 3.75rem)", color: TEXT, letterSpacing: "-0.04em" }}
             />
             <p
