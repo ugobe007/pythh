@@ -454,12 +454,12 @@ function HeroSection({
       style={{ backgroundColor: PAGE }}
     >
       <div className="container relative z-10 max-w-[1200px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
-        <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] gap-10 lg:gap-14 items-start">
-          <div className="lg:pl-[min(8vw,96px)]">
+        <div className="grid lg:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)] gap-10 lg:gap-12 items-start">
+          <div className="lg:pl-[min(6vw,72px)]">
             <HeroHeadline
               headline={heroHeadline}
-              className="font-display font-bold leading-[1.1] mb-5 max-w-[36rem]"
-              style={{ fontSize: "clamp(2.25rem, 4.6vw, 3.75rem)", color: TEXT, letterSpacing: "-0.04em" }}
+              className="font-display font-bold leading-[1.12] mb-5 max-w-[40rem]"
+              style={{ fontSize: "clamp(2.1rem, 3.8vw, 3.15rem)", color: TEXT, letterSpacing: "-0.04em" }}
             />
             <p
               className="leading-relaxed mb-8 max-w-[44ch]"
