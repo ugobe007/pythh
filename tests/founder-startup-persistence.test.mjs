@@ -24,6 +24,8 @@ test('founder account restores startup context from the protected profile', asyn
   assert.match(hub, /trpc\.profile\.get\.useQuery/);
   assert.match(hub, /profile\?\.startupId/);
   assert.match(hub, /pinActiveStartup\(profile\.startupId/);
+  assert.match(hub, /Your saved matches/);
+  assert.match(hub, /apiUrl\(`\/api\/preview\/\$\{id\}\?source=account_saved`\)/);
 });
 
 test('founder profile schema and migration include startup ownership', async () => {

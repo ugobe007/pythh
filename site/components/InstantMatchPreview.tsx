@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { trpc } from '@/lib/trpc';
@@ -15,6 +15,7 @@ import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
 import { recordMatchViewOnce, trackFunnelEventOnce } from '@/lib/matchEngagement';
 import {
   postSignupPathForAction,
+  savedMatchesPath,
   trackFounderGateStarted,
   completePreviewGateIfPending,
   peekFounderGatePending,
@@ -24,10 +25,15 @@ import {
 import { persistFounderStartup } from '@/lib/founderAccount';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { pinActiveStartup } from '@/lib/activeStartupContext';
+import {
+  ANON_IMPROVE_LIMIT,
+  canImproveAnonymously,
+  getImproveCount,
+  recordImproveCompletion,
+} from '@/lib/improveMatchesQuota';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
-import PaidRaisePanel from '@/components/PaidRaisePanel';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, TEXT } from '@/lib/designTokens';
@@ -116,9 +122,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [shortlistSaved, setShortlistSaved] = useState(false);
-  const [improveMatchesOpen, setImproveMatchesOpen] = useState(
-    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('improve') === '1',
-  );
+  const [improveMatchesOpen, setImproveMatchesOpen] = useState(false);
+  const [improveUsed, setImproveUsed] = useState(0);
   const refreshed =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refreshed') === '1';
   const [startupId, setStartupId] = useState<string | null>(null);
@@ -164,6 +169,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setStartupId(null);
     setPreview(null);
     setShortlistSaved(false);
+    setImproveUsed(0);
     setUnlockedIds([]);
     gateCompletedRef.current = false;
 
@@ -201,7 +207,10 @@ export default function InstantMatchPreview({ url }: Props) {
           }
         }
         if (!id) throw new Error('Still analyzing — try again in a moment');
-        if (!cancelled) setStartupId(id);
+        if (!cancelled) {
+          setStartupId(id);
+          setImproveUsed(getImproveCount(id));
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : 'Preview failed');
@@ -288,6 +297,25 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [startupId, authLoading, isAuthenticated, isPaid]);
 
+  const openImproveOrSignup = () => {
+    const id = preview?.startup?.id || startupId;
+    if (isAuthenticated || canImproveAnonymously(id)) {
+      setImproveMatchesOpen(true);
+      return;
+    }
+    handleSignup('save');
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('improve') !== '1') return;
+    const id = preview?.startup?.id || startupId;
+    if (!id) return;
+    if (isAuthenticated || canImproveAnonymously(id)) {
+      setImproveMatchesOpen(true);
+    }
+  }, [isAuthenticated, preview?.startup?.id, startupId]);
+
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     const startupIdForGate = preview?.startup?.id;
     if (isAuthenticated && startupIdForGate) {
@@ -346,23 +374,30 @@ export default function InstantMatchPreview({ url }: Props) {
   const godScore =
     typeof preview.startup?.god_score === 'number' ? Math.round(preview.startup.god_score) : null;
   const fundingStage = preview.shortlist_mix?.funding_stage?.replace(/-/g, ' ');
-  const remaining = Math.max(0, total - visible.length);
   const canConfirmRound = Boolean(isAuthenticated && preview.startup?.id && !fundingStage);
+  const improveLeft = Math.max(0, ANON_IMPROVE_LIMIT - improveUsed);
+  const canImproveNow = Boolean(isAuthenticated || improveLeft > 0);
   const nextCopy = !isAuthenticated
-    ? remaining > 0
-      ? `Save this shortlist to keep these ${visible.length} and unlock ${remaining.toLocaleString()} more in the network.`
-      : `Save this shortlist to keep these ${visible.length} matches.`
+    ? canImproveNow
+      ? `You can refine this shortlist ${improveLeft} more time${improveLeft === 1 ? '' : 's'} without an account. Create a free account when you want to keep these ${visible.length} matches on your profile.`
+      : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
     : canConfirmRound
       ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top.'
-      : 'Shortlist is saved. Confirm more company data to rerank who sits on top.';
+      : shortlistSaved
+        ? 'These matches are saved to your account. Open Account anytime to come back. Add more company data to rerank who sits on top.'
+        : 'Confirm more company data to rerank who sits on top.';
   const nextLabel = !isAuthenticated
-    ? 'Save my matches'
+    ? canImproveNow
+      ? 'Improve my matches'
+      : 'Save my matches'
     : canConfirmRound
       ? 'Confirm your round'
       : 'Improve my matches';
   const nextAction = !isAuthenticated
-    ? () => handleSignup('save')
-    : () => setImproveMatchesOpen(true);
+    ? canImproveNow
+      ? openImproveOrSignup
+      : () => handleSignup('save')
+    : openImproveOrSignup;
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
@@ -388,7 +423,13 @@ export default function InstantMatchPreview({ url }: Props) {
       </div>
 
       {isAuthenticated && shortlistSaved && (
-        <p className="mb-4 text-xs" style={{ color: G }}>Shortlist saved to your account.</p>
+        <p className="mb-4 text-xs" style={{ color: G }}>
+          Saved to your account.{' '}
+          <Link href={savedMatchesPath()} className="underline underline-offset-2">
+            Open your saved matches
+          </Link>
+          .
+        </p>
       )}
 
       <ul className="mb-4 divide-y" style={{ borderColor: 'oklch(0.2 0.01 264)' }}>
@@ -414,10 +455,6 @@ export default function InstantMatchPreview({ url }: Props) {
         })}
       </ul>
 
-      <div className="mb-6">
-        <PaidRaisePanel isPaid={isPaid} startupId={preview.startup?.id || startupId} />
-      </div>
-
       <div
         className="mt-2 pt-5"
         style={{ borderTop: '1px solid oklch(0.2 0.01 264)' }}
@@ -436,9 +473,19 @@ export default function InstantMatchPreview({ url }: Props) {
           {nextLabel}
           <ArrowRight className="w-4 h-4" />
         </button>
-        {!isPaid && (
+        {!isAuthenticated && canImproveNow && (
+          <button
+            type="button"
+            onClick={() => handleSignup('save')}
+            className="mt-3 w-full text-sm font-medium underline underline-offset-2"
+            style={{ color: MUTED }}
+          >
+            Save my matches
+          </button>
+        )}
+        {!isAuthenticated && (
           <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
-            Matches are free. Email, calls, term sheets, and the PPT outline are on Scout.
+            Saving creates a free account and keeps this shortlist under Account. We do not email the list unless you subscribed separately.
           </p>
         )}
       </div>
@@ -449,6 +496,11 @@ export default function InstantMatchPreview({ url }: Props) {
           startupUrl={url}
           currentGodScore={preview.startup.god_score}
           onClose={() => setImproveMatchesOpen(false)}
+          onCompleted={() => {
+            if (!isAuthenticated) {
+              setImproveUsed(recordImproveCompletion(preview.startup?.id));
+            }
+          }}
         />
       )}
     </div>

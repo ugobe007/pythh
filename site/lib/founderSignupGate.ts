@@ -92,6 +92,11 @@ export function matchesPathForUrl(url?: string | null): string {
   return `/matches?url=${encodeURIComponent(normalized)}`;
 }
 
+/** Account landing after Save — this is where the shortlist lives. */
+export function savedMatchesPath(): string {
+  return '/account?saved=1';
+}
+
 /** Optional wizard routes — used from the matches hub, not as default post-signup landing. */
 export function outreachPath(startupId: string): string {
   return `/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
@@ -107,10 +112,11 @@ export function normalizePreviewGateAction(action: FounderGatedAction | null): F
 }
 
 export function postSignupPathForAction(
-  _action: FounderGatedAction | null,
+  action: FounderGatedAction | null,
   startupId: string,
   options?: { url?: string | null },
 ): string {
+  if (action === 'save') return savedMatchesPath();
   if (!startupId && !options?.url) return '/account';
   return matchesPathForUrl(options?.url);
 }
