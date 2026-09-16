@@ -85,6 +85,8 @@ test('featured match is a six-row livewire tape and proof strip keeps the pair c
   assert.match(featured, /orientation/);
   assert.match(panel, /orientation = "vertical"/);
   assert.match(panel, /orientation === "horizontal"/);
+  assert.match(panel, /overflow-hidden/);
+  assert.match(panel, /repeat\(3,minmax\(0,1fr\)\)/);
   assert.doesNotMatch(featured, /Investor fit:/);
   assert.doesNotMatch(featured, /Startup GOD/);
   assert.doesNotMatch(featured, /Why this match/);

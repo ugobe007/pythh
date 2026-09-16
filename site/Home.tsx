@@ -453,16 +453,16 @@ function HeroSection({
       className="relative pt-16"
       style={{ backgroundColor: PAGE }}
     >
-      <div className="container relative z-10 max-w-[1200px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
-        <div className="grid w-full lg:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)] gap-10 lg:gap-12 items-start">
-          <div className="min-w-0">
+      <div className="container relative z-10 max-w-[1280px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
+        <div className="grid w-full lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)] gap-8 lg:gap-10 items-stretch">
+          <div className="min-w-0 flex flex-col">
             <HeroHeadline
               headline={heroHeadline}
-              className="font-display font-bold leading-[1.12] mb-5 max-w-[40rem]"
+              className="font-display font-bold leading-[1.12] mb-5"
               style={{ fontSize: "clamp(2.25rem, 4.2vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
             />
             <p
-              className="leading-relaxed mb-8 max-w-[44ch]"
+              className="leading-relaxed mb-8 max-w-[52ch]"
               style={{ color: MUTED, fontSize: "clamp(1.05rem, 1.6vw, 1.125rem)" }}
             >
               {heroSubline}
@@ -493,7 +493,7 @@ function HeroSection({
             investors={investors}
           />
         </div>
-        <div className="w-full mt-10">
+        <div className="w-full min-w-0 mt-10">
           <HomeFeaturedMatch orientation="horizontal" />
         </div>
       </div>

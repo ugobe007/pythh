@@ -1255,14 +1255,21 @@ app.get('/api/recent-matches', async (req, res) => {
         const supabase = getSupabaseClient();
 
         // Slim ids first, then hydrate names. An 800-row embed join was 30–40s cold.
-        const SCAN = 1000;
-        const { data: rows, error } = await supabase
-          .from('startup_investor_matches')
-          .select('id, startup_id, investor_id, match_score, created_at')
-          .order('created_at', { ascending: false })
-          .limit(SCAN);
-
-        if (error) throw error;
+        // PostgREST returns at most 1000 rows per request — paginate to reach the full scan.
+        const SCAN = 4000;
+        const PAGE = 1000;
+        const rows = [];
+        for (let from = 0; from < SCAN; from += PAGE) {
+          const { data, error } = await supabase
+            .from('startup_investor_matches')
+            .select('id, startup_id, investor_id, match_score, created_at')
+            .order('created_at', { ascending: false })
+            .range(from, from + PAGE - 1);
+          if (error) throw error;
+          if (!data?.length) break;
+          rows.push(...data);
+          if (data.length < PAGE) break;
+        }
 
         const startupIds = [...new Set((rows || []).map((m) => m.startup_id).filter(Boolean))];
         const investorIds = [...new Set((rows || []).map((m) => m.investor_id).filter(Boolean))];
