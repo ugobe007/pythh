@@ -8,13 +8,12 @@ import { rewriteOAuthClientIdError } from "@/lib/oauthProviders";
 import {
   clearStaleOAuthKeys,
   isOAuthHandoffActive,
+  loginAccountHandoffPath,
+  resolveLoginRedirect,
 } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
-  const params = new URLSearchParams(window.location.search);
-  const redirect = params.get("redirect") || params.get("next");
-  if (redirect && redirect.startsWith("/")) return redirect;
-  return "/account";
+  return resolveLoginRedirect();
 }
 
 /**
@@ -35,7 +34,7 @@ export default function Login() {
 
   useEffect(() => {
     if (isOAuthHandoffActive()) {
-      window.location.replace("/account");
+      window.location.replace(loginAccountHandoffPath());
       return;
     }
     const params = new URLSearchParams(window.location.search);
