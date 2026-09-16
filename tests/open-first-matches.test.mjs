@@ -15,6 +15,7 @@ test('homepage join opens the first five matches on /matches?url=', () => {
   assert.match(preview, /PREVIEW_LIMIT = 5/);
   assert.match(preview, /\/api\/instant\/submit/);
   assert.match(preview, /Confirm your round/);
-  assert.match(preview, /Save these \$\{visible\.length\} matches/);
+  assert.match(preview, /Save my matches/);
+  assert.doesNotMatch(preview, /href=["']\/newsletter["']/);
   assert.match(preview, /MatchInvestorLead/);
 });
