@@ -419,7 +419,12 @@ export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
 export function readPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
   const fromQuery = params.get("next") || params.get("redirect");
-  if (fromQuery?.startsWith("/") && !fromQuery.startsWith("//")) return fromQuery;
+  if (fromQuery?.startsWith("/") && !fromQuery.startsWith("//")) {
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem("pythh_post_login");
+    }
+    return fromQuery;
+  }
   if (typeof sessionStorage !== "undefined") {
     const stored = sessionStorage.getItem("pythh_post_login");
     sessionStorage.removeItem("pythh_post_login");
