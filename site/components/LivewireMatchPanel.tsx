@@ -78,11 +78,16 @@ function MatchCell({
   index: number;
   stacked: boolean;
 }) {
+  const horizontal = !stacked;
   return (
     <Link
       href={match.startup_id ? `/startup/${encodeURIComponent(match.startup_id)}` : "/matches"}
-      className="flex items-center justify-between gap-4 px-5 py-3 min-w-0"
-      style={{ borderTop: stacked && index === 0 ? undefined : `1px solid ${BORDER}` }}
+      className="flex items-center justify-between gap-3 px-4 py-3 min-w-0 max-w-full overflow-hidden"
+      style={{
+        borderTop: stacked ? (index === 0 ? undefined : `1px solid ${BORDER}`) : undefined,
+        borderRight: horizontal ? `1px solid ${BORDER}` : undefined,
+        borderBottom: horizontal ? `1px solid ${BORDER}` : undefined,
+      }}
       onMouseEnter={(e) => {
         e.currentTarget.style.backgroundColor = PURPLE_SUBTLE;
       }}
@@ -90,7 +95,7 @@ function MatchCell({
         e.currentTarget.style.backgroundColor = "transparent";
       }}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 overflow-hidden">
         <p className="font-display font-bold text-[1.02rem] leading-tight truncate" style={{ color: TEXT }}>
           {match.startup_name}
           <span style={{ color: MUTED, fontWeight: 500 }}> -- </span>
@@ -134,7 +139,7 @@ export function LivewireMatchPanel({
   return (
     <aside
       id={id}
-      className={`rounded-xl text-left ${horizontal ? "" : "flex flex-col h-full"}`}
+      className={`rounded-xl text-left overflow-hidden min-w-0 ${horizontal ? "w-full" : "flex flex-col h-full"}`}
       style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
       aria-label="Livewire investor matches"
       onMouseEnter={() => onPause?.(true)}
@@ -159,7 +164,7 @@ export function LivewireMatchPanel({
 
       {loading && visible.length === 0 ? (
         <div
-          className={horizontal ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "flex-1 px-5 py-3 space-y-2"}
+          className={horizontal ? "grid grid-cols-1 sm:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))] min-w-0" : "flex-1 px-5 py-3 space-y-2"}
           aria-hidden
         >
           {Array.from({ length: LIVEWIRE_PAGE_SIZE }, (_, i) => (
@@ -172,7 +177,7 @@ export function LivewireMatchPanel({
         </div>
       ) : visible.length ? (
         <div className={horizontal ? "" : "flex-1"} aria-live="polite">
-          <div className={horizontal ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : undefined}>
+          <div className={horizontal ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))] min-w-0" : undefined}>
             {visible.map((m, i) => (
               <MatchCell key={`${m.match_id}-${i}`} match={m} index={i} stacked={!horizontal} />
             ))}

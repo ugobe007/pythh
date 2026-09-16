@@ -85,7 +85,7 @@ export default function NewsletterJoinForm({
   }
 
   return (
-    <form id={id} onSubmit={handleSubmit} className={`w-full ${emphasis ? "max-w-xl" : "max-w-lg"} ${className}`.trim()}>
+    <form id={id} onSubmit={handleSubmit} className={`w-full ${emphasis ? "max-w-none" : "max-w-lg"} ${className}`.trim()}>
       {emphasis && (
         <div className="flex items-center justify-between gap-3 mb-2">
           <label htmlFor={`${id || "join"}-url`} className="block text-[15px] font-semibold text-left" style={{ color: TEXT }}>
