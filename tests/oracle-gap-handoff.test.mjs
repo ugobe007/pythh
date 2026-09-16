@@ -13,6 +13,7 @@ test('new users see matches before signup and stay on matches after', async () =
   assert.match(preview, /handleSignup\('save'\)/);
   assert.doesNotMatch(preview, /href=["']\/newsletter["']/);
   assert.doesNotMatch(preview, /Get daily matches/);
+  assert.doesNotMatch(preview, /Get my daily matches/);
   assert.doesNotMatch(preview, /Your fundraising workflow/);
   assert.doesNotMatch(preview, /Start investor outreach/);
   assert.doesNotMatch(preview, /Prepare outreach for my top/);

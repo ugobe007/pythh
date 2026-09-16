@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowRight, ExternalLink, Mail } from "lucide-react";
 import { BORDER, CARD, DIM, G, G_HOVER, MUTED, TEXT } from "@/lib/designTokens";
 
-export const NEWSLETTER_JOIN_CTA = "Get daily matches";
+export const NEWSLETTER_JOIN_CTA = "Get the daily brief";
 export const PREVIEW_MATCHES_CTA = "Preview my matches";
 
 export default function NewsletterJoinForm({
