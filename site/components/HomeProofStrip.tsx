@@ -1,4 +1,4 @@
-import { MUTED, TEXT, G, DIM, BORDER, CARD, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
+import { MUTED, TEXT, G, BORDER, CARD, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
 
 function OutcomeCopy({
   hasPrimary,
@@ -10,8 +10,8 @@ function OutcomeCopy({
   pairStartups?: number;
 }) {
   return hasPrimary
-    ? `${pairHits} of ${pairStartups} startups with a verified post-prediction funder later received a check from an investor we had already ranked in the top five.`
-    : "Pair-layer outcomes appear here when the sealed sample is ready.";
+    ? `${pairHits} of ${pairStartups} startups later raised from a top-5 match.`
+    : "Verified funding appears here when the sample is ready.";
 }
 
 function ScaleStats({
@@ -64,7 +64,7 @@ export default function HomeProofStrip({
         id="hero-status-bar"
         className="rounded-xl text-left p-6 lg:p-7 h-full"
         style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
-        aria-label="Verified pair-layer outcome"
+        aria-label="Verified funding"
       >
         <p className="text-[12px] font-medium tracking-wide uppercase mb-3" style={{ color: PURPLE_ACCENT }}>
           Verified outcome
@@ -77,9 +77,6 @@ export default function HomeProofStrip({
         </p>
         <p className="text-[16px] leading-relaxed" style={{ color: TEXT }}>
           <OutcomeCopy hasPrimary={hasPrimary} pairHits={pairHits} pairStartups={pairStartups} />
-        </p>
-        <p className="text-[14px] mt-3 leading-relaxed" style={{ color: MUTED }}>
-          “Later funded” means a press-verified raise after our prediction clock.
           {" "}
           <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
             Methodology
@@ -88,9 +85,6 @@ export default function HomeProofStrip({
         <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
           <ScaleStats startupsFunded={startupsFunded} investors={investors} />
         </div>
-        <p className="text-[13px] leading-relaxed mt-5" style={{ color: DIM }}>
-          Database size is operating scale, not predictive quality. The percentage is the claim.
-        </p>
       </aside>
     );
   }
@@ -100,7 +94,7 @@ export default function HomeProofStrip({
       id="hero-status-bar"
       className="border-t"
       style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }}
-      aria-label="Verified pair-layer outcome"
+      aria-label="Verified funding"
     >
       <div className="container max-w-[1200px] mx-auto px-6 py-8 grid gap-8 lg:grid-cols-[1.4fr_1fr] items-start">
         <div style={{ borderLeft: `3px solid ${PURPLE_BORDER}`, paddingLeft: 16 }}>
@@ -112,9 +106,6 @@ export default function HomeProofStrip({
           </p>
           <p className="text-[17px] leading-relaxed max-w-[46ch]" style={{ color: TEXT }}>
             <OutcomeCopy hasPrimary={hasPrimary} pairHits={pairHits} pairStartups={pairStartups} />
-          </p>
-          <p className="text-[14px] mt-3 leading-relaxed max-w-[46ch]" style={{ color: MUTED }}>
-            “Later funded” means a press-verified raise after our prediction clock.
             {" "}
             <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
               Methodology
@@ -122,9 +113,6 @@ export default function HomeProofStrip({
           </p>
         </div>
         <ScaleStats startupsFunded={startupsFunded} investors={investors} />
-        <p className="text-[13px] leading-relaxed mt-6" style={{ color: DIM }}>
-          Database size is operating scale, not predictive quality. The percentage on the left is the claim.
-        </p>
       </div>
     </section>
   );
