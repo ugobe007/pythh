@@ -1,4 +1,4 @@
-import { MUTED, TEXT, G, BORDER, CARD, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
+import { MUTED, TEXT, G, DIM, BORDER, CARD, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
 
 function OutcomeCopy({
   hasPrimary,
@@ -10,7 +10,7 @@ function OutcomeCopy({
   pairStartups?: number;
 }) {
   return hasPrimary
-    ? `${pairHits} of ${pairStartups} startups later raised from a top-5 match.`
+    ? `${pairHits} of ${pairStartups} startups later raised from an investor we had already ranked in the top five.`
     : "Verified funding appears here when the sample is ready.";
 }
 
@@ -77,6 +77,9 @@ export default function HomeProofStrip({
         </p>
         <p className="text-[16px] leading-relaxed" style={{ color: TEXT }}>
           <OutcomeCopy hasPrimary={hasPrimary} pairHits={pairHits} pairStartups={pairStartups} />
+        </p>
+        <p className="text-[14px] mt-3 leading-relaxed" style={{ color: MUTED }}>
+          A raise counts when the press confirms it after we ranked the match.
           {" "}
           <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
             Methodology
@@ -85,6 +88,9 @@ export default function HomeProofStrip({
         <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
           <ScaleStats startupsFunded={startupsFunded} investors={investors} />
         </div>
+        <p className="text-[13px] leading-relaxed mt-5" style={{ color: DIM }}>
+          Database size is operating scale, not predictive quality. The percentage is the claim.
+        </p>
       </aside>
     );
   }
@@ -106,6 +112,9 @@ export default function HomeProofStrip({
           </p>
           <p className="text-[17px] leading-relaxed max-w-[46ch]" style={{ color: TEXT }}>
             <OutcomeCopy hasPrimary={hasPrimary} pairHits={pairHits} pairStartups={pairStartups} />
+          </p>
+          <p className="text-[14px] mt-3 leading-relaxed max-w-[46ch]" style={{ color: MUTED }}>
+            A raise counts when the press confirms it after we ranked the match.
             {" "}
             <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
               Methodology
@@ -113,6 +122,9 @@ export default function HomeProofStrip({
           </p>
         </div>
         <ScaleStats startupsFunded={startupsFunded} investors={investors} />
+        <p className="text-[13px] leading-relaxed mt-6" style={{ color: DIM }}>
+          Database size is operating scale, not predictive quality. The percentage on the left is the claim.
+        </p>
       </div>
     </section>
   );

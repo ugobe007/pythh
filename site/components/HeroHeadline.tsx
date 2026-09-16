@@ -25,7 +25,15 @@ export default function HeroHeadline({
       {headline.slice(0, idx)}
       {periodBreak ? (
         <>
-          <span style={{ color: G, whiteSpace: "nowrap" }}>{HERO_HEADLINE_ACCENT}.</span>
+          <span
+            style={{
+              color: G,
+              whiteSpace: "nowrap",
+              fontSize: "clamp(2.85rem, 5.6vw, 4.35rem)",
+            }}
+          >
+            {HERO_HEADLINE_ACCENT}.
+          </span>
           <br />
           {afterAccent.slice(1).trimStart()}
         </>

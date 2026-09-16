@@ -459,7 +459,7 @@ function HeroSection({
             <HeroHeadline
               headline={heroHeadline}
               className="font-display font-bold leading-[1.12] mb-5 max-w-[40rem]"
-              style={{ fontSize: "clamp(2.1rem, 3.8vw, 3.15rem)", color: TEXT, letterSpacing: "-0.04em" }}
+              style={{ fontSize: "clamp(2.25rem, 4.2vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
             />
             <p
               className="leading-relaxed mb-8 max-w-[44ch]"
