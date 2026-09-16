@@ -121,8 +121,10 @@ async function loadRecentMatches(limit: number): Promise<RecentMatch[]> {
   const recent = await fetchMatchList(`/api/recent-matches?limit=${limit}`)
     .then((list) => list as RecentMatch[])
     .catch(() => [] as RecentMatch[]);
-  if (recent.length > 0) return recent;
-  return fetchHotMatches(Math.max(limit, 20));
+  if (recent.length >= limit) return recent;
+  const hot = await fetchHotMatches(Math.max(limit, 20));
+  const merged = uniqueMatchPairs([...recent, ...hot], limit);
+  return merged.length ? merged : recent;
 }
 
 async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
