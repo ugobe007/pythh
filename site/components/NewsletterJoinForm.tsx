@@ -14,6 +14,7 @@ export default function NewsletterJoinForm({
   className = "mx-auto",
   progressive = false,
   revealMatches = false,
+  emphasis = false,
 }: {
   source: string;
   id?: string;
@@ -24,6 +25,8 @@ export default function NewsletterJoinForm({
   progressive?: boolean;
   /** After subscribe, the parent opens /matches?url= so the visitor sees their top 5. */
   revealMatches?: boolean;
+  /** High-contrast URL field — homepage hero so founders can find it. */
+  emphasis?: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [url, setUrl] = useState("");
@@ -82,23 +85,40 @@ export default function NewsletterJoinForm({
   }
 
   return (
-    <form id={id} onSubmit={handleSubmit} className={`w-full max-w-lg ${className}`.trim()}>
+    <form id={id} onSubmit={handleSubmit} className={`w-full ${emphasis ? "max-w-xl" : "max-w-lg"} ${className}`.trim()}>
+      {emphasis && (
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <label htmlFor={`${id || "join"}-url`} className="block text-[15px] font-semibold text-left" style={{ color: TEXT }}>
+            Paste your startup URL
+          </label>
+          <span
+            className="text-[11px] font-mono font-semibold tracking-widest uppercase px-2 py-0.5 rounded-full"
+            style={{ color: G, backgroundColor: "oklch(0.696 0.17 162.48 / 0.12)", border: `1px solid ${G}` }}
+          >
+            Start here
+          </span>
+        </div>
+      )}
       <div
         className="flex items-center gap-3 px-4 rounded-xl min-w-0 text-left mb-3"
         style={{
-          backgroundColor: CARD,
-          border: `1px solid ${error && !url.trim() && requireUrl ? "rgba(248,113,113,0.5)" : BORDER}`,
-          minHeight: 52,
+          backgroundColor: emphasis ? "#000" : CARD,
+          border: `${emphasis ? 2 : 1}px solid ${error && !url.trim() && requireUrl ? "rgba(248,113,113,0.5)" : emphasis ? G : BORDER}`,
+          boxShadow: emphasis ? `0 0 0 4px oklch(0.696 0.17 162.48 / 0.22)` : undefined,
+          minHeight: emphasis ? 80 : 52,
         }}
       >
-        <ExternalLink size={15} className="flex-shrink-0" style={{ color: DIM }} />
+        <ExternalLink size={emphasis ? 22 : 15} className="flex-shrink-0" style={{ color: emphasis ? MUTED : DIM }} />
         <input
+          id={`${id || "join"}-url`}
           type="text"
-          placeholder="Your startup website"
+          inputMode="url"
+          autoComplete="url"
+          placeholder="https://yourstartup.com"
           value={url}
           onChange={(e) => { setUrl(e.target.value); if (error) setError(""); }}
-          className="flex-1 min-w-0 bg-transparent text-[15px] outline-none placeholder:text-zinc-400"
-          style={{ color: TEXT }}
+          className={`flex-1 min-w-0 bg-transparent outline-none ${emphasis ? "text-[30px] placeholder:text-zinc-400" : "text-[15px] placeholder:text-zinc-400"}`}
+          style={{ color: emphasis ? MUTED : TEXT }}
           aria-label="Your startup URL"
           required={requireUrl}
         />

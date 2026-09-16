@@ -69,6 +69,42 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
+function MatchCell({
+  match,
+  index,
+  stacked,
+}: {
+  match: RecentMatch;
+  index: number;
+  stacked: boolean;
+}) {
+  return (
+    <Link
+      href={match.startup_id ? `/startup/${encodeURIComponent(match.startup_id)}` : "/matches"}
+      className="flex items-center justify-between gap-4 px-5 py-3 min-w-0"
+      style={{ borderTop: stacked && index === 0 ? undefined : `1px solid ${BORDER}` }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = PURPLE_SUBTLE;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "transparent";
+      }}
+    >
+      <div className="min-w-0">
+        <p className="font-display font-bold text-[1.02rem] leading-tight truncate" style={{ color: TEXT }}>
+          {match.startup_name}
+          <span style={{ color: MUTED, fontWeight: 500 }}> -- </span>
+          {firmLabel(match)}
+        </p>
+        <p className="text-[12px] font-mono mt-0.5 truncate" style={{ color: DIM }}>
+          {livewireMeta(match)}
+        </p>
+      </div>
+      <ScoreBadge score={Math.round(match.match_score)} />
+    </Link>
+  );
+}
+
 export function LivewireMatchPanel({
   id,
   matches,
@@ -79,6 +115,7 @@ export function LivewireMatchPanel({
   onPause,
   footerHref = "/matches",
   footerLabel = "Inspect the network",
+  orientation = "vertical",
 }: {
   id: string;
   matches: RecentMatch[];
@@ -89,13 +126,15 @@ export function LivewireMatchPanel({
   onPause?: (paused: boolean) => void;
   footerHref?: string;
   footerLabel?: string;
+  orientation?: "vertical" | "horizontal";
 }) {
   const visible = fillTapePage(matches, page, LIVEWIRE_PAGE_SIZE);
+  const horizontal = orientation === "horizontal";
 
   return (
     <aside
       id={id}
-      className="rounded-xl text-left flex flex-col h-full"
+      className={`rounded-xl text-left ${horizontal ? "" : "flex flex-col h-full"}`}
       style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
       aria-label="Livewire investor matches"
       onMouseEnter={() => onPause?.(true)}
@@ -119,41 +158,31 @@ export function LivewireMatchPanel({
       </div>
 
       {loading && visible.length === 0 ? (
-        <div className="flex-1 px-5 py-3 space-y-2" aria-hidden>
+        <div
+          className={horizontal ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "flex-1 px-5 py-3 space-y-2"}
+          aria-hidden
+        >
           {Array.from({ length: LIVEWIRE_PAGE_SIZE }, (_, i) => (
-            <div key={i} className="h-14 rounded animate-pulse" style={{ backgroundColor: BORDER }} />
+            <div
+              key={i}
+              className={horizontal ? "h-16 m-3 rounded animate-pulse" : "h-14 rounded animate-pulse"}
+              style={{ backgroundColor: BORDER }}
+            />
           ))}
         </div>
       ) : visible.length ? (
-        <div className="flex-1" aria-live="polite">
-          {visible.map((m, i) => (
-            <Link
-              key={`${m.match_id}-${i}`}
-              href={m.startup_id ? `/startup/${encodeURIComponent(m.startup_id)}` : "/matches"}
-              className="flex items-center justify-between gap-4 px-5 py-3"
-              style={{ borderTop: i === 0 ? undefined : `1px solid ${BORDER}` }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = PURPLE_SUBTLE;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-              }}
-            >
-              <div className="min-w-0">
-                <p className="font-display font-bold text-[1.02rem] leading-tight truncate" style={{ color: TEXT }}>
-                  {m.startup_name}
-                  <span style={{ color: MUTED, fontWeight: 500 }}> -- </span>
-                  {firmLabel(m)}
-                </p>
-                <p className="text-[12px] font-mono mt-0.5 truncate" style={{ color: DIM }}>
-                  {livewireMeta(m)}
-                </p>
-              </div>
-              <ScoreBadge score={Math.round(m.match_score)} />
-            </Link>
-          ))}
+        <div className={horizontal ? "" : "flex-1"} aria-live="polite">
+          <div className={horizontal ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : undefined}>
+            {visible.map((m, i) => (
+              <MatchCell key={`${m.match_id}-${i}`} match={m} index={i} stacked={!horizontal} />
+            ))}
+          </div>
           {pageCount > 1 && onPage ? (
-            <div className="flex items-center gap-1.5 px-5 pb-3 pt-2" role="tablist" aria-label="Rotate livewire matches">
+            <div
+              className={`flex items-center gap-1.5 px-5 pb-3 ${horizontal ? "justify-center pt-3" : "pt-2"}`}
+              role="tablist"
+              aria-label="Rotate livewire matches"
+            >
               {Array.from({ length: pageCount }, (_, i) => (
                 <button
                   key={i}

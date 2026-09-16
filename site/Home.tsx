@@ -410,7 +410,19 @@ function LiveMatchHighlight() {
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
 
-function HeroSection() {
+function HeroSection({
+  pairRate,
+  pairHits,
+  pairStartups,
+  startupsFunded,
+  investors,
+}: {
+  pairRate?: number | null;
+  pairHits?: number;
+  pairStartups?: number;
+  startupsFunded?: number | null;
+  investors?: number;
+}) {
   const [, navigate] = useLocation();
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
@@ -442,12 +454,12 @@ function HeroSection() {
       style={{ backgroundColor: PAGE }}
     >
       <div className="container relative z-10 max-w-[1200px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
-        <div className="grid lg:grid-cols-[minmax(0,1.12fr)_minmax(300px,0.88fr)] gap-12 lg:gap-16 items-start">
-          <div>
+        <div className="grid lg:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)] gap-10 lg:gap-12 items-start">
+          <div className="lg:pl-[min(6vw,72px)]">
             <HeroHeadline
               headline={heroHeadline}
-              className="font-display font-bold leading-[1.1] mb-5 max-w-[20ch]"
-              style={{ fontSize: "clamp(2.25rem, 4.6vw, 3.75rem)", color: TEXT, letterSpacing: "-0.04em" }}
+              className="font-display font-bold leading-[1.12] mb-5 max-w-[40rem]"
+              style={{ fontSize: "clamp(2.1rem, 3.8vw, 3.15rem)", color: TEXT, letterSpacing: "-0.04em" }}
             />
             <p
               className="leading-relaxed mb-8 max-w-[44ch]"
@@ -462,6 +474,7 @@ function HeroSection() {
               className="mx-0"
               progressive
               revealMatches
+              emphasis
               onJoined={({ url, email }) => {
                 const normalized = normalizeStartupPreviewUrl(url);
                 const path = persistJoinPreview(url, email);
@@ -471,7 +484,14 @@ function HeroSection() {
               }}
             />
           </div>
-          <HomeFeaturedMatch />
+          <HomeProofStrip
+            variant="panel"
+            pairRate={pairRate}
+            pairHits={pairHits}
+            pairStartups={pairStartups}
+            startupsFunded={startupsFunded}
+            investors={investors}
+          />
         </div>
       </div>
     </section>
@@ -1554,8 +1574,7 @@ export default function Home() {
         variant="hero"
         heroCta={{ label: PREVIEW_MATCHES_CTA, targetId: "hero-cta" }}
       />
-      <HeroSection />
-      <HomeProofStrip
+      <HeroSection
         pairRate={platformStats?.pair_funding_rate_pct}
         pairHits={platformStats?.pair_funding_hits}
         pairStartups={platformStats?.pair_funding_startups}
@@ -1566,6 +1585,15 @@ export default function Home() {
         }
         investors={platformStats?.investors}
       />
+      <section
+        className="border-t"
+        style={{ borderColor: BORDER, backgroundColor: PAGE }}
+        aria-label="Livewire investor matches"
+      >
+        <div className="container max-w-[1200px] mx-auto px-6 py-8 lg:py-10">
+          <HomeFeaturedMatch orientation="horizontal" />
+        </div>
+      </section>
       <ExampleResultSection />
       <HowItWorksSection />
       <VerifiedOutcomesSection

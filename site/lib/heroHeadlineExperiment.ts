@@ -19,22 +19,23 @@ export type HeroHeadlineCopy = {
 export const HERO_PRIMARY_CTA = 'Preview my matches';
 
 /** Accent phrase in the H1 — rendered in brand emerald. */
-export const HERO_HEADLINE_ACCENT = 'most likely to fund your startup';
+export const HERO_HEADLINE_ACCENT = 'Meet Your Investors';
 
-/** Public subline — URL first, ranked matches to the inbox. */
+/** Public subline — URL first, so the field is the obvious next step. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your website. Pythh analyzes your market, traction, and investor thesis fit, then sends ranked matches to your inbox every morning.';
+  'Paste your startup URL below. We score the company and rank investors for this round.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
+  const headline = 'Meet Your Investors. We connect the dots to fund your round.';
   if (previewFirst) {
     return {
-      headline: 'Find the investors most likely to fund your startup.',
+      headline,
       subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
-    headline: 'Find the investors most likely to fund your startup.',
+    headline,
     subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };
