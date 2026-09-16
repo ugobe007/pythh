@@ -26,9 +26,9 @@ export default function HeroHeadline({
       {periodBreak ? (
         <>
           <span
+            className="sm:whitespace-nowrap"
             style={{
               color: G,
-              whiteSpace: "nowrap",
               fontSize: "clamp(2.85rem, 5.6vw, 4.35rem)",
             }}
           >
