@@ -44,7 +44,7 @@ test('save signup lands on the account profile, not the newsletter', () => {
   assert.match(signup, /We do not email the list unless you subscribed separately/);
   assert.match(hub, /Your saved matches — \$\{companyLabel\}/);
   assert.match(hub, /source=account_saved/);
-  assert.match(account, /saved === "1"/);
+  assert.match(account, /get\("saved"\) === "1"/);
   assert.match(account, /Your saved matches/);
   assert.match(nav, /href="\/account\?saved=1"/);
   assert.match(nav, /My matches/);
