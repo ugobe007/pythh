@@ -386,6 +386,26 @@ export function isOAuthHandoffActive(): boolean {
   return true;
 }
 
+/** Safe in-app path from `redirect` / `next` query — never an external URL. */
+export function resolveLoginRedirect(search?: string): string {
+  const params = new URLSearchParams(
+    search ?? (typeof window !== "undefined" ? window.location.search : ""),
+  );
+  const redirect = params.get("redirect") || params.get("next");
+  if (redirect?.startsWith("/") && !redirect.startsWith("//")) return redirect;
+  return "/account";
+}
+
+/**
+ * /login must not drop a matches return path when bouncing to the OAuth
+ * completion page. `replace("/account")` with no `next` is the malformed hop.
+ */
+export function loginAccountHandoffPath(search?: string): string {
+  const next = resolveLoginRedirect(search);
+  if (!next || next === "/account") return "/account";
+  return `/account?next=${encodeURIComponent(next)}`;
+}
+
 /** Redirect target for the single-return browser OAuth flow. */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
@@ -399,7 +419,7 @@ export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
 export function readPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
   const fromQuery = params.get("next") || params.get("redirect");
-  if (fromQuery?.startsWith("/")) return fromQuery;
+  if (fromQuery?.startsWith("/") && !fromQuery.startsWith("//")) return fromQuery;
   if (typeof sessionStorage !== "undefined") {
     const stored = sessionStorage.getItem("pythh_post_login");
     sessionStorage.removeItem("pythh_post_login");

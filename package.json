@@ -21,6 +21,7 @@
     "test:hot-god-contract": "node --test tests/hotGodFromStartupRow.contract.test.mjs",
     "test:oauth-smoke": "node scripts/run-node.mjs scripts/smoke-oauth-prod.mjs",
     "test:oauth-providers": "node --test tests/oauth-provider-health.test.js",
+    "test:founder-workflow": "node --test tests/founder-matches-workflow.test.mjs tests/open-first-matches.test.mjs tests/oracle-gap-handoff.test.mjs tests/newsletter-url-subscribe.test.mjs",
     "test:wizard-smoke": "node scripts/run-node.mjs scripts/smoke-wizard-3act.mjs",
     "test:wizard-smoke:local": "node scripts/run-node.mjs scripts/smoke-wizard-3act-local.mjs",
     "test:wizard-e2e": "node scripts/run-node.mjs scripts/wizard-unlock-ui-probe.mjs",
