@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useRoute } from "wouter";
 import { Helmet } from "react-helmet-async";
 import StartupCTA from "@/components/design/StartupCTA";
 import {
@@ -153,7 +153,13 @@ function MiniBar({ value, color }: { value: number; color: string }) {
 
 // ─── Daily Brief (live data) ──────────────────────────────────────────────────
 
-function DailyBrief() {
+function editionPath(date?: string | null): string {
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? `/api/newsletter/${date}`
+    : "/api/newsletter/today";
+}
+
+function DailyBrief({ date }: { date?: string | null }) {
   const [data, setData] = useState<BriefData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -161,7 +167,7 @@ function DailyBrief() {
   useEffect(() => {
     let tries = 0;
     const load = () => {
-      fetch("/api/newsletter/today")
+      fetch(editionPath(date))
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((d) => {
           setData(d);
@@ -178,7 +184,7 @@ function DailyBrief() {
         });
     };
     load();
-  }, []);
+  }, [date]);
 
   if (loading) {
     return (
@@ -525,6 +531,12 @@ const WHAT_YOU_GET = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Newsletter() {
+  const [isDated, datedParams] = useRoute("/newsletter/:date");
+  const editionDate =
+    isDated && datedParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(datedParams.date)
+      ? datedParams.date
+      : null;
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
@@ -575,7 +587,7 @@ export default function Newsletter() {
 
         {/* ── Today's brief (live) ── */}
         <section className="max-w-3xl mb-16">
-          <DailyBrief />
+          <DailyBrief date={editionDate} />
         </section>
 
         {/* ── What you get ── */}

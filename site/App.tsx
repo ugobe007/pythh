@@ -110,6 +110,7 @@ function Router() {
       <Route path={"/startup/:startupId"} component={StartupDetail} />
       <Route path={"/platform"} component={Platform} />
       <Route path={"/methodology"} component={Methodology} />
+      <Route path={"/newsletter/:date"} component={Newsletter} />
       <Route path={"/newsletter"} component={Newsletter} />
       <Route path={"/art"} component={Art} />
       <Route path={"/about"} component={About} />
