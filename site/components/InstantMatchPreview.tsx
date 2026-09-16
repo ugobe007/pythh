@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'wouter';
+import { useLocation } from 'wouter';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { trpc } from '@/lib/trpc';
@@ -289,25 +289,28 @@ export default function InstantMatchPreview({ url }: Props) {
   }, [startupId, authLoading, isAuthenticated, isPaid]);
 
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
-    if (!preview?.startup?.id) return;
-
-    if (isAuthenticated) {
+    const startupIdForGate = preview?.startup?.id;
+    if (isAuthenticated && startupIdForGate) {
       if (action === 'save') {
-        void persistShortlist(preview.startup.id, preview.startup.name);
+        void persistShortlist(startupIdForGate, preview?.startup?.name);
         return;
       }
-      navigate(postSignupPathForAction(action, preview.startup.id, { url }));
+      navigate(postSignupPathForAction(action, startupIdForGate, { url }));
       return;
     }
 
-    void trackFounderGateStarted(
-      action,
-      { url, startupId: preview.startup.id, investor },
-      founderExpRef.current,
-      gateCtaRef.current,
-      null,
-    );
-    navigate(founderSignupPath({ startupId: preview.startup.id, url, intent: 'matches' }));
+    if (startupIdForGate) {
+      void trackFounderGateStarted(
+        action,
+        { url, startupId: startupIdForGate, investor },
+        founderExpRef.current,
+        gateCtaRef.current,
+        null,
+      );
+    } else if (url) {
+      sessionStorage.setItem('pythia_url', url);
+    }
+    navigate(founderSignupPath({ startupId: startupIdForGate, url, intent: 'matches' }));
   };
 
   if (loading) {
@@ -351,12 +354,15 @@ export default function InstantMatchPreview({ url }: Props) {
       : `Save this shortlist to keep these ${visible.length} matches.`
     : canConfirmRound
       ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top.'
-      : 'Shortlist is saved. New ranked matches go to your inbox each morning.';
+      : 'Shortlist is saved. Confirm more company data to rerank who sits on top.';
   const nextLabel = !isAuthenticated
-    ? `Save these ${visible.length} matches`
+    ? 'Save my matches'
     : canConfirmRound
       ? 'Confirm your round'
-      : 'Get daily matches';
+      : 'Improve my matches';
+  const nextAction = !isAuthenticated
+    ? () => handleSignup('save')
+    : () => setImproveMatchesOpen(true);
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
@@ -419,42 +425,17 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="text-sm mb-4" style={{ color: TEXT }}>
           {nextCopy}
         </p>
-        {!isAuthenticated ? (
-          <button
-            type="button"
-            onClick={() => handleSignup('save')}
-            className={NEXT_STEP_CTA_CLASS}
-            style={NEXT_STEP_CTA_STYLE}
-            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
-            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
-          >
-            {nextLabel}
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        ) : canConfirmRound ? (
-          <button
-            type="button"
-            onClick={() => setImproveMatchesOpen(true)}
-            className={NEXT_STEP_CTA_CLASS}
-            style={NEXT_STEP_CTA_STYLE}
-            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
-            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
-          >
-            {nextLabel}
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        ) : (
-          <Link
-            href="/newsletter"
-            className={NEXT_STEP_CTA_CLASS}
-            style={NEXT_STEP_CTA_STYLE}
-            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
-            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
-          >
-            {nextLabel}
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        )}
+        <button
+          type="button"
+          onClick={nextAction}
+          className={NEXT_STEP_CTA_CLASS}
+          style={NEXT_STEP_CTA_STYLE}
+          onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+          onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
+        >
+          {nextLabel}
+          <ArrowRight className="w-4 h-4" />
+        </button>
         {!isPaid && (
           <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
             Matches are free. Email, calls, term sheets, and the PPT outline are on Scout.
