@@ -450,12 +450,12 @@ function HeroSection({
 
   return (
     <section
-      className="relative pt-16 overflow-hidden"
+      className="relative pt-16"
       style={{ backgroundColor: PAGE }}
     >
       <div className="container relative z-10 max-w-[1200px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
-        <div className="grid lg:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)] gap-10 lg:gap-12 items-start">
-          <div className="lg:pl-[min(6vw,72px)]">
+        <div className="grid w-full lg:grid-cols-[minmax(0,1.28fr)_minmax(260px,0.72fr)] gap-10 lg:gap-12 items-start">
+          <div className="min-w-0">
             <HeroHeadline
               headline={heroHeadline}
               className="font-display font-bold leading-[1.12] mb-5 max-w-[40rem]"
@@ -492,6 +492,9 @@ function HeroSection({
             startupsFunded={startupsFunded}
             investors={investors}
           />
+        </div>
+        <div className="w-full mt-10">
+          <HomeFeaturedMatch orientation="horizontal" />
         </div>
       </div>
     </section>
@@ -592,15 +595,15 @@ function VerifiedOutcomesSection({
     <section className="border-t py-12" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
       <div className="container max-w-[1200px] mx-auto px-6">
         <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
-          Pair-layer claim
+          Verified funding
         </p>
         <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
-          What “later funded” means
+          Startups that later raised from a top-5 match
         </h2>
         <p className="text-[17px] leading-relaxed max-w-[58ch] mb-4" style={{ color: MUTED }}>
           {pairHits && pairStartups && pairRate != null
-            ? `${pairHits} of ${pairStartups} startups (${pairRate}%) in the sealed pair-layer set later took a check from an investor already in our top five. The clock is match.created_at. The outcome is a press-verified raise after that clock.`
-            : "A sealed pair-layer set counts startups whose later, press-verified funder was already in our top five. The clock is the first durable match, not the announce date."}
+            ? `${pairHits} of ${pairStartups} startups (${pairRate}%) later raised from an investor we had already ranked in the top five.`
+            : "When a ranked startup later raises, we count whether the funder was already in our top five."}
         </p>
         <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: PURPLE_ACCENT }}>
           Read the methodology
@@ -1585,15 +1588,6 @@ export default function Home() {
         }
         investors={platformStats?.investors}
       />
-      <section
-        className="border-t"
-        style={{ borderColor: BORDER, backgroundColor: PAGE }}
-        aria-label="Livewire investor matches"
-      >
-        <div className="container max-w-[1200px] mx-auto px-6 py-8 lg:py-10">
-          <HomeFeaturedMatch orientation="horizontal" />
-        </div>
-      </section>
       <ExampleResultSection />
       <HowItWorksSection />
       <VerifiedOutcomesSection
