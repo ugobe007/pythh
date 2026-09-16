@@ -386,7 +386,15 @@ function AdminAccountPanel({ userName }: { userName: string | null }) {
 
 // ─── No-subscription state ────────────────────────────────────────────────────
 
-function NoSubscription({ userName, welcome }: { userName: string | null; welcome?: boolean }) {
+function NoSubscription({
+  userName,
+  welcome,
+  saved,
+}: {
+  userName: string | null;
+  welcome?: boolean;
+  saved?: boolean;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -394,7 +402,7 @@ function NoSubscription({ userName, welcome }: { userName: string | null; welcom
       transition={{ duration: 0.4 }}
       className="py-12"
     >
-      <FounderOnboardingHub userName={userName} welcome={welcome} />
+      <FounderOnboardingHub userName={userName} welcome={welcome} saved={saved} />
       <SavedFounderOpportunities />
     </motion.div>
   );
@@ -406,6 +414,9 @@ export default function Account() {
   const [, navigate] = useLocation();
   const [showWelcome] = useState(
     () => new URLSearchParams(window.location.search).get("welcome") === "1",
+  );
+  const [showSaved] = useState(
+    () => new URLSearchParams(window.location.search).get("saved") === "1",
   );
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [oauthBusy, setOauthBusy] = useState(
@@ -682,25 +693,32 @@ export default function Account() {
             </span>
           </div>
           <h1 className="font-display font-bold text-3xl md:text-4xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-            {subscription ? "Your Plan" : "Your fundraising hub"}
+            {subscription ? "Your Plan" : showSaved ? "Your saved matches" : "Your fundraising hub"}
           </h1>
           <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
             {subscription
               ? "Manage your Oracle subscription and billing details."
-              : "Track investor matches, save your shortlist, and open your intro pipeline."}
+              : showSaved
+                ? "This is your profile. Come back here from Account in the nav — we do not email the list unless you subscribed separately."
+                : "Track investor matches, save your shortlist, and open your intro pipeline."}
           </p>
         </motion.div>
 
+        {/* Saved matches view - accessible to all authenticated users when ?saved=1 */}
+        {showSaved && (
+          <NoSubscription userName={user?.name ?? null} welcome={showWelcome} saved={showSaved} />
+        )}
+
         {/* No subscription */}
-        {!subscription && user?.role === "admin" && (
+        {!showSaved && !subscription && user?.role === "admin" && (
           <AdminAccountPanel userName={user?.name ?? null} />
         )}
-        {!subscription && user?.role !== "admin" && (
-          <NoSubscription userName={user?.name ?? null} welcome={showWelcome} />
+        {!showSaved && !subscription && user?.role !== "admin" && (
+          <NoSubscription userName={user?.name ?? null} welcome={showWelcome} saved={showSaved} />
         )}
 
         {/* Active subscription dashboard */}
-        {subscription && (
+        {!showSaved && subscription && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

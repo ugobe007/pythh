@@ -179,9 +179,9 @@ export default function SharedNavbar({
                     Admin
                   </a>
                 )}
-                <Link href="/account">
+                <Link href="/account?saved=1">
                   <span className="text-sm font-medium cursor-pointer" style={{ color: "oklch(0.62 0.01 264)" }}>
-                    {user?.name?.split(" ")[0] ?? "Account"}
+                    My matches
                   </span>
                 </Link>
                 <button
@@ -260,9 +260,9 @@ export default function SharedNavbar({
                     {user?.role === "admin" && (
                       <a href="/admin" onClick={() => setMenuOpen(false)} className="text-sm" style={{ color: "oklch(0.7 0.01 264)" }}>Admin</a>
                     )}
-                    <Link href="/account" onClick={() => setMenuOpen(false)}>
+                    <Link href="/account?saved=1" onClick={() => setMenuOpen(false)}>
                       <span className="text-sm font-medium" style={{ color: "oklch(0.78 0.01 264)" }}>
-                        {user?.name?.split(" ")[0] ?? "Account"}
+                        My matches
                       </span>
                     </Link>
                     <button onClick={() => { setMenuOpen(false); logoutMutation.mutate(); }} className="text-sm" style={{ color: "oklch(0.5 0.01 264)" }}>

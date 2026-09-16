@@ -18,6 +18,7 @@ import {
   matchesPathForUrl,
   peekFounderGatePending,
   postSignupPathForAction,
+  savedMatchesPath,
   trackFounderGateCompleted,
   FOUNDER_GATE_ACTION_LABELS,
   type FounderGatedAction,
@@ -79,7 +80,7 @@ export default function FounderSignup() {
     const pendingGate = peekFounderGatePending();
     if (!isOAuthHandoffActive() && !pendingGate.pending) {
       oauthHandledRef.current = true;
-      navigate(url ? `/matches?url=${encodeURIComponent(url)}` : '/account');
+      navigate(url ? savedMatchesPath() : '/account');
       return;
     }
 
@@ -122,7 +123,7 @@ export default function FounderSignup() {
           consumeFounderGatePending();
         }
         consumePostSignupPath();
-        navigate(matchesPathForUrl(url));
+        navigate(savedMatchesPath());
         return;
       }
 
@@ -154,7 +155,7 @@ export default function FounderSignup() {
         return;
       }
       if (startupId || url) {
-        navigate(matchesPathForUrl(url));
+        navigate(savedMatchesPath());
         return;
       }
       navigate('/account?welcome=1');
@@ -275,11 +276,10 @@ export default function FounderSignup() {
         }
       }
 
-      // The URL-to-matches funnel always returns to its shortlist. Ignore any
-      // stale destination left by an older session.
+      // Save attaches the shortlist to the account — land on that profile page.
       if (fromMatchGate && url) {
         consumePostSignupPath();
-        navigate(`/matches?url=${encodeURIComponent(url)}`);
+        navigate(savedMatchesPath());
         return;
       }
 
@@ -306,7 +306,7 @@ export default function FounderSignup() {
       ? 'Save these investor matches'
       : 'Find investors who fit your startup';
   const subline = fromMatchGate
-    ? 'Free account — keep your ranked matches. Thesis, team, and timing stay attached to your company.'
+    ? 'Create a free account. These matches attach to your profile — open Account anytime to come back. We do not email the list unless you subscribed separately.'
     : fromGate
     ? gateLabel
       ? `One click to ${gateLabel}. Matching is free; Oracle meeting and pitch help stay optional.`
@@ -346,7 +346,7 @@ export default function FounderSignup() {
               {[
                 ['1', 'URL submitted'],
                 ['2', 'Create account'],
-                ['3', 'View matches'],
+                ['3', 'Saved on your profile'],
               ].map(([step, label], index) => (
                 <div key={step} className="text-center">
                   <div

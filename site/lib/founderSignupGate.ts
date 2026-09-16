@@ -92,6 +92,11 @@ export function matchesPathForUrl(url?: string | null): string {
   return `/matches?url=${encodeURIComponent(normalized)}`;
 }
 
+/** Account landing after Save — this is where the shortlist lives. */
+export function savedMatchesPath(): string {
+  return '/account?saved=1';
+}
+
 /** Optional wizard routes — used from the matches hub, not as default post-signup landing. */
 export function outreachPath(startupId: string): string {
   return `/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
@@ -107,10 +112,11 @@ export function normalizePreviewGateAction(action: FounderGatedAction | null): F
 }
 
 export function postSignupPathForAction(
-  _action: FounderGatedAction | null,
+  action: FounderGatedAction | null,
   startupId: string,
   options?: { url?: string | null },
 ): string {
+  if (action === 'save') return savedMatchesPath();
   if (!startupId && !options?.url) return '/account';
   return matchesPathForUrl(options?.url);
 }
@@ -306,7 +312,11 @@ export function matchPreviewOAuthReturnPath(url: string, startupId?: string | nu
 /** OAuth return target after Google/GitHub on founder gate signup. */
 export function buildFounderGateOAuthReturnPath(startupId?: string | null, url?: string | null): string {
   const normalized = sessionStartupUrl(url);
-  if (normalized) return matchPreviewOAuthReturnPath(normalized, startupId);
+  if (normalized) {
+    const params = new URLSearchParams({ url: normalized, oauth_handoff: '1', intent: 'matches' });
+    if (startupId) params.set('startup_id', startupId);
+    return `/signup/founder?${params.toString()}`;
+  }
   const params = new URLSearchParams();
   if (startupId) params.set('startup_id', startupId);
   const qs = params.toString();

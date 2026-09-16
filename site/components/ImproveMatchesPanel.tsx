@@ -32,6 +32,7 @@ type Props = {
   startupUrl: string;
   currentGodScore?: number;
   onClose: () => void;
+  onCompleted?: () => void;
 };
 
 const EMPTY_PROFILE: ImproveProfile = {
@@ -84,6 +85,7 @@ export default function ImproveMatchesPanel({
   startupUrl,
   currentGodScore,
   onClose,
+  onCompleted,
 }: Props) {
   const [payload, setPayload] = useState<ImprovePayload | null>(null);
   const [profile, setProfile] = useState<ImproveProfile>(EMPTY_PROFILE);
@@ -198,6 +200,7 @@ export default function ImproveMatchesPanel({
         godScore: Number(rescore.god_score) || undefined,
         matchCount: Number(rescore.match_count) || undefined,
       });
+      onCompleted?.();
       void trackFunnelEvent('improve_matches_completed', {
         startup_id: startupId,
         previous_god_score: currentGodScore,

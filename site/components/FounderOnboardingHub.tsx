@@ -8,6 +8,7 @@ import { Activity, ArrowRight, Bell, Sparkles, Target, Zap } from 'lucide-react'
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
+import { apiUrl } from '@/lib/apiConfig';
 import {
   getPinnedStartupId,
   getPinnedStartupName,
@@ -20,6 +21,7 @@ import {
   matchesPathForUrl,
   outreachPath,
 } from '@/lib/founderSignupGate';
+import { G, MUTED, TEXT, DIM, BORDER, CARD } from '@/lib/designTokens';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -27,12 +29,18 @@ function normalizeUrl(raw: string): string | null {
   return trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
 }
 
+type SavedMatch = {
+  match_score?: number;
+  investor?: { name?: string | null; firm?: string | null } | null;
+};
+
 type Props = {
   userName?: string | null;
   welcome?: boolean;
+  saved?: boolean;
 };
 
-export default function FounderOnboardingHub({ userName, welcome }: Props) {
+export default function FounderOnboardingHub({ userName, welcome, saved }: Props) {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const { data: profile } = trpc.profile.get.useQuery(undefined, {
@@ -41,6 +49,7 @@ export default function FounderOnboardingHub({ userName, welcome }: Props) {
   });
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
+  const [savedMatches, setSavedMatches] = useState<SavedMatch[]>([]);
   const [localPinned] = useState(() => ({
     id: getPinnedStartupId(),
     url: getPinnedStartupUrl(),
@@ -58,6 +67,23 @@ export default function FounderOnboardingHub({ userName, welcome }: Props) {
       pinActiveStartup(profile.startupId, profile.companyUrl || undefined, profile.companyName || undefined);
     }
   }, [localPinned.id, profile?.startupId, profile?.companyUrl, profile?.companyName]);
+
+  useEffect(() => {
+    const id = localPinned.id || profile?.startupId;
+    if (!id) return;
+    let cancelled = false;
+    void fetch(apiUrl(`/api/preview/${id}?source=account_saved`))
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { matches?: SavedMatch[] } | null) => {
+        if (!cancelled && Array.isArray(data?.matches)) {
+          setSavedMatches(data.matches.slice(0, 5));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [localPinned.id, profile?.startupId]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +106,7 @@ export default function FounderOnboardingHub({ userName, welcome }: Props) {
 
   return (
     <div className="max-w-xl mx-auto w-full">
-      {welcome && (
+      {(welcome || saved) && (
         <div
           className="mb-6 px-4 py-3 rounded-xl text-sm text-center"
           style={{
@@ -89,10 +115,13 @@ export default function FounderOnboardingHub({ userName, welcome }: Props) {
             color: 'oklch(0.85 0.05 162.48)',
           }}
         >
-          Account created{firstName ? `, ${firstName}` : ''}
-          {hasPinnedStartup
-            ? ` — ${companyLabel} is saved. Pick up matches, outreach, or optional improvements.`
-            : ' — investor tracking is on. Paste your URL to load your shortlist.'}
+          {saved
+            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. Open Account from the nav anytime you come back — we do not email the list unless you subscribed separately.`
+            : `Account created${firstName ? `, ${firstName}` : ''}${
+                hasPinnedStartup
+                  ? ` — ${companyLabel} is saved. Open your match list below.`
+                  : ' — investor tracking is on. Paste your URL to load your shortlist.'
+              }`}
         </div>
       )}
 
@@ -106,15 +135,43 @@ export default function FounderOnboardingHub({ userName, welcome }: Props) {
         >
           <Activity size={26} style={{ color: 'oklch(0.696 0.17 162.48)' }} />
         </div>
-        <h2 className="font-display font-bold text-2xl mb-2" style={{ color: 'oklch(0.97 0.005 264)' }}>
-          {hasPinnedStartup ? `Continue with ${companyLabel}` : 'Track your investor matches'}
+        <h2 className="font-display font-bold text-2xl mb-2" style={{ color: TEXT }}>
+          {hasPinnedStartup ? `Your saved matches — ${companyLabel}` : 'Track your investor matches'}
         </h2>
-        <p className="text-sm leading-relaxed" style={{ color: 'oklch(0.55 0.01 264)' }}>
+        <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
           {hasPinnedStartup
-            ? 'Matches stay the primary path. Outreach and Oracle improvements are optional and never restart your shortlist.'
-            : 'Paste your startup URL to see ranked investors, save your shortlist, and open outreach drafts — free.'}
+            ? 'This is your profile. These five stay attached to your account. Open the full list anytime from here or Account in the nav.'
+            : 'Paste your startup URL to see ranked investors, then save the shortlist to this account.'}
         </p>
       </div>
+
+      {hasPinnedStartup && savedMatches.length > 0 && (
+        <ol
+          className="mb-6 divide-y rounded-xl border"
+          style={{ borderColor: BORDER, backgroundColor: CARD }}
+        >
+          {savedMatches.map((match, index) => {
+            const name = match.investor?.name || match.investor?.firm || `Match ${index + 1}`;
+            const firm = match.investor?.firm && match.investor.firm !== name ? match.investor.firm : null;
+            const score = typeof match.match_score === 'number' ? Math.round(match.match_score) : null;
+            return (
+              <li key={`${name}-${index}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: TEXT }}>
+                    {index + 1}. {name}
+                  </p>
+                  {firm && (
+                    <p className="text-[11px] truncate" style={{ color: DIM }}>{firm}</p>
+                  )}
+                </div>
+                {score != null && (
+                  <span className="text-xs font-mono shrink-0" style={{ color: G }}>{score}</span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
 
       {hasPinnedStartup && pinned.id && pinned.url && (
         <div className="grid gap-2 mb-8">
@@ -122,11 +179,11 @@ export default function FounderOnboardingHub({ userName, welcome }: Props) {
             type="button"
             onClick={() => navigate(matchesPathForUrl(pinned.url))}
             className="flex items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-left"
-            style={{ backgroundColor: 'oklch(0.696 0.17 162.48)', color: 'oklch(0.13 0.01 264)' }}
+            style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)' }}
           >
             <span>
-              <span className="block text-sm font-semibold">Open match list</span>
-              <span className="block text-[11px] opacity-80">Review ranked investors and continue to outreach</span>
+              <span className="block text-sm font-semibold">Open full match list</span>
+              <span className="block text-[11px] opacity-80">Review why each investor fits and refine the ranking</span>
             </span>
             <Target size={16} />
           </button>

@@ -3,7 +3,7 @@
  *
  * Canonical hops:
  *   URL submit → /matches?url= → Save my matches → /signup/founder?intent=matches
- *   → /matches?url=  (never /newsletter, never /app/radar, never /activate)
+ *   → /account?saved=1  (never /newsletter, never /app/radar, never /activate)
  *
  * This script flags malformed destinations in the live source so a CTA
  * cannot silently dump founders onto the brief or the old wizard hub.
@@ -115,6 +115,10 @@ test('Save my matches stays on founder signup — never the newsletter', () => {
   assert.match(preview, /Save my matches/);
   assert.match(preview, /handleSignup\('save'\)/);
   assert.match(preview, /founderSignupPath\(\{ startupId: startupIdForGate, url, intent: 'matches' \}\)/);
+  assert.match(preview, /ANON_IMPROVE_LIMIT/);
+  assert.match(preview, /recordImproveCompletion/);
+  assert.doesNotMatch(preview, /PaidRaisePanel/);
+  assert.doesNotMatch(preview, /Start Scout/);
   for (const hop of FORBIDDEN_SAVE_HOPS) {
     assert.doesNotMatch(preview, new RegExp(hop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
@@ -125,8 +129,10 @@ test('Save my matches stays on founder signup — never the newsletter', () => {
   assert.match(safe, /return `\/signup\/founder/);
 
   assert.match(gate, /\/matches\?url=/);
+  assert.match(gate, /export function savedMatchesPath/);
+  assert.match(gate, /action === 'save'\) return savedMatchesPath/);
   assert.doesNotMatch(gate, /force_wizard=1&tab=round/);
-  assert.match(signup, /navigate\(matchesPathForUrl\(url\)\)/);
+  assert.match(signup, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(signup, /readQueryParam\('intent'\) === 'matches'/);
   assert.doesNotMatch(signup, /href=["']\/newsletter["']/);
 });
