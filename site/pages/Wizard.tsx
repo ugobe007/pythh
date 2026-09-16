@@ -641,7 +641,7 @@ export default function Wizard() {
         {startupMismatch && (
           <div className="mb-4 rounded-xl px-4 py-3 text-xs" style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid #f9731640", color: "oklch(0.65 0.01 264)" }}>
             {startupMismatch}{' '}
-            <Link href={matchesPathForUrl(startupWebsite || getPinnedStartupUrl())} className="underline" style={{ color: "#22d3ee" }}>Return to your match list</Link>
+            <Link href={matchesPathForUrl(getPinnedStartupUrl() || startupWebsite)} className="underline" style={{ color: "#22d3ee" }}>Return to your match list</Link>
           </div>
         )}
 
