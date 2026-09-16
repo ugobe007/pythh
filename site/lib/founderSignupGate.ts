@@ -312,7 +312,11 @@ export function matchPreviewOAuthReturnPath(url: string, startupId?: string | nu
 /** OAuth return target after Google/GitHub on founder gate signup. */
 export function buildFounderGateOAuthReturnPath(startupId?: string | null, url?: string | null): string {
   const normalized = sessionStartupUrl(url);
-  if (normalized) return matchPreviewOAuthReturnPath(normalized, startupId);
+  if (normalized) {
+    const params = new URLSearchParams({ url: normalized, oauth_handoff: '1', intent: 'matches' });
+    if (startupId) params.set('startup_id', startupId);
+    return `/signup/founder?${params.toString()}`;
+  }
   const params = new URLSearchParams();
   if (startupId) params.set('startup_id', startupId);
   const qs = params.toString();

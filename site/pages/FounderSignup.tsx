@@ -155,7 +155,7 @@ export default function FounderSignup() {
         return;
       }
       if (startupId || url) {
-        navigate(matchesPathForUrl(url));
+        navigate(savedMatchesPath());
         return;
       }
       navigate('/account?welcome=1');

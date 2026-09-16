@@ -704,16 +704,21 @@ export default function Account() {
           </p>
         </motion.div>
 
+        {/* Saved matches view - accessible to all authenticated users when ?saved=1 */}
+        {showSaved && (
+          <NoSubscription userName={user?.name ?? null} welcome={showWelcome} saved={showSaved} />
+        )}
+
         {/* No subscription */}
-        {!subscription && user?.role === "admin" && (
+        {!showSaved && !subscription && user?.role === "admin" && (
           <AdminAccountPanel userName={user?.name ?? null} />
         )}
-        {!subscription && user?.role !== "admin" && (
+        {!showSaved && !subscription && user?.role !== "admin" && (
           <NoSubscription userName={user?.name ?? null} welcome={showWelcome} saved={showSaved} />
         )}
 
         {/* Active subscription dashboard */}
-        {subscription && (
+        {!showSaved && subscription && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
