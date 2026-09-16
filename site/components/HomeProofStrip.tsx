@@ -94,7 +94,7 @@ export default function HomeProofStrip({
       id="hero-status-bar"
       className="border-t"
       style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }}
-      aria-label="Verified pair-layer outcome"
+      aria-label="Verified funding"
     >
       <div className="container max-w-[1200px] mx-auto px-6 py-8 grid gap-8 lg:grid-cols-[1.4fr_1fr] items-start">
         <div style={{ borderLeft: `3px solid ${PURPLE_BORDER}`, paddingLeft: 16 }}>
