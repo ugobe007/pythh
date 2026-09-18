@@ -120,7 +120,7 @@ async function main() {
     all('funding_evidence_events', 'id,startup_id,announced_at,occurred_at,discovered_at,created_at,verification_status,source_url,source_publisher,source_title,metadata'),
     all('funding_evidence_participants', 'id,funding_event_id,investor_id,investor_organization_id,investor_name_raw,participant_role,participation_relation'),
     all('investor_organization_memberships', 'investor_id,organization_id'),
-    all('match_validation_evidence', 'id,startup_id,investor_id,match_id,verified,review_status,event_at,evidence_type,source_url,source_title'),
+    all('match_validation_evidence', 'id,startup_id,investor_id,match_id,verified,review_status,event_at,evidence_type,source_url'),
   ]);
 
   const servedSnapshots = snapshots.filter((row) => row.cohort_key === 'served-first-top5');
@@ -246,6 +246,11 @@ async function main() {
   console.log(`Pairs with any funding evidence:   ${a.evidence_pairs}`);
   console.log(`Startups with a top-5 later funder:${a.startups_with_a_top5_funder}  (${a.startup_hit_rate_pct ?? 'n/a'}%)`);
   console.log(`Startups funded after the match:   ${a.startups_funded_after_match}`);
+  console.log('');
+  console.log('Read this as pair precision, not the homepage sentence.');
+  console.log('Homepage 13/45 is: among startups that later raised from a matched investor,');
+  console.log('share where that funder sat in sealed or live top-5. This report asks the');
+  console.log('stricter question: of every sealed top-5 investor, how many later funded.');
   console.log('');
   console.log('PAIRS THAT LATER FUNDED');
   console.log('-'.repeat(72));

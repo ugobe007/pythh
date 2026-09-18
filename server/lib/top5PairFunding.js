@@ -143,7 +143,11 @@ function summarizeTop5PairFunding(evaluated) {
   const searchCandidates = evaluated
     .filter((row) => !row.startup_funded_after_match && row.evidence_pairs === 0)
     .map((row) => row.startup_id);
-  const pct = (n, d) => (d > 0 ? Math.round((n / d) * 1000) / 10 : null);
+  const pct = (n, d) => {
+    if (!(d > 0)) return null;
+    const value = (n / d) * 100;
+    return value < 0.1 && value > 0 ? Math.round(value * 100) / 100 : Math.round(value * 10) / 10;
+  };
   return {
     sealed_startups: startups,
     sealed_top5_pairs: pairs,
