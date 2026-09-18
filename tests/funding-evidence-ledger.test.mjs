@@ -1154,6 +1154,11 @@ test('missing funding investors are seeded only from reviewed first-party profil
     'Seventure Partners', 'J&T Ventures', 'Elevator Ventures',
     'Aramco Ventures', 'Vista Equity Partners', 'Emergence Capital', 'March Capital', 'Pegatron', 'S Ventures',
     'SciFi VC', 'Commerce Ventures', 'WEX Venture Capital',
+    'Blackbird Ventures', 'South Park Commons', 'OpenAI Startup Fund', 'Jump Capital',
+    'Team8', 'Reach Capital', 'Makers Fund', 'White Star Capital',
+    'Permanent Capital Ventures', 'MassMutual Ventures', 'Floating Point', '224 Ventures',
+    'Silent Ventures', 'Ventures Platform', 'Cross-Border Impact Ventures', 'Psalion',
+    'RunwayVC', 'Bluehill VC', 'FGV Capital', 'GD1', 'SaaS Holic', 'Redstone',
   ]) {
     assert.match(script, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.match(orgs, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
