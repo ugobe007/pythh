@@ -32,6 +32,7 @@ type Props = {
   startupUrl: string;
   currentGodScore?: number;
   onClose: () => void;
+  onSkip?: () => void;
   onCompleted?: () => void;
 };
 
@@ -85,6 +86,7 @@ export default function ImproveMatchesPanel({
   startupUrl,
   currentGodScore,
   onClose,
+  onSkip,
   onCompleted,
 }: Props) {
   const [payload, setPayload] = useState<ImprovePayload | null>(null);
@@ -226,7 +228,7 @@ export default function ImproveMatchesPanel({
       <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-500/25 bg-zinc-950 shadow-2xl">
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-2xl border-b border-zinc-800 bg-zinc-950/95 px-5 py-4 backdrop-blur">
           <div>
-            <p className="text-[10px] uppercase tracking-[2px] text-emerald-400">Optional · Improve matches</p>
+            <p className="text-[10px] uppercase tracking-[2px]" style={{ color: 'oklch(0.72 0.16 305)' }}>Optional · Improve matches</p>
             <h2 className="mt-1 text-xl font-bold text-white">Add what Pythh could not find</h2>
             <p className="mt-1 text-xs text-zinc-400">
               We will save this evidence and rerun the same match engine against your startup.
@@ -427,12 +429,21 @@ export default function ImproveMatchesPanel({
                 type="button"
                 onClick={() => void runAgain()}
                 disabled={saving}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3.5 text-sm font-semibold text-zinc-950 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold disabled:opacity-60"
+                style={{ backgroundColor: 'oklch(0.72 0.16 305)', color: 'oklch(0.14 0.03 305)' }}
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                 {saving ? 'Rerunning the match engine…' : 'Save data & rerun match engine'}
               </button>
-              <p className="text-center text-[10px] text-zinc-600">Optional · Your existing five matches remain saved</p>
+              <button
+                type="button"
+                onClick={() => (onSkip ? onSkip() : onClose())}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold"
+                style={{ backgroundColor: 'oklch(0.696 0.17 162.48)', color: 'oklch(0.1 0.02 162.48)' }}
+              >
+                Skip — keep these matches
+              </button>
+              <p className="text-center text-[10px] text-zinc-600">Optional · You can skip and keep the current five</p>
             </div>
           )}
         </div>

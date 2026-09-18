@@ -23,6 +23,7 @@ import { SCOUT_PLAN, ORACLE_PLAN } from "@/lib/pricingPlans";
 import OutreachPackage from "@/components/wizard/OutreachPackage";
 import CampaignQuotaBanner, { type CampaignQuota } from "@/components/wizard/CampaignQuotaBanner";
 import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
+import { hasOptedOutOfImprove, optOutOfImprove } from "@/lib/improveMatchesQuota";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trackFunnelEvent } from "@/lib/matchEngagement";
 import { activatePath } from "@/lib/safeUrl";
@@ -125,6 +126,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
   const [unlockNavigating, setUnlockNavigating] = useState(false);
   const [activateError, setActivateError] = useState<string | null>(null);
   const [showReadinessDetails, setShowReadinessDetails] = useState(false);
+  const [improveSkipped, setImproveSkipped] = useState(() => hasOptedOutOfImprove(startupId));
 
   const load = useCallback(async () => {
     try {
@@ -143,6 +145,10 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setImproveSkipped(hasOptedOutOfImprove(startupId));
+  }, [startupId]);
 
   const gate = status;
   const quota = status?.campaign_quota ?? null;
@@ -315,30 +321,47 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
       )}
 
       {hasDrafts && (
-        <div className="grid sm:grid-cols-2 gap-3 pt-2">
-          <button
-            type="button"
-            disabled={unlockNavigating}
-            onClick={() => void handleGoBackToUnlocks()}
-            className="rounded-xl px-4 py-4 text-left transition disabled:opacity-60"
-            style={{ background: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
-          >
-            <span className="block text-[10px] font-semibold tracking-widest mb-1" style={{ color: "#a855f7" }}>OPTIONAL</span>
-            <span className="block text-sm font-semibold" style={{ color: "oklch(0.9 0.005 264)" }}>
-              Improve matches →
-            </span>
-          </button>
-          <Link href={gate.pipeline_active ? activatePath(startupId, { pipeline: true }) : "/pricing"}>
-            <span
-              className="block rounded-xl px-4 py-4 text-left transition"
-              style={{ background: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
-            >
-              <span className="block text-[10px] font-semibold tracking-widest mb-1 text-emerald-400">OPTIONAL</span>
-              <span className="block text-sm font-semibold" style={{ color: "oklch(0.9 0.005 264)" }}>
-                {gate.pipeline_active ? "Track automated outreach →" : "Automate outreach →"}
+        <div className="space-y-2 pt-2">
+          <div className={improveSkipped ? "block" : "grid sm:grid-cols-2 gap-3"}>
+            {!improveSkipped && (
+              <button
+                type="button"
+                disabled={unlockNavigating}
+                onClick={() => void handleGoBackToUnlocks()}
+                className="rounded-xl px-4 py-4 text-left transition disabled:opacity-60"
+                style={{ background: "oklch(0.72 0.16 305)", color: "oklch(0.14 0.03 305)" }}
+              >
+                <span className="block text-[10px] font-semibold tracking-widest mb-1" style={{ opacity: 0.8 }}>OPTIONAL</span>
+                <span className="block text-sm font-semibold">
+                  Improve matches →
+                </span>
+              </button>
+            )}
+            <Link href={gate.pipeline_active ? activatePath(startupId, { pipeline: true }) : "/pricing"}>
+              <span
+                className="block rounded-xl px-4 py-4 text-left transition h-full"
+                style={{ background: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.02 162.48)" }}
+              >
+                <span className="block text-[10px] font-semibold tracking-widest mb-1" style={{ opacity: 0.8 }}>NEXT</span>
+                <span className="block text-sm font-semibold">
+                  {gate.pipeline_active ? "Track automated outreach →" : "Automate outreach →"}
+                </span>
               </span>
-            </span>
-          </Link>
+            </Link>
+          </div>
+          {!improveSkipped && (
+            <button
+              type="button"
+              onClick={() => {
+                optOutOfImprove(startupId);
+                setImproveSkipped(true);
+              }}
+              className="w-full text-xs font-medium underline underline-offset-2"
+              style={{ color: "oklch(0.64 0.01 264)" }}
+            >
+              Skip improve — keep these matches
+            </button>
+          )}
         </div>
       )}
 
@@ -600,7 +623,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
           </div>
         )}
 
-        {!gate.pipeline_ready && (
+        {!gate.pipeline_ready && !improveSkipped && (
           <div className="px-5 pb-5">
             <button
               type="button"

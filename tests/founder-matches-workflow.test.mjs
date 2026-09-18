@@ -117,6 +117,8 @@ test('Save my matches stays on founder signup — never the newsletter', () => {
   assert.match(preview, /founderSignupPath\(\{ startupId: startupIdForGate, url, intent: 'matches' \}\)/);
   assert.match(preview, /ANON_IMPROVE_LIMIT/);
   assert.match(preview, /recordImproveCompletion/);
+  assert.match(preview, /optOutOfImprove/);
+  assert.match(preview, /Skip — keep these matches/);
   assert.doesNotMatch(preview, /PaidRaisePanel/);
   assert.doesNotMatch(preview, /Start Scout/);
   for (const hop of FORBIDDEN_SAVE_HOPS) {
