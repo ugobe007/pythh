@@ -1343,7 +1343,7 @@ async function loadJobs() {
         priority: queued?.priority || 45000,
       });
     }
-    return { jobs: jobs.slice(0, limit), parked_junk: 0 };
+    return { jobs, parked_junk: 0 };
   }
   const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot);
   if (!needsPg) {
