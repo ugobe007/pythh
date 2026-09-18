@@ -403,7 +403,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const fundingStage = preview.shortlist_mix?.funding_stage?.replace(/-/g, ' ');
   const canConfirmRound = Boolean(isAuthenticated && preview.startup?.id && !fundingStage);
   const improveLeft = Math.max(0, ANON_IMPROVE_LIMIT - improveUsed);
-  const canImproveNow = Boolean(!improveOptedOut && (isAuthenticated || improveLeft > 0));
+  const canImproveNow = Boolean(isAuthenticated || improveLeft > 0);
   const nextCopy = !isAuthenticated
     ? canImproveNow
       ? `These ${visible.length} matches are ready. Improving is optional — skip if you want to keep this shortlist as-is. You can still refine ${improveLeft} more time${improveLeft === 1 ? '' : 's'} without an account.`
