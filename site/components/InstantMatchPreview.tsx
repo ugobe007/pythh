@@ -28,7 +28,10 @@ import { pinActiveStartup } from '@/lib/activeStartupContext';
 import {
   ANON_IMPROVE_LIMIT,
   canImproveAnonymously,
+  clearImproveOptOut,
   getImproveCount,
+  hasOptedOutOfImprove,
+  optOutOfImprove,
   recordImproveCompletion,
 } from '@/lib/improveMatchesQuota';
 import { founderSignupPath } from '@/lib/safeUrl';
@@ -36,7 +39,7 @@ import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
-import { G, G_HOVER, AMBER, DIM, MUTED, TEXT } from '@/lib/designTokens';
+import { G, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
 
 const PREVIEW_LIMIT = 5;
 
@@ -96,10 +99,21 @@ const NEXT_STEP_CTA_STYLE = {
   color: 'oklch(0.1 0.02 162.48)',
   minHeight: 50,
 } as const;
+const IMPROVE_CTA_STYLE = {
+  backgroundColor: PURPLE_ACCENT,
+  border: `1px solid ${PURPLE_ACCENT}`,
+  color: 'oklch(0.14 0.03 305)',
+  minHeight: 50,
+} as const;
 
 function paintNextStepCta(el: HTMLElement, hover: boolean) {
   el.style.backgroundColor = hover ? G_HOVER : G;
   el.style.borderColor = hover ? G_HOVER : G;
+}
+
+function paintImproveCta(el: HTMLElement, hover: boolean) {
+  el.style.backgroundColor = hover ? PURPLE_HOVER : PURPLE_ACCENT;
+  el.style.borderColor = hover ? PURPLE_HOVER : PURPLE_ACCENT;
 }
 
 interface Props {
@@ -124,6 +138,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const [shortlistSaved, setShortlistSaved] = useState(false);
   const [improveMatchesOpen, setImproveMatchesOpen] = useState(false);
   const [improveUsed, setImproveUsed] = useState(0);
+  const [improveOptedOut, setImproveOptedOut] = useState(false);
   const refreshed =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refreshed') === '1';
   const [startupId, setStartupId] = useState<string | null>(null);
@@ -170,6 +185,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setPreview(null);
     setShortlistSaved(false);
     setImproveUsed(0);
+    setImproveOptedOut(false);
     setUnlockedIds([]);
     gateCompletedRef.current = false;
 
@@ -210,6 +226,7 @@ export default function InstantMatchPreview({ url }: Props) {
         if (!cancelled) {
           setStartupId(id);
           setImproveUsed(getImproveCount(id));
+          setImproveOptedOut(hasOptedOutOfImprove(id));
         }
       } catch (e) {
         if (!cancelled) {
@@ -300,17 +317,27 @@ export default function InstantMatchPreview({ url }: Props) {
   const openImproveOrSignup = () => {
     const id = preview?.startup?.id || startupId;
     if (isAuthenticated || canImproveAnonymously(id)) {
+      clearImproveOptOut(id);
+      setImproveOptedOut(false);
       setImproveMatchesOpen(true);
       return;
     }
     handleSignup('save');
   };
 
+  const skipImprove = () => {
+    const id = preview?.startup?.id || startupId;
+    optOutOfImprove(id);
+    setImproveOptedOut(true);
+    setImproveMatchesOpen(false);
+    if (!isAuthenticated) handleSignup('save');
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (new URLSearchParams(window.location.search).get('improve') !== '1') return;
     const id = preview?.startup?.id || startupId;
-    if (!id) return;
+    if (!id || hasOptedOutOfImprove(id)) return;
     if (isAuthenticated || canImproveAnonymously(id)) {
       setImproveMatchesOpen(true);
     }
@@ -376,28 +403,20 @@ export default function InstantMatchPreview({ url }: Props) {
   const fundingStage = preview.shortlist_mix?.funding_stage?.replace(/-/g, ' ');
   const canConfirmRound = Boolean(isAuthenticated && preview.startup?.id && !fundingStage);
   const improveLeft = Math.max(0, ANON_IMPROVE_LIMIT - improveUsed);
-  const canImproveNow = Boolean(isAuthenticated || improveLeft > 0);
+  const canImproveNow = Boolean(!improveOptedOut && (isAuthenticated || improveLeft > 0));
   const nextCopy = !isAuthenticated
     ? canImproveNow
-      ? `You can refine this shortlist ${improveLeft} more time${improveLeft === 1 ? '' : 's'} without an account. Create a free account when you want to keep these ${visible.length} matches on your profile.`
-      : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
+      ? `These ${visible.length} matches are ready. Improving is optional — skip if you want to keep this shortlist as-is. You can still refine ${improveLeft} more time${improveLeft === 1 ? '' : 's'} without an account.`
+      : improveOptedOut
+        ? `You skipped improve. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
+        : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
     : canConfirmRound
-      ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top.'
-      : shortlistSaved
-        ? 'These matches are saved to your account. Open Account anytime to come back. Add more company data to rerank who sits on top.'
-        : 'Confirm more company data to rerank who sits on top.';
-  const nextLabel = !isAuthenticated
-    ? canImproveNow
-      ? 'Improve my matches'
-      : 'Save my matches'
-    : canConfirmRound
-      ? 'Confirm your round'
-      : 'Improve my matches';
-  const nextAction = !isAuthenticated
-    ? canImproveNow
-      ? openImproveOrSignup
-      : () => handleSignup('save')
-    : openImproveOrSignup;
+      ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top. Improving the rest of the profile is optional.'
+      : improveOptedOut
+        ? 'You kept this shortlist. Open Account anytime to come back. Improve later only if you want a rerank.'
+        : shortlistSaved
+          ? 'These matches are saved to your account. Improving is optional — skip if these five are enough.'
+          : 'These matches are ready. Improving is optional — skip if you want to keep this shortlist as-is.';
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
@@ -462,27 +481,36 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="text-sm mb-4" style={{ color: TEXT }}>
           {nextCopy}
         </p>
+        {canImproveNow && (
+          <button
+            type="button"
+            onClick={openImproveOrSignup}
+            className={`${NEXT_STEP_CTA_CLASS} mb-3`}
+            style={IMPROVE_CTA_STYLE}
+            onMouseEnter={(e) => paintImproveCta(e.currentTarget, true)}
+            onMouseLeave={(e) => paintImproveCta(e.currentTarget, false)}
+          >
+            Improve my matches
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
         <button
           type="button"
-          onClick={nextAction}
+          onClick={canImproveNow ? skipImprove : canConfirmRound ? openImproveOrSignup : () => handleSignup('save')}
           className={NEXT_STEP_CTA_CLASS}
           style={NEXT_STEP_CTA_STYLE}
           onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
           onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
         >
-          {nextLabel}
+          {canImproveNow
+            ? isAuthenticated
+              ? 'Skip — keep these matches'
+              : 'Skip — save my matches'
+            : canConfirmRound
+              ? 'Confirm your round'
+              : 'Save my matches'}
           <ArrowRight className="w-4 h-4" />
         </button>
-        {!isAuthenticated && canImproveNow && (
-          <button
-            type="button"
-            onClick={() => handleSignup('save')}
-            className="mt-3 w-full text-sm font-medium underline underline-offset-2"
-            style={{ color: MUTED }}
-          >
-            Save my matches
-          </button>
-        )}
         {!isAuthenticated && (
           <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
             Saving creates a free account and keeps this shortlist under Account. We do not email the list unless you subscribed separately.
@@ -496,6 +524,7 @@ export default function InstantMatchPreview({ url }: Props) {
           startupUrl={url}
           currentGodScore={preview.startup.god_score}
           onClose={() => setImproveMatchesOpen(false)}
+          onSkip={skipImprove}
           onCompleted={() => {
             if (!isAuthenticated) {
               setImproveUsed(recordImproveCompletion(preview.startup?.id));

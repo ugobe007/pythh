@@ -15,7 +15,10 @@ test('anonymous improve quota is two per startup', () => {
   assert.match(quota, /export const ANON_IMPROVE_LIMIT = 2/);
   assert.match(quota, /export function recordImproveCompletion/);
   assert.match(quota, /export function canImproveAnonymously/);
+  assert.match(quota, /export function optOutOfImprove/);
+  assert.match(quota, /export function hasOptedOutOfImprove/);
   assert.match(quota, /pythh_improve_matches_count/);
+  assert.match(quota, /pythh_improve_matches_opt_out/);
 });
 
 test('match preview lets founders improve twice, then save to their profile', () => {
@@ -25,10 +28,30 @@ test('match preview lets founders improve twice, then save to their profile', ()
   assert.match(preview, /recordImproveCompletion/);
   assert.match(preview, /Improve my matches/);
   assert.match(preview, /Save my matches/);
+  assert.match(preview, /Skip — keep these matches/);
+  assert.match(preview, /skipImprove/);
+  assert.match(preview, /optOutOfImprove/);
+  assert.match(preview, /IMPROVE_CTA_STYLE/);
+  assert.match(preview, /PURPLE_ACCENT/);
   assert.match(preview, /savedMatchesPath\(\)/);
   assert.doesNotMatch(preview, /PaidRaisePanel/);
   assert.doesNotMatch(preview, /Start Scout/);
   assert.match(preview, /We do not email the list unless you subscribed separately/);
+});
+
+test('improve and automate outreach use different CTA colors', () => {
+  const preview = read('site/components/InstantMatchPreview.tsx');
+  const round = read('site/components/wizard/RoundAutomation.tsx');
+  const panel = read('site/components/ImproveMatchesPanel.tsx');
+  assert.match(preview, /IMPROVE_CTA_STYLE/);
+  assert.match(preview, /PURPLE_ACCENT/);
+  assert.match(preview, /NEXT_STEP_CTA_STYLE/);
+  assert.match(round, /Improve matches →/);
+  assert.match(round, /Automate outreach →/);
+  assert.match(round, /oklch\(0\.72 0\.16 305\)/);
+  assert.match(round, /oklch\(0\.696 0\.17 162\.48\)/);
+  assert.match(round, /Skip improve — keep these matches/);
+  assert.match(panel, /Skip — keep these matches/);
 });
 
 test('save signup lands on the account profile, not the newsletter', () => {
