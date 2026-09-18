@@ -71,7 +71,7 @@
       "destination": "https://hot-honey.fly.dev/api/:path*"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|images/|favicon|apple-touch-icon|og-image|icon-512|site\\.webmanifest|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ]
