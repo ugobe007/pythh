@@ -1308,10 +1308,13 @@ async function loadJobs() {
       if (error) throw new Error(error.message);
       for (const row of data || []) queueById.set(row.startup_id, row);
     }
-    const missing = startupIds.filter((id) => !queueById.has(id));
+    const needsSnapshot = startupIds.filter((id) => {
+      const queued = queueById.get(id);
+      return !queued || !queued.earliest_match_at;
+    });
     const predictedAtByStartup = new Map();
-    for (let offset = 0; offset < missing.length; offset += 200) {
-      const chunk = missing.slice(offset, offset + 200);
+    for (let offset = 0; offset < needsSnapshot.length; offset += 200) {
+      const chunk = needsSnapshot.slice(offset, offset + 200);
       const { data, error } = await db
         .from('funding_prediction_snapshots')
         .select('startup_id,predicted_at')

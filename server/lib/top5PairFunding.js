@@ -39,12 +39,12 @@ function namedParticipants(rows) {
     && String(row.investor_name_raw || '').trim());
 }
 
-function officialEvidenceForPrediction(prediction, evidenceRows, identityCtx, predictedAt) {
+function officialEvidenceForPrediction(prediction, evidenceRows, identityCtx, predictedAt, asOf) {
   const predKeys = new Set(predictionIdentityKeys(prediction, identityCtx));
   return (evidenceRows || []).filter((row) => {
     if (!['funding', 'investment'].includes(row.evidence_type || 'funding')) return false;
     const at = eventTime(row);
-    if (!Number.isFinite(at.getTime()) || at <= predictedAt) return false;
+    if (!Number.isFinite(at.getTime()) || at <= predictedAt || at > asOf) return false;
     if (row.match_created_at) {
       const matchAt = new Date(row.match_created_at);
       if (Number.isFinite(matchAt.getTime()) && at <= matchAt) return false;
@@ -94,7 +94,7 @@ function evaluateSealedTop5Pairs({
   });
   const startupFundedAfterMatch = postEvents.some((event) => trustedLedgerEvent(event, helpers));
   const pairs = (set.predictions || []).map((prediction) => {
-    const official = officialEvidenceForPrediction(prediction, officialEvidence, identityCtx, predictedAt);
+    const official = officialEvidenceForPrediction(prediction, officialEvidence, identityCtx, predictedAt, asOf);
     const officialVerified = official.filter((row) => row.verified);
     const officialPending = official.filter((row) => !row.verified && row.review_status === 'pending');
     const ledger = ledgerHitsForPrediction(
