@@ -602,7 +602,7 @@ function VerifiedOutcomesSection({
         </h2>
         <p className="text-[17px] leading-relaxed max-w-[58ch] mb-4" style={{ color: MUTED }}>
           {pairHits && pairStartups && pairRate != null
-            ? `${pairHits} of ${pairStartups} startups (${pairRate}%) later raised from an investor we had already ranked in the top five.`
+            ? `${pairHits} of ${pairStartups} startups (${pairRate}%) later raised from an investor we ranked in the top five.`
             : "When a ranked startup later raises, we count whether the funder was already in our top five."}
         </p>
         <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: PURPLE_ACCENT }}>

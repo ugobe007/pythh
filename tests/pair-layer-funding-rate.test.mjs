@@ -32,7 +32,7 @@ assert.match(home, /<HomeProofStrip/);
 assert.match(home, /pair_funding_rate_pct/);
 assert.match(proof, /Verified outcome/);
 assert.match(proof, /Startups funded \(scale\)/);
-assert.match(proof, /later raised from an investor we had already ranked in the top five/);
+assert.match(proof, /later raised from an investor we ranked in the top five/);
 assert.match(proof, /not predictive quality/);
 assert.doesNotMatch(proof, /post-prediction/);
 assert.match(proof, /Methodology/);
