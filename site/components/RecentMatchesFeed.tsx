@@ -32,6 +32,7 @@ const SESSION_KEY = "pythh_livewire_matches_v2";
 
 let memoryCache: { at: number; limit: number; matches: RecentMatch[] } | null = null;
 let inflight: Promise<RecentMatch[]> | null = null;
+let inflightLimit = 0;
 
 function formatTimeAgo(iso: string) {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -121,10 +122,11 @@ async function loadRecentMatches(limit: number): Promise<RecentMatch[]> {
   const recent = await fetchMatchList(`/api/recent-matches?limit=${limit}`)
     .then((list) => list as RecentMatch[])
     .catch(() => [] as RecentMatch[]);
-  if (recent.length >= 6) return recent;
+  const uniqueRecent = uniqueMatchPairs(recent, limit);
+  if (uniqueRecent.length >= limit) return uniqueRecent;
   const hot = await fetchHotMatches(Math.max(limit, 20));
-  const merged = uniqueMatchPairs([...recent, ...hot], limit);
-  return merged.length ? merged : recent;
+  const merged = uniqueMatchPairs([...uniqueRecent, ...hot], limit);
+  return merged.length ? merged : uniqueRecent;
 }
 
 async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
@@ -132,15 +134,18 @@ async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
   if (memoryCache && now - memoryCache.at < MEMORY_TTL_MS && memoryCache.matches.length >= limit) {
     return memoryCache.matches;
   }
-  if (inflight) return inflight;
+  if (inflight && inflightLimit >= limit) return inflight;
 
+  const requestLimit = Math.max(limit, inflightLimit);
+  inflightLimit = requestLimit;
   inflight = (async () => {
     try {
-      const matches = await loadRecentMatches(limit);
-      cacheMatches(matches, limit);
+      const matches = await loadRecentMatches(requestLimit);
+      cacheMatches(matches, requestLimit);
       return matches;
     } finally {
       inflight = null;
+      inflightLimit = 0;
     }
   })();
   return inflight;
