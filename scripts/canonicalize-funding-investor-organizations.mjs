@@ -364,6 +364,30 @@ const organizations = [
   ['SciFi VC', 'scifi.vc', ['SciFi VC']],
   ['Commerce Ventures', 'commercevc.com', ['Commerce Ventures']],
   ['WEX Venture Capital', 'wexinc.com', ['WEX Venture Capital', 'WEX VC']],
+  // August 2026 early-stage fund launches (Free Search). Accel regional vehicles
+  // stay on the existing Accel org. Inovo already canonical.
+  ['Blackbird Ventures', 'blackbird.vc', ['Blackbird Ventures', 'Blackbird']],
+  ['South Park Commons', 'southparkcommons.com', ['South Park Commons', 'SPC']],
+  ['OpenAI Startup Fund', 'openai.com', ['OpenAI Startup Fund']],
+  ['Jump Capital', 'jumpcap.com', ['Jump Capital']],
+  ['Team8', 'team8.vc', ['Team8', 'Team 8']],
+  ['Reach Capital', 'reachcapital.com', ['Reach Capital']],
+  ['Makers Fund', 'makersfund.com', ['Makers Fund']],
+  ['White Star Capital', 'whitestarcapital.com', ['White Star Capital', 'White Star']],
+  ['Permanent Capital Ventures', 'permanent-capital.vc', ['Permanent Capital Ventures', 'Permanent Capital']],
+  ['MassMutual Ventures', 'massmutualventures.com', ['MassMutual Ventures']],
+  ['Floating Point', 'floating.vc', ['Floating Point', 'Floating Point Ventures']],
+  ['224 Ventures', '224ventures.com', ['224 Ventures']],
+  ['Silent Ventures', 'silentvc.com', ['Silent Ventures']],
+  ['Ventures Platform', 'venturesplatform.com', ['Ventures Platform', 'Venture Platform']],
+  ['Cross-Border Impact Ventures', 'crossborder.ventures', ['Cross-Border Impact Ventures', 'Cross-Border Impact']],
+  ['Psalion', 'psalion.com', ['Psalion']],
+  ['RunwayVC', 'runway.vc', ['RunwayVC', 'Runway VC']],
+  ['Bluehill VC', 'bluehill.vc', ['Bluehill VC', 'Bluehill']],
+  ['FGV Capital', 'fgv.vc', ['FGV Capital', 'Fiat Ventures']],
+  ['GD1', 'gd1.vc', ['GD1']],
+  ['SaaS Holic', 'saasholic.com', ['SaaS Holic', 'SaaSHolic']],
+  ['Redstone', 'redstone.vc', ['Redstone']],
 ];
 
 // Reviewed from the read-only reference audit. Do not infer organization membership
