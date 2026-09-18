@@ -16,6 +16,7 @@
  *   --provider=ontology   news (inference) + SEC Form D + NSF/SBIR + USASpending
  *                         (docs/FUNDING_SOURCE_ONTOLOGY.md §6 public channels)
  *   --name=Acme           only this startup (ILIKE)
+ *   --startup-ids=id,id   hunt these startups via REST (no DATABASE_URL)
  *   --cohort-since=2026-08-25  restrict to proof-cohort URL submits
  *   --min-god=55          skip low GOD when selecting jobs (needs DATABASE_URL)
  *   --require-snapshot    only sealed served-first-top5 startups (needs DATABASE_URL)
@@ -99,6 +100,8 @@ const ontologySources = ontologySourcesArg
   ? ontologySourcesArg.split(',').map((s) => s.trim()).filter(Boolean)
   : ['sec', 'nsf', 'sbir', 'usaspending'];
 const nameFilter = process.argv.find((a) => a.startsWith('--name='))?.split('=')[1] || null;
+const startupIdsArg = process.argv.find((a) => a.startsWith('--startup-ids='))?.split('=')[1] || '';
+const startupIds = startupIdsArg.split(',').map((s) => s.trim()).filter(Boolean);
 const cohortSince = process.argv.find((a) => a.startsWith('--cohort-since='))?.split('=')[1] || null;
 const minGod = Number(process.argv.find((a) => a.startsWith('--min-god='))?.split('=')[1] || 0);
 const skipJunkNames =
@@ -1293,6 +1296,52 @@ async function collectJunkStartupIds(jobs) {
 }
 
 async function loadJobs() {
+  if (startupIds.length) {
+    const jobs = [];
+    const queueById = new Map();
+    for (let offset = 0; offset < startupIds.length; offset += 200) {
+      const chunk = startupIds.slice(offset, offset + 200);
+      const { data, error } = await db
+        .from('funding_evidence_search_queue')
+        .select('startup_id,earliest_match_at,attempts,priority')
+        .in('startup_id', chunk);
+      if (error) throw new Error(error.message);
+      for (const row of data || []) queueById.set(row.startup_id, row);
+    }
+    const missing = startupIds.filter((id) => !queueById.has(id));
+    const predictedAtByStartup = new Map();
+    for (let offset = 0; offset < missing.length; offset += 200) {
+      const chunk = missing.slice(offset, offset + 200);
+      const { data, error } = await db
+        .from('funding_prediction_snapshots')
+        .select('startup_id,predicted_at')
+        .eq('cohort_key', 'served-first-top5')
+        .in('startup_id', chunk);
+      if (error) throw new Error(error.message);
+      for (const row of data || []) {
+        const prev = predictedAtByStartup.get(row.startup_id);
+        if (!prev || new Date(row.predicted_at) < new Date(prev)) {
+          predictedAtByStartup.set(row.startup_id, row.predicted_at);
+        }
+      }
+    }
+    for (const id of startupIds) {
+      const queued = queueById.get(id);
+      if (queued?.earliest_match_at) {
+        jobs.push(queued);
+        continue;
+      }
+      const predictedAt = predictedAtByStartup.get(id);
+      if (!predictedAt) continue;
+      jobs.push({
+        startup_id: id,
+        earliest_match_at: queued?.earliest_match_at || predictedAt,
+        attempts: queued?.attempts || 0,
+        priority: queued?.priority || 45000,
+      });
+    }
+    return { jobs: jobs.slice(0, limit), parked_junk: 0 };
+  }
   const needsPg = Boolean(nameFilter || cohortSince || minGod > 0 || requireSnapshot);
   if (!needsPg) {
     const fetchLimit = skipJunkNames ? Math.min(800, Math.max(limit * 12, 120)) : limit;
@@ -1544,6 +1593,7 @@ console.log(
       search_provider: searchProvider,
       filters: {
         name: nameFilter || undefined,
+        startup_ids: startupIds.length || undefined,
         cohort_since: cohortSince || undefined,
         min_god: minGod || undefined,
         require_snapshot: requireSnapshot || undefined,
