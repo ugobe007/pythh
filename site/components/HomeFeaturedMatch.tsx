@@ -39,9 +39,6 @@ export default function HomeFeaturedMatch({
 
   useEffect(() => {
     if (pageCount < 2 || paused) return;
-    const reduce = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reduce) return;
     const id = window.setInterval(() => {
       setPage((n) => (n + 1) % pageCount);
     }, FEATURED_MATCH_ROTATE_MS);

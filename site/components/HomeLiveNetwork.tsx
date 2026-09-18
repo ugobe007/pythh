@@ -62,9 +62,6 @@ export function HomeLiveMatches({ limit = LIVEWIRE_PAGE_SIZE }: { limit?: number
 
   useEffect(() => {
     if (pageCount < 2 || paused) return;
-    const reduce = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reduce) return;
     const id = window.setInterval(() => {
       setPage((n) => (n + 1) % pageCount);
     }, LIVE_TAPE_ROTATE_MS);
@@ -216,14 +213,11 @@ export function HomeLiveTape() {
   const [page, setPage] = useState(0);
   const [paused, setPaused] = useState(false);
   const pageCount = livewirePageCount(matches.length, LIVEWIRE_PAGE_SIZE);
-  const showSecond = pageCount >= 2;
+  const showSecond = matches.length >= LIVEWIRE_PAGE_SIZE * 2 && matches.length % LIVEWIRE_PAGE_SIZE === 0;
   const nextPage = showSecond ? (page + 1) % pageCount : 0;
 
   useEffect(() => {
     if (pageCount < 2 || paused) return;
-    const reduce = typeof window !== "undefined"
-      && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    if (reduce) return;
     const id = window.setInterval(() => {
       setPage((n) => (n + 1) % pageCount);
     }, LIVE_TAPE_ROTATE_MS);

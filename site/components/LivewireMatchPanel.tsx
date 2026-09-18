@@ -35,19 +35,20 @@ export function livewireHeaderStatus(loading: boolean, visibleCount: number, pag
   return "Live network";
 }
 
-/** Full pages only — leftover rows stay off the tape so two panels never overlap. */
+/** Pages in the tape. A leftover row becomes another wrapping page so 7–11 pairs still rotate. */
 export function livewirePageCount(itemCount: number, size = LIVEWIRE_PAGE_SIZE, minPages = 1) {
   if (itemCount <= 0) return 1;
-  const full = Math.floor(itemCount / size);
-  return Math.max(minPages, full || 1);
+  if (itemCount <= size) return Math.max(minPages, itemCount > 1 ? itemCount : 1);
+  return Math.max(minPages, Math.ceil(itemCount / size));
 }
 
-/** Always fill `size` rows. Uses full pages; wraps only when the pool is shorter than one page. */
+/** Fill `size` rows. Full pages stride by `size`; a single page slides by one so the tape still moves. */
 export function fillTapePage<T>(items: T[], page: number, size: number): T[] {
   if (!items.length || size <= 0) return [];
   const count = Math.min(size, items.length);
-  const pages = Math.max(1, Math.floor(items.length / count) || 1);
-  const start = (page % pages) * count;
+  const stride = items.length > size ? count : 1;
+  const pages = items.length > size ? Math.ceil(items.length / count) : items.length;
+  const start = ((page % pages) * stride) % items.length;
   return Array.from({ length: count }, (_, i) => items[(start + i) % items.length]);
 }
 
@@ -182,7 +183,7 @@ export function LivewireMatchPanel({
               <MatchCell key={`${m.match_id}-${i}`} match={m} index={i} stacked={!horizontal} />
             ))}
           </div>
-          {pageCount > 1 && onPage ? (
+          {pageCount > 1 && onPage && matches.length > LIVEWIRE_PAGE_SIZE ? (
             <div
               className={`flex items-center gap-1.5 px-5 pb-3 ${horizontal ? "justify-center pt-3" : "pt-2"}`}
               role="tablist"

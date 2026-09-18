@@ -115,7 +115,6 @@ test('homepage featured match and live tape rotate through a pool', () => {
   assert.match(featured, /FEATURED_MATCH_ROTATE_MS = 8000/);
   assert.match(featured, /uniqueMatchPairs/);
   assert.match(featured, /setInterval/);
-  assert.match(featured, /prefers-reduced-motion/);
   assert.match(featured, /LivewireMatchPanel/);
   assert.match(tape, /LIVE_TAPE_POOL = 18/);
   assert.match(tape, /uniqueMatchPairs/);

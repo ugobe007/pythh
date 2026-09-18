@@ -30,8 +30,9 @@ test('livewire meta uses today + GOD without inventing a 60-day hold', async () 
     'Headline',
   );
 
-  assert.deepEqual(fillTapePage(['a', 'b', 'c', 'd'], 1, 3), ['a', 'b', 'c']);
+  assert.deepEqual(fillTapePage(['a', 'b', 'c', 'd'], 1, 3), ['d', 'a', 'b']);
   assert.deepEqual(fillTapePage(['a', 'b', 'c', 'd', 'e', 'f'], 0, 6), ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.deepEqual(fillTapePage(['a', 'b', 'c', 'd', 'e', 'f'], 1, 6), ['b', 'c', 'd', 'e', 'f', 'a']);
   assert.deepEqual(
     fillTapePage(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'], 1, 6),
     ['g', 'h', 'i', 'j', 'k', 'l'],
@@ -40,9 +41,15 @@ test('livewire meta uses today + GOD without inventing a 60-day hold', async () 
     fillTapePage(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'], 1, 6),
     ['g', 'h', 'i', 'j', 'k', 'l'],
   );
-  assert.equal(livewirePageCount(14, 6), 2);
-  assert.equal(livewirePageCount(14, 6, 2), 2);
-  assert.equal(livewirePageCount(6, 6, 2), 2);
+  assert.deepEqual(
+    fillTapePage(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'], 2, 6),
+    ['m', 'n', 'a', 'b', 'c', 'd'],
+  );
+  assert.equal(livewirePageCount(14, 6), 3);
+  assert.equal(livewirePageCount(14, 6, 2), 3);
+  assert.equal(livewirePageCount(8, 6), 2);
+  assert.equal(livewirePageCount(6, 6), 6);
+  assert.equal(livewirePageCount(6, 6, 2), 6);
   assert.equal(livewireHeaderStatus(true, 0, 0, 2), 'Refreshing');
   assert.equal(livewireHeaderStatus(false, 6, 1, 3), '2 of 3');
   assert.equal(livewireHeaderStatus(false, 6, 0, 1), 'Live network');
@@ -96,9 +103,9 @@ test('livewire first paint fetches recent-matches only', () => {
   const src = readFileSync(new URL('../site/components/RecentMatchesFeed.tsx', import.meta.url), 'utf8');
   assert.match(src, /peekCachedMatches/);
   assert.match(src, /pythh_livewire_matches/);
-  assert.match(src, /if \(inflight\) return inflight/);
-  assert.match(src, /if \(recent\.length >= limit\) return recent/);
-  assert.match(src, /uniqueMatchPairs\(\[\.\.\.recent, \.\.\.hot\], limit\)/);
+  assert.match(src, /if \(inflight && inflightLimit >= limit\) return inflight/);
+  assert.match(src, /if \(uniqueRecent\.length >= limit\) return uniqueRecent/);
+  assert.match(src, /uniqueMatchPairs\(\[\.\.\.uniqueRecent, \.\.\.hot\], limit\)/);
   assert.doesNotMatch(src, /Promise\.all\(/);
   assert.doesNotMatch(src, /const hotPromise = fetchHotMatches/);
 });
