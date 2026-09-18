@@ -10,7 +10,7 @@ function OutcomeCopy({
   pairStartups?: number;
 }) {
   return hasPrimary
-    ? `${pairHits} of ${pairStartups} startups later raised from an investor we had already ranked in the top five.`
+    ? `${pairHits} of ${pairStartups} startups later raised from an investor we ranked in the top five.`
     : "Verified funding appears here when the sample is ready.";
 }
 
