@@ -213,7 +213,7 @@ export function HomeLiveTape() {
   const [page, setPage] = useState(0);
   const [paused, setPaused] = useState(false);
   const pageCount = livewirePageCount(matches.length, LIVEWIRE_PAGE_SIZE);
-  const showSecond = matches.length >= LIVEWIRE_PAGE_SIZE * 2;
+  const showSecond = matches.length >= LIVEWIRE_PAGE_SIZE * 2 && matches.length % LIVEWIRE_PAGE_SIZE === 0;
   const nextPage = showSecond ? (page + 1) % pageCount : 0;
 
   useEffect(() => {

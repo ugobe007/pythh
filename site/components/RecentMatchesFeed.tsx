@@ -33,6 +33,7 @@ const SESSION_KEY = "pythh_livewire_matches_v2";
 let memoryCache: { at: number; limit: number; matches: RecentMatch[] } | null = null;
 let inflight: Promise<RecentMatch[]> | null = null;
 let inflightLimit = 0;
+let inflightId = 0;
 
 function formatTimeAgo(iso: string) {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -138,14 +139,19 @@ async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
 
   const requestLimit = Math.max(limit, inflightLimit);
   inflightLimit = requestLimit;
+  const thisId = ++inflightId;
   inflight = (async () => {
     try {
       const matches = await loadRecentMatches(requestLimit);
-      cacheMatches(matches, requestLimit);
+      if (inflightId === thisId) {
+        cacheMatches(matches, requestLimit);
+      }
       return matches;
     } finally {
-      inflight = null;
-      inflightLimit = 0;
+      if (inflightId === thisId) {
+        inflight = null;
+        inflightLimit = 0;
+      }
     }
   })();
   return inflight;
