@@ -1,17 +1,46 @@
 import { MUTED, TEXT, G, DIM, BORDER, CARD, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
 
-function OutcomeCopy({
-  hasPrimary,
-  pairHits,
-  pairStartups,
+function topFiveCopy(hits?: number, startups?: number) {
+  return `${hits} of ${startups} startups later raised from an investor we ranked in the top five.`;
+}
+
+function topFiftyCopy(hits?: number, startups?: number) {
+  return `${hits} of ${startups} startups later raised from an investor we ranked in the top fifty.`;
+}
+
+function FundingRate({
+  rate,
+  label,
+  copy,
+  size,
 }: {
-  hasPrimary: boolean;
-  pairHits?: number;
-  pairStartups?: number;
+  rate: number;
+  label: string;
+  copy: string;
+  size: "lg" | "sm";
 }) {
-  return hasPrimary
-    ? `${pairHits} of ${pairStartups} startups later raised from an investor we ranked in the top five.`
-    : "Verified funding appears here when the sample is ready.";
+  const fontSize =
+    size === "lg" ? "clamp(3rem, 6vw, 4.5rem)" : "clamp(1.65rem, 3.2vw, 2.35rem)";
+  const copySize = size === "lg" ? "text-[16px]" : "text-[14px]";
+  return (
+    <div>
+      <p
+        className="font-display font-bold tabular-nums leading-none"
+        style={{ color: G, fontSize }}
+      >
+        {rate}%
+      </p>
+      <p
+        className="text-[12px] font-medium tracking-wide uppercase mt-2 mb-2"
+        style={{ color: PURPLE_ACCENT }}
+      >
+        {label}
+      </p>
+      <p className={`${copySize} leading-relaxed`} style={{ color: TEXT }}>
+        {copy}
+      </p>
+    </div>
+  );
 }
 
 function ScaleStats({
@@ -43,6 +72,8 @@ export default function HomeProofStrip({
   pairRate,
   pairHits,
   pairStartups,
+  pairRateTop50,
+  pairHitsTop50,
   startupsFunded,
   investors,
   variant = "strip",
@@ -50,13 +81,62 @@ export default function HomeProofStrip({
   pairRate?: number | null;
   pairHits?: number;
   pairStartups?: number;
+  pairRateTop50?: number | null;
+  pairHitsTop50?: number;
   startupsFunded?: number | null;
   investors?: number;
   variant?: "strip" | "panel";
 }) {
   const rate = pairRate != null && Number.isFinite(pairRate) ? pairRate : null;
+  const rate50 = pairRateTop50 != null && Number.isFinite(pairRateTop50) ? pairRateTop50 : null;
   const hasPrimary = Boolean(rate != null && pairHits && pairStartups);
+  const hasTop50 = Boolean(hasPrimary && rate50 != null && pairHitsTop50 && pairStartups);
   if (!hasPrimary && !startupsFunded && !investors && variant !== "panel") return null;
+
+  const methodology = (
+    <p className="text-[14px] mt-3 leading-relaxed" style={{ color: MUTED }}>
+      A raise counts when the press confirms it after we ranked the match.
+      {" "}
+      <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
+        Methodology
+      </a>
+    </p>
+  );
+
+  const rates = (
+    <>
+      {hasPrimary ? (
+        <FundingRate
+          rate={rate as number}
+          label="top 5"
+          copy={topFiveCopy(pairHits, pairStartups)}
+          size="lg"
+        />
+      ) : (
+        <p
+          className="font-display font-bold tabular-nums leading-none mb-4"
+          style={{ color: G, fontSize: "clamp(3rem, 6vw, 4.5rem)" }}
+        >
+          —
+        </p>
+      )}
+      {hasTop50 ? (
+        <div className="mt-5">
+          <FundingRate
+            rate={rate50 as number}
+            label="top 50"
+            copy={topFiftyCopy(pairHitsTop50, pairStartups)}
+            size="sm"
+          />
+        </div>
+      ) : null}
+      {!hasPrimary ? (
+        <p className="text-[16px] leading-relaxed" style={{ color: TEXT }}>
+          Verified funding appears here when the sample is ready.
+        </p>
+      ) : null}
+    </>
+  );
 
   if (variant === "panel") {
     return (
@@ -67,29 +147,15 @@ export default function HomeProofStrip({
         aria-label="Verified funding"
       >
         <p className="text-[12px] font-medium tracking-wide uppercase mb-3" style={{ color: PURPLE_ACCENT }}>
-          Verified outcome
+          Verified funding
         </p>
-        <p
-          className="font-display font-bold tabular-nums leading-none mb-4"
-          style={{ color: G, fontSize: "clamp(3rem, 6vw, 4.5rem)" }}
-        >
-          {hasPrimary ? `${rate}%` : "—"}
-        </p>
-        <p className="text-[16px] leading-relaxed" style={{ color: TEXT }}>
-          <OutcomeCopy hasPrimary={hasPrimary} pairHits={pairHits} pairStartups={pairStartups} />
-        </p>
-        <p className="text-[14px] mt-3 leading-relaxed" style={{ color: MUTED }}>
-          A raise counts when the press confirms it after we ranked the match.
-          {" "}
-          <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
-            Methodology
-          </a>
-        </p>
+        {rates}
+        {methodology}
         <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
           <ScaleStats startupsFunded={startupsFunded} investors={investors} />
         </div>
         <p className="text-[13px] leading-relaxed mt-5" style={{ color: DIM }}>
-          Database size is operating scale, not predictive quality. The percentage is the claim.
+          Database size is operating scale, not predictive quality. The percentages are the claim.
         </p>
       </aside>
     );
@@ -105,25 +171,14 @@ export default function HomeProofStrip({
       <div className="container max-w-[1200px] mx-auto px-6 py-8 grid gap-8 lg:grid-cols-[1.4fr_1fr] items-start">
         <div style={{ borderLeft: `3px solid ${PURPLE_BORDER}`, paddingLeft: 16 }}>
           <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
-            Verified outcome
+            Verified funding
           </p>
-          <p className="font-display font-bold tabular-nums leading-none mb-3" style={{ color: G, fontSize: "clamp(2.25rem, 5vw, 3.25rem)" }}>
-            {hasPrimary ? `${rate}%` : "—"}
-          </p>
-          <p className="text-[17px] leading-relaxed max-w-[46ch]" style={{ color: TEXT }}>
-            <OutcomeCopy hasPrimary={hasPrimary} pairHits={pairHits} pairStartups={pairStartups} />
-          </p>
-          <p className="text-[14px] mt-3 leading-relaxed max-w-[46ch]" style={{ color: MUTED }}>
-            A raise counts when the press confirms it after we ranked the match.
-            {" "}
-            <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
-              Methodology
-            </a>
-          </p>
+          {rates}
+          <div className="max-w-[46ch]">{methodology}</div>
         </div>
         <ScaleStats startupsFunded={startupsFunded} investors={investors} />
         <p className="text-[13px] leading-relaxed mt-6" style={{ color: DIM }}>
-          Database size is operating scale, not predictive quality. The percentage on the left is the claim.
+          Database size is operating scale, not predictive quality. The percentages on the left are the claim.
         </p>
       </div>
     </section>

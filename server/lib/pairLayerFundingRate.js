@@ -2,8 +2,9 @@
  * Pair-layer funding rate for the public homepage.
  *
  * Among startups with a verified post-prediction funder, share where that
- * funder sat in sealed or live top-5 (firm identity). Same definition as
- * `npm run outcomes:matched:summary` HIT RATE. Does not retune GOD/fit.
+ * funder sat in sealed or live top-5 / top-50 (firm identity). Same
+ * definition as `npm run outcomes:matched:summary` HIT RATE. Does not
+ * retune GOD/fit.
  */
 'use strict';
 
@@ -122,7 +123,12 @@ const PAIR_LAYER_FUNDING_RATE_SQL = `
         WHEN s.sealed_rank IS NOT NULL THEN 1
         WHEN lh.live_rank IS NOT NULL AND lh.live_rank <= 5 THEN 1
         ELSE 0
-      END AS hit
+      END AS hit,
+      CASE
+        WHEN s.sealed_rank IS NOT NULL THEN 1
+        WHEN lh.live_rank IS NOT NULL AND lh.live_rank <= 50 THEN 1
+        ELSE 0
+      END AS hit50
     FROM verified v
     LEFT JOIN sealed_hit s ON s.match_id = v.match_id
     LEFT JOIN live_hit lh ON lh.match_id = v.match_id
@@ -130,8 +136,10 @@ const PAIR_LAYER_FUNDING_RATE_SQL = `
   SELECT
     count(DISTINCT startup_id)::int AS startups,
     count(DISTINCT startup_id) FILTER (WHERE hit = 1)::int AS hits,
+    count(DISTINCT startup_id) FILTER (WHERE hit50 = 1)::int AS hits_top50,
     count(*)::int AS pairs,
-    count(*) FILTER (WHERE hit = 1)::int AS pair_hits
+    count(*) FILTER (WHERE hit = 1)::int AS pair_hits,
+    count(*) FILTER (WHERE hit50 = 1)::int AS pair_hits_top50
   FROM placed
 `;
 
@@ -155,12 +163,18 @@ function normalizeRateRow(row) {
   const hits = Number(row?.hits || 0) || 0;
   const pairs = Number(row?.pairs || 0) || 0;
   const pairHits = Number(row?.pair_hits || 0) || 0;
+  const hasTop50 = row?.hits_top50 != null || row?.pair_hits_top50 != null;
+  const hitsTop50 = Number(row?.hits_top50 || 0) || 0;
+  const pairHitsTop50 = Number(row?.pair_hits_top50 || 0) || 0;
   return {
     pair_funding_startups: startups,
     pair_funding_hits: hits,
     pair_funding_pairs: pairs,
     pair_funding_pair_hits: pairHits,
     pair_funding_rate_pct: ratePct(hits, startups),
+    pair_funding_hits_top50: hasTop50 ? hitsTop50 : 0,
+    pair_funding_pair_hits_top50: hasTop50 ? pairHitsTop50 : 0,
+    pair_funding_rate_top50_pct: hasTop50 ? ratePct(hitsTop50, startups) : null,
   };
 }
 

@@ -66,6 +66,8 @@ interface PlatformStats {
   pair_funding_rate_pct?: number | null;
   pair_funding_hits?: number;
   pair_funding_startups?: number;
+  pair_funding_rate_top50_pct?: number | null;
+  pair_funding_hits_top50?: number;
   computed_at?: string;
 }
 
@@ -122,6 +124,9 @@ function readCachedPlatformStats(): PlatformStats | null {
         d.pair_funding_rate_pct == null ? null : Number(d.pair_funding_rate_pct),
       pair_funding_hits: Number(d.pair_funding_hits) || 0,
       pair_funding_startups: Number(d.pair_funding_startups) || 0,
+      pair_funding_rate_top50_pct:
+        d.pair_funding_rate_top50_pct == null ? null : Number(d.pair_funding_rate_top50_pct),
+      pair_funding_hits_top50: Number(d.pair_funding_hits_top50) || 0,
       computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
     };
   } catch {
@@ -160,6 +165,9 @@ function usePlatformStats() {
             d.pair_funding_rate_pct == null ? null : Number(d.pair_funding_rate_pct),
           pair_funding_hits: Number(d.pair_funding_hits) || 0,
           pair_funding_startups: Number(d.pair_funding_startups) || 0,
+          pair_funding_rate_top50_pct:
+            d.pair_funding_rate_top50_pct == null ? null : Number(d.pair_funding_rate_top50_pct),
+          pair_funding_hits_top50: Number(d.pair_funding_hits_top50) || 0,
           computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
         };
         if (!(next.startups > 0)) return;
@@ -414,12 +422,16 @@ function HeroSection({
   pairRate,
   pairHits,
   pairStartups,
+  pairRateTop50,
+  pairHitsTop50,
   startupsFunded,
   investors,
 }: {
   pairRate?: number | null;
   pairHits?: number;
   pairStartups?: number;
+  pairRateTop50?: number | null;
+  pairHitsTop50?: number;
   startupsFunded?: number | null;
   investors?: number;
 }) {
@@ -489,6 +501,8 @@ function HeroSection({
             pairRate={pairRate}
             pairHits={pairHits}
             pairStartups={pairStartups}
+            pairRateTop50={pairRateTop50}
+            pairHitsTop50={pairHitsTop50}
             startupsFunded={startupsFunded}
             investors={investors}
           />
@@ -586,11 +600,17 @@ function VerifiedOutcomesSection({
   pairHits,
   pairStartups,
   pairRate,
+  pairHitsTop50,
+  pairRateTop50,
 }: {
   pairHits?: number;
   pairStartups?: number;
   pairRate?: number | null;
+  pairHitsTop50?: number;
+  pairRateTop50?: number | null;
 }) {
+  const hasTop5 = Boolean(pairHits && pairStartups && pairRate != null);
+  const hasTop50 = Boolean(hasTop5 && pairHitsTop50 && pairRateTop50 != null);
   return (
     <section className="border-t py-12" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
       <div className="container max-w-[1200px] mx-auto px-6">
@@ -598,12 +618,15 @@ function VerifiedOutcomesSection({
           Verified funding
         </p>
         <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
-          Startups that later raised from a top-5 match
+          Startups that later raised from a ranked match
         </h2>
         <p className="text-[17px] leading-relaxed max-w-[58ch] mb-4" style={{ color: MUTED }}>
-          {pairHits && pairStartups && pairRate != null
+          {hasTop5
             ? `${pairHits} of ${pairStartups} startups (${pairRate}%) later raised from an investor we ranked in the top five.`
             : "When a ranked startup later raises, we count whether the funder was already in our top five."}
+          {hasTop50
+            ? ` ${pairHitsTop50} of ${pairStartups} (${pairRateTop50}%) later raised from an investor we ranked in the top fifty.`
+            : ""}
         </p>
         <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: PURPLE_ACCENT }}>
           Read the methodology
@@ -1581,6 +1604,8 @@ export default function Home() {
         pairRate={platformStats?.pair_funding_rate_pct}
         pairHits={platformStats?.pair_funding_hits}
         pairStartups={platformStats?.pair_funding_startups}
+        pairRateTop50={platformStats?.pair_funding_rate_top50_pct}
+        pairHitsTop50={platformStats?.pair_funding_hits_top50}
         startupsFunded={
           platformStats?.funded_startups && platformStats.funded_startups > 0
             ? platformStats.funded_startups
@@ -1594,6 +1619,8 @@ export default function Home() {
         pairRate={platformStats?.pair_funding_rate_pct}
         pairHits={platformStats?.pair_funding_hits}
         pairStartups={platformStats?.pair_funding_startups}
+        pairRateTop50={platformStats?.pair_funding_rate_top50_pct}
+        pairHitsTop50={platformStats?.pair_funding_hits_top50}
       />
       <section className="border-t" style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }} aria-labelledby="live-market-heading">
         <div className="container max-w-[1200px] mx-auto px-6 py-12">
