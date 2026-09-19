@@ -20,8 +20,8 @@ function FundingRate({
   size: "lg" | "sm";
 }) {
   const fontSize =
-    size === "lg" ? "clamp(3rem, 6vw, 4.5rem)" : "clamp(1.65rem, 3.2vw, 2.35rem)";
-  const copySize = size === "lg" ? "text-[16px]" : "text-[14px]";
+    size === "lg" ? "clamp(2.15rem, 4.2vw, 3rem)" : "clamp(1.35rem, 2.6vw, 1.85rem)";
+  const copySize = size === "lg" ? "text-[14px]" : "text-[13px]";
   return (
     <div>
       <p
@@ -31,7 +31,7 @@ function FundingRate({
         {rate}%
       </p>
       <p
-        className="text-[12px] font-medium tracking-wide uppercase mt-2 mb-2"
+        className="text-[11px] font-medium tracking-wide uppercase mt-1.5 mb-1.5"
         style={{ color: PURPLE_ACCENT }}
       >
         {label}
@@ -51,16 +51,16 @@ function ScaleStats({
   investors?: number;
 }) {
   return (
-    <dl className="grid grid-cols-2 gap-6">
+    <dl className="grid grid-cols-2 gap-4">
       <div>
-        <dt className="text-[13px] mb-1" style={{ color: MUTED }}>Startups funded (scale)</dt>
-        <dd className="font-display font-bold tabular-nums text-2xl" style={{ color: TEXT }}>
+        <dt className="text-[12px] mb-1" style={{ color: MUTED }}>Startups funded (scale)</dt>
+        <dd className="font-display font-bold tabular-nums text-xl" style={{ color: TEXT }}>
           {startupsFunded ? startupsFunded.toLocaleString() : "—"}
         </dd>
       </div>
       <div>
-        <dt className="text-[13px] mb-1" style={{ color: MUTED }}>Investors in the network</dt>
-        <dd className="font-display font-bold tabular-nums text-2xl" style={{ color: TEXT }}>
+        <dt className="text-[12px] mb-1" style={{ color: MUTED }}>Investors in the network</dt>
+        <dd className="font-display font-bold tabular-nums text-xl" style={{ color: TEXT }}>
           {investors ? investors.toLocaleString() : "—"}
         </dd>
       </div>
@@ -94,7 +94,7 @@ export default function HomeProofStrip({
   if (!hasPrimary && !startupsFunded && !investors && variant !== "panel") return null;
 
   const methodology = (
-    <p className="text-[14px] mt-3 leading-relaxed" style={{ color: MUTED }}>
+    <p className="text-[13px] mt-2.5 leading-relaxed" style={{ color: MUTED }}>
       A raise counts when the press confirms it after we ranked the match.
       {" "}
       <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
@@ -115,13 +115,13 @@ export default function HomeProofStrip({
       ) : (
         <p
           className="font-display font-bold tabular-nums leading-none mb-4"
-          style={{ color: G, fontSize: "clamp(3rem, 6vw, 4.5rem)" }}
+          style={{ color: G, fontSize: "clamp(2.15rem, 4.2vw, 3rem)" }}
         >
           —
         </p>
       )}
       {hasTop50 ? (
-        <div className="mt-5">
+        <div className="mt-4">
           <FundingRate
             rate={rate50 as number}
             label="top 50"
@@ -142,19 +142,19 @@ export default function HomeProofStrip({
     return (
       <aside
         id="hero-status-bar"
-        className="rounded-xl text-left p-6 lg:p-7 h-full"
+        className="rounded-xl text-left p-5 lg:p-5 max-w-[360px] lg:ml-auto"
         style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
         aria-label="Verified funding"
       >
-        <p className="text-[12px] font-medium tracking-wide uppercase mb-3" style={{ color: PURPLE_ACCENT }}>
+        <p className="text-[11px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
           Verified funding
         </p>
         {rates}
         {methodology}
-        <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
+        <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER}` }}>
           <ScaleStats startupsFunded={startupsFunded} investors={investors} />
         </div>
-        <p className="text-[13px] leading-relaxed mt-5" style={{ color: DIM }}>
+        <p className="text-[12px] leading-relaxed mt-3" style={{ color: DIM }}>
           Database size is operating scale, not predictive quality. The percentages are the claim.
         </p>
       </aside>

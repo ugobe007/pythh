@@ -466,7 +466,7 @@ function HeroSection({
       style={{ backgroundColor: PAGE }}
     >
       <div className="container relative z-10 max-w-[1280px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
-        <div className="grid w-full lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)] gap-8 lg:gap-10 items-stretch">
+        <div className="grid w-full lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.68fr)] gap-6 lg:gap-8 items-start">
           <div className="min-w-0 flex flex-col">
             <HeroHeadline
               headline={heroHeadline}
