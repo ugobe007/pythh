@@ -92,10 +92,13 @@ test('featured match is a six-row livewire tape and proof strip keeps the pair c
   assert.doesNotMatch(featured, /Why this match/);
   assert.doesNotMatch(featured, /matchReasons/);
   assert.doesNotMatch(featured, /Loading the match/);
-  assert.match(proof, /Verified outcome/);
+  assert.match(proof, /Verified funding/);
   assert.match(proof, /Startups funded \(scale\)/);
   assert.match(proof, /Investors in the network/);
   assert.match(proof, /later raised from an investor we ranked in the top five/);
+  assert.match(proof, /later raised from an investor we ranked in the top fifty/);
+  assert.match(proof, /label="top 5"/);
+  assert.match(proof, /label="top 50"/);
   assert.match(proof, /press confirms it after we ranked the match/);
   assert.match(proof, /not predictive quality/);
   assert.doesNotMatch(proof, /post-prediction/);

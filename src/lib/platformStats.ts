@@ -19,6 +19,8 @@ export type PlatformStats = {
   pair_funding_rate_pct?: number | null;
   pair_funding_hits?: number;
   pair_funding_startups?: number;
+  pair_funding_rate_top50_pct?: number | null;
+  pair_funding_hits_top50?: number;
   computed_at?: string;
   source?: string;
 };
@@ -41,6 +43,9 @@ function normalizeRpcPayload(data: unknown): PlatformStats | null {
         o.pair_funding_rate_pct == null ? null : Number(o.pair_funding_rate_pct),
       pair_funding_hits: Number(o.pair_funding_hits ?? 0) || 0,
       pair_funding_startups: Number(o.pair_funding_startups ?? 0) || 0,
+      pair_funding_rate_top50_pct:
+        o.pair_funding_rate_top50_pct == null ? null : Number(o.pair_funding_rate_top50_pct),
+      pair_funding_hits_top50: Number(o.pair_funding_hits_top50 ?? 0) || 0,
       computed_at: typeof o.computed_at === 'string' ? o.computed_at : undefined,
       source: typeof o.source === 'string' ? o.source : undefined,
     };
