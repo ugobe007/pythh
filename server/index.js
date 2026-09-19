@@ -1610,9 +1610,9 @@ function normalizePlatformStatsPayload(raw, source) {
   const matches = Number(o.matches ?? 0) || 0;
   const pairStartups = Number(o.pair_funding_startups ?? 0) || 0;
   const pairHits = Number(o.pair_funding_hits ?? 0) || 0;
-  const pairRate = Number(o.pair_funding_rate_pct);
+  const pairRate = o.pair_funding_rate_pct != null ? Number(o.pair_funding_rate_pct) : null;
   const pairHitsTop50 = Number(o.pair_funding_hits_top50 ?? 0) || 0;
-  const pairRateTop50 = Number(o.pair_funding_rate_top50_pct);
+  const pairRateTop50 = o.pair_funding_rate_top50_pct != null ? Number(o.pair_funding_rate_top50_pct) : null;
   return {
     startups,
     startups_total: Number(o.startups_total ?? startups) || startups,
