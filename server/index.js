@@ -1611,6 +1611,8 @@ function normalizePlatformStatsPayload(raw, source) {
   const pairStartups = Number(o.pair_funding_startups ?? 0) || 0;
   const pairHits = Number(o.pair_funding_hits ?? 0) || 0;
   const pairRate = Number(o.pair_funding_rate_pct);
+  const pairHitsTop50 = Number(o.pair_funding_hits_top50 ?? 0) || 0;
+  const pairRateTop50 = Number(o.pair_funding_rate_top50_pct);
   return {
     startups,
     startups_total: Number(o.startups_total ?? startups) || startups,
@@ -1623,13 +1625,17 @@ function normalizePlatformStatsPayload(raw, source) {
     pair_funding_startups: pairStartups,
     pair_funding_hits: pairHits,
     pair_funding_rate_pct: Number.isFinite(pairRate) ? pairRate : null,
+    pair_funding_hits_top50: pairHitsTop50,
+    pair_funding_rate_top50_pct: Number.isFinite(pairRateTop50) ? pairRateTop50 : null,
     computed_at: o.computed_at || new Date().toISOString(),
     source,
   };
 }
 
 async function attachPairLayerFundingRate(payload) {
-  if (payload?.pair_funding_rate_pct != null && payload.pair_funding_startups > 0) {
+  const hasTop5 = payload?.pair_funding_rate_pct != null && payload.pair_funding_startups > 0;
+  const hasTop50 = payload?.pair_funding_rate_top50_pct != null && payload.pair_funding_startups > 0;
+  if (hasTop5 && hasTop50) {
     return payload;
   }
   try {

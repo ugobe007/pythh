@@ -112,6 +112,12 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
           pair_funding_rate_pct: pairRate.pair_funding_rate_pct,
           pair_funding_hits: pairRate.pair_funding_hits,
           pair_funding_startups: pairRate.pair_funding_startups,
+          ...(pairRate.pair_funding_rate_top50_pct != null
+            ? {
+                pair_funding_hits_top50: pairRate.pair_funding_hits_top50,
+                pair_funding_rate_top50_pct: pairRate.pair_funding_rate_top50_pct,
+              }
+            : {}),
         }
       : {}),
     updated_at: new Date().toISOString(),
@@ -122,8 +128,12 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
   console.log(`   matches ${matches.toLocaleString()} · 7d ${matches_new_7d.toLocaleString()} · signals ${signals.toLocaleString()}`);
   console.log(`   funded startups ${funded_startups.toLocaleString()} (unique tracked outcomes)`);
   if (pairRate?.pair_funding_rate_pct != null) {
+    const top50 =
+      pairRate.pair_funding_rate_top50_pct != null
+        ? ` · top-50 ${pairRate.pair_funding_rate_top50_pct}% (${pairRate.pair_funding_hits_top50}/${pairRate.pair_funding_startups})`
+        : '';
     console.log(
-      `   funding rate ${pairRate.pair_funding_rate_pct}% (${pairRate.pair_funding_hits}/${pairRate.pair_funding_startups} matched funders in top-5)`,
+      `   funding rate ${pairRate.pair_funding_rate_pct}% (${pairRate.pair_funding_hits}/${pairRate.pair_funding_startups} matched funders in top-5)${top50}`,
     );
   }
   console.log(`   elapsed ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -134,8 +144,20 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
   }
 
   let { error } = await sb.from('platform_stats_cache').upsert(row, { onConflict: 'id' });
+  if (error && /pair_funding_.*top50|pair_funding_rate_top50/i.test(error.message || '')) {
+    const { pair_funding_hits_top50, pair_funding_rate_top50_pct, ...withoutTop50 } = row;
+    ({ error } = await sb.from('platform_stats_cache').upsert(withoutTop50, { onConflict: 'id' }));
+    if (!error) console.warn('   top-50 pair funding columns missing on cache table — wrote top-5 row');
+  }
   if (error && /pair_funding_/i.test(error.message || '')) {
-    const { pair_funding_rate_pct, pair_funding_hits, pair_funding_startups, ...legacy } = row;
+    const {
+      pair_funding_rate_pct,
+      pair_funding_hits,
+      pair_funding_startups,
+      pair_funding_hits_top50,
+      pair_funding_rate_top50_pct,
+      ...legacy
+    } = row;
     ({ error } = await sb.from('platform_stats_cache').upsert(legacy, { onConflict: 'id' }));
     if (!error) console.warn('   pair funding columns missing on cache table — wrote legacy row');
   }
