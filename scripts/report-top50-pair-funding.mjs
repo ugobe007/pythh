@@ -243,7 +243,7 @@ async function main() {
   );
 
   function decorate(row) {
-    const keys = row.investor_id
+    const keys = row.source === 'official'
       ? predictionIdentityKeys({ investor_id: row.investor_id }, identityCtx)
       : participantIdentityKeys(row, identityCtx);
     const inv = row.investor_id ? investorById.get(row.investor_id) : null;
@@ -272,12 +272,18 @@ async function main() {
     snapshotsByStartup,
     identityCtx,
   });
-  const combinedKeys = new Set();
+  const combinedKeys = new Map();
   const combinedPairs = [];
   for (const row of [...officialPairs, ...ledgerPairs]) {
-    const key = `${row.startup_id}|${row.keys[0]}`;
-    if (combinedKeys.has(key)) continue;
-    combinedKeys.add(key);
+    const startupId = row.startup_id;
+    if (!combinedKeys.has(startupId)) {
+      combinedKeys.set(startupId, []);
+    }
+    const existing = combinedKeys.get(startupId);
+    const keySet = new Set(row.keys);
+    const duplicate = existing.some((seenKeySet) => identityKeysOverlap(row.keys, seenKeySet));
+    if (duplicate) continue;
+    existing.push(keySet);
     combinedPairs.push(row);
   }
   const combinedEval = evaluateCohort({
