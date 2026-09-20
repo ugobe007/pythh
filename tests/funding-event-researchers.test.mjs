@@ -80,28 +80,35 @@ test('duplicate raises keep the purpose/valuation headline, not the roundup', ()
     id: 'wonderful-roundup',
     startup_name_raw: 'Wonderful',
     amount_usd: 550_000_000,
-    announced_at: '2026-09-18T18:00:00Z',
-    source_title: 'Wonderful raises $550M, Mykhailo Fedorov’s new defencetech startup also closes a round',
+    announced_at: '2026-09-04T14:23:17Z',
+    source_title: "Wonderful raises $550M, Mykhailo Fedorov's new defencetech investment fund, and Londoners can now hail AVs (with safety drivers)",
   };
   const wonderfulPurpose = {
     id: 'wonderful-purpose',
     startup_name_raw: 'Wonderful',
     amount_usd: 550_000_000,
-    announced_at: '2026-09-18T12:00:00Z',
+    announced_at: '2026-09-03T06:00:00Z',
     source_title: 'Wonderful raises $550M at $5B valuation to build AI operating system for enterprises',
+  };
+  const wonderfulOlderRound = {
+    id: 'wonderful-series-b',
+    startup_name_raw: 'Wonderful',
+    amount_usd: 150_000_000,
+    announced_at: '2026-03-12T12:31:46Z',
+    source_title: 'Wonderful raises $150M Series B to scale its enterprise AI agents across 30 countries',
   };
   const elucidTally = {
     id: 'elucid-tally',
     startup_name_raw: 'Elucid',
     amount_usd: 55_000_000,
-    announced_at: '2026-09-17T20:00:00Z',
+    announced_at: '2026-09-03T21:47:52Z',
     source_title: 'Elucid Raises $55 Million Series D As Total Funding Reaches $185 Million',
   };
   const elucidPurpose = {
     id: 'elucid-purpose',
     startup_name_raw: 'Elucid',
     amount_usd: 55_000_000,
-    announced_at: '2026-09-17T08:00:00Z',
+    announced_at: '2026-09-02T21:19:11Z',
     source_title: 'Elucid Raises $55M to Expand AI Cardiovascular Diagnostics',
   };
 
@@ -120,8 +127,9 @@ test('duplicate raises keep the purpose/valuation headline, not the roundup', ()
     elucidTally,
     wonderfulPurpose,
     elucidPurpose,
+    wonderfulOlderRound,
   ]);
-  assert.deepEqual(collapsed.map((row) => row.id), ['wonderful-purpose', 'elucid-purpose']);
+  assert.deepEqual(collapsed.map((row) => row.id), ['wonderful-purpose', 'elucid-purpose', 'wonderful-series-b']);
 });
 
 test('already-stamped purpose copies block leftover unspecified siblings', () => {
@@ -162,15 +170,15 @@ test('already-stamped purpose copies block leftover unspecified siblings', () =>
     id: 'wonderful-roundup',
     startup_name_raw: 'Wonderful',
     amount_usd: 550_000_000,
-    announced_at: '2026-09-18T18:00:00Z',
-    source_title: 'Wonderful raises $550M, Mykhailo Fedorov’s new defencetech startup also closes a round',
+    announced_at: '2026-09-04T14:23:17Z',
+    source_title: "Wonderful raises $550M, Mykhailo Fedorov's new defencetech investment fund, and Londoners can now hail AVs (with safety drivers)",
     metadata: { funding_intelligence_version: FUNDING_INTEL_VERSION },
   };
   const wonderfulPurpose = {
     id: 'wonderful-purpose',
     startup_name_raw: 'Wonderful',
     amount_usd: 550_000_000,
-    announced_at: '2026-09-18T12:00:00Z',
+    announced_at: '2026-09-03T06:00:00Z',
     source_title: 'Wonderful raises $550M at $5B valuation to build AI operating system for enterprises',
     metadata: {},
   };
@@ -193,13 +201,16 @@ test('already-stamped purpose copies block leftover unspecified siblings', () =>
 
 test('sample lines are unique and print euro amounts', () => {
   const rows = uniquePreview([
+    { startup: 'Wonderful', amount_usd: 550e6, why: 'unspecified' },
+    { startup: 'Wonderful', amount_usd: 550e6, valuation_usd: 5e9, why: 'use_of_proceeds' },
     { startup: 'Crusoe', amount_usd: 3e9, valuation_usd: 3e10, why: 'use_of_proceeds', currency: 'USD' },
     { startup: 'Crusoe', amount_usd: 3e9, why: 'use_of_proceeds' },
     { startup: 'Stellar Alpina', amount_raw: 160000, currency: 'EUR', why: 'use_of_proceeds' },
   ], 8);
-  assert.equal(rows.length, 2);
-  assert.match(formatPreviewRow(rows[0]), /\$3B/);
-  assert.match(formatPreviewRow(rows[1]), /€160K/);
+  assert.equal(rows.length, 3);
+  assert.match(formatPreviewRow(rows[0]), /\$550M val=\$5B why=use_of_proceeds/);
+  assert.match(formatPreviewRow(rows[1]), /\$3B/);
+  assert.match(formatPreviewRow(rows[2]), /€160K/);
   assert.equal(eventDedupeKey({
     startup_name_raw: 'Crusoe',
     amount_usd: 3000000000,
@@ -253,7 +264,7 @@ test('compose briefing + event patch fills only null amount/round', () => {
   const briefing = researchFundingEvent(event, [
     { investor_name_raw: 'Sequoia Capital', participant_role: 'lead', resolution_status: 'resolved' },
   ]);
-  assert.equal(briefing.version, 'funding-intel-v3');
+  assert.equal(briefing.version, 'funding-intel-v4');
   assert.equal(briefing.version, FUNDING_INTEL_VERSION);
   assert.deepEqual(RESEARCHER_IDS.slice().sort(), Object.keys(briefing.researchers).sort());
   assert.equal(briefingHasSignal(briefing), true);

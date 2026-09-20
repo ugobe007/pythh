@@ -16,8 +16,8 @@
  *
  * Dry-run by default. --apply writes.
  *
- * Duplicate raises (same startup + amount + day) keep the richest headline
- * (purpose / valuation), not the newest roundup copy.
+ * Duplicate raises (same startup + amount within 5 days) keep the richest
+ * headline (purpose / valuation), not the newest roundup copy.
  *
  *   npm run funding:research
  *   npm run funding:research -- --apply --limit=100

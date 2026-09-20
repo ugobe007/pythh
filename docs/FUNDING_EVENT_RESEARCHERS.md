@@ -18,7 +18,7 @@ This is **not** `research:agent` (product/growth survey) and it is broader than
 
 | Target | Field | Rule |
 |---|---|---|
-| `funding_evidence_events.metadata.funding_intelligence` | Full briefing | Idempotent on `funding_intelligence_version` (`funding-intel-v3`) |
+| `funding_evidence_events.metadata.funding_intelligence` | Full briefing | Idempotent on `funding_intelligence_version` (`funding-intel-v4`) |
 | `funding_evidence_events.amount_usd` / `round_type` | Only if currently null | Never overwrite a stored raise |
 | `pythh_signal_events` | problem / team / fundraising | Only if `pythh_entities` already exists |
 
@@ -31,15 +31,18 @@ weight retune.
 Same as funding-attention: `verified` / `corroborated`, or
 `assessFundingSource` trusted. Rejected / junk rows are skipped.
 
-Duplicate copies of the same raise (`startup|amount_usd|YYYY-MM-DD`) keep the
-**richest sibling headline** — purpose (`to build` / `to expand` / `for …`) or
-valuation — not the newest roundup or “total funding reaches” tally. Sibling
-articles are not merged. Already-stamped purpose copies stay in the comparison
-pool so a leftover bare/roundup sibling does not get a second `why=unspecified`
-briefing. Bumping `funding_intelligence_version` restamps older briefings so a
-junk first-seen copy can be replaced. Use `--force` to rewrite the current
-version. The Mac checkout must show `version=funding-intel-v3` — if the banner
-still says `v2`, the branch is stale.
+Duplicate copies of the same raise (`startup` + `amount_usd` within 5 days)
+keep the **richest sibling headline** — purpose (`to build` / `to expand` /
+`for …`) or valuation — not the newest roundup or “total funding reaches”
+tally. Same-dollar wires often land on adjacent calendar days (Wonderful
+2026-09-04 vs 2026-09-03; Elucid 2026-09-03 vs 2026-09-02); those still
+collapse. A later different amount (Wonderful $150M) stays a separate raise.
+Sibling articles are not merged. Already-stamped purpose copies stay in the
+comparison pool so a leftover bare/roundup sibling does not get a second
+`why=unspecified` briefing. The sample line prefers a specified why over an
+unspecified leftover. Bumping `funding_intelligence_version` restamps older
+briefings. Use `--force` to rewrite the current version. The Mac checkout must
+show `version=funding-intel-v4`.
 
 ## What it never does
 
