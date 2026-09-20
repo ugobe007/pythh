@@ -18,7 +18,7 @@ This is **not** `research:agent` (product/growth survey) and it is broader than
 
 | Target | Field | Rule |
 |---|---|---|
-| `funding_evidence_events.metadata.funding_intelligence` | Full briefing | Idempotent on `funding_intelligence_version` |
+| `funding_evidence_events.metadata.funding_intelligence` | Full briefing | Idempotent on `funding_intelligence_version` (`funding-intel-v3`) |
 | `funding_evidence_events.amount_usd` / `round_type` | Only if currently null | Never overwrite a stored raise |
 | `pythh_signal_events` | problem / team / fundraising | Only if `pythh_entities` already exists |
 
@@ -30,6 +30,13 @@ weight retune.
 
 Same as funding-attention: `verified` / `corroborated`, or
 `assessFundingSource` trusted. Rejected / junk rows are skipped.
+
+Duplicate copies of the same raise (`startup|amount_usd|YYYY-MM-DD`) keep the
+**richest sibling headline** — purpose (`to build` / `to expand` / `for …`) or
+valuation — not the newest roundup or “total funding reaches” tally. Sibling
+articles are not merged. Bumping `funding_intelligence_version` restamps older
+briefings so a junk first-seen copy can be replaced. Use `--force` to rewrite
+the current version.
 
 ## What it never does
 
@@ -63,6 +70,7 @@ Apply / targeted:
 ```bash
 npm run funding:research -- --apply --limit=80
 npm run funding:research -- --apply --event-ids=<uuid>
+npm run funding:research -- --apply --force --limit=80
 npm run test:funding-research
 ```
 

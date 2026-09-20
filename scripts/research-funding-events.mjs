@@ -16,6 +16,9 @@
  *
  * Dry-run by default. --apply writes.
  *
+ * Duplicate raises (same startup + amount + day) keep the richest headline
+ * (purpose / valuation), not the newest roundup copy.
+ *
  *   npm run funding:research
  *   npm run funding:research -- --apply --limit=100
  *
@@ -33,6 +36,7 @@ import {
   eventPatchFromBriefing,
   briefingHasSignal,
   eventDedupeKey,
+  pickRichestPerRaise,
   uniquePreview,
   formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
@@ -202,7 +206,8 @@ async function main() {
   } else {
     const pageSize = 200;
     let offset = 0;
-    while (events.length < limit) {
+    const candidates = [];
+    while (true) {
       const { data, error } = await db
         .from('funding_evidence_events')
         .select(eventColumns)
@@ -212,23 +217,22 @@ async function main() {
         .range(offset, offset + pageSize - 1);
       if (error) throw error;
       if (!data?.length) break;
-      const seenRaise = new Set(events.map((row) => eventDedupeKey(row)));
       for (const event of data) {
         stats.scanned += 1;
         if (!eventEligible(event)) { stats.skipped_untrusted += 1; continue; }
         if (alreadyResearched(event)) { stats.skipped_already += 1; continue; }
-        const raiseKey = eventDedupeKey(event);
-        if (raiseKey !== '|' && seenRaise.has(raiseKey)) {
-          stats.skipped_duplicate += 1;
-          continue;
-        }
-        seenRaise.add(raiseKey);
-        events.push(event);
-        if (events.length >= limit) break;
+        candidates.push(event);
       }
-      if (data.length < pageSize) break;
+      if (pickRichestPerRaise(candidates).length >= limit || data.length < pageSize) break;
       offset += pageSize;
     }
+    const selected = pickRichestPerRaise(candidates).slice(0, limit);
+    const selectedKeys = new Set(selected.map((row) => eventDedupeKey(row)));
+    stats.skipped_duplicate = candidates.filter((row) => {
+      const key = eventDedupeKey(row);
+      return selectedKeys.has(key) && !selected.some((keep) => keep.id === row.id);
+    }).length;
+    events.push(...selected);
   }
 
   const eventIds = events.map((row) => row.id);

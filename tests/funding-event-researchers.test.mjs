@@ -12,6 +12,9 @@ import {
   eventPatchFromBriefing,
   briefingHasSignal,
   eventDedupeKey,
+  headlineQuality,
+  pickRichestEvent,
+  pickRichestPerRaise,
   uniquePreview,
   formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
@@ -69,6 +72,55 @@ test('why funded reads to-revolutionize and for-purpose headlines', () => {
   });
   assert.equal(stellar.primary, 'use_of_proceeds');
   assert.match(stellar.use_of_proceeds, /in-space propulsion/i);
+});
+
+test('duplicate raises keep the purpose/valuation headline, not the roundup', () => {
+  const wonderfulRoundup = {
+    id: 'wonderful-roundup',
+    startup_name_raw: 'Wonderful',
+    amount_usd: 550_000_000,
+    announced_at: '2026-09-18T18:00:00Z',
+    source_title: 'Wonderful raises $550M, Mykhailo Fedorov’s new defencetech startup also closes a round',
+  };
+  const wonderfulPurpose = {
+    id: 'wonderful-purpose',
+    startup_name_raw: 'Wonderful',
+    amount_usd: 550_000_000,
+    announced_at: '2026-09-18T12:00:00Z',
+    source_title: 'Wonderful raises $550M at $5B valuation to build AI operating system for enterprises',
+  };
+  const elucidTally = {
+    id: 'elucid-tally',
+    startup_name_raw: 'Elucid',
+    amount_usd: 55_000_000,
+    announced_at: '2026-09-17T20:00:00Z',
+    source_title: 'Elucid Raises $55 Million Series D As Total Funding Reaches $185 Million',
+  };
+  const elucidPurpose = {
+    id: 'elucid-purpose',
+    startup_name_raw: 'Elucid',
+    amount_usd: 55_000_000,
+    announced_at: '2026-09-17T08:00:00Z',
+    source_title: 'Elucid Raises $55M to Expand AI Cardiovascular Diagnostics',
+  };
+
+  assert.equal(researchWhyFunded({ text: wonderfulRoundup.source_title }).primary, 'unspecified');
+  assert.equal(researchWhyFunded({ text: wonderfulPurpose.source_title }).primary, 'use_of_proceeds');
+  assert.equal(researchWhyFunded({ text: elucidTally.source_title }).primary, 'unspecified');
+  assert.equal(researchWhyFunded({ text: elucidPurpose.source_title }).primary, 'use_of_proceeds');
+
+  assert.ok(headlineQuality(wonderfulPurpose) > headlineQuality(wonderfulRoundup));
+  assert.ok(headlineQuality(elucidPurpose) > headlineQuality(elucidTally));
+  assert.equal(pickRichestEvent([wonderfulRoundup, wonderfulPurpose]).id, 'wonderful-purpose');
+  assert.equal(pickRichestEvent([elucidTally, elucidPurpose]).id, 'elucid-purpose');
+
+  const collapsed = pickRichestPerRaise([
+    wonderfulRoundup,
+    elucidTally,
+    wonderfulPurpose,
+    elucidPurpose,
+  ]);
+  assert.deepEqual(collapsed.map((row) => row.id), ['wonderful-purpose', 'elucid-purpose']);
 });
 
 test('sample lines are unique and print euro amounts', () => {
@@ -133,7 +185,7 @@ test('compose briefing + event patch fills only null amount/round', () => {
   const briefing = researchFundingEvent(event, [
     { investor_name_raw: 'Sequoia Capital', participant_role: 'lead', resolution_status: 'resolved' },
   ]);
-  assert.equal(briefing.version, 'funding-intel-v2');
+  assert.equal(briefing.version, 'funding-intel-v3');
   assert.equal(briefing.version, FUNDING_INTEL_VERSION);
   assert.deepEqual(RESEARCHER_IDS.slice().sort(), Object.keys(briefing.researchers).sort());
   assert.equal(briefingHasSignal(briefing), true);
@@ -159,5 +211,6 @@ test('orchestrator is free-first and does not retune GOD or rematch', () => {
   assert.match(pkg, /"funding:research:apply"/);
   assert.match(sitePkg, /"funding:research"/);
   assert.match(script, /process\.chdir\(repoRoot\)/);
+  assert.match(script, /pickRichestPerRaise/);
   assert.match(loop, /funding:research/);
 });
