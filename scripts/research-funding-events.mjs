@@ -116,7 +116,7 @@ function signalFromBriefing(entityId, event, briefing) {
   }
   if (briefing.startup?.founders?.length || briefing.startup?.has_technical_cofounder) {
     specs.push({
-      primary_signal: 'hiring_signal',
+      primary_signal: 'team_signal',
       raw: briefing.startup.founders?.length
         ? `Founders cited: ${briefing.startup.founders.join(', ')}`
         : 'Technical cofounder cited in the raise announcement',
