@@ -32,6 +32,9 @@ import {
   researchFundingEvent,
   eventPatchFromBriefing,
   briefingHasSignal,
+  eventDedupeKey,
+  uniquePreview,
+  formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -177,7 +180,10 @@ async function main() {
     scanned: 0,
     skipped_untrusted: 0,
     skipped_already: 0,
+    skipped_duplicate: 0,
     skipped_empty: 0,
+    why_found: 0,
+    unique_startups: 0,
     briefings: 0,
     amount_filled: 0,
     signal_events: 0,
@@ -206,10 +212,17 @@ async function main() {
         .range(offset, offset + pageSize - 1);
       if (error) throw error;
       if (!data?.length) break;
+      const seenRaise = new Set(events.map((row) => eventDedupeKey(row)));
       for (const event of data) {
         stats.scanned += 1;
         if (!eventEligible(event)) { stats.skipped_untrusted += 1; continue; }
         if (alreadyResearched(event)) { stats.skipped_already += 1; continue; }
+        const raiseKey = eventDedupeKey(event);
+        if (raiseKey !== '|' && seenRaise.has(raiseKey)) {
+          stats.skipped_duplicate += 1;
+          continue;
+        }
+        seenRaise.add(raiseKey);
         events.push(event);
         if (events.length >= limit) break;
       }
@@ -257,10 +270,13 @@ async function main() {
     const patch = eventPatchFromBriefing(event, briefing);
     if (patch.amount_usd) stats.amount_filled += 1;
     eventUpdates.push({ id: event.id, ...patch });
+    if (briefing.why?.primary && briefing.why.primary !== 'unspecified') stats.why_found += 1;
     preview.push({
       event_id: event.id,
       startup: event.startup_name_raw,
       amount_usd: briefing.round.amount_usd,
+      amount_raw: briefing.round.amount_raw,
+      currency: briefing.round.currency,
       valuation_usd: briefing.round.valuation_usd,
       round_type: briefing.round.round_type,
       why: briefing.why.primary,
@@ -277,6 +293,7 @@ async function main() {
   }
 
   stats.signal_events = signalInserts.length;
+  stats.unique_startups = new Set(events.map((row) => String(row.startup_name_raw || '').toLowerCase())).size;
 
   if (apply) {
     for (const row of eventUpdates) {
@@ -304,8 +321,8 @@ async function main() {
   console.log(JSON.stringify(report.stats, null, 2));
   if (preview.length) {
     console.log('sample');
-    for (const row of preview.slice(0, 8)) {
-      console.log(`  ${row.startup}: ${row.round_type || '—'} $${row.amount_usd || '—'} val=${row.valuation_usd || '—'} why=${row.why}`);
+    for (const row of uniquePreview(preview, 8)) {
+      console.log(`  ${formatPreviewRow(row)}`);
     }
   }
   if (jsonOut) {

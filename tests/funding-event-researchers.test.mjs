@@ -11,6 +11,9 @@ import {
   researchFundingEvent,
   eventPatchFromBriefing,
   briefingHasSignal,
+  eventDedupeKey,
+  uniquePreview,
+  formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
 
 const script = readFileSync(new URL('../scripts/research-funding-events.mjs', import.meta.url), 'utf8');
@@ -52,6 +55,40 @@ test('valuation-only headline is not treated as the raise amount', () => {
   const row = researchRoundEconomics({ event: {}, text });
   assert.equal(row.amount_usd, null);
   assert.equal(row.valuation_usd, 1_000_000_000);
+});
+
+test('why funded reads to-revolutionize and for-purpose headlines', () => {
+  const crusoe = researchWhyFunded({
+    text: 'Crusoe Raises $3 Billion At A $30B Valuation To Revolutionize AI Data Centers',
+  });
+  assert.equal(crusoe.primary, 'use_of_proceeds');
+  assert.match(crusoe.use_of_proceeds, /revolutionize/i);
+
+  const stellar = researchWhyFunded({
+    text: 'Stellar Alpina secures €160K from Venture Kick for in-space propulsion',
+  });
+  assert.equal(stellar.primary, 'use_of_proceeds');
+  assert.match(stellar.use_of_proceeds, /in-space propulsion/i);
+});
+
+test('sample lines are unique and print euro amounts', () => {
+  const rows = uniquePreview([
+    { startup: 'Crusoe', amount_usd: 3e9, valuation_usd: 3e10, why: 'use_of_proceeds', currency: 'USD' },
+    { startup: 'Crusoe', amount_usd: 3e9, why: 'use_of_proceeds' },
+    { startup: 'Stellar Alpina', amount_raw: 160000, currency: 'EUR', why: 'use_of_proceeds' },
+  ], 8);
+  assert.equal(rows.length, 2);
+  assert.match(formatPreviewRow(rows[0]), /\$3B/);
+  assert.match(formatPreviewRow(rows[1]), /€160K/);
+  assert.equal(eventDedupeKey({
+    startup_name_raw: 'Crusoe',
+    amount_usd: 3000000000,
+    announced_at: '2026-09-18T12:00:00Z',
+  }), eventDedupeKey({
+    startup_name_raw: 'Crusoe',
+    amount_usd: 3000000000,
+    announced_at: '2026-09-18T18:00:00Z',
+  }));
 });
 
 test('why funded finds PMF / growth and use of proceeds', () => {
@@ -96,6 +133,7 @@ test('compose briefing + event patch fills only null amount/round', () => {
   const briefing = researchFundingEvent(event, [
     { investor_name_raw: 'Sequoia Capital', participant_role: 'lead', resolution_status: 'resolved' },
   ]);
+  assert.equal(briefing.version, 'funding-intel-v2');
   assert.equal(briefing.version, FUNDING_INTEL_VERSION);
   assert.deepEqual(RESEARCHER_IDS.slice().sort(), Object.keys(briefing.researchers).sort());
   assert.equal(briefingHasSignal(briefing), true);
