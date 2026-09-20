@@ -46,6 +46,11 @@ unspecified leftover. Bumping `funding_intelligence_version` restamps older
 briefings. Use `--force` to rewrite the current version. The Mac checkout must
 show `version=funding-intel-v4`.
 
+Research skips headline-verb names (`… Introduces`), non-raise PRs, and
+`former X staffers` rows where X was stored as the startup. `raised … at $4B`
+is a valuation, not the check. Readers drop those same junk rows and clear
+raise amounts that are ≥ valuation.
+
 Readers (GOD attach + match shortlist) use the **canonical** cluster row, not the
 newest sibling. `lib/fundingRaiseBriefing.js` loads those briefings and folds
 syndicate names into `extractPriorFunderLabels` — the same force-include path

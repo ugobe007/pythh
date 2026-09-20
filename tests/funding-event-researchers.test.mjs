@@ -11,6 +11,7 @@ import {
   researchFundingEvent,
   eventPatchFromBriefing,
   briefingHasSignal,
+  eventResearchable,
   eventDedupeKey,
   headlineQuality,
   pickRichestEvent,
@@ -61,6 +62,35 @@ test('valuation-only headline is not treated as the raise amount', () => {
   const row = researchRoundEconomics({ event: {}, text });
   assert.equal(row.amount_usd, null);
   assert.equal(row.valuation_usd, 1_000_000_000);
+});
+
+test('raised-at money is valuation, and junk names are not researched', () => {
+  const corgi = researchRoundEconomics({
+    event: { amount_usd: 4_000_000_000 },
+    text: 'Insurance startup Corgi reportedly raised more money at $4B — its third round in 8 weeks',
+  });
+  assert.equal(corgi.amount_usd, null);
+  assert.equal(corgi.valuation_usd, 4_000_000_000);
+
+  const inverted = researchRoundEconomics({
+    event: { amount_usd: 4_000_000_000 },
+    text: 'Corgi raised $4B at a $2.6 billion valuation',
+  });
+  assert.equal(inverted.amount_usd, null);
+  assert.equal(inverted.valuation_usd, 2_600_000_000);
+
+  assert.equal(eventResearchable({
+    startup_name_raw: 'Alta Business Loans Introduces',
+    source_title: 'Alta Business Loans Introduces Secure Online Application for Eight Nationwide Business Financing Paths',
+  }).ok, false);
+  assert.equal(eventResearchable({
+    startup_name_raw: 'DOGE',
+    source_title: 'Four former DOGE staffers raised $160 million at a $1.4 billion valuation for an AI military cyber startup',
+  }).ok, false);
+  assert.equal(eventResearchable({
+    startup_name_raw: 'Etched',
+    source_title: 'Etched raises $300M at a $10.3B Valuation to Scale Production of Frontier Scale Inference Hardware',
+  }).ok, true);
 });
 
 test('why funded reads to-revolutionize and for-purpose headlines', () => {
@@ -310,5 +340,6 @@ test('orchestrator is free-first and does not retune GOD or rematch', () => {
   assert.match(script, /process\.chdir\(repoRoot\)/);
   assert.match(script, /selectResearchEvents/);
   assert.match(script, /raiseClusterPatches/);
+  assert.match(script, /eventResearchable/);
   assert.match(loop, /funding:research/);
 });

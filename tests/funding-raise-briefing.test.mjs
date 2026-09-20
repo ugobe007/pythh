@@ -26,6 +26,20 @@ const purpose = {
   },
 };
 
+test('readers drop headline junk and inverted raise>valuation amounts', () => {
+  const { eventLooksResearchable, sanitizeBriefing } = require('../lib/fundingRaiseBriefing.js');
+  assert.equal(eventLooksResearchable({
+    startup_name_raw: 'Alta Business Loans Introduces',
+    source_title: 'Alta Business Loans Introduces Secure Online Application for Eight Nationwide Business Financing Paths',
+  }), false);
+  const cleaned = sanitizeBriefing({
+    why: { primary: 'cited_unclassified' },
+    round: { amount_usd: 4_000_000_000, valuation_usd: 2_600_000_000 },
+  });
+  assert.equal(cleaned.round.amount_usd, null);
+  assert.equal(cleaned.round.valuation_usd, 2_600_000_000);
+});
+
 test('canonical briefings ignore sibling copies and keep the purpose row', () => {
   const rows = pickCanonicalBriefings([
     {

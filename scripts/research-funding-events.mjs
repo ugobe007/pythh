@@ -36,6 +36,7 @@ import {
   researchFundingEvent,
   eventPatchFromBriefing,
   briefingHasSignal,
+  eventResearchable,
   selectResearchEvents,
   raiseClusterPatches,
   uniquePreview,
@@ -185,6 +186,7 @@ async function main() {
   const stats = {
     scanned: 0,
     skipped_untrusted: 0,
+    skipped_junk: 0,
     skipped_already: 0,
     skipped_duplicate: 0,
     clusters: 0,
@@ -204,6 +206,7 @@ async function main() {
     for (const event of rawEvents) {
       stats.scanned += 1;
       if (!eventEligible(event)) { stats.skipped_untrusted += 1; continue; }
+      if (!eventResearchable(event).ok) { stats.skipped_junk += 1; continue; }
       if (alreadyResearched(event)) { stats.skipped_already += 1; continue; }
       events.push(event);
     }
@@ -227,6 +230,7 @@ async function main() {
       for (const event of data) {
         stats.scanned += 1;
         if (!eventEligible(event)) { stats.skipped_untrusted += 1; continue; }
+        if (!eventResearchable(event).ok) { stats.skipped_junk += 1; continue; }
         candidates.push(event);
       }
       const pending = selectResearchEvents(candidates, { limit, isDone: alreadyResearched });
