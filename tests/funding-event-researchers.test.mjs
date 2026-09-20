@@ -15,6 +15,7 @@ import {
   headlineQuality,
   pickRichestEvent,
   pickRichestPerRaise,
+  selectResearchEvents,
   uniquePreview,
   formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
@@ -123,6 +124,73 @@ test('duplicate raises keep the purpose/valuation headline, not the roundup', ()
   assert.deepEqual(collapsed.map((row) => row.id), ['wonderful-purpose', 'elucid-purpose']);
 });
 
+test('already-stamped purpose copies block leftover unspecified siblings', () => {
+  const done = (event) => event.metadata?.funding_intelligence_version === FUNDING_INTEL_VERSION;
+  const crusoePurpose = {
+    id: 'crusoe-purpose',
+    startup_name_raw: 'Crusoe',
+    amount_usd: 3_000_000_000,
+    announced_at: '2026-09-18T12:00:00Z',
+    source_title: 'Crusoe Raises $3 Billion At A $30B Valuation To Revolutionize AI Data Centers',
+    metadata: { funding_intelligence_version: FUNDING_INTEL_VERSION },
+  };
+  const crusoeBare = {
+    id: 'crusoe-bare',
+    startup_name_raw: 'Crusoe',
+    amount_usd: 3_000_000_000,
+    announced_at: '2026-09-18T18:00:00Z',
+    source_title: 'Crusoe Raises $3 Billion At A $30B Valuation',
+    metadata: {},
+  };
+  const guardioPurpose = {
+    id: 'guardio-purpose',
+    startup_name_raw: 'Guardio',
+    amount_usd: 40_000_000,
+    announced_at: '2026-09-16T10:00:00Z',
+    source_title: 'Guardio raises $40M at $1.1B valuation to expand AI protection',
+    metadata: { funding_intelligence_version: FUNDING_INTEL_VERSION },
+  };
+  const guardioBare = {
+    id: 'guardio-bare',
+    startup_name_raw: 'Guardio',
+    amount_usd: 40_000_000,
+    announced_at: '2026-09-16T20:00:00Z',
+    source_title: 'Guardio raises $40M at $1.1B valuation',
+    metadata: {},
+  };
+  const wonderfulRoundup = {
+    id: 'wonderful-roundup',
+    startup_name_raw: 'Wonderful',
+    amount_usd: 550_000_000,
+    announced_at: '2026-09-18T18:00:00Z',
+    source_title: 'Wonderful raises $550M, Mykhailo Fedorov’s new defencetech startup also closes a round',
+    metadata: { funding_intelligence_version: FUNDING_INTEL_VERSION },
+  };
+  const wonderfulPurpose = {
+    id: 'wonderful-purpose',
+    startup_name_raw: 'Wonderful',
+    amount_usd: 550_000_000,
+    announced_at: '2026-09-18T12:00:00Z',
+    source_title: 'Wonderful raises $550M at $5B valuation to build AI operating system for enterprises',
+    metadata: {},
+  };
+
+  const { selected, skipped_already, skipped_duplicate } = selectResearchEvents([
+    crusoeBare,
+    crusoePurpose,
+    guardioBare,
+    guardioPurpose,
+    wonderfulRoundup,
+    wonderfulPurpose,
+  ], { limit: 10, isDone: done });
+
+  assert.deepEqual(selected.map((row) => row.id), ['wonderful-purpose']);
+  assert.equal(skipped_already, 2);
+  assert.equal(skipped_duplicate, 3);
+  assert.equal(researchWhyFunded({ text: crusoeBare.source_title }).primary, 'unspecified');
+  assert.equal(researchWhyFunded({ text: crusoePurpose.source_title }).primary, 'use_of_proceeds');
+});
+
 test('sample lines are unique and print euro amounts', () => {
   const rows = uniquePreview([
     { startup: 'Crusoe', amount_usd: 3e9, valuation_usd: 3e10, why: 'use_of_proceeds', currency: 'USD' },
@@ -211,6 +279,6 @@ test('orchestrator is free-first and does not retune GOD or rematch', () => {
   assert.match(pkg, /"funding:research:apply"/);
   assert.match(sitePkg, /"funding:research"/);
   assert.match(script, /process\.chdir\(repoRoot\)/);
-  assert.match(script, /pickRichestPerRaise/);
+  assert.match(script, /selectResearchEvents/);
   assert.match(loop, /funding:research/);
 });

@@ -35,8 +35,7 @@ import {
   researchFundingEvent,
   eventPatchFromBriefing,
   briefingHasSignal,
-  eventDedupeKey,
-  pickRichestPerRaise,
+  selectResearchEvents,
   uniquePreview,
   formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
@@ -220,18 +219,18 @@ async function main() {
       for (const event of data) {
         stats.scanned += 1;
         if (!eventEligible(event)) { stats.skipped_untrusted += 1; continue; }
-        if (alreadyResearched(event)) { stats.skipped_already += 1; continue; }
         candidates.push(event);
       }
-      if (pickRichestPerRaise(candidates).length >= limit || data.length < pageSize) break;
+      const pending = selectResearchEvents(candidates, { limit, isDone: alreadyResearched });
+      if (pending.selected.length >= limit || data.length < pageSize) break;
       offset += pageSize;
     }
-    const selected = pickRichestPerRaise(candidates).slice(0, limit);
-    const selectedKeys = new Set(selected.map((row) => eventDedupeKey(row)));
-    stats.skipped_duplicate = candidates.filter((row) => {
-      const key = eventDedupeKey(row);
-      return selectedKeys.has(key) && !selected.some((keep) => keep.id === row.id);
-    }).length;
+    const { selected, skipped_already, skipped_duplicate } = selectResearchEvents(candidates, {
+      limit,
+      isDone: alreadyResearched,
+    });
+    stats.skipped_already = skipped_already;
+    stats.skipped_duplicate = skipped_duplicate;
     events.push(...selected);
   }
 

@@ -34,9 +34,12 @@ Same as funding-attention: `verified` / `corroborated`, or
 Duplicate copies of the same raise (`startup|amount_usd|YYYY-MM-DD`) keep the
 **richest sibling headline** — purpose (`to build` / `to expand` / `for …`) or
 valuation — not the newest roundup or “total funding reaches” tally. Sibling
-articles are not merged. Bumping `funding_intelligence_version` restamps older
-briefings so a junk first-seen copy can be replaced. Use `--force` to rewrite
-the current version.
+articles are not merged. Already-stamped purpose copies stay in the comparison
+pool so a leftover bare/roundup sibling does not get a second `why=unspecified`
+briefing. Bumping `funding_intelligence_version` restamps older briefings so a
+junk first-seen copy can be replaced. Use `--force` to rewrite the current
+version. The Mac checkout must show `version=funding-intel-v3` — if the banner
+still says `v2`, the branch is stale.
 
 ## What it never does
 
