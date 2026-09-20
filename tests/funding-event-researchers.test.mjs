@@ -15,6 +15,7 @@ import {
 
 const script = readFileSync(new URL('../scripts/research-funding-events.mjs', import.meta.url), 'utf8');
 const pkg = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
+const sitePkg = readFileSync(new URL('../site/package.json', import.meta.url), 'utf8');
 const loop = readFileSync(new URL('../scripts/agents/resolution-loop-agent.mjs', import.meta.url), 'utf8');
 
 const HEADLINE = [
@@ -118,5 +119,7 @@ test('orchestrator is free-first and does not retune GOD or rematch', () => {
   assert.doesNotMatch(script, /delete from startup_investor_matches/i);
   assert.match(pkg, /"funding:research"/);
   assert.match(pkg, /"funding:research:apply"/);
+  assert.match(sitePkg, /"funding:research"/);
+  assert.match(script, /process\.chdir\(repoRoot\)/);
   assert.match(loop, /funding:research/);
 });

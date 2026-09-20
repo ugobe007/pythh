@@ -18,17 +18,25 @@
  *
  *   npm run funding:research
  *   npm run funding:research -- --apply --limit=100
+ *
+ * Safe from repo root or site/ (Vite cwd). Always loads root .env.
  */
-import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
-import { writeFileSync } from 'node:fs';
 import {
   FUNDING_INTEL_VERSION,
   researchFundingEvent,
   eventPatchFromBriefing,
   briefingHasSignal,
 } from '../lib/fundingEventResearchers.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+process.chdir(repoRoot);
+dotenv.config({ path: path.join(repoRoot, '.env') });
 
 const require = createRequire(import.meta.url);
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
@@ -301,7 +309,8 @@ async function main() {
     }
   }
   if (jsonOut) {
-    const dest = `reports/funding-event-research-${new Date().toISOString().slice(0, 10)}.json`;
+    const dest = path.join(repoRoot, 'reports', `funding-event-research-${new Date().toISOString().slice(0, 10)}.json`);
+    mkdirSync(path.dirname(dest), { recursive: true });
     writeFileSync(dest, JSON.stringify(report, null, 2));
     console.log(`wrote ${dest}`);
   }

@@ -41,8 +41,26 @@ Same as funding-attention: `verified` / `corroborated`, or
 
 ## Commands
 
+These scripts are on the **repo root** `package.json` (and proxied from `site/` so Vite’s cwd works). They are **not** on `main` until this PR is merged — check out the branch first.
+
+Mac clone (not `/workspace`):
+
 ```bash
+cd ~/Desktop/hot-honey
+git fetch origin cursor/funding-event-researchers-592e
+git checkout cursor/funding-event-researchers-592e
 npm run funding:research
+```
+
+From `site/` the same `npm run funding:research` now works. Absolute fallback:
+
+```bash
+node ~/Desktop/hot-honey/scripts/research-funding-events.mjs --limit=20
+```
+
+Apply / targeted:
+
+```bash
 npm run funding:research -- --apply --limit=80
 npm run funding:research -- --apply --event-ids=<uuid>
 npm run test:funding-research

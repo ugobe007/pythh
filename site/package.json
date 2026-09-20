@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "funding:research": "node ../scripts/run-node.mjs ../scripts/research-funding-events.mjs",
+    "funding:research:apply": "node ../scripts/run-node.mjs ../scripts/research-funding-events.mjs --apply"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
