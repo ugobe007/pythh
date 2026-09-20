@@ -4,7 +4,8 @@
 **Command:** `npm run funding:attention` · `npm run funding:attention:patterns`
 
 This is **not** `research:agent` (`agents/research/`). That loop is a product/growth survey
-(signup friction, 100 signups/day). This agent answers a different question:
+(signup friction, 100 signups/day). For amount / valuation / problem / team on the same
+events, use `docs/FUNDING_EVENT_RESEARCHERS.md` (`npm run funding:research`). This agent answers a different question:
 
 > When a trusted announcement says a startup raised, *why did the funding happen,
 > what triggered the investor, and which later checks follow a well-known lead

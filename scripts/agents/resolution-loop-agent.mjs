@@ -318,6 +318,15 @@ async function runHit5Wave(waveNumber) {
 
   steps.push(
     await runNpmScript(
+      `[wave ${waveNumber}] research funding-event intelligence`,
+      apply ? 'funding:research:apply' : 'funding:research',
+      [`--limit=${Math.min(limit, 80)}`],
+      { allowFail: true },
+    ),
+  );
+
+  steps.push(
+    await runNpmScript(
       `[wave ${waveNumber}] match-funding audit`,
       'funding:match-funding-audit',
       [],

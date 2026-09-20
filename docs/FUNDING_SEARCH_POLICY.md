@@ -7,6 +7,7 @@ last resort when the free path found nothing.
 Companion: [`funding-evidence-ledger.md`](./funding-evidence-ledger.md),
 [`FUNDING_SOURCE_ONTOLOGY.md`](./FUNDING_SOURCE_ONTOLOGY.md),
 [`FUNDING_ATTENTION_AGENT.md`](./FUNDING_ATTENTION_AGENT.md),
+[`FUNDING_EVENT_RESEARCHERS.md`](./FUNDING_EVENT_RESEARCHERS.md),
 [`PYTHH_SCRAPERS_PARSERS_WORKFLOW.md`](./PYTHH_SCRAPERS_PARSERS_WORKFLOW.md).
 
 ## Core scraper sources
