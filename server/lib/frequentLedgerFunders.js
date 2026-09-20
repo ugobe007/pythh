@@ -815,9 +815,12 @@ function extractPriorFunderLabels(startup) {
   const raw = [
     ...(Array.isArray(startup?.extracted_data?.investors) ? startup.extracted_data.investors : []),
     ...(Array.isArray(startup?.extracted_data?.resolver_investors) ? startup.extracted_data.resolver_investors : []),
+    ...(Array.isArray(startup?.extracted_data?.funding_raise_syndicate) ? startup.extracted_data.funding_raise_syndicate : []),
     ...(Array.isArray(startup?.backed_by) ? startup.backed_by : []),
   ];
-  return raw.map((v) => String(v || '').trim()).filter(Boolean);
+  return [...new Set(
+    raw.map((v) => (v && typeof v === 'object' ? v.name || v.firm : v)).map((v) => String(v || '').trim()).filter(Boolean),
+  )];
 }
 
 function priorLabelSet(startup) {

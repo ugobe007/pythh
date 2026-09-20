@@ -17,7 +17,8 @@
  * Dry-run by default. --apply writes.
  *
  * Duplicate raises (same startup + amount within 5 days) keep the richest
- * headline (purpose / valuation), not the newest roundup copy.
+ * headline (purpose / valuation), not the newest roundup copy. The canonical
+ * row stores the briefing; siblings get metadata.raise_cluster pointers.
  *
  *   npm run funding:research
  *   npm run funding:research -- --apply --limit=100
@@ -36,6 +37,7 @@ import {
   eventPatchFromBriefing,
   briefingHasSignal,
   selectResearchEvents,
+  raiseClusterPatches,
   uniquePreview,
   formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
@@ -179,11 +181,14 @@ async function main() {
 
   const eventColumns = 'id,startup_id,startup_name_raw,verification_status,source_url,source_publisher,source_title,announced_at,occurred_at,created_at,round_type,amount_usd,metadata';
   const events = [];
+  let clusters = [];
   const stats = {
     scanned: 0,
     skipped_untrusted: 0,
     skipped_already: 0,
     skipped_duplicate: 0,
+    clusters: 0,
+    siblings_pointed: 0,
     skipped_empty: 0,
     why_found: 0,
     unique_startups: 0,
@@ -201,6 +206,9 @@ async function main() {
       if (!eventEligible(event)) { stats.skipped_untrusted += 1; continue; }
       if (alreadyResearched(event)) { stats.skipped_already += 1; continue; }
       events.push(event);
+    }
+    if (events.length) {
+      clusters = selectResearchEvents(events, { limit: events.length, isDone: () => false }).clusters;
     }
   } else {
     const pageSize = 200;
@@ -225,13 +233,15 @@ async function main() {
       if (pending.selected.length >= limit || data.length < pageSize) break;
       offset += pageSize;
     }
-    const { selected, skipped_already, skipped_duplicate } = selectResearchEvents(candidates, {
+    const selection = selectResearchEvents(candidates, {
       limit,
       isDone: alreadyResearched,
     });
-    stats.skipped_already = skipped_already;
-    stats.skipped_duplicate = skipped_duplicate;
-    events.push(...selected);
+    stats.skipped_already = selection.skipped_already;
+    stats.skipped_duplicate = selection.skipped_duplicate;
+    clusters = selection.clusters;
+    stats.clusters = clusters.length;
+    events.push(...selection.selected);
   }
 
   const eventIds = events.map((row) => row.id);
@@ -255,24 +265,22 @@ async function main() {
   const entityByUpload = await loadEntitiesByUpload(startupIds);
 
   const preview = [];
-  const eventUpdates = [];
+  const briefingById = new Map();
   const signalInserts = [];
 
   for (const event of events) {
     const participants = participantsByEvent.get(event.id) || [];
     const briefing = researchFundingEvent(event, participants);
+    briefingById.set(event.id, briefing);
     if (provider === 'cascade' && !briefingHasSignal(briefing)) {
       stats.paid_skipped += 1;
     }
     if (!briefingHasSignal(briefing)) {
       stats.skipped_empty += 1;
-      eventUpdates.push({ id: event.id, ...eventPatchFromBriefing(event, briefing) });
       continue;
     }
     stats.briefings += 1;
-    const patch = eventPatchFromBriefing(event, briefing);
-    if (patch.amount_usd) stats.amount_filled += 1;
-    eventUpdates.push({ id: event.id, ...patch });
+    if (!event.amount_usd && briefing.round?.amount_usd) stats.amount_filled += 1;
     if (briefing.why?.primary && briefing.why.primary !== 'unspecified') stats.why_found += 1;
     preview.push({
       event_id: event.id,
@@ -295,6 +303,21 @@ async function main() {
     }
   }
 
+  const updatesById = new Map();
+  for (const cluster of clusters) {
+    const briefing = briefingById.get(cluster.canonical?.id) || null;
+    for (const patch of raiseClusterPatches(cluster, briefing)) {
+      updatesById.set(patch.id, patch);
+    }
+  }
+  for (const event of events) {
+    if (updatesById.has(event.id)) continue;
+    const briefing = briefingById.get(event.id);
+    if (briefing) updatesById.set(event.id, { id: event.id, ...eventPatchFromBriefing(event, briefing) });
+  }
+  const eventUpdates = [...updatesById.values()];
+  stats.siblings_pointed = eventUpdates.filter((row) => row.metadata?.raise_cluster?.role === 'sibling').length;
+  stats.clusters = clusters.length;
   stats.signal_events = signalInserts.length;
   stats.unique_startups = new Set(events.map((row) => String(row.startup_name_raw || '').toLowerCase())).size;
 

@@ -16,6 +16,8 @@ import {
   pickRichestEvent,
   pickRichestPerRaise,
   selectResearchEvents,
+  raiseClusterKeyFromGroup,
+  raiseClusterPatches,
   uniquePreview,
   formatPreviewRow,
 } from '../lib/fundingEventResearchers.mjs';
@@ -130,6 +132,22 @@ test('duplicate raises keep the purpose/valuation headline, not the roundup', ()
     wonderfulOlderRound,
   ]);
   assert.deepEqual(collapsed.map((row) => row.id), ['wonderful-purpose', 'elucid-purpose', 'wonderful-series-b']);
+
+  const wonderfulKey = raiseClusterKeyFromGroup([wonderfulRoundup, wonderfulPurpose]);
+  assert.equal(wonderfulKey, raiseClusterKeyFromGroup([wonderfulPurpose, wonderfulRoundup]));
+  assert.notEqual(wonderfulKey, raiseClusterKeyFromGroup([wonderfulOlderRound]));
+
+  const patches = raiseClusterPatches({
+    key: wonderfulKey,
+    canonical: wonderfulPurpose,
+    members: [wonderfulRoundup, wonderfulPurpose],
+  }, { why: { primary: 'use_of_proceeds' }, round: { amount_usd: 550_000_000 } });
+  assert.equal(patches.find((row) => row.id === 'wonderful-purpose').metadata.raise_cluster.role, 'canonical');
+  assert.equal(patches.find((row) => row.id === 'wonderful-roundup').metadata.raise_cluster.role, 'sibling');
+  assert.equal(
+    patches.find((row) => row.id === 'wonderful-roundup').metadata.raise_cluster.canonical_event_id,
+    'wonderful-purpose',
+  );
 });
 
 test('already-stamped purpose copies block leftover unspecified siblings', () => {
@@ -291,5 +309,6 @@ test('orchestrator is free-first and does not retune GOD or rematch', () => {
   assert.match(sitePkg, /"funding:research"/);
   assert.match(script, /process\.chdir\(repoRoot\)/);
   assert.match(script, /selectResearchEvents/);
+  assert.match(script, /raiseClusterPatches/);
   assert.match(loop, /funding:research/);
 });

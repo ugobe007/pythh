@@ -18,9 +18,11 @@ This is **not** `research:agent` (product/growth survey) and it is broader than
 
 | Target | Field | Rule |
 |---|---|---|
-| `funding_evidence_events.metadata.funding_intelligence` | Full briefing | Idempotent on `funding_intelligence_version` (`funding-intel-v4`) |
+| `funding_evidence_events.metadata.funding_intelligence` | Full briefing on the **canonical** cluster row | Idempotent on `funding_intelligence_version` (`funding-intel-v4`) |
+| `funding_evidence_events.metadata.raise_cluster` | `{ key, role, canonical_event_id }` | Canonical + sibling pointers; no new SQL table |
 | `funding_evidence_events.amount_usd` / `round_type` | Only if currently null | Never overwrite a stored raise |
 | `pythh_signal_events` | problem / team / fundraising | Only if `pythh_entities` already exists |
+| Instant submit profile | `extracted_data.funding_raise_syndicate` / `investors` | Force-include resolved syndicate firms; fill empty problem / founders / technical cofounder |
 
 Startup GOD already loads `pythh_signal_events` before `calculateHotScore`
 (`lib/signalInformedGod.js`). Filling those rows is **data completeness**, not a
@@ -43,6 +45,11 @@ comparison pool so a leftover bare/roundup sibling does not get a second
 unspecified leftover. Bumping `funding_intelligence_version` restamps older
 briefings. Use `--force` to rewrite the current version. The Mac checkout must
 show `version=funding-intel-v4`.
+
+Readers (GOD attach + match shortlist) use the **canonical** cluster row, not the
+newest sibling. `lib/fundingRaiseBriefing.js` loads those briefings and folds
+syndicate names into `extractPriorFunderLabels` — the same force-include path
+as documented prior funders. It does not rematch or change GOD/fit weights.
 
 ## What it never does
 

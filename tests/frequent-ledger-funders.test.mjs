@@ -173,6 +173,11 @@ const {
   });
   assert.deepEqual([...prior], ['a16z']);
 
+  const fromRaise = collectPriorFunderIds(investors, {
+    extracted_data: { funding_raise_syndicate: ['Andreessen Horowitz'] },
+  });
+  assert.deepEqual([...fromRaise], ['a16z']);
+
   const displayed = buildDisplayedTopFiveForceIds(investors, {
     extracted_data: { investors: ['Andreessen Horowitz'] },
   }, {

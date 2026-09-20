@@ -91,7 +91,7 @@
     "funding:research": "node scripts/run-node.mjs scripts/research-funding-events.mjs",
     "funding:research:apply": "node scripts/run-node.mjs scripts/research-funding-events.mjs --apply",
     "test:funding-attention": "node --test tests/funding-attention-aspects.test.mjs tests/funding-attention-patterns.test.mjs",
-    "test:funding-research": "node --test tests/funding-event-researchers.test.mjs",
+    "test:funding-research": "node --test tests/funding-event-researchers.test.mjs tests/funding-raise-briefing.test.mjs",
     "pipeline:enrich-priority": "node scripts/run-node.mjs scripts/pipeline-priority-enrichment.mjs --apply --limit=200",
     "pipeline:investor-intelligence": "node scripts/run-node.mjs scripts/pipeline-investor-intelligence.mjs --apply --limit=0",
     "discover:investor-urls": "node scripts/run-node.mjs scripts/discover-investor-urls.mjs --apply --limit=200 --delay=1500",

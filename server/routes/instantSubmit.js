@@ -83,6 +83,7 @@ const {
   mergeSignalDimsIntoStartup,
   upsertSignalScoresFromPreGod,
 } = require('../../lib/signalInformedGod');
+const { attachCanonicalRaiseBriefings } = require('../../lib/fundingRaiseBriefing');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -1048,6 +1049,12 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       console.warn(`  [SYNC] signal-before-GOD failed: ${sigErr.message}`);
     }
 
+    try {
+      enrichedRow = await attachCanonicalRaiseBriefings(supabase, { ...enrichedRow, id: startupId });
+    } catch (raiseErr) {
+      console.warn(`  [SYNC] raise-briefing attach failed: ${raiseErr.message}`);
+    }
+
     const scores = calculateGODScore(enrichedRow);
     const completenessResult = calculateCompleteness(enrichedRow);
 
@@ -1173,6 +1180,8 @@ function uploadRowToPlaceholderStartup(startupId, row) {
     arr: r.arr ?? null,
     customer_count: r.customer_count ?? null,
     growth_rate_monthly: r.growth_rate_monthly ?? null,
+    extracted_data: extracted,
+    backed_by: r.backed_by || null,
   };
 }
 
@@ -1374,7 +1383,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       )
       .eq('id', startupId)
       .single();
-    const placeholderStartup = {
+    let placeholderStartup = {
       id: startupId,
       name: suPh?.name || displayName,
       sectors: Array.isArray(suPh?.sectors) && suPh.sectors.length ? suPh.sectors : ['Technology'],
@@ -1395,6 +1404,11 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       customer_count: suPh?.customer_count ?? null,
       growth_rate_monthly: suPh?.growth_rate_monthly ?? null,
     };
+    try {
+      placeholderStartup = await attachCanonicalRaiseBriefings(supabase, placeholderStartup);
+    } catch (raiseErr) {
+      console.warn(`  ⚡ [BG] raise-briefing attach failed: ${raiseErr.message}`);
+    }
     
     // Tier A: use real startup sectors (sync path updates these before BG runs) — not generic Technology
     const phase1Sectors =
@@ -1756,6 +1770,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     } catch (sigErr) {
       console.warn(`  🔄 [BG] signal-before-GOD failed: ${sigErr.message}`);
+    }
+
+    try {
+      enrichedRow = await attachCanonicalRaiseBriefings(supabase, { ...enrichedRow, id: startupId });
+    } catch (raiseErr) {
+      console.warn(`  🔄 [BG] raise-briefing attach failed: ${raiseErr.message}`);
     }
 
     scores = calculateGODScore(enrichedRow);
