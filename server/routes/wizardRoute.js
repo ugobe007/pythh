@@ -36,6 +36,10 @@ const {
   buildInvestorFitLine,
   buildRoundFitNote,
 } = require('../../lib/outreachEmailCopy');
+const {
+  IN_APP_MATCH_COUNT,
+  loadCanonicalOutreachMatches,
+} = require('../../lib/loadCanonicalOutreachMatches');
 
 function isOutreachEligibleInvestor(investor, startup) {
   if (!investor?.name) return false;
@@ -956,29 +960,11 @@ router.get('/:startupId/outreach-package', async (req, res) => {
       .limit(1)
       .maybeSingle();
 
-    // Fetch top matched investors
-    const { data: matchRows } = await supabase
-      .from('startup_investor_matches')
-      .select(`
-        investor_id, match_score, why_you_match,
-        investors ( id, name, firm, title, sectors, stage, linkedin_url, twitter_url, photo_url, investor_tier, investment_thesis, bio, notable_investments, portfolio_companies, check_size_min, check_size_max )
-      `)
-      .eq('startup_id', startupId)
-      .order('match_score', { ascending: false })
-      .limit(30);
-
-    // Dedupe by firm — keep top partner per firm
-    const firmSeen = new Set();
-    const topMatches = [];
-    for (const row of (matchRows || [])) {
-      const investor = Array.isArray(row.investors) ? row.investors[0] : row.investors;
-      if (!investor || !isOutreachEligibleInvestor(investor, startup)) continue;
-      const firmKey = (investor.firm || investor.name || '').toLowerCase().trim();
-      if (firmSeen.has(firmKey)) continue;
-      firmSeen.add(firmKey);
-      topMatches.push({ ...row, investor });
-      if (topMatches.length >= 5) break;
-    }
+    // Same firm-deduped recorded shortlist as Peter founder email.
+    const topMatches = (await loadCanonicalOutreachMatches(supabase, startupId, {
+      limit: IN_APP_MATCH_COUNT,
+      eligible: (investor) => isOutreachEligibleInvestor(investor, startup),
+    })).map(({ row, investor }) => ({ ...row, investor }));
 
     if (topMatches.length === 0) {
       const empty = gateOutreachPayload(

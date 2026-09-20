@@ -24,6 +24,7 @@ import {
   getMeetingByIdForUser,
   getFundraisingOutcomeMetrics,
   getOutreachEmailsByRunId,
+  loadCanonicalOutreachInvestors,
   getPitchDeckById,
   getPitchDeckByRunId,
   listMeetingsForOutreachEmail,
@@ -293,11 +294,22 @@ export const outreachRouter = router({
             matchReason: z.string().optional(),
             email: z.string().email().optional(),
           })
-        ).max(10),
+        ).max(10).optional().default([]),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const { runId, startupId, startupUrl, startupSummary, investors } = input;
+      const { runId, startupId, startupUrl, startupSummary } = input;
+      let investors = input.investors;
+      if (startupId) {
+        const canonical = await loadCanonicalOutreachInvestors(startupId);
+        if (canonical.length) investors = canonical;
+      }
+      if (!investors.length) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No canonical recorded matches to draft. Run matching first.",
+        });
+      }
 
       // Get existing emails to avoid duplicates
       const existing = await getOutreachEmailsByRunId(ctx.user.id, runId);

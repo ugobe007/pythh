@@ -10,6 +10,7 @@ test('scheduled founder outreach explicitly enables sending and preserves the ca
   assert.match(workflow, /cron: '0 13 \* \* \*'/);
   assert.match(workflow, /ARGS="\$ARGS --send"/);
   assert.match(workflow, /default: '20'/);
+  assert.match(workflow, /default: '400'/);
   assert.match(
     workflow,
     /Peter founder outreach[\s\S]*EMAIL_SECRET: \$\{\{ secrets\.EMAIL_SECRET \}\}[\s\S]*HUNTER_API_KEY/
@@ -19,6 +20,16 @@ test('scheduled founder outreach explicitly enables sending and preserves the ca
 test('local scheduler explicitly enables founder sends outside draft mode', async () => {
   const scheduler = await read('scripts/cron/outreach-scheduler.js');
   assert.match(scheduler, /DRAFT_ONLY \? \[\] : \["--send"\]/);
+  assert.match(scheduler, /OUTREACH_SCAN\s+\?\? "400"/);
+});
+
+test('founder job recovers company_domain and tallies skip reasons', async () => {
+  const script = await read('scripts/peter-founder-outreach.mjs');
+  assert.match(script, /company_domain/);
+  assert.match(script, /loadContactedStartupIds/);
+  assert.match(script, /isOutreachHeadlineName/);
+  assert.match(script, /persistOutreachContact/);
+  assert.match(script, /skipReasons/);
 });
 
 test('complaints suppress future founder prospecting', async () => {

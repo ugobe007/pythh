@@ -935,14 +935,17 @@ export default function ActivatePythiaModal({
         startupId,
         startupUrl,
         startupSummary,
-        investors: investors.map((inv) => ({
-          investorId: inv.investorId,
-          name: inv.name,
-          firm: inv.firm,
-          sector: inv.sector,
-          matchReason: inv.matchReason,
-          email: inv.email,
-        })),
+        // Server replaces this with the recorded canonical shortlist when startupId is set.
+        investors: startupId
+          ? []
+          : investors.map((inv) => ({
+              investorId: inv.investorId,
+              name: inv.name,
+              firm: inv.firm,
+              sector: inv.sector,
+              matchReason: inv.matchReason,
+              email: inv.email,
+            })),
       });
       // Reload emails
       const fresh = await utils.outreach.getOutreachStatus.fetch({ runId });

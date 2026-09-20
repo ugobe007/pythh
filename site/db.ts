@@ -19,6 +19,30 @@ import {
 } from "./schema";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ENV } from "./env";
+import { createRequire } from "node:module";
+
+const requireCjs = createRequire(import.meta.url);
+const {
+  IN_APP_MATCH_COUNT,
+  loadCanonicalOutreachMatches,
+} = requireCjs("../lib/loadCanonicalOutreachMatches.js") as {
+  IN_APP_MATCH_COUNT: number;
+  loadCanonicalOutreachMatches: (
+    db: SupabaseClient,
+    startupId: string,
+    opts?: { limit?: number; minScore?: number },
+  ) => Promise<Array<{
+    row: { investor_id?: string; match_score?: number; why_you_match?: unknown; reasoning?: unknown };
+    investor: {
+      id?: string;
+      name?: string;
+      firm?: string;
+      sectors?: string[] | null;
+      email?: string | null;
+      email_best_guess?: string | null;
+    };
+  }>>;
+};
 
 let pool: Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -394,6 +418,48 @@ export async function getInvestorRankings(opts: {
     .where(where);
 
   return { rows, total: total ?? 0 };
+}
+
+export type CanonicalOutreachInvestor = {
+  investorId: string;
+  name: string;
+  firm: string;
+  sector: string;
+  matchReason?: string;
+  email?: string;
+};
+
+/** Firm-deduped recorded matches — same shortlist Peter emails and in-app drafts use. */
+export async function loadCanonicalOutreachInvestors(startupId: string): Promise<CanonicalOutreachInvestor[]> {
+  const sb = getSupabaseAdmin();
+  if (!sb || !startupId) return [];
+  try {
+    const selected = await loadCanonicalOutreachMatches(sb, startupId, { limit: IN_APP_MATCH_COUNT });
+    return selected
+      .map(({ row, investor }) => {
+        const investorId = String(row.investor_id || investor.id || "").trim();
+        const name = String(investor.name || "").trim();
+        const firm = String(investor.firm || name).trim();
+        if (!investorId || !name) return null;
+        const email = investor.email || investor.email_best_guess || undefined;
+        return {
+          investorId,
+          name,
+          firm,
+          sector: Array.isArray(investor.sectors) ? String(investor.sectors[0] || "tech") : "tech",
+          matchReason: typeof row.why_you_match === "string"
+            ? row.why_you_match
+            : Array.isArray(row.why_you_match)
+              ? row.why_you_match.filter(Boolean).join(". ")
+              : undefined,
+          email: email && email.includes("@") ? email : undefined,
+        };
+      })
+      .filter((row): row is CanonicalOutreachInvestor => Boolean(row));
+  } catch (error) {
+    console.error("[canonical-outreach] failed to load recorded matches", error);
+    return [];
+  }
 }
 
 /**

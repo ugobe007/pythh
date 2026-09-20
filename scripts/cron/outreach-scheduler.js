@@ -38,7 +38,7 @@ const FOUNDER_AGENT = path.join(ROOT, "scripts", "peter-founder-outreach.mjs");
 const VC_SCHEDULE      = process.env.OUTREACH_VC_SCHEDULE      ?? "0 8 * * 1";  // Monday
 const STARTUP_SCHEDULE = process.env.OUTREACH_STARTUP_SCHEDULE ?? "0 8 * * *";  // Daily
 const LIMIT            = process.env.OUTREACH_LIMIT            ?? "20";
-const SCAN             = process.env.OUTREACH_SCAN             ?? "300";
+const SCAN             = process.env.OUTREACH_SCAN             ?? "400";
 const TZ               = process.env.OUTREACH_TZ               ?? "America/New_York";
 
 // ── Spawn helper ──────────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ on:
       scan:
         description: 'Startups to scan (founder mode only)'
         required: false
-        default: '300'
+        default: '400'
       draft_only:
         description: 'Queue drafts only (no send)'
         required: false
@@ -101,7 +101,7 @@ jobs:
           OUTREACH_FROM: pythia@pythh.ai
         run: |
           LIMIT="${{ github.event.inputs.limit || '20' }}"
-          SCAN="${{ github.event.inputs.scan || '300' }}"
+          SCAN="${{ github.event.inputs.scan || '400' }}"
           ARGS="--limit ${LIMIT} --scan ${SCAN}"
           if [ "${{ github.event.inputs.draft_only }}" = "true" ]; then
             ARGS="$ARGS --draft-only"
