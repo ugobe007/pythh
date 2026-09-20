@@ -24,6 +24,7 @@ const {
   IN_APP_MATCH_COUNT,
   loadCanonicalOutreachMatches,
 } = require('../../lib/loadCanonicalOutreachMatches');
+const { normalizeWhyYouMatch } = require('../../lib/normalizeWhyYouMatch');
 
 function sb() {
   return createClient(
@@ -258,7 +259,7 @@ router.get('/canonical-matches/:startup_id', async (req, res) => {
         title: investor.title,
         sectors: investor.sectors,
         match_score: Math.round(Number(row.match_score)),
-        match_reason: row.why_you_match || row.reasoning || null,
+        match_reason: normalizeWhyYouMatch(row.why_you_match) || row.reasoning || null,
         contactable: Boolean(investor.email || investor.email_best_guess),
       })),
       total: selected.length,
