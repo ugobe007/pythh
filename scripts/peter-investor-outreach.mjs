@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const { TOP_STARTUP_COUNT, uniqueTopStartups, unsubscribeUrl } = require('../lib/investorTopMatchesAgent.js');
 const { classifyOutreachEmail, isBlockedOutreachEmail } = require('../lib/investorEmailInfer.js');
 const { isCleanInvestorNameForFeed } = require('../server/lib/feedNameGuards.js');
+const { vcOpening, vcMethodology } = require('../lib/pythiaVoice.js');
 
 const argv = process.argv.slice(2);
 const flag = (name) => {
@@ -88,10 +89,16 @@ function buildEmail(investor, matches) {
   const firm = firmName(investor);
   const url = `https://pythh.ai/investors?utm_source=peter&utm_medium=email&utm_campaign=${encodeURIComponent(CAMPAIGN)}`;
   const unsubscribe = unsubscribeUrl(investor.email_best_guess, EMAIL_SECRET, 'https://pythh.ai');
-  const opening = `Hi ${firstName(investor)}, my name is Peter with Pythh. Pythh finds and ranks startups that fit ${firm}'s investment thesis, portfolio, and timing. I found ${matches.length} strong matches for ${firm}. Review them below. We use math, not magic.`;
+  const opening = vcOpening({
+    greeting: `Hi ${firstName(investor)},`,
+    firm,
+    isPersonal: true,
+    featuredStartup: matches[0]?.name,
+  });
+  const methodology = vcMethodology();
   const rows = matches.map((m, i) => `<tr><td style="padding:16px;border-top:1px solid #243047"><strong style="color:#f8fafc">${i + 1}. ${esc(m.name)}</strong><span style="float:right;color:#22c55e;font-family:monospace">${m.match_score} fit</span><div style="color:#94a3b8;font-size:12px;margin-top:5px">${esc([stageLabel(m.stage), ...(Array.isArray(m.sectors) ? m.sectors.slice(0, 2) : [])].filter(Boolean).join(' · '))}</div><div style="color:#64748b;font-size:12px;line-height:1.5;margin-top:7px">${esc(startupEvidence(m))}</div></td></tr>`).join('');
-  const html = `<!doctype html><html><body style="margin:0;background:#080d16;font-family:system-ui,sans-serif"><div style="max-width:620px;margin:auto;padding:40px 20px"><div style="color:#22c55e;font:700 11px monospace;letter-spacing:.12em">PYTHH · INVESTOR MATCHES</div><h1 style="color:#f8fafc;font-size:24px">${matches.length} startups that fit ${esc(firm)}'s thesis</h1><p style="color:#94a3b8;line-height:1.65">${esc(opening)}</p><table width="100%" cellspacing="0" style="background:#0f172a;border:1px solid #243047;border-radius:10px">${rows}</table><div style="text-align:center;margin-top:26px"><a href="${url}" style="display:inline-block;background:#22c55e;color:#03130b;padding:13px 24px;border-radius:8px;text-decoration:none;font-weight:700">Review the 3 matches</a></div><p style="color:#475569;font-size:11px;text-align:center;margin-top:24px">Peter at Pythh · We use math, not magic.</p>${unsubscribe ? `<p style="text-align:center;font-size:10px"><a style="color:#64748b" href="${unsubscribe}">Unsubscribe from investor match emails</a></p>` : ''}</div></body></html>`;
-  const text = `${opening}\n\n${matches.map((m, i) => `${i + 1}. ${m.name} — ${m.match_score} fit\n${startupEvidence(m)}`).join('\n\n')}\n\nReview the 3 matches: ${url}\n\nPeter at Pythh\nWe use math, not magic.${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
+  const html = `<!doctype html><html><body style="margin:0;background:#080d16;font-family:system-ui,sans-serif"><div style="max-width:620px;margin:auto;padding:40px 20px"><div style="color:#22c55e;font:700 11px monospace;letter-spacing:.12em">PETER · PYTHH</div><h1 style="color:#f8fafc;font-size:24px">${matches.length} curated startups for review</h1><p style="color:#94a3b8;line-height:1.65">${esc(opening)}</p><table width="100%" cellspacing="0" style="background:#0f172a;border:1px solid #243047;border-radius:10px">${rows}</table><p style="color:#64748b;font-size:13px;line-height:1.65;margin-top:18px">${esc(methodology)}</p><div style="text-align:center;margin-top:26px"><a href="${url}" style="display:inline-block;background:#22c55e;color:#03130b;padding:13px 24px;border-radius:8px;text-decoration:none;font-weight:700">Review the matches</a></div><p style="color:#475569;font-size:11px;text-align:center;margin-top:24px">Peter · Investment analyst · Pythh.ai</p>${unsubscribe ? `<p style="text-align:center;font-size:10px"><a style="color:#64748b" href="${unsubscribe}">Unsubscribe from investor match emails</a></p>` : ''}</div></body></html>`;
+  const text = `${opening}\n\n${matches.map((m, i) => `${i + 1}. ${m.name} — ${m.match_score} fit\n${startupEvidence(m)}`).join('\n\n')}\n\n${methodology}\n\nReview the matches: ${url}\n\nPeter · Investment analyst · Pythh.ai${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
   return { subject: `${matches.length} startups match ${firm}'s thesis`, html, text, unsubscribe };
 }
 
