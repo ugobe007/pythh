@@ -49,7 +49,7 @@ jobs:
           SITE_URL: https://pythh.ai
         run: npm run report:weekly-thesis
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: weekly-thesis-${{ github.run_id }}
@@ -83,7 +83,7 @@ jobs:
           npm run outbound:oracle-scoreboard
           npm run outbound:oracle-scoreboard:linkedin
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: oracle-scoreboard-${{ github.run_id }}
@@ -142,7 +142,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: npm run growth:cycle
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: growth-cycle-${{ github.run_id }}
