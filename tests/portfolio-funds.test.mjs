@@ -49,6 +49,8 @@ test('portfolio page exposes both vintages', () => {
   assert.match(page, /\/api\/portfolio\/funds/);
   assert.match(page, /fund=\$\{fund\}/);
   assert.match(page, /\/portfolio\?fund=pythh_2/);
+  assert.match(page, /Viewing/);
+  assert.match(page, /history\.replaceState/);
   assert.match(page, /\/api\/portfolio\/analytics\?fund=\$\{fund\}/);
   assert.doesNotMatch(page, /if \(fund === "pythh_1"\)/);
   assert.doesNotMatch(page, /Pythh_2 has no picks yet/);

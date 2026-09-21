@@ -486,11 +486,24 @@ export default function Portfolio() {
     setPanels((p) => ({ ...p, [k]: !p[k] }));
 
   function selectFund(next: FundKey) {
-    if (next === fund) return;
     setFund(next);
     setShowAll(false);
-    navigate(next === "pythh_2" ? "/portfolio?fund=pythh_2" : "/portfolio?fund=pythh_1", { replace: true });
+    const path = next === "pythh_2" ? "/portfolio?fund=pythh_2" : "/portfolio?fund=pythh_1";
+    navigate(path, { replace: true });
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", path);
+    }
   }
+
+  useEffect(() => {
+    function syncFromUrl() {
+      const next = fundFromSearch(window.location.search);
+      setFund((cur) => (cur === next ? cur : next));
+    }
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
 
   useEffect(() => {
     fetchJson<{ funds?: FundScoreboard[] }>("/api/portfolio/funds")
@@ -683,17 +696,27 @@ export default function Portfolio() {
                   className="text-left rounded-xl border px-5 py-5 transition-colors cursor-pointer"
                   style={{
                     borderColor: on ? G : BORDER,
-                    background: on ? "oklch(0.696 0.17 162.48 / 0.08)" : CARD,
+                    background: on ? "oklch(0.696 0.17 162.48 / 0.10)" : CARD,
                     boxShadow: on ? `inset 0 0 0 1px ${G}` : "none",
+                    opacity: on ? 1 : 0.78,
                   }}
                 >
                   <div className="flex items-baseline justify-between gap-3 mb-2">
-                    <div className="font-display font-bold text-2xl tracking-tight">{f.name}</div>
-                    <div
-                      className="text-[10px] font-mono uppercase tracking-widest"
-                      style={{ color: f.locked ? AMBER : G }}
-                    >
-                      {f.locked ? "Locked" : "Open"}
+                    <div className="font-display font-bold text-2xl tracking-tight" style={{ color: on ? G : "oklch(0.94 0.005 264)" }}>
+                      {f.name}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {on && (
+                        <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: G }}>
+                          Viewing
+                        </span>
+                      )}
+                      <div
+                        className="text-[10px] font-mono uppercase tracking-widest"
+                        style={{ color: f.locked ? AMBER : G }}
+                      >
+                        {f.locked ? "Locked" : "Open"}
+                      </div>
                     </div>
                   </div>
                   <p className="text-xs leading-relaxed mb-4" style={{ color: MUTED }}>
