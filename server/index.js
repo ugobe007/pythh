@@ -10023,28 +10023,10 @@ app.get('/api/portfolio', async (req, res) => {
 // GET /api/portfolio/funds — named vintages (Pythh_1 locked, Pythh_2 open)
 app.get('/api/portfolio/funds', async (req, res) => {
   try {
-    const { listFunds, isFundLocked, lockNote } = Object.assign(
-      require('./lib/portfolioFunds'),
-      require('./lib/fundLock'),
-    );
+    const { summarizePortfolioFunds } = require('./lib/portfolioTrackRecord');
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('virtual_portfolio').select('id, fund_key, status');
-    if (error) return res.status(500).json({ error: error.message });
-    const counts = new Map();
-    for (const row of data || []) {
-      const key = row.fund_key || 'pythh_1';
-      const cur = counts.get(key) || { positions: 0, active: 0 };
-      cur.positions += 1;
-      if (row.status === 'active') cur.active += 1;
-      counts.set(key, cur);
-    }
-    const funds = listFunds().map((fund) => ({
-      ...fund,
-      locked: isFundLocked(fund.key),
-      lock_note: lockNote(fund.key),
-      positions: counts.get(fund.key)?.positions || 0,
-      active: counts.get(fund.key)?.active || 0,
-    }));
+    const funds = await summarizePortfolioFunds(supabase);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ funds });
   } catch (err) {
     res.status(500).json({ error: err.message });

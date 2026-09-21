@@ -112,6 +112,74 @@ function averageVerifiedMoic(picks, verifiedFundedIds) {
   return Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100;
 }
 
+function earlyAvgMoic(positions = []) {
+  const moics = (positions || [])
+    .filter((p) => !p.entity_quarantined && !p.entered_late && p.moic != null)
+    .map((p) => Number(p.moic))
+    .filter((n) => Number.isFinite(n));
+  if (!moics.length) return null;
+  return Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100;
+}
+
+function scoreboardForFund(fundMeta, positions = [], outcomeEvents = [], lock = {}) {
+  const isFundLocked = lock.isFundLocked || (() => Boolean(fundMeta.locked));
+  const lockNote = lock.lockNote || (() => (fundMeta.locked ? 'LOCKED' : 'OPEN'));
+  const metrics = applyCleanPortfolioMetrics({}, positions, outcomeEvents);
+  const { verifiedFundedIds } = postEntryFundingSets(positions, outcomeEvents);
+  return {
+    ...fundMeta,
+    locked: isFundLocked(fundMeta.key),
+    lock_note: lockNote(fundMeta.key),
+    positions: positions.length,
+    active: positions.filter((p) => p.status === 'active').length,
+    verified_funded_picks: metrics.verified_funded_picks,
+    verified_funded_rate_pct: metrics.verified_funded_rate_pct,
+    funded_picks: metrics.funded_picks,
+    verified_avg_moic: averageVerifiedMoic(positions, verifiedFundedIds),
+    avg_moic: earlyAvgMoic(positions),
+    total_virtual_deployed_usd: metrics.total_virtual_deployed_usd,
+  };
+}
+
+async function fetchAllRows(supabase, table, columns, applyFilter) {
+  const rows = [];
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    let q = supabase.from(table).select(columns).range(from, from + page - 1);
+    if (applyFilter) q = applyFilter(q);
+    const { data, error } = await q;
+    if (error) throw new Error(`${table}: ${error.message}`);
+    rows.push(...(data || []));
+    if (!data || data.length < page) break;
+  }
+  return rows;
+}
+
+/** Named vintages with the same verified-funded / verified-MOIC contract as /metrics. */
+async function summarizePortfolioFunds(supabase) {
+  const { listFunds, filterByFund } = require('./portfolioFunds');
+  const { isFundLocked, lockNote } = require('./fundLock');
+  const [positions, outcomeEvents] = await Promise.all([
+    fetchAllRows(
+      supabase,
+      'virtual_portfolio',
+      'id, fund_key, status, entry_date, entity_quarantined, entered_late, virtual_check_usd, moic'
+    ),
+    fetchAllRows(
+      supabase,
+      'portfolio_events',
+      'portfolio_id, event_type, event_date, verified',
+      (q) => q.in('event_type', ['funding_round', 'acquisition', 'ipo'])
+    ),
+  ]);
+  return listFunds().map((fund) =>
+    scoreboardForFund(fund, filterByFund(positions, fund.key), outcomeEvents, {
+      isFundLocked,
+      lockNote,
+    })
+  );
+}
+
 function enrichPortfolioMetrics(metrics) {
   if (!metrics || typeof metrics !== 'object') return metrics || {};
   const total = Number(metrics.total_picks) || 0;
@@ -309,5 +377,8 @@ module.exports = {
   applyCleanPortfolioMetrics,
   postEntryFundingSets,
   averageVerifiedMoic,
+  earlyAvgMoic,
+  scoreboardForFund,
+  summarizePortfolioFunds,
   computeTrackRecord,
 };

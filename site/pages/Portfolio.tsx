@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { ExternalLink, ChevronDown } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
@@ -442,15 +442,41 @@ function Collapsible({
 
 type FundKey = "pythh_1" | "pythh_2";
 
+interface FundScoreboard {
+  key: FundKey;
+  name: string;
+  locked: boolean;
+  lock_date?: string | null;
+  inception?: string | null;
+  thesis?: string;
+  lock_note?: string;
+  positions: number;
+  active: number;
+  verified_funded_picks?: number;
+  verified_funded_rate_pct?: number;
+  verified_avg_moic?: number | null;
+  avg_moic?: number | null;
+  check_usd?: number;
+}
+
+function fundFromSearch(search = typeof window === "undefined" ? "" : window.location.search): FundKey {
+  const raw = new URLSearchParams(search).get("fund") || "";
+  const key = raw.trim().toLowerCase().replace(/-/g, "_");
+  if (key === "pythh_2" || key === "2" || key === "fund2" || key === "pythh2") return "pythh_2";
+  return "pythh_1";
+}
+
 export default function Portfolio() {
+  const [, navigate] = useLocation();
   const [entries, setEntries] = useState<PortfolioEntry[]>([]);
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
   const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
+  const [funds, setFunds] = useState<FundScoreboard[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [slowHint, setSlowHint] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fund, setFund] = useState<FundKey>("pythh_1");
+  const [fund, setFund] = useState<FundKey>(() => fundFromSearch());
   const [filter, setFilter] = useState<"all" | "active" | "exited">("all");
   const [tierFilter, setTierFilter] = useState<"all" | HealthTier>("all");
   const [sortBy, setSortBy] = useState<"health" | "god">("health");
@@ -458,6 +484,19 @@ export default function Portfolio() {
   const [panels, setPanels] = useState({ value: false, bench: false, strategy: false });
   const togglePanel = (k: "value" | "bench" | "strategy") =>
     setPanels((p) => ({ ...p, [k]: !p[k] }));
+
+  function selectFund(next: FundKey) {
+    if (next === fund) return;
+    setFund(next);
+    setShowAll(false);
+    navigate(next === "pythh_2" ? "/portfolio?fund=pythh_2" : "/portfolio?fund=pythh_1", { replace: true });
+  }
+
+  useEffect(() => {
+    fetchJson<{ funds?: FundScoreboard[] }>("/api/portfolio/funds")
+      .then((data) => setFunds(data.funds ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -472,7 +511,6 @@ export default function Portfolio() {
     setError(null);
     setEntries([]);
     setMetrics(null);
-    if (fund === "pythh_2") setAnalytics(null);
 
     // Surface a "still loading" hint if a cold backend is slow to wake.
     const slowTimer = setTimeout(() => setSlowHint(true), 6000);
@@ -492,15 +530,13 @@ export default function Portfolio() {
         }
       });
 
-    if (fund === "pythh_1") {
-      fetchJson<PortfolioAnalytics>(`/api/portfolio/analytics?fund=${fund}`)
-        .then((data) => {
-          if (!controller?.signal.aborted && currentFund === fund) {
-            setAnalytics(data ?? null);
-          }
-        })
-        .catch(() => {});
-    }
+    fetchJson<PortfolioAnalytics>(`/api/portfolio/analytics?fund=${fund}`)
+      .then((data) => {
+        if (!controller?.signal.aborted && currentFund === fund) {
+          setAnalytics(data ?? null);
+        }
+      })
+      .catch(() => {});
 
     try {
       const sortQ = sortBy === "health" ? "health" : "god";
@@ -611,37 +647,101 @@ export default function Portfolio() {
       <SharedNavbar activePath="/portfolio" />
 
       <main className="container max-w-5xl pt-24 pb-20 px-4 sm:px-6">
-        {/* Hero */}
+        {/* Hero — both vintages always visible */}
         <header className="mb-10 pb-10 border-b" style={{ borderColor: BORDER }}>
-          <SectionLabel className="mb-3">Oracle scoreboard</SectionLabel>
+          <SectionLabel className="mb-3">Oracle scoreboard · both vintages</SectionLabel>
           <h1 className="font-display font-bold text-3xl md:text-4xl tracking-tight mb-3">
-            {fund === "pythh_2" ? "Pythh_2" : "Pythh_1"}
+            Pythh_1 and Pythh_2
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: MUTED }}>
-            {fund === "pythh_2"
-              ? "Second virtual vintage. Top GOD first, then industry mix. Early names only — each pick starts at 1.0× until press-verified evidence. Pythh_1 stays locked."
-              : "First virtual vintage. Locked cohort — marks move only on press-verified evidence. New picks go to Pythh_2."}
+            Two virtual books. Pythh_1 is the locked first vintage. Pythh_2 is the open second
+            vintage — new picks land here and start at 1.0× until a press-verified raise after entry.
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {([
-              { key: "pythh_1" as const, label: "Pythh_1", hint: "locked first book" },
-              { key: "pythh_2" as const, label: "Pythh_2", hint: "open second book" },
-            ]).map((f) => {
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(funds.length
+              ? funds
+              : ([
+                  { key: "pythh_1" as const, name: "Pythh_1", locked: true, positions: 0, active: 0, inception: "2025-11-25", lock_date: "2026-06-11", thesis: "Locked first book." },
+                  { key: "pythh_2" as const, name: "Pythh_2", locked: false, positions: 0, active: 0, inception: "2026-09-13", thesis: "Open second book." },
+                ] satisfies FundScoreboard[])
+            ).map((f) => {
               const on = fund === f.key;
+              const verifiedMoic = f.verified_avg_moic;
+              const moicLabel =
+                verifiedMoic != null
+                  ? `${verifiedMoic}×`
+                  : f.key === "pythh_2"
+                  ? "1.0×"
+                  : "—";
               return (
                 <button
                   key={f.key}
                   type="button"
-                  onClick={() => { setFund(f.key); setShowAll(false); }}
-                  className="rounded-full px-3 py-1.5 text-[12px] font-mono uppercase tracking-wider"
+                  onClick={() => selectFund(f.key)}
+                  aria-pressed={on}
+                  className="text-left rounded-xl border px-5 py-5 transition-colors cursor-pointer"
                   style={{
-                    color: on ? G : MUTED,
-                    border: `1px solid ${on ? G : BORDER}`,
-                    background: on ? "oklch(0.696 0.17 162.48 / 0.08)" : "transparent",
+                    borderColor: on ? G : BORDER,
+                    background: on ? "oklch(0.696 0.17 162.48 / 0.08)" : CARD,
+                    boxShadow: on ? `inset 0 0 0 1px ${G}` : "none",
                   }}
                 >
-                  {f.label}
-                  <span className="ml-2 normal-case tracking-normal opacity-70">{f.hint}</span>
+                  <div className="flex items-baseline justify-between gap-3 mb-2">
+                    <div className="font-display font-bold text-2xl tracking-tight">{f.name}</div>
+                    <div
+                      className="text-[10px] font-mono uppercase tracking-widest"
+                      style={{ color: f.locked ? AMBER : G }}
+                    >
+                      {f.locked ? "Locked" : "Open"}
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed mb-4" style={{ color: MUTED }}>
+                    {f.thesis ||
+                      (f.key === "pythh_2"
+                        ? "Second virtual vintage. Early names only — marks move on press-verified evidence."
+                        : "First virtual vintage. Fixed cohort — marks move on press-verified evidence.")}
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <div className="font-display font-bold text-xl tabular-nums">{f.positions || "—"}</div>
+                      <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
+                        Picks
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>
+                        {f.active || 0} active
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-display font-bold text-xl tabular-nums" style={{ color: G }}>
+                        {f.verified_funded_picks ?? "—"}
+                      </div>
+                      <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
+                        Verified funded
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>
+                        {f.verified_funded_rate_pct != null ? `${f.verified_funded_rate_pct}% of picks` : "post-entry press"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-display font-bold text-xl tabular-nums" style={{ color: G }}>
+                        {moicLabel}
+                      </div>
+                      <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
+                        Verified MOIC
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>
+                        {verifiedMoic != null
+                          ? "press-verified rounds"
+                          : f.key === "pythh_2"
+                          ? "until post-entry proof"
+                          : "early picks only"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 text-[10px] font-mono" style={{ color: DIM }}>
+                    Inception {fmtDate(f.inception)}
+                    {f.locked && f.lock_date ? ` · locked ${fmtDate(f.lock_date)}` : " · new picks land here"}
+                  </div>
                 </button>
               );
             })}
@@ -1088,6 +1188,7 @@ export default function Portfolio() {
 
         {/* Filters — inline text tabs */}
         <div className="space-y-4 mb-8 pb-6 border-b" style={{ borderColor: BORDER }}>
+          <SectionLabel>{fund === "pythh_2" ? "Pythh_2 positions" : "Pythh_1 positions"}</SectionLabel>
           <FilterTabs
             label="Status"
             value={filter}
@@ -1168,9 +1269,9 @@ export default function Portfolio() {
           </p>
         ) : filtered.length === 0 ? (
           <p className="text-center py-24 text-sm" style={{ color: MUTED }}>
-            {fund === "pythh_2"
-              ? "Pythh_2 has no picks yet. Construction takes top GOD first, then mixes industry types."
-              : "No entries yet — Pythh_1 is the locked first book."}
+            {entries.length === 0
+              ? `${fund === "pythh_2" ? "Pythh_2" : "Pythh_1"} positions are still loading, or this vintage has no published picks yet.`
+              : "No positions match these filters."}
           </p>
         ) : (
           <>
@@ -1208,7 +1309,7 @@ export default function Portfolio() {
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[
               { step: "01", title: "GOD ≥ 70", desc: "Auto-added when a startup clears the investment-grade bar." },
-              { step: "02", title: "$100K virtual", desc: "Logged at an assumed seed entry (~$12M)." },
+              { step: "02", title: "$100K virtual", desc: "Logged at an assumed seed entry (~$12M). Pythh_1 is locked; new picks go to Pythh_2." },
               { step: "03", title: "Signal accretion", desc: "Rounds, partnerships, customers, hires, IP mark it up." },
               { step: "04", title: "Verify", desc: "Press-confirmed raises upgrade signal detections." },
               { step: "05", title: "Health tiers", desc: "Core · Watch · Review — momentum vs. maturity." },

@@ -20,7 +20,7 @@ const MATURE_AT_ENTRY_THRESHOLD_USD = 200_000_000;
 const MAX_PLAUSIBLE_VALUATION_USD = 15_000_000_000;
 const EXIT_STATUSES = new Set(['acquired', 'ipo', 'exited']);
 const WRITEOFF_STATUSES = new Set(['written_off', 'dead', 'shutdown', 'closed', 'defunct']);
-const { FUND_LOCKED, FUND_LOCK_DATE } = require('./fundLock');
+const { FUND_LOCK_DATE, isFundLocked, lockNote } = require('./fundLock');
 
 /**
  * Signal-accretion valuation model.
@@ -445,8 +445,8 @@ async function computePortfolioValue(supabase, { fundKey } = {}) {
     avg_moic_capped: avgMoicCapped, // all positions incl. entered-late
     avg_moic_early: avgMoicEarly, // early-only (same basis as portfolio_metrics)
     avg_moic_industry_avg: VC_BENCHMARKS.avg_moic_industry, // industry reference shown in brackets next to Avg MOIC
-    fund_locked: FUND_LOCKED, // fixed-vintage cohort; no new positions added once locked
-    fund_lock_date: FUND_LOCK_DATE,
+    fund_locked: isFundLocked(wanted),
+    fund_lock_date: require('./portfolioFunds').getFund(wanted).lock_date || FUND_LOCK_DATE,
     realized_value_usd: round(realizedValue),
     unrealized_value_usd: round(unrealizedValue),
     // Vintage (A)
@@ -465,7 +465,9 @@ async function computePortfolioValue(supabase, { fundKey } = {}) {
     per_position_moic_cap: PER_POSITION_MOIC_CAP,
     top_contributors: topContributors,
     note:
-      (FUND_LOCKED ? `Fund locked (vintage ${FUND_LOCK_DATE}) — fixed cohort of ${positions} positions, no new entries; performance is tracked over time. ` : '') +
+      (isFundLocked(wanted)
+        ? `${lockNote(wanted)} Fixed cohort of ${positions} positions; performance is tracked over time. `
+        : `${lockNote(wanted)} `) +
       `Entry valuation is frozen at the virtual investment instant (pick date) and never rewritten on sync. Marks grow only from press-verified funding rounds and material signals strictly after pick. Signal uplift capped at ${SIGNAL_MAX_MULTIPLIER}×. Exits realize at exit value; write-offs go to 0×. ` +
       `Avg MOIC is the equal-weighted blended multiple across all ${positions} positions. ${markedPositions} are above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
       (quarantinedPositions ? `${quarantinedPositions} position(s) held at cost pending valuation re-sourcing (implausible >$${round(MAX_PLAUSIBLE_VALUATION_USD / 1e9)}B figure quarantined). ` : '') +

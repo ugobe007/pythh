@@ -44,11 +44,16 @@ test('filterByFund keeps existing rows on Pythh_1 when fund_key is missing', () 
 
 test('portfolio page exposes both vintages', () => {
   const page = readFileSync(new URL('../site/pages/Portfolio.tsx', import.meta.url), 'utf8');
-  assert.match(page, /Pythh_1/);
-  assert.match(page, /Pythh_2/);
+  assert.match(page, /Pythh_1 and Pythh_2/);
+  assert.match(page, /both vintages/);
+  assert.match(page, /\/api\/portfolio\/funds/);
   assert.match(page, /fund=\$\{fund\}/);
-  assert.match(page, /if \(fund === "pythh_1"\)/);
+  assert.match(page, /\/portfolio\?fund=pythh_2/);
+  assert.match(page, /\/api\/portfolio\/analytics\?fund=\$\{fund\}/);
+  assert.doesNotMatch(page, /if \(fund === "pythh_1"\)/);
+  assert.doesNotMatch(page, /Pythh_2 has no picks yet/);
   const api = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
   assert.match(api, /\/api\/portfolio\/funds/);
+  assert.match(api, /summarizePortfolioFunds/);
   assert.match(api, /selectPythh2Book/);
 });
