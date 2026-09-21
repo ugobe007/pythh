@@ -6,6 +6,8 @@
  *
  * POST /api/outreach/draft          — LLM drafts personalized email for one investor
  * POST /api/outreach/draft-batch    — drafts emails for up to 10 investors at once
+ * POST /api/outreach/draft-from-matches — drafts the canonical recorded shortlist
+ * GET  /api/outreach/canonical-matches/:startup_id — firm-deduped recorded matches
  * GET  /api/outreach/drafts/:startup_id — list all drafts for a startup
  * GET  /api/outreach/draft/:id      — single draft detail
  * POST /api/outreach/approve        — founder approves a draft (status → approved)
@@ -18,6 +20,11 @@ const express    = require('express');
 const router     = express.Router();
 const OpenAI     = require('openai');
 const { createClient } = require('@supabase/supabase-js');
+const {
+  IN_APP_MATCH_COUNT,
+  loadCanonicalOutreachMatches,
+} = require('../../lib/loadCanonicalOutreachMatches');
+const { normalizeWhyYouMatch } = require('../../lib/normalizeWhyYouMatch');
 
 function sb() {
   return createClient(
@@ -235,6 +242,68 @@ async function saveDraft(startupId, investorId, draft, emailMeta) {
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+
+// GET /api/outreach/canonical-matches/:startup_id
+// Recorded firm-deduped shortlist — same list Peter emails and in-app drafts use.
+router.get('/canonical-matches/:startup_id', async (req, res) => {
+  const startupId = req.params.startup_id;
+  if (!startupId) return res.status(400).json({ error: 'startup_id required' });
+  try {
+    const selected = await loadCanonicalOutreachMatches(sb(), startupId, { limit: IN_APP_MATCH_COUNT });
+    return res.json({
+      startup_id: startupId,
+      matches: selected.map(({ row, investor }) => ({
+        investor_id: row.investor_id || investor.id,
+        name: investor.name,
+        firm: investor.firm,
+        title: investor.title,
+        sectors: investor.sectors,
+        match_score: Math.round(Number(row.match_score)),
+        match_reason: normalizeWhyYouMatch(row.why_you_match) || row.reasoning || null,
+        contactable: Boolean(investor.email || investor.email_best_guess),
+      })),
+      total: selected.length,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/outreach/draft-from-matches
+// Draft emails for the canonical recorded shortlist (not a client-supplied list).
+router.post('/draft-from-matches', async (req, res) => {
+  const { startup_id, founder_name, tone } = req.body || {};
+  if (!startup_id) return res.status(400).json({ error: 'startup_id required' });
+  try {
+    const startup = await fetchStartup(startup_id);
+    const selected = await loadCanonicalOutreachMatches(sb(), startup_id, { limit: IN_APP_MATCH_COUNT });
+    if (!selected.length) {
+      return res.status(422).json({ error: 'no_canonical_matches', startup_id });
+    }
+
+    const results = await Promise.allSettled(
+      selected.map(async ({ investor }) => {
+        const emailMeta = resolveEmail(investor);
+        const draft = await generateDraft(startup, investor, { founderName: founder_name, tone });
+        const draftId = await saveDraft(startup_id, investor.id, draft, emailMeta || { address: '', type: 'unknown' });
+        return {
+          id: draftId,
+          investor_id: investor.id,
+          investor_name: investor.name,
+          email_to: draft.email_to,
+          subject: draft.subject,
+          status: 'draft',
+        };
+      })
+    );
+
+    const drafts = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+    const errors = results.filter((r) => r.status === 'rejected').map((r) => ({ error: r.reason?.message }));
+    return res.json({ startup_id, drafts, errors, total: drafts.length, source: 'canonical_matches' });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
 
 // POST /api/outreach/draft
 // Body: { startup_id, investor_id, founder_name?, tone? }

@@ -49,6 +49,7 @@ const {
 const {
   contactOutreachGreeting,
   isBlockedOutreachEmail,
+  isOutreachHeadlineName,
 } = require('../lib/investorEmailInfer.js');
 
 const argv = process.argv.slice(2);
@@ -61,7 +62,7 @@ const flag = (name) => {
 const has = (name) => argv.some((a) => a === name || a.startsWith(`${name}=`));
 
 const LIMIT = parseInt(flag('--limit') ?? '20', 10);
-const SCAN = parseInt(flag('--scan') ?? String(Math.max(LIMIT * 15, 200)), 10);
+const SCAN = parseInt(flag('--scan') ?? String(Math.max(LIMIT * 20, 400)), 10);
 const MIN_GOD = parseInt(flag('--min-god') ?? '55', 10);
 const MIN_MATCH = parseInt(flag('--min-match') ?? '40', 10);
 const SEND = has('--send');
@@ -103,7 +104,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 const INVESTOR_SELECT =
   'id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, notable_investments, signals, investment_thesis';
 const STARTUP_SELECT =
-  'id, name, website, company_website, sectors, total_god_score, stage, tagline, submitted_email, extracted_data';
+  'id, name, website, company_website, company_domain, sectors, total_god_score, stage, tagline, submitted_email, extracted_data';
 
 function scoreColor(score) {
   if (score >= 80) return '#22c55e';
@@ -160,6 +161,42 @@ async function alreadyContactedStartup(startupId) {
     .in('status', ['sent', 'draft'])
     .limit(1);
   return (data?.length ?? 0) > 0;
+}
+
+async function loadContactedStartupIds() {
+  if (DRY_RUN) return new Set();
+  const { data } = await db
+    .from('pythh_prospecting_log')
+    .select('target_id')
+    .eq('email_type', 'startup_matches')
+    .eq('campaign_slug', CAMPAIGN)
+    .in('status', ['sent', 'draft'])
+    .limit(2000);
+  return new Set((data || []).map((row) => String(row.target_id)).filter(Boolean));
+}
+
+function bump(counts, key) {
+  counts[key] = (counts[key] || 0) + 1;
+}
+
+async function persistOutreachContact(startup, contact) {
+  if (DRY_RUN || startup.extracted_data?.outreach_contact?.email === contact.email) return;
+  const extracted = {
+    ...(startup.extracted_data || {}),
+    outreach_contact: {
+      email: contact.email,
+      source: contact.source,
+      email_type: contact.emailType,
+      person_name: contact.personName || null,
+      hunter_confidence: contact.hunterConfidence ?? null,
+      position: contact.position || null,
+      zero_bounce_status: contact.zeroBounceStatus || null,
+      website_domain: contact.websiteDomain || null,
+      enriched_at: new Date().toISOString(),
+    },
+  };
+  const { error } = await db.from('startup_uploads').update({ extracted_data: extracted }).eq('id', startup.id);
+  if (error) console.log(`   persist contact failed: ${error.message}`);
 }
 
 async function logSent({ email, startup, subject, html, text, resendId, contact }) {
@@ -314,8 +351,10 @@ async function main() {
   else console.log('');
 
   const { blockedIds, reasons } = await loadOutreachBlockedStartups(db);
-  if (blockedIds.size) console.log(`   portfolio blocklist: ${blockedIds.size} startups\n`);
-  else console.log('');
+  const contactedIds = TEST_TO ? new Set() : await loadContactedStartupIds();
+  if (blockedIds.size) console.log(`   portfolio blocklist: ${blockedIds.size} startups`);
+  if (contactedIds.size) console.log(`   already contacted this campaign: ${contactedIds.size}`);
+  console.log('');
 
   let query = db
     .from('startup_uploads')
@@ -338,6 +377,7 @@ async function main() {
 
   let sent = 0;
   let skipped = 0;
+  const skipReasons = {};
 
   for (const startup of startups ?? []) {
     if (!STARTUP_ID && sent >= LIMIT) break;
@@ -347,6 +387,7 @@ async function main() {
     if (isOutreachBlocked(startup.id, blockedIds)) {
       console.log(`⏭ portfolio gate (${reasons.get(startup.id)?.slice(0, 50) || 'blocked'})`);
       skipped++;
+      bump(skipReasons, 'portfolio_gate');
       continue;
     }
 
@@ -354,12 +395,20 @@ async function main() {
     if (!nameCheck.isValid) {
       console.log(`⏭ junk name (${nameCheck.reason})`);
       skipped++;
+      bump(skipReasons, `junk_name:${nameCheck.reason}`);
+      continue;
+    }
+    if (isOutreachHeadlineName(startup.name)) {
+      console.log('⏭ junk name (headline_name)');
+      skipped++;
+      bump(skipReasons, 'junk_name:headline_name');
       continue;
     }
 
-    if (!TEST_TO && await alreadyContactedStartup(startup.id)) {
+    if (!TEST_TO && (contactedIds.has(String(startup.id)) || await alreadyContactedStartup(startup.id))) {
       console.log(`⏭ startup already contacted`);
       skipped++;
+      bump(skipReasons, 'startup_already_contacted');
       continue;
     }
 
@@ -368,28 +417,34 @@ async function main() {
       const who = contact.email ? ` (${contact.email})` : '';
       console.log(`⏭ ${contact.reason}${who}`);
       skipped++;
+      bump(skipReasons, String(contact.reason).split(':')[0]);
       await sleep(300);
       continue;
     }
     if (!contact?.email || contact.emailType !== 'personal') {
       console.log(`⏭ no personal email (Hunter/submitted)`);
       skipped++;
+      bump(skipReasons, 'no_personal_email');
       await sleep(300);
       continue;
     }
+    await persistOutreachContact(startup, contact);
     if (isBlockedOutreachEmail(contact.email)) {
       console.log(`⏭ blocked ${contact.email}`);
       skipped++;
+      bump(skipReasons, 'blocked_email');
       continue;
     }
     if (await isSuppressed(contact.email)) {
       console.log('⏭ unsubscribed/suppressed');
       skipped++;
+      bump(skipReasons, 'suppressed');
       continue;
     }
     if (!TEST_TO && await alreadyContacted(contact.email)) {
       console.log(`⏭ already contacted`);
       skipped++;
+      bump(skipReasons, 'email_already_contacted');
       continue;
     }
 
@@ -398,6 +453,7 @@ async function main() {
     if (ranked.length < 3) {
       console.log(`⏭ only ${ranked.length} matches`);
       skipped++;
+      bump(skipReasons, 'too_few_matches');
       continue;
     }
 
@@ -436,7 +492,11 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
-  console.log(`\n✅ Done — sent ${sent} · skipped ${skipped}`);
+  const reasonSummary = Object.entries(skipReasons)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => `${reason}=${count}`)
+    .join(' · ');
+  console.log(`\n✅ Done — sent ${sent} · skipped ${skipped}${reasonSummary ? `\n   skips: ${reasonSummary}` : ''}`);
 }
 
 main().catch((e) => {

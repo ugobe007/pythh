@@ -36,6 +36,7 @@ vi.mock("./db", async (importOriginal) => {
     getPitchDeckByRunId: vi.fn(),
     getPitchDeckById: vi.fn(),
     createOutreachEmail: vi.fn(),
+    loadCanonicalOutreachInvestors: vi.fn().mockResolvedValue([]),
     updateOutreachEmailStatus: vi.fn(),
     getOutreachEmailsByRunId: vi.fn(),
     getInvestorById: vi.fn(),
@@ -70,6 +71,7 @@ import {
   getPitchDeckByRunId,
   getPitchDeckById,
   createOutreachEmail,
+  loadCanonicalOutreachInvestors,
   updateOutreachEmailStatus,
   getOutreachEmailsByRunId,
   createMeetingProposal,
@@ -343,6 +345,29 @@ describe("outreach.generateEmailPitch", () => {
 
     expect(invokeLLM).toHaveBeenCalledTimes(1); // only Elad Gil
     expect(result.generated).toBe(1);
+  });
+
+  it("uses recorded canonical matches when startupId is set", async () => {
+    vi.mocked(loadCanonicalOutreachInvestors).mockResolvedValue([
+      { investorId: "11111111-1111-1111-1111-111111111111", name: "Beta", firm: "Beta Capital", sector: "AI" },
+    ]);
+
+    const caller = makeCaller(AUTHED_USER);
+    const result = await caller.outreach.generateEmailPitch({
+      runId: "run-1",
+      startupId: "22222222-2222-2222-2222-222222222222",
+      startupUrl: "https://acme.ai",
+      investors: [{ name: "Client List", firm: "Wrong Firm", sector: "Other" }],
+    });
+
+    expect(loadCanonicalOutreachInvestors).toHaveBeenCalledWith("22222222-2222-2222-2222-222222222222");
+    expect(createOutreachEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createOutreachEmail).mock.calls[0][0]).toMatchObject({
+      investorName: "Beta",
+      investorFirm: "Beta Capital",
+    });
+    expect(result.generated).toBe(1);
+    expect(result.total).toBe(1);
   });
 });
 

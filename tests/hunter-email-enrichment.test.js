@@ -23,6 +23,23 @@ test('resolveInvestorContact prefers verified email on file', async () => {
   assert.equal(contact.source, 'verified_on_file');
 });
 
+test('resolveFounderContact ignores failed cache and hunts recovered company domain', async () => {
+  const { resolveFounderContact } = await import('../lib/resolveFounderContact.mjs');
+  const contact = await resolveFounderContact({
+    name: 'Baseten',
+    website: 'https://techcrunch.com/2026/09/20/baseten-raises',
+    company_domain: 'baseten.co',
+    extracted_data: {
+      outreach_contact: {
+        email: 'info@baseten.co',
+        enrichment_failed: true,
+        failure_reason: 'article_url',
+      },
+    },
+  }, { useHunter: false });
+  assert.equal(contact, null);
+});
+
 test('resolveFounderContact uses cached outreach_contact', async () => {
   const { resolveFounderContact } = await import('../lib/resolveFounderContact.mjs');
   const contact = await resolveFounderContact({

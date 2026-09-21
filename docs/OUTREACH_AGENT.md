@@ -24,7 +24,9 @@ Same playbook on both sides:
 | **Intake / team** | `info@`, `team@`, `support@`, `inquiries@`, `pitch@`, `deals@` | "Hi team at {Company}," |
 | **Personal** | `marc@`, `sarah.chen@`, first-name local parts | "Hi {First}," |
 
-**Startups:** uses `submitted_email` when present (excluding scraper placeholders like `bulk@import.com`). Otherwise infers `info@{domain}` when the website has MX records.
+**Startups (Peter founder job):** Hunter.io personal emails only — no `info@`. Website identity prefers `company_domain` / `company_website` over a scrape/article URL in `website`. Aggregator hosts and dated news paths are skipped; company product/blog paths are not. Headline leftover names (`Nirvana Nearly Doubles`) are gated before Hunter. Successful lookups persist to `extracted_data.outreach_contact` so the next daily run does not re-hunt.
+
+**Startups (legacy intake path):** uses `submitted_email` when present (excluding scraper placeholders like `bulk@import.com`). Otherwise infers `info@{domain}` when the website has MX records.
 
 **VCs:** uses `email_best_guess` from the email inference script (`npm run enrich:emails`) — personal partner permutations first, then intake slugs.
 
@@ -140,7 +142,7 @@ Override via env:
 OUTREACH_VC_SCHEDULE="0 9 * * 1"      # Monday 9am
 OUTREACH_STARTUP_SCHEDULE="0 9 * * 3"  # Wednesday 9am
 OUTREACH_LIMIT=20
-OUTREACH_SCAN=400                      # founder run scan depth
+OUTREACH_SCAN=400                      # founder run scan depth (skips already-contacted before Hunter)
 ```
 
 ---
@@ -177,7 +179,9 @@ where bounced_at is not null;
 
 ## Matching engine
 
-Outreach uses the same **6-component match model** as instant submit (`lib/outreachMatch.js`):
+Founder emails and in-app drafts use the **same recorded shortlist**: firm-deduped `startup_investor_matches` via `lib/founderTopMatchesAgent.js` (`uniqueTopMatches` / `loadCanonicalOutreachMatches`). Peter sends the top 3; the wizard outreach package and `GET /api/outreach/canonical-matches/:startup_id` show the top 5. Do not draft from a client-supplied preview list when a startup id exists.
+
+Outreach scoring (VC digest / live re-rank) uses the same **6-component match model** as instant submit (`lib/outreachMatch.js`):
 
 | Component | Weight | What it measures |
 |-----------|--------|------------------|
