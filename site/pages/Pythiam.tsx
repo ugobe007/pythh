@@ -31,6 +31,9 @@ interface TrackRecord {
     median_days_to_funding?: number | null;
     avg_moic?: number | null;
     verified_avg_moic?: number | null;
+    verified_early_picks?: number | null;
+    verified_moic_sum?: number | null;
+    early_picks?: number | null;
     best_moic?: number | null;
     moic_note?: string | null;
     entry_god_threshold?: number;
@@ -343,17 +346,18 @@ export default function PythiamPage() {
                 <p className="mt-3 text-sm font-medium" style={{ color: TEXT }}>
                   Verified MOIC
                 </p>
-                <p className="text-[11px] font-mono mt-1 max-w-[28ch]" style={{ color: DIM }}>
-                  Press-confirmed raises only
-                  {oracle?.moic_note ? ` · ${oracle.moic_note}` : ""}
+                <p className="text-[11px] font-mono mt-1 max-w-[36ch]" style={{ color: DIM }}>
+                  {oracle?.verified_early_picks
+                    ? `${oracle.verified_moic_sum ?? "—"} / ${oracle.verified_early_picks} early picks · press-confirmed raises after entry`
+                    : "Press-confirmed raises only"}
                 </p>
               </div>
 
               <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 lg:gap-x-10 lg:border-l lg:pl-12 pt-2" style={{ borderColor: BORDER }}>
                 <MetricLine
                   value={avgMoic != null ? `${avgMoic}×` : "—"}
-                  label="Avg MOIC"
-                  sub="incl. signal marks"
+                  label="Early book"
+                  sub={oracle?.early_picks ? `${oracle.early_picks} names incl. 1.0× and write-offs` : "full early book"}
                   color={GOLD}
                 />
                 <MetricLine

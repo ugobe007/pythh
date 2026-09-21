@@ -69,6 +69,9 @@ interface PortfolioMetrics {
   avg_moic: number | null;
   headline_avg_moic?: number | null;
   verified_avg_moic?: number | null;
+  verified_early_picks?: number | null;
+  verified_moic_sum?: number | null;
+  early_picks?: number | null;
   total_virtual_deployed_usd: number;
 }
 
@@ -455,6 +458,9 @@ interface FundScoreboard {
   verified_funded_picks?: number;
   verified_funded_rate_pct?: number;
   verified_avg_moic?: number | null;
+  verified_early_picks?: number | null;
+  verified_moic_sum?: number | null;
+  early_picks?: number | null;
   avg_moic?: number | null;
   check_usd?: number;
 }
@@ -590,10 +596,32 @@ export default function Portfolio() {
   const statStrip = metrics
     ? [
         {
+          value:
+            metrics.verified_avg_moic != null
+              ? `${metrics.verified_avg_moic}×`
+              : "—",
+          label: "Verified MOIC",
+          valueColor: G,
+          accent: true,
+          sub:
+            metrics.verified_early_picks
+              ? `${metrics.verified_moic_sum ?? "—"} / ${metrics.verified_early_picks} early picks · press-verified after entry`
+              : "early picks with a press-confirmed raise after entry",
+        },
+        {
+          value: metrics.avg_moic != null ? `${metrics.avg_moic}×` : "—",
+          benchmark: analytics?.value.avg_moic_industry_avg
+            ? `${analytics.value.avg_moic_industry_avg}×`
+            : undefined,
+          label: "Early book",
+          sub: metrics.early_picks
+            ? `${metrics.early_picks} names · includes 1.0× and write-offs`
+            : "all early picks · equal-weighted",
+        },
+        {
           value: String(metrics.verified_funded_picks ?? 0),
           label: "Verified funded",
-          sub: metrics.verified_funded_rate_pct ? `${metrics.verified_funded_rate_pct}% of picks` : undefined,
-          accent: true,
+          sub: metrics.verified_funded_rate_pct ? `${metrics.verified_funded_rate_pct}% of clean picks` : undefined,
         },
         {
           value: String(metrics.signal_funded_picks ?? Math.max(0, (metrics.funded_picks ?? 0) - (metrics.verified_funded_picks ?? 0))),
@@ -611,22 +639,6 @@ export default function Portfolio() {
           sub: metrics.excluded_picks
             ? `${metrics.all_picks ?? metrics.total_picks} selected · ${metrics.excluded_picks} excluded`
             : `${metrics.active_picks ?? 0} active`,
-        },
-        {
-          value:
-            metrics.headline_avg_moic != null
-              ? `${metrics.headline_avg_moic}×`
-              : metrics.avg_moic != null
-              ? `${metrics.avg_moic}×`
-              : "—",
-          benchmark: analytics?.value.avg_moic_industry_avg
-            ? `${analytics.value.avg_moic_industry_avg}×`
-            : undefined,
-          label: "Avg MOIC",
-          valueColor: G,
-          sub: metrics.verified_avg_moic
-            ? `verified ${metrics.verified_avg_moic}× · early seed picks · capped ${analytics?.value?.per_position_moic_cap ?? 50}×`
-            : "early seed picks · press-verified rounds",
         },
         {
           value:
@@ -651,10 +663,10 @@ export default function Portfolio() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE, color: "oklch(0.94 0.005 264)" }}>
       <Helmet>
-        <title>Oracle Portfolio — Pythh.ai</title>
+        <title>Oracle Portfolio — Verified MOIC — Pythh.ai</title>
         <meta
           name="description"
-          content="Public scoreboard for the Pythh virtual fund — verified funded picks, GOD-tier tracking, and live portfolio signals."
+          content="Public scoreboard for Pythh_1 and Pythh_2. Verified MOIC is the equal-weighted mark on early picks with a press-confirmed raise after entry."
         />
       </Helmet>
 
@@ -668,8 +680,9 @@ export default function Portfolio() {
             Pythh_1 and Pythh_2
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: MUTED }}>
-            Two virtual books. Pythh_1 is the locked first vintage. Pythh_2 is the open second
-            vintage — new picks land here and start at 1.0× until a press-verified raise after entry.
+            Two virtual books. Verified MOIC is the equal-weighted mark on early picks that later
+            raised in the press. The early book sits next to it — same vintage, including names still
+            at 1.0× and write-offs. New picks land in Pythh_2.
           </p>
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             {(funds.length
@@ -754,8 +767,10 @@ export default function Portfolio() {
                         Verified MOIC
                       </div>
                       <div className="text-[10px] font-mono" style={{ color: DIM }}>
-                        {verifiedMoic != null
-                          ? "press-verified rounds"
+                        {verifiedMoic != null && f.verified_early_picks
+                          ? `${f.verified_moic_sum ?? verifiedMoic} / ${f.verified_early_picks} early`
+                          : verifiedMoic != null
+                          ? "press-verified after entry"
                           : f.key === "pythh_2"
                           ? "until post-entry proof"
                           : "early picks only"}
@@ -777,7 +792,7 @@ export default function Portfolio() {
           <div className="h-20 mb-10 animate-pulse rounded-lg" style={{ backgroundColor: CARD }} />
         ) : metrics ? (
           <div
-            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-0 mb-10 py-6 border-y divide-x divide-white/5"
+            className="grid grid-cols-2 md:grid-cols-4 gap-0 mb-10 py-6 border-y divide-x divide-white/5"
             style={{ borderColor: BORDER }}
           >
             {statStrip.map((s) => (

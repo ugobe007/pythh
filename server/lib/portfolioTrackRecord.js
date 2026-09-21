@@ -101,24 +101,36 @@ function postEntryFundingSets(picks = [], fundingEvents = []) {
   return { fundedIds, verifiedFundedIds, pickById };
 }
 
-/** Mean MOIC on clean early picks with a press-verified raise after Oracle entry. */
-function averageVerifiedMoic(picks, verifiedFundedIds) {
-  const moics = (picks || [])
-    .filter((p) => !p.entity_quarantined && !p.entered_late)
-    .filter((p) => verifiedFundedIds.has(p.id) && p.moic != null)
+/** Equal-weighted MOIC on clean early picks with a press-verified raise after entry. */
+function verifiedMoicSubset(picks = [], verifiedFundedIds) {
+  const early = (picks || []).filter(
+    (p) => !p.entity_quarantined && !p.entered_late && p.moic != null
+  );
+  const earlyMoics = early.map((p) => Number(p.moic)).filter((n) => Number.isFinite(n));
+  const verifiedMoics = early
+    .filter((p) => verifiedFundedIds.has(p.id))
     .map((p) => Number(p.moic))
     .filter((n) => Number.isFinite(n));
-  if (!moics.length) return null;
-  return Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100;
+  const verifiedSum = verifiedMoics.reduce((a, b) => a + b, 0);
+  const earlySum = earlyMoics.reduce((a, b) => a + b, 0);
+  return {
+    early_picks: earlyMoics.length,
+    verified_early_picks: verifiedMoics.length,
+    verified_moic_sum: verifiedMoics.length ? Math.round(verifiedSum * 100) / 100 : null,
+    verified_avg_moic: verifiedMoics.length
+      ? Math.round((verifiedSum / verifiedMoics.length) * 100) / 100
+      : null,
+    avg_moic: earlyMoics.length ? Math.round((earlySum / earlyMoics.length) * 100) / 100 : null,
+  };
+}
+
+/** Mean MOIC on clean early picks with a press-verified raise after Oracle entry. */
+function averageVerifiedMoic(picks, verifiedFundedIds) {
+  return verifiedMoicSubset(picks, verifiedFundedIds).verified_avg_moic;
 }
 
 function earlyAvgMoic(positions = []) {
-  const moics = (positions || [])
-    .filter((p) => !p.entity_quarantined && !p.entered_late && p.moic != null)
-    .map((p) => Number(p.moic))
-    .filter((n) => Number.isFinite(n));
-  if (!moics.length) return null;
-  return Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100;
+  return verifiedMoicSubset(positions, new Set()).avg_moic;
 }
 
 function scoreboardForFund(fundMeta, positions = [], outcomeEvents = [], lock = {}) {
@@ -126,6 +138,7 @@ function scoreboardForFund(fundMeta, positions = [], outcomeEvents = [], lock = 
   const lockNote = lock.lockNote || (() => (fundMeta.locked ? 'LOCKED' : 'OPEN'));
   const metrics = applyCleanPortfolioMetrics({}, positions, outcomeEvents);
   const { verifiedFundedIds } = postEntryFundingSets(positions, outcomeEvents);
+  const subset = verifiedMoicSubset(positions, verifiedFundedIds);
   return {
     ...fundMeta,
     locked: isFundLocked(fundMeta.key),
@@ -135,8 +148,11 @@ function scoreboardForFund(fundMeta, positions = [], outcomeEvents = [], lock = 
     verified_funded_picks: metrics.verified_funded_picks,
     verified_funded_rate_pct: metrics.verified_funded_rate_pct,
     funded_picks: metrics.funded_picks,
-    verified_avg_moic: averageVerifiedMoic(positions, verifiedFundedIds),
-    avg_moic: earlyAvgMoic(positions),
+    verified_avg_moic: subset.verified_avg_moic,
+    verified_early_picks: subset.verified_early_picks,
+    verified_moic_sum: subset.verified_moic_sum,
+    early_picks: subset.early_picks,
+    avg_moic: subset.avg_moic,
     total_virtual_deployed_usd: metrics.total_virtual_deployed_usd,
   };
 }
@@ -298,7 +314,7 @@ async function computeTrackRecord(supabase, { fundKey } = {}) {
       ? null
       : firstFundingDays[Math.floor(firstFundingDays.length / 2)];
 
-  const verifiedAvgMoic = averageVerifiedMoic(picks || [], verifiedFundedIds);
+  const subset = verifiedMoicSubset(picks || [], verifiedFundedIds);
 
   const byGodTier = GOD_TIERS.map(({ label, min, max }) => {
     const tierPicks = (picks || []).filter(
@@ -353,9 +369,14 @@ async function computeTrackRecord(supabase, { fundKey } = {}) {
       entry_god_threshold: entryThreshold,
       oracle_picks_at_threshold: oraclePicks.length,
       median_days_to_funding: medianDaysToFunding,
-      verified_avg_moic: verifiedAvgMoic,
+      verified_avg_moic: subset.verified_avg_moic,
+      verified_early_picks: subset.verified_early_picks,
+      verified_moic_sum: subset.verified_moic_sum,
+      early_picks: subset.early_picks,
       moic_note:
-        'Verified avg MOIC is the mean mark on clean early picks with a press-confirmed raise after Oracle entry.',
+        subset.verified_early_picks
+          ? `Verified MOIC is ${subset.verified_moic_sum} / ${subset.verified_early_picks} on early picks with a press-confirmed raise after entry. Full early book is ${subset.avg_moic}× across ${subset.early_picks} names, including cost marks and write-offs.`
+          : 'Verified avg MOIC is the mean mark on clean early picks with a press-confirmed raise after Oracle entry.',
     },
     by_god_tier: byGodTier,
     featured_pick: featuredPick,
@@ -377,6 +398,7 @@ module.exports = {
   applyCleanPortfolioMetrics,
   postEntryFundingSets,
   averageVerifiedMoic,
+  verifiedMoicSubset,
   earlyAvgMoic,
   scoreboardForFund,
   summarizePortfolioFunds,
