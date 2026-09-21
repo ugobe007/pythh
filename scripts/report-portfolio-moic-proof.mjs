@@ -23,6 +23,7 @@ const { filterByFund, listFunds } = require('../server/lib/portfolioFunds.js');
 const { applyCleanPortfolioMetrics, averageVerifiedMoic, postEntryFundingSets } = require('../server/lib/portfolioTrackRecord.js');
 const { assessFundingSource } = require('../server/lib/fundingSourceTrust.js');
 const { classifyFundingEvidence } = loadFundingEvidenceLedger();
+const { isRumorFundingHeadline } = require('../server/lib/portfolioFundingVerify.js');
 
 const APPLY = process.argv.includes('--apply');
 const asJson = process.argv.includes('--json');
@@ -149,6 +150,7 @@ async function main() {
     const pick = pickByStartup.get(event.startup_id);
     if (!pick?.entry_date) continue;
     if (!trustedLedgerEvent(event)) continue;
+    if (isRumorFundingHeadline(event.source_title)) continue;
     const at = event.occurred_at || event.announced_at;
     if (!at || new Date(at) < new Date(pick.entry_date)) continue;
     const key = `${event.startup_id}:${String(at).slice(0, 10)}`;

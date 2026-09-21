@@ -91,18 +91,22 @@ async function main() {
   const startupById = new Map(startups.map((row) => [row.id, row]));
   const investorById = new Map(investors.map((row) => [row.id, row]));
 
-  const examples = official
-    .slice()
-    .sort((a, b) => b.days_after_match - a.days_after_match)
-    .slice(0, 25)
-    .map((row) => ({
+  const examples = [];
+  const seenPair = new Set();
+  for (const row of official.slice().sort((a, b) => b.days_after_match - a.days_after_match)) {
+    const key = `${row.startup_id}:${row.investor_id}`;
+    if (seenPair.has(key)) continue;
+    seenPair.add(key);
+    examples.push({
       startup: startupById.get(row.startup_id)?.name || row.startup_id,
       investor: investorById.get(row.investor_id)?.firm || investorById.get(row.investor_id)?.name || row.investor_id,
       day_1: row.match_created_at,
       funded_at: row.event_at,
       days_after_match: row.days_after_match,
       source_url: row.source_url,
-    }));
+    });
+    if (examples.length >= 25) break;
+  }
 
   const clockByStartup = new Map();
   for (const row of queue) {
