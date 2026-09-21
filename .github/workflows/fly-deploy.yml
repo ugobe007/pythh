@@ -16,11 +16,11 @@ jobs:
       group: fly-deploy-${{ github.repository }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
-      # Setup Node.js (22+ avoids GitHub deprecation warnings for Node 20 runners)
+      # Job runtime stays Node 22; setup-node@v5 is the Node 24 action runtime.
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
