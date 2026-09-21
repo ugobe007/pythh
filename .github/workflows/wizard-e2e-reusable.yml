@@ -45,7 +45,7 @@ jobs:
           SMOKE_URL: stripe.com
         run: npx playwright test tests/wizard-unlock-funnel.spec.ts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: wizard-e2e-${{ github.run_id }}

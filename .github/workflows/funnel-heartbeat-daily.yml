@@ -41,7 +41,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: npm run product:metrics
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: funnel-heartbeat-${{ github.run_id }}
