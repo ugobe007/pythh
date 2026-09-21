@@ -511,6 +511,7 @@ export default function Portfolio() {
     setError(null);
     setEntries([]);
     setMetrics(null);
+    setAnalytics(null);
 
     // Surface a "still loading" hint if a cold backend is slow to wake.
     const slowTimer = setTimeout(() => setSlowHint(true), 6000);

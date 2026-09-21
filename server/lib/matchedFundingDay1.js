@@ -42,18 +42,22 @@ function officialDay1Pairs(evidenceRows = [], matchById = new Map()) {
 function summarizeOfficialPairs(pairs = []) {
   const startups = new Set();
   const investors = new Set();
+  const uniquePairs = new Set();
   let minDays = null;
   let maxDays = null;
   for (const row of pairs) {
     if (row.startup_id) startups.add(row.startup_id);
     if (row.investor_id) investors.add(row.investor_id);
+    if (row.startup_id && row.investor_id) {
+      uniquePairs.add(`${row.startup_id}:${row.investor_id}`);
+    }
     const days = Number(row.days_after_match);
     if (!Number.isFinite(days)) continue;
     if (minDays == null || days < minDays) minDays = days;
     if (maxDays == null || days > maxDays) maxDays = days;
   }
   return {
-    official_pairs: pairs.length,
+    official_pairs: uniquePairs.size,
     startups_with_official_pair: startups.size,
     investors_in_official_pairs: investors.size,
     min_days_after_match: minDays,
