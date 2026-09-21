@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import {
   Send, RefreshCw, Mail, Eye, ExternalLink, Loader2,
-  FileText, Inbox, MessageSquare, X, CheckSquare, Square, AlertCircle,
+  FileText, Inbox, MessageSquare, X, CheckSquare, Square, AlertCircle, RotateCw,
 } from "lucide-react";
 import { apiUrl } from "../lib/apiConfig";
 
@@ -168,6 +168,7 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [resetting, setResetting] = useState(false);
 
   const loadInbox = useCallback(async () => {
@@ -200,6 +201,27 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
   function selectAllDrafts() {
     if (selected.size === drafts.length) setSelected(new Set());
     else setSelected(new Set(drafts.map((d) => d.id)));
+  }
+
+  async function regenerateSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Update ${selected.size} draft(s) to Peter's current email language? Same recipients and startup list.`)) return;
+    setRegenerating(true);
+    try {
+      const r = await fetch(apiUrl("/api/outreach/regenerate-drafts"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? "Regenerate failed"); return; }
+      alert(`Updated ${d.updated ?? 0} draft(s). Open Preview to review the new language.`);
+      setSelected(new Set());
+      loadInbox();
+      onRefresh();
+    } finally {
+      setRegenerating(false);
+    }
   }
 
   async function sendSelected() {
@@ -296,7 +318,13 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
             {selected.size === drafts.length ? "Deselect all" : "Select all"}
           </button>
           <span style={{ fontSize: 11, color: "oklch(0.45 0.01 264)" }}>{selected.size} selected</span>
-          <button onClick={sendSelected} disabled={selected.size === 0 || sending}
+          <button onClick={regenerateSelected} disabled={selected.size === 0 || regenerating || sending}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: "pointer",
+              border: "1px solid oklch(0.35 0.15 270)", background: selected.size > 0 && !regenerating ? "oklch(0.18 0.01 264)" : "transparent",
+              color: selected.size > 0 ? "oklch(0.75 0.15 270)" : "oklch(0.4 0.01 264)", opacity: regenerating ? 0.6 : 1 }}>
+            {regenerating ? <><Loader2 size={13} className="animate-spin" /> Updating copy…</> : <><RotateCw size={13} /> Update copy</>}
+          </button>
+          <button onClick={sendSelected} disabled={selected.size === 0 || sending || regenerating}
             style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
               border: "1px solid oklch(0.65 0.2 25)", background: selected.size > 0 ? "oklch(0.55 0.2 25)" : "transparent",
               color: selected.size > 0 ? "#fff" : "oklch(0.4 0.01 264)", opacity: sending ? 0.6 : 1 }}>
@@ -504,7 +532,10 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
             draftOnly: true,
           });
         } else if (d.reason === "enough_drafts") {
-          setAutoStatus(`${d.draftCount} unique firms ready`);
+          setAutoStatus(d.refreshed > 0
+            ? `${d.draftCount} unique firms ready · updated ${d.refreshed} draft${d.refreshed === 1 ? "" : "s"} to current copy`
+            : `${d.draftCount} unique firms ready`);
+          if (d.refreshed > 0) onLaunched();
         } else if (d.reason === "already_running") {
           setAutoStatus("Draft generation already in progress…");
           if (d.jobId) {

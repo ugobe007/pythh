@@ -283,6 +283,14 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
       });
       const d = await r.json();
       if (!r.ok) { alert(d.error ?? "Regenerate failed"); setRegenerating(false); return; }
+      if (d.inProcess || d.status === "done") {
+        alert(`Updated ${d.updated ?? 0} draft(s). Open Preview to review the new language.`);
+        setSelected(new Set());
+        setRegenerating(false);
+        loadInbox();
+        onRefresh();
+        return;
+      }
       if (!d.triggered) {
         alert(d.reason === "already_running" ? "Another outreach job is already running." : "Regenerate failed");
         setRegenerating(false);
