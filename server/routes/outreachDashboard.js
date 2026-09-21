@@ -106,6 +106,52 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const db = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 const { normalizeFirmKey, recipientRank } = require("../../lib/outreachFirmDedup.js");
 const { getOutreachFromAddress, getOutreachFallbackAddress, isDomainNotVerifiedError } = require("../../lib/outreachFrom.js");
+const { isStalePeterVcCopy, refreshPeterVcDraft } = require("../../lib/refreshPeterVcDraft.js");
+
+async function persistRefreshedVcDraft(draft) {
+  if (draft.email_type && draft.email_type !== "vc_leads") return { updated: false, draft };
+  const refreshed = refreshPeterVcDraft(draft);
+  if (!refreshed?.changed) return { updated: false, draft };
+  const { error } = await db
+    .from("pythh_prospecting_log")
+    .update({
+      subject: refreshed.subject,
+      html_body: refreshed.html_body,
+      text_body: refreshed.text_body,
+    })
+    .eq("id", draft.id)
+    .eq("status", "draft");
+  if (error) throw new Error(error.message);
+  return {
+    updated: true,
+    draft: {
+      ...draft,
+      subject: refreshed.subject,
+      html_body: refreshed.html_body,
+      text_body: refreshed.text_body,
+    },
+  };
+}
+
+async function refreshVcDraftsByIds(draftIds) {
+  const { data, error } = await db
+    .from("pythh_prospecting_log")
+    .select("id, email_type, subject, html_body, text_body, target_name, status")
+    .in("id", draftIds)
+    .eq("status", "draft");
+  if (error) throw new Error(error.message);
+  let updated = 0;
+  const skipped = [];
+  for (const draft of data ?? []) {
+    if (draft.email_type !== "vc_leads") {
+      skipped.push(draft.id);
+      continue;
+    }
+    const result = await persistRefreshedVcDraft(draft);
+    if (result.updated) updated += 1;
+  }
+  return { updated, scanned: (data ?? []).length, skipped: skipped.length };
+}
 
 /** Remove duplicate VC drafts — keep one recipient per firm (prefer intake@). */
 async function dedupeVcDrafts(campaign) {
@@ -333,12 +379,26 @@ router.post("/ensure-drafts", express.json(), async (req, res) => {
 
     const draftCount = await countUniqueVcFirmDrafts(campaign);
     if (draftCount >= minDrafts) {
+      const { data: existing } = await db
+        .from("pythh_prospecting_log")
+        .select("id, email_type, subject, html_body, text_body, target_name, status")
+        .eq("status", "draft")
+        .eq("email_type", "vc_leads")
+        .eq("campaign_slug", campaign)
+        .limit(100);
+      let refreshed = 0;
+      for (const draft of existing ?? []) {
+        if (!isStalePeterVcCopy(draft.html_body, draft.text_body, draft.subject)) continue;
+        const result = await persistRefreshedVcDraft(draft);
+        if (result.updated) refreshed += 1;
+      }
       return res.json({
         triggered: false,
         reason: "enough_drafts",
         draftCount,
         campaign,
         deduped: dedupeResult.removed,
+        refreshed,
       });
     }
 
@@ -411,6 +471,14 @@ router.get("/message/:id", async (req, res) => {
       .maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
     if (!data) return res.status(404).json({ error: "Not found" });
+    if (data.status === "draft" && data.email_type === "vc_leads" && isStalePeterVcCopy(data.html_body, data.text_body, data.subject)) {
+      try {
+        const result = await persistRefreshedVcDraft(data);
+        return res.json({ message: result.draft, refreshed: result.updated });
+      } catch (refreshErr) {
+        console.error("[outreachDashboard] draft copy refresh failed:", refreshErr.message);
+      }
+    }
     res.json({ message: data });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -465,17 +533,15 @@ router.post("/regenerate-drafts", express.json(), async (req, res) => {
       return res.status(400).json({ error: "Max 100 drafts per regenerate job" });
     }
 
-    const running = runningOutreachJob();
-    if (running) {
-      return res.json({
-        triggered: false,
-        reason: "already_running",
-        jobId: running.jobId,
-      });
-    }
-
-    const jobId = spawnOutreachJob({ regenerateIds: draftIds });
-    res.json({ triggered: true, jobId, status: "running", count: draftIds.length });
+    const result = await refreshVcDraftsByIds(draftIds);
+    res.json({
+      triggered: true,
+      inProcess: true,
+      status: "done",
+      count: draftIds.length,
+      updated: result.updated,
+      scanned: result.scanned,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
