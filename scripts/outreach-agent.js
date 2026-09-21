@@ -65,7 +65,6 @@ const {
   isResendSandboxError,
   isSandboxFromAddress,
 } = require("../lib/outreachFrom.js");
-const { pickMarketObservation } = require("../lib/outreachMarketIntel.js");
 const { isFirstPeterFounderContact } = require("../lib/peterOutreachHelpers.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
@@ -276,7 +275,7 @@ async function logSent({ email, actualRecipient, emailType, targetId, targetName
 
 // ── Shared email builders (draft + regenerate) ────────────────────────────────
 
-function buildVcEmailBundle(inv, startupPool, usedObservationCompanies, campaign) {
+function buildVcEmailBundle(inv, startupPool) {
   const email = inv.email_best_guess;
   if (!email) return null;
 
@@ -301,21 +300,15 @@ function buildVcEmailBundle(inv, startupPool, usedObservationCompanies, campaign
   const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
   const displayName = inv.name ? `${inv.name} · ${firmLabel}` : firmLabel;
   const greeting = outreachGreeting({ ...inv, firm: firmLabel }, emailType);
-  const marketObservation = pickMarketObservation({
-    investor: inv,
-    leads,
-    usedCompanies: usedObservationCompanies,
-    campaign,
-  });
+  const featuredStartup = (leads[0]?.name ?? leads[0]?.website ?? "").trim();
   const subject = vcSubject({
-    sector: primarySector,
     firm: firmLabel,
     emailType,
     count: leads.length,
   });
   const investorCtx = { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType };
-  const html = vcEmail({ investor: investorCtx, leads, greeting, marketObservation });
-  const text = vcEmailText({ investor: investorCtx, leads, greeting, marketObservation });
+  const html = vcEmail({ investor: investorCtx, leads, greeting, featuredStartup });
+  const text = vcEmailText({ investor: investorCtx, leads, greeting, featuredStartup });
 
   return { email, subject, html, text, displayName, emailType, leadCount: leads.length };
 }
@@ -425,7 +418,6 @@ async function runRegenerateMode() {
     console.log(`[Regenerate] Loaded ${investorPool.length} investors for startup drafts\n`);
   }
 
-  const usedObservationCompanies = new Set();
   let updated = 0;
 
   for (const draft of drafts) {
@@ -443,12 +435,7 @@ async function runRegenerateMode() {
         continue;
       }
 
-      const bundle = buildVcEmailBundle(
-        inv,
-        startupPool,
-        usedObservationCompanies,
-        draft.campaign_slug ?? CAMPAIGN
-      );
+      const bundle = buildVcEmailBundle(inv, startupPool);
       if (!bundle) {
         console.log("✗ no matches");
         continue;
@@ -550,7 +537,6 @@ async function runVcMode() {
   let sent = 0;
   let skippedIntake = 0;
   let skippedJunk = 0;
-  const usedObservationCompanies = new Set();
 
   for (const inv of deduped) {
     if (sent >= LIMIT) break;
@@ -588,7 +574,7 @@ async function runVcMode() {
       continue;
     }
 
-    const bundle = buildVcEmailBundle(inv, startupPool, usedObservationCompanies, CAMPAIGN);
+    const bundle = buildVcEmailBundle(inv, startupPool);
     if (!bundle) {
       console.log(`  [skip] No scored matches for ${inv.name}`);
       continue;
@@ -596,7 +582,7 @@ async function runVcMode() {
 
     const { subject, html, text, displayName, emailType, leadCount } = bundle;
 
-    process.stdout.write(`  Sending to ${inv.name} <${email}> [${emailType}] (${leadCount} signals)… `);
+    process.stdout.write(`  Sending to ${inv.name} <${email}> [${emailType}] (${leadCount} startups)… `);
     const result = await sendEmail({
       to: email,
       subject,
@@ -736,7 +722,7 @@ async function runStartupMode() {
 
 // ── VC leads email (HTML) ─────────────────────────────────────────────────────
 
-function vcEmail({ investor, leads, greeting, marketObservation }) {
+function vcEmail({ investor, leads, greeting, featuredStartup }) {
   const sector = investor.sector ?? "technology";
   const emailType = investor.emailType ?? "intake";
   const isPersonal = emailType === "personal";
@@ -775,22 +761,15 @@ function vcEmail({ investor, leads, greeting, marketObservation }) {
     </tr>`;
   }).join("");
 
-  const headline = vcHeadline({ sector, count: leads.length });
+  const headline = vcHeadline({ count: leads.length });
   const opening = vcOpening({
     greeting,
     firm: investor.firm,
     isPersonal,
-    count: leads.length,
-    marketObservation,
+    featuredStartup,
   });
   const footnote = vcFootnote();
-  const methodology = vcMethodology({
-    firm: investor.firm,
-    sector,
-    stage: investor.stage,
-    checkSize: investor.checkSize,
-    isPersonal,
-  });
+  const methodology = vcMethodology();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -875,24 +854,16 @@ function vcEmail({ investor, leads, greeting, marketObservation }) {
 </html>`;
 }
 
-function vcEmailText({ investor, leads, greeting, marketObservation }) {
-  const sector = investor.sector ?? "technology";
+function vcEmailText({ investor, leads, greeting, featuredStartup }) {
   const isPersonal = (investor.emailType ?? "intake") === "personal";
-  const headline = vcHeadline({ sector, count: leads.length });
+  const headline = vcHeadline({ count: leads.length });
   const opening = vcOpening({
     greeting,
     firm: investor.firm,
     isPersonal,
-    count: leads.length,
-    marketObservation,
+    featuredStartup,
   });
-  const methodology = vcMethodology({
-    firm: investor.firm,
-    sector,
-    stage: investor.stage,
-    checkSize: investor.checkSize,
-    isPersonal,
-  });
+  const methodology = vcMethodology();
 
   const leadsText = leads
     .slice(0, 10)
