@@ -591,7 +591,7 @@ export default function Newsletter() {
         <meta property="og:url" content="https://pythh.ai/newsletter" />
       </Helmet>
 
-      <SharedNavbar activePath="/newsletter" />
+      <SharedNavbar activePath="/newsletter" hidePrimaryCta />
 
       <section className="pt-20 pb-14 lg:pb-16 relative overflow-hidden" style={{ backgroundColor: PURPLE_WASH }}>
         <div className="container max-w-[720px] mx-auto px-6 relative z-10 text-center">
