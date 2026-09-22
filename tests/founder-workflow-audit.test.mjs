@@ -28,15 +28,12 @@ function urlsShareDomain(a, b) {
 
 function startupAlreadyOnAccount(opts) {
   const previewId = String(opts.previewStartupId || '').trim();
-  if (
-    previewId &&
-    (opts.profileStartupId === previewId || opts.pinnedStartupId === previewId)
-  ) {
+  if (previewId && opts.profileStartupId === previewId) {
     return true;
   }
   const previewUrl = String(opts.previewUrl || '').trim();
   if (!previewUrl) return false;
-  return urlsShareDomain(previewUrl, opts.profileUrl) || urlsShareDomain(previewUrl, opts.pinnedUrl);
+  return urlsShareDomain(previewUrl, opts.profileUrl);
 }
 
 test('account hub has one CTA after save — Upgrade to Oracle', () => {
@@ -64,10 +61,13 @@ test('saved preview does not re-offer Save or bounce back to itself', () => {
   assert.match(preview, /alreadyOnAccount/);
   assert.match(preview, /startupAlreadyOnAccount/);
   assert.match(preview, /Review your account/);
+  assert.match(preview, /href=\{savedMatchesPath\(\)\}/);
   assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
+  assert.match(preview, /if \(isAuthenticated\) \{/);
   assert.match(preview, /if \(alreadyOnAccount\)/);
   assert.doesNotMatch(preview, /Open your saved matches/);
   assert.doesNotMatch(preview, /Open full match list/);
+  assert.doesNotMatch(preview, /Confirm your round/);
 
   assert.match(gate, /export function startupAlreadyOnAccount/);
   assert.match(gate, /if \(!left \|\| !right\) return false/);
@@ -96,6 +96,16 @@ test('activation email and wizard do not reopen the three-CTA save loop', () => 
   assert.doesNotMatch(wizard, /Back to my full match list/);
 });
 
+test('signed-in preview CTA is a real /account link, never a dead Save or signup', () => {
+  const preview = read('site/components/InstantMatchPreview.tsx');
+  assert.match(preview, /href=\{savedMatchesPath\(\)\}/);
+  assert.match(preview, /These matches are on your account/);
+  assert.match(preview, /const alreadySaved = Boolean\(isAuthenticated\)/);
+  assert.match(preview, /if \(isAuthenticated\) \{/);
+  assert.match(preview, /openAccount\(\)/);
+  assert.doesNotMatch(preview, /canConfirmRound/);
+});
+
 test('saved-startup identity requires an id or a real domain, never an empty URL', () => {
   assert.equal(startupAlreadyOnAccount({ previewUrl: 'https://neon.tech' }), false);
   assert.equal(
@@ -114,7 +124,7 @@ test('saved-startup identity requires an id or a real domain, never an empty URL
       previewUrl: 'https://neon.tech',
       pinnedUrl: 'neon.tech',
     }),
-    true,
+    false,
   );
   assert.equal(
     startupAlreadyOnAccount({

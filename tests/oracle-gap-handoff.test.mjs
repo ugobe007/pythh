@@ -8,7 +8,8 @@ test('new users see matches before signup and stay on matches after', async () =
   const preview = await read('site/components/InstantMatchPreview.tsx');
   assert.match(preview, /keep these \$\{visible\.length\} matches on your profile/);
   assert.match(preview, /Save my matches/);
-  assert.match(preview, /Confirm your round/);
+  assert.match(preview, /Review your account/);
+  assert.match(preview, /href=\{savedMatchesPath\(\)\}/);
   assert.match(preview, /Improve my matches/);
   assert.match(preview, /Skip — save my matches/);
   assert.match(preview, /handleSignup\('save'\)/);
