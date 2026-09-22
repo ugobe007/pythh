@@ -82,12 +82,16 @@ function buildWhy(startup, signal) {
 }
 
 // ── Section fetchers ───────────────────────────────────────────────────────────
-async function fetchInvestorOfWeek(supabase, weekAgo) {
-  const { data: recent } = await supabase
+async function fetchInvestorOfWeek(supabase, weekAgo, upperBound = null) {
+  let query = supabase
     .from('startup_investor_matches')
     .select('investor_id, match_score')
     .gte('created_at', weekAgo)
-    .not('investor_id', 'is', null)
+    .not('investor_id', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: recent } = await query
     .order('match_score', { ascending: false })
     .limit(200);
 
@@ -119,12 +123,16 @@ async function fetchInvestorOfWeek(supabase, weekAgo) {
   };
 }
 
-async function fetchFundingRounds(supabase, weekAgo) {
-  const { data } = await supabase
+async function fetchFundingRounds(supabase, weekAgo, upperBound = null) {
+  let query = supabase
     .from('discovered_startups')
     .select('name, funding_amount, funding_stage, investors_mentioned, article_url, article_date, rss_source')
     .gte('created_at', weekAgo)
-    .not('funding_amount', 'is', null)
+    .not('funding_amount', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data } = await query
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -143,13 +151,17 @@ async function fetchFundingRounds(supabase, weekAgo) {
     }));
 }
 
-async function fetchGODScoreMovers(supabase, weekAgo) {
-  const { data: history } = await supabase
+async function fetchGODScoreMovers(supabase, weekAgo, upperBound = null) {
+  let query = supabase
     .from('score_history')
     .select('startup_id, old_score, new_score, created_at')
     .gte('created_at', weekAgo)
     .not('old_score', 'is', null)
-    .not('new_score', 'is', null)
+    .not('new_score', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: history } = await query
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -185,24 +197,33 @@ async function fetchGODScoreMovers(supabase, weekAgo) {
 }
 
 // Hottest startups WITH "why they score" — leaderboard joined to signal scores.
-async function fetchHottestStartups(supabase) {
-  const { data: top } = await supabase
+async function fetchHottestStartups(supabase, upperBound = null) {
+  let query = supabase
     .from('startup_uploads')
     .select(
       'id, name, tagline, website, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, is_competitive, has_followon, is_repeat_founder'
     )
     .eq('status', 'approved')
-    .not('total_god_score', 'is', null)
+    .not('total_god_score', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: top } = await query
     .order('total_god_score', { ascending: false })
     .limit(6);
 
   if (!top?.length) return [];
 
   const ids = top.map((s) => s.id);
-  const { data: signals } = await supabase
+  
+  let signalsQuery = supabase
     .from('startup_signal_scores')
     .select('startup_id, signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity')
     .in('startup_id', ids);
+  
+  if (upperBound) signalsQuery = signalsQuery.lte('as_of', upperBound);
+  
+  const { data: signals } = await signalsQuery;
 
   const sigMap = Object.fromEntries((signals || []).map((s) => [s.startup_id, s]));
 
@@ -233,13 +254,17 @@ async function fetchHottestStartups(supabase) {
 }
 
 // Platform-wide signal momentum — which dimensions are spiking right now.
-async function fetchSignalsThatMatter(supabase) {
-  const { data: rows } = await supabase
+async function fetchSignalsThatMatter(supabase, upperBound = null) {
+  let query = supabase
     .from('startup_signal_scores')
     .select(
       'startup_id, signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity, as_of, startup_uploads!inner ( name, sectors, total_god_score, status )'
     )
-    .eq('startup_uploads.status', 'approved')
+    .eq('startup_uploads.status', 'approved');
+  
+  if (upperBound) query = query.lte('as_of', upperBound);
+  
+  const { data: rows } = await query
     .order('as_of', { ascending: false })
     .limit(400);
 
@@ -286,12 +311,16 @@ async function fetchSignalsThatMatter(supabase) {
 }
 
 // Most interesting matches — WITH PYTHIA's reasoning, not just a score.
-async function fetchTopMatches(supabase) {
-  const { data: rawMatches } = await supabase
+async function fetchTopMatches(supabase, upperBound = null) {
+  let query = supabase
     .from('startup_investor_matches')
     .select('startup_id, investor_id, match_score, reasoning, why_you_match')
     .not('startup_id', 'is', null)
-    .not('investor_id', 'is', null)
+    .not('investor_id', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: rawMatches } = await query
     .order('match_score', { ascending: false })
     .limit(400);
 
@@ -434,6 +463,7 @@ async function generateNewsletter({ bust = false, date = null } = {}) {
   // News window: prefer fresh, but fall back across a few days so the brief is
   // never empty if the scraper hasn't run in the last 24h.
   const newsWindow = new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString();
+  const nowISO = new Date(now).toISOString();
 
   const [
     leaderboardResult,
@@ -449,54 +479,66 @@ async function generateNewsletter({ bust = false, date = null } = {}) {
     topMatches,
   ] = await Promise.all([
     // GOD score leaderboard (legacy field)
-    supabase
-      .from('startup_uploads')
-      .select('id, name, tagline, total_god_score, traction_score, team_score, sectors')
-      .eq('status', 'approved')
-      .order('total_god_score', { ascending: false })
-      .limit(8),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('id, name, tagline, total_god_score, traction_score, team_score, sectors')
+        .eq('status', 'approved');
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('total_god_score', { ascending: false }).limit(8);
+    })(),
 
     // All approved startups (for sector analysis)
-    supabase
-      .from('startup_uploads')
-      .select('sectors, total_god_score')
-      .eq('status', 'approved')
-      .not('sectors', 'is', null),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('sectors, total_god_score')
+        .eq('status', 'approved')
+        .not('sectors', 'is', null);
+      if (date) query = query.lte('created_at', nowISO);
+      return query;
+    })(),
 
     // Dark horse: high momentum, moderate GOD (sleeper picks)
-    supabase
-      .from('startup_uploads')
-      .select('name, tagline, total_god_score, momentum_score, sectors')
-      .eq('status', 'approved')
-      .gte('momentum_score', 60)
-      .lte('total_god_score', 75)
-      .order('momentum_score', { ascending: false })
-      .limit(5),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('name, tagline, total_god_score, momentum_score, sectors')
+        .eq('status', 'approved')
+        .gte('momentum_score', 60)
+        .lte('total_god_score', 75);
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('momentum_score', { ascending: false }).limit(5);
+    })(),
 
     // Recently approved (last 7 days)
-    supabase
-      .from('startup_uploads')
-      .select('name, tagline, sectors, total_god_score, created_at')
-      .eq('status', 'approved')
-      .gte('created_at', weekAgo)
-      .order('created_at', { ascending: false })
-      .limit(6),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('name, tagline, sectors, total_god_score, created_at')
+        .eq('status', 'approved')
+        .gte('created_at', weekAgo);
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('created_at', { ascending: false }).limit(6);
+    })(),
 
     // Recent RSS-scraped news (last 24h)
-    supabase
-      .from('discovered_startups')
-      .select('name, article_title, article_url, article_date, rss_source, funding_amount, funding_stage, investors_mentioned')
-      .gte('created_at', newsWindow)
-      .not('article_title', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(20),
+    (async () => {
+      let query = supabase
+        .from('discovered_startups')
+        .select('name, article_title, article_url, article_date, rss_source, funding_amount, funding_stage, investors_mentioned')
+        .gte('created_at', newsWindow)
+        .not('article_title', 'is', null);
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('created_at', { ascending: false }).limit(20);
+    })(),
 
-    safeQuery(() => fetchInvestorOfWeek(supabase, weekAgo)),
-    safeQuery(() => fetchFundingRounds(supabase, weekAgo)),
-    safeQuery(() => fetchGODScoreMovers(supabase, weekAgo)),
-    safeQuery(() => fetchHottestStartups(supabase)),
-    safeQuery(() => fetchSignalsThatMatter(supabase)),
-    safeQuery(() => fetchTopMatches(supabase)),
+    safeQuery(() => fetchInvestorOfWeek(supabase, weekAgo, date ? nowISO : null)),
+    safeQuery(() => fetchFundingRounds(supabase, weekAgo, date ? nowISO : null)),
+    safeQuery(() => fetchGODScoreMovers(supabase, weekAgo, date ? nowISO : null)),
+    safeQuery(() => fetchHottestStartups(supabase, date ? nowISO : null)),
+    safeQuery(() => fetchSignalsThatMatter(supabase, date ? nowISO : null)),
+    safeQuery(() => fetchTopMatches(supabase, date ? nowISO : null)),
   ]);
 
   const leaderboard  = leaderboardResult?.data;
