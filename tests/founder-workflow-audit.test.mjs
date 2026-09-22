@@ -39,6 +39,9 @@ function startupAlreadyOnAccount(opts) {
 test('account hub has one CTA after save — Upgrade to Oracle', () => {
   const hub = read('site/components/FounderOnboardingHub.tsx');
   assert.match(hub, /Upgrade to Oracle/);
+  assert.match(hub, /Start Scout/);
+  assert.match(hub, /Pending opportunities/);
+  assert.match(hub, /Startup profile/);
   assert.match(hub, /showUpgrade/);
   assert.doesNotMatch(hub, /Open full match list/);
   assert.doesNotMatch(hub, /Open outreach drafts/);
