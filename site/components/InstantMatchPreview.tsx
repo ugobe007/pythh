@@ -150,6 +150,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const gateCompletedRef = useRef(false);
   const emailedRef = useRef(false);
+  const emailPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     fetchGrowthAssignment('founder', 'founder_hero_entry')
@@ -179,28 +180,44 @@ export default function InstantMatchPreview({ url }: Props) {
 
   const emailReadyShortlist = async (id: string, name?: string | null) => {
     const email = (user?.email || readJoinEmail()).trim();
-    if (!email.includes('@') || emailedRef.current) return;
+    if (!email.includes('@')) return;
+    
+    // If already sent or in progress, wait for existing attempt
+    if (emailedRef.current || emailPromiseRef.current) {
+      await emailPromiseRef.current;
+      return;
+    }
+    
     // Mark as emailed immediately to prevent concurrent sends
     emailedRef.current = true;
     const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
       name: m.investor?.name || m.investor?.firm || '',
       firm: m.investor?.firm || null,
     }));
-    try {
-      await sendSavedMatchesEmail({
-        email,
-        startupId: id,
-        startupUrl: url,
-        startupName: name,
-        matchCount: preview?.total_matches ?? topInvestors.length,
-        topInvestors,
-        source: 'instant_match_preview',
-      });
-    } catch (err) {
-      console.warn('[preview] email shortlist failed:', err);
-      // Reset flag on failure so retry is allowed
-      emailedRef.current = false;
-    }
+    
+    const sendPromise = (async () => {
+      try {
+        await sendSavedMatchesEmail({
+          email,
+          startupId: id,
+          startupUrl: url,
+          startupName: name,
+          matchCount: preview?.total_matches ?? topInvestors.length,
+          topInvestors,
+          source: 'instant_match_preview',
+        });
+      } catch (err) {
+        console.warn('[preview] email shortlist failed:', err);
+        // Reset flag on failure so retry is allowed
+        emailedRef.current = false;
+        throw err;
+      } finally {
+        emailPromiseRef.current = null;
+      }
+    })();
+    
+    emailPromiseRef.current = sendPromise;
+    await sendPromise;
   };
 
   const finishAuthenticatedSave = async () => {
@@ -246,6 +263,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setUnlockedIds([]);
     gateCompletedRef.current = false;
     emailedRef.current = false;
+    emailPromiseRef.current = null;
     setSaveError(null);
     setSaving(false);
 
