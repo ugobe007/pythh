@@ -67,6 +67,8 @@ test('join form and subscribe API collect URL with email', () => {
   assert.match(form, /Your first ranked matches arrive in your inbox/);
   assert.match(form, /See my matches/);
   assert.match(form, /Opening your first five investor matches/);
+  assert.match(form, /apiUrl\("\/api\/newsletter\/subscribe"\)/);
+  assert.match(form, /onJoined\?\.\(joined\)/);
   const app = readFileSync(new URL('../site/App.tsx', import.meta.url), 'utf8');
   const newsletterPage = readFileSync(new URL('../site/pages/Newsletter.tsx', import.meta.url), 'utf8');
   assert.match(app, /path=\{\s*["']\/newsletter\/:date["']\s*\}/);
@@ -98,6 +100,52 @@ test('welcome email leads with the shortlist and never links localhost', () => {
   });
   assert.match(text, /scoring your URL/i);
   assert.match(text, /Inspect: https:\/\/pythh.ai\/matches\?url=/);
+});
+
+test('welcome send does not stamp when the shortlist is still pending', async () => {
+  const updates = [];
+  const supabase = {
+    from(table) {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        update(payload) {
+          updates.push({ table, payload });
+          return this;
+        },
+        maybeSingle: async () => ({
+          data: {
+            unsubscribe_token: 'tok',
+            welcome_sent_at: null,
+            startup_url: 'https://neon.tech',
+            startup_id: 'abc',
+          },
+          error: null,
+        }),
+      };
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  process.env.RESEND_API_KEY = 're_test';
+  process.env.NEWSLETTER_WELCOME_POLLS = '0';
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ id: 'msg_pending' }),
+  });
+  try {
+    const out = await sendSubscriberWelcome(supabase, {
+      email: 'founder@startup.com',
+      startupUrl: 'https://neon.tech',
+      startupId: 'abc',
+    });
+    assert.equal(out.sent, true);
+    assert.equal(out.pending, true);
+    assert.equal(updates.some((u) => u.payload?.welcome_sent_at), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.NEWSLETTER_WELCOME_POLLS;
+  }
 });
 
 test('welcome send skips when welcome_sent_at is already stamped', async () => {

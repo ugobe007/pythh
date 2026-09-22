@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
   founderProfiles,
+  type FounderProfile,
   fundraisingOutcomes,
   fundraisingEvidenceReviews,
   InsertSubscription,
@@ -803,39 +804,110 @@ export async function countPipelineRunsForUser(userId: number): Promise<number> 
 
 // ─── Founder profile ─────────────────────────────────────────────────────────
 
-export async function getFounderProfile(userId: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const rows = await db.select().from(founderProfiles).where(eq(founderProfiles.userId, userId)).limit(1);
-  return rows[0] ?? undefined;
+function mapRestFounderProfile(data: Record<string, unknown>): FounderProfile {
+  return {
+    userId: data.user_id as number,
+    companyName: (data.company_name as string | null) ?? null,
+    companyUrl: (data.company_url as string | null) ?? null,
+    startupId: (data.startup_id as string | null) ?? null,
+    stage: (data.stage as string | null) ?? null,
+    sector: (data.sector as string | null) ?? null,
+    askAmount: (data.ask_amount as string | null) ?? null,
+    deckFileKey: (data.deck_file_key as string | null) ?? null,
+    bio: (data.bio as string | null) ?? null,
+    linkedinUrl: (data.linkedin_url as string | null) ?? null,
+    updatedAt: new Date(String(data.updated_at || Date.now())),
+  };
 }
 
-export async function upsertFounderProfile(
-  userId: number,
-  patch: Partial<{
-    companyName: string | null;
-    companyUrl: string | null;
-    startupId: string | null;
-    stage: string | null;
-    sector: string | null;
-    askAmount: string | null;
-    deckFileKey: string | null;
-    bio: string | null;
-    linkedinUrl: string | null;
-  }>,
-) {
+async function getFounderProfileViaRest(userId: number): Promise<FounderProfile | undefined> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return undefined;
+  const { data, error } = await sb
+    .from("pythh_founder_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return mapRestFounderProfile(data as Record<string, unknown>);
+}
+
+type FounderProfilePatch = Partial<{
+  companyName: string | null;
+  companyUrl: string | null;
+  startupId: string | null;
+  stage: string | null;
+  sector: string | null;
+  askAmount: string | null;
+  deckFileKey: string | null;
+  bio: string | null;
+  linkedinUrl: string | null;
+}>;
+
+async function upsertFounderProfileViaRest(userId: number, patch: FounderProfilePatch): Promise<void> {
+  const sb = getSupabaseAdmin();
+  if (!sb) {
+    throw new Error("Supabase REST unavailable for founder profile");
+  }
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    updated_at: new Date().toISOString(),
+  };
+  if ("companyName" in patch) row.company_name = patch.companyName ?? null;
+  if ("companyUrl" in patch) row.company_url = patch.companyUrl ?? null;
+  if ("startupId" in patch) row.startup_id = patch.startupId ?? null;
+  if ("stage" in patch) row.stage = patch.stage ?? null;
+  if ("sector" in patch) row.sector = patch.sector ?? null;
+  if ("askAmount" in patch) row.ask_amount = patch.askAmount ?? null;
+  if ("deckFileKey" in patch) row.deck_file_key = patch.deckFileKey ?? null;
+  if ("bio" in patch) row.bio = patch.bio ?? null;
+  if ("linkedinUrl" in patch) row.linkedin_url = patch.linkedinUrl ?? null;
+  const { error } = await sb
+    .from("pythh_founder_profiles")
+    .upsert(row, { onConflict: "user_id" });
+  if (error) throw error;
+}
+
+export async function getFounderProfile(userId: number) {
   const db = await getDb();
-  if (!db) return;
-  const existing = await getFounderProfile(userId);
-  if (existing) {
-    await db
-      .update(founderProfiles)
-      .set({ ...(patch as Record<string, unknown>), updatedAt: new Date() })
-      .where(eq(founderProfiles.userId, userId));
-  } else {
-    await db
-      .insert(founderProfiles)
-      .values({ userId, ...(patch as Record<string, unknown>), updatedAt: new Date() });
+  if (!db) return getFounderProfileViaRest(userId);
+  try {
+    const rows = await db.select().from(founderProfiles).where(eq(founderProfiles.userId, userId)).limit(1);
+    if (rows[0]) return rows[0];
+  } catch (error) {
+    console.warn(
+      "[Database] Postgres getFounderProfile failed — trying Supabase REST:",
+      (error as Error)?.message,
+    );
+  }
+  return getFounderProfileViaRest(userId);
+}
+
+export async function upsertFounderProfile(userId: number, patch: FounderProfilePatch) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Postgres unavailable — upserting founder profile via Supabase REST");
+    await upsertFounderProfileViaRest(userId, patch);
+    return;
+  }
+  try {
+    const existing = await db.select().from(founderProfiles).where(eq(founderProfiles.userId, userId)).limit(1);
+    if (existing[0]) {
+      await db
+        .update(founderProfiles)
+        .set({ ...(patch as Record<string, unknown>), updatedAt: new Date() })
+        .where(eq(founderProfiles.userId, userId));
+    } else {
+      await db
+        .insert(founderProfiles)
+        .values({ userId, ...(patch as Record<string, unknown>), updatedAt: new Date() });
+    }
+  } catch (error) {
+    console.warn(
+      "[Database] Postgres founder profile upsert failed — trying Supabase REST:",
+      (error as Error)?.message,
+    );
+    await upsertFounderProfileViaRest(userId, patch);
   }
 }
 

@@ -24,7 +24,7 @@ import {
   type FounderGatedAction,
 } from '@/lib/founderSignupGate';
 import { isOAuthHandoffActive } from '@/lib/supabaseOAuth';
-import { persistFounderStartup, sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
+import { persistFounderStartup, sendFounderWelcomeEmail, sendFounderSignupInviteEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
 import { trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 
@@ -118,6 +118,12 @@ export default function FounderSignup() {
               startupId,
               source: 'founder_signup_gate_oauth',
             });
+            sendSavedMatchesEmail({
+              email: userEmail,
+              startupId,
+              startupUrl: url,
+              source: 'founder_signup_gate_oauth',
+            });
           }
         } else if (pendingGate.pending) {
           consumeFounderGatePending();
@@ -140,6 +146,12 @@ export default function FounderSignup() {
           sendFounderWelcomeEmail({
             email: userEmail,
             startupId,
+            source: 'founder_signup_gate_oauth',
+          });
+          sendSavedMatchesEmail({
+            email: userEmail,
+            startupId,
+            startupUrl: url,
             source: 'founder_signup_gate_oauth',
           });
         }
@@ -241,6 +253,12 @@ export default function FounderSignup() {
             startupId,
             source: 'founder_signup_gate',
           });
+          sendSavedMatchesEmail({
+            email: trimmed,
+            startupId,
+            startupUrl: url,
+            source: 'founder_signup_gate',
+          });
         } else {
           sendFounderSignupInviteEmail({
             email: trimmed,
@@ -266,6 +284,12 @@ export default function FounderSignup() {
           sendFounderWelcomeEmail({
             email: trimmed,
             startupId,
+            source: 'founder_signup_page',
+          });
+          sendSavedMatchesEmail({
+            email: trimmed,
+            startupId,
+            startupUrl: url,
             source: 'founder_signup_page',
           });
         } else {
@@ -306,7 +330,7 @@ export default function FounderSignup() {
       ? 'Save these investor matches'
       : 'Find investors who fit your startup';
   const subline = fromMatchGate
-    ? 'Create a free account. These matches attach to your profile — open Account anytime to come back. We do not email the list unless you subscribed separately.'
+    ? 'Create a free account. These matches attach to your profile and we email the ranked list so you can come back from your inbox.'
     : fromGate
     ? gateLabel
       ? `One click to ${gateLabel}. Matching is free; Oracle meeting and pitch help stay optional.`

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, ExternalLink, Mail } from "lucide-react";
+import { apiUrl } from "@/lib/apiConfig";
 import { BORDER, CARD, DIM, G, G_HOVER, MUTED, TEXT } from "@/lib/designTokens";
 
 export const NEWSLETTER_JOIN_CTA = "Get the daily brief";
@@ -54,21 +55,26 @@ export default function NewsletterJoinForm({
     }
     setError("");
     setLoading(true);
+    const joined = { email: email.trim(), url: url.trim() };
     try {
-      const response = await fetch("/api/newsletter/subscribe", {
+      const response = await fetch(apiUrl("/api/newsletter/subscribe"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email.trim(),
-          url: url.trim() || undefined,
+          email: joined.email,
+          url: joined.url || undefined,
           source,
         }),
       });
-      if (!response.ok) throw new Error("subscribe_failed");
+      if (!response.ok) {
+        // Still open the shortlist — subscribe/email is best-effort so step 2 cannot trap the hop.
+        console.warn("[newsletter] subscribe failed", response.status);
+      }
       setSubmitted(true);
-      onJoined?.({ email: email.trim(), url: url.trim() });
+      onJoined?.(joined);
     } catch {
-      setError("We could not save that. Please try again.");
+      setSubmitted(true);
+      onJoined?.(joined);
     } finally {
       setLoading(false);
     }

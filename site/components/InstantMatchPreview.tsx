@@ -22,7 +22,7 @@ import {
   type FounderGatedAction,
   type GatedInvestorContext,
 } from '@/lib/founderSignupGate';
-import { persistFounderStartup } from '@/lib/founderAccount';
+import { persistFounderStartup, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { pinActiveStartup } from '@/lib/activeStartupContext';
 import {
@@ -136,6 +136,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [shortlistSaved, setShortlistSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [improveMatchesOpen, setImproveMatchesOpen] = useState(false);
   const [improveUsed, setImproveUsed] = useState(0);
   const [improveOptedOut, setImproveOptedOut] = useState(false);
@@ -147,6 +149,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const gateCompletedRef = useRef(false);
+  const emailedRef = useRef(false);
 
   useEffect(() => {
     fetchGrowthAssignment('founder', 'founder_hero_entry')
@@ -162,7 +165,7 @@ export default function InstantMatchPreview({ url }: Props) {
   }, []);
 
   const persistShortlist = async (id: string, name?: string | null) => {
-    await persistFounderStartup({ startupId: id, companyUrl: url, companyName: name });
+    const ok = await persistFounderStartup({ startupId: id, companyUrl: url, companyName: name });
     if (peekFounderGatePending().pending) {
       await completePreviewGateIfPending({
         url,
@@ -170,14 +173,61 @@ export default function InstantMatchPreview({ url }: Props) {
         email: user?.email,
       });
     }
+    if (!ok) throw new Error('Could not save matches to your account. Try again.');
     setShortlistSaved(true);
+  };
+
+  const emailReadyShortlist = (id: string, name?: string | null) => {
+    const email = (user?.email || readJoinEmail()).trim();
+    if (!email.includes('@') || emailedRef.current) return;
+    emailedRef.current = true;
+    const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
+      name: m.investor?.name || m.investor?.firm || '',
+      firm: m.investor?.firm || null,
+    }));
+    sendSavedMatchesEmail({
+      email,
+      startupId: id,
+      startupUrl: url,
+      startupName: name,
+      matchCount: preview?.total_matches ?? topInvestors.length,
+      topInvestors,
+      source: 'instant_match_preview',
+    });
+  };
+
+  const finishAuthenticatedSave = async () => {
+    const id = preview?.startup?.id || startupId;
+    if (!id) {
+      setSaveError('Matches are still loading. Try again in a moment.');
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await persistShortlist(id, preview?.startup?.name);
+      emailReadyShortlist(id, preview?.startup?.name);
+      navigate(savedMatchesPath());
+    } catch (reason) {
+      setSaveError(reason instanceof Error ? reason.message : 'Could not save matches. Try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
     if (authLoading || !isAuthenticated || !preview?.startup?.id || gateCompletedRef.current) return;
     gateCompletedRef.current = true;
-    void persistShortlist(preview.startup.id, preview.startup.name);
+    void persistShortlist(preview.startup.id, preview.startup.name).catch(() => {
+      gateCompletedRef.current = false;
+    });
   }, [authLoading, isAuthenticated, preview?.startup?.id, preview?.startup?.name, url, user?.email]);
+
+  useEffect(() => {
+    const id = preview?.startup?.id;
+    if (!id || loading || !preview?.matches?.length) return;
+    emailReadyShortlist(id, preview.startup?.name);
+  }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email]);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,6 +238,9 @@ export default function InstantMatchPreview({ url }: Props) {
     setImproveOptedOut(false);
     setUnlockedIds([]);
     gateCompletedRef.current = false;
+    emailedRef.current = false;
+    setSaveError(null);
+    setSaving(false);
 
     async function submitUrl() {
       setLoading(true);
@@ -331,6 +384,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setImproveOptedOut(true);
     setImproveMatchesOpen(false);
     if (!isAuthenticated) handleSignup('save');
+    else void finishAuthenticatedSave();
   };
 
   useEffect(() => {
@@ -347,7 +401,7 @@ export default function InstantMatchPreview({ url }: Props) {
     const startupIdForGate = preview?.startup?.id;
     if (isAuthenticated && startupIdForGate) {
       if (action === 'save') {
-        void persistShortlist(startupIdForGate, preview?.startup?.name);
+        void finishAuthenticatedSave();
         return;
       }
       navigate(postSignupPathForAction(action, startupIdForGate, { url }));
@@ -413,13 +467,30 @@ export default function InstantMatchPreview({ url }: Props) {
     : canConfirmRound
       ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top. Improving the rest of the profile is optional.'
       : improveOptedOut
-        ? 'You kept this shortlist. Open Account anytime to come back. Improve later only if you want a rerank.'
+        ? 'You kept this shortlist. Save it to your profile and we email the list so you can come back from your inbox.'
         : shortlistSaved
           ? 'These matches are saved to your account. Improving is optional — skip if these five are enough.'
           : 'These matches are ready. Improving is optional — skip if you want to keep this shortlist as-is.';
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
+      <div className="grid grid-cols-3 gap-2 mb-6" aria-label="Match save progress">
+        {[
+          ['1', 'Matches ready'],
+          ['2', 'Save matches'],
+          ['3', 'Inbox + profile'],
+        ].map(([step, label], index) => (
+          <div key={step} className="text-center">
+            <div
+              className="h-1 rounded-full mb-2"
+              style={{ backgroundColor: index <= 1 ? G : 'oklch(0.25 0.01 264)' }}
+            />
+            <p className="text-[10px]" style={{ color: index <= 1 ? G : DIM }}>
+              {step}. {label}
+            </p>
+          </div>
+        ))}
+      </div>
       <div className="mb-4">
         <h1 className="text-xl font-bold mb-1" style={{ color: TEXT }}>
           {startupName} — top {visible.length} matches
@@ -496,26 +567,38 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
         <button
           type="button"
+          disabled={saving}
           onClick={canImproveNow ? skipImprove : canConfirmRound ? openImproveOrSignup : () => handleSignup('save')}
           className={NEXT_STEP_CTA_CLASS}
-          style={NEXT_STEP_CTA_STYLE}
+          style={{ ...NEXT_STEP_CTA_STYLE, opacity: saving ? 0.7 : 1 }}
           onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
           onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
         >
-          {canImproveNow
-            ? isAuthenticated
-              ? 'Skip — keep these matches'
-              : 'Skip — save my matches'
-            : canConfirmRound
-              ? 'Confirm your round'
-              : 'Save my matches'}
-          <ArrowRight className="w-4 h-4" />
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : canImproveNow ? (
+            isAuthenticated ? (
+              'Skip — save my matches'
+            ) : (
+              'Skip — save my matches'
+            )
+          ) : canConfirmRound ? (
+            'Confirm your round'
+          ) : (
+            'Save my matches'
+          )}
+          {!saving && <ArrowRight className="w-4 h-4" />}
         </button>
-        {!isAuthenticated && (
-          <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
-            Saving creates a free account and keeps this shortlist under Account. We do not email the list unless you subscribed separately.
+        {saveError && (
+          <p className="mt-3 text-xs text-center" style={{ color: AMBER }}>
+            {saveError}
           </p>
         )}
+        <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
+          {isAuthenticated
+            ? 'Saving keeps this shortlist on your profile and emails the ranked list to you.'
+            : 'Saving creates a free account, emails this shortlist, and keeps it under Account.'}
+        </p>
       </div>
 
       {improveMatchesOpen && preview.startup?.id && (

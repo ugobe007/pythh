@@ -35,6 +35,49 @@ export function sendFounderWelcomeEmail(opts: {
   }).catch(() => {});
 }
 
+export type SavedMatchInvestor = { name?: string | null; firm?: string | null };
+
+/** Email the ranked shortlist once matches exist. Deduped server-side for 24h. */
+export function sendSavedMatchesEmail(opts: {
+  email: string;
+  startupId: string;
+  startupUrl?: string | null;
+  startupName?: string | null;
+  matchCount?: number;
+  topInvestors?: SavedMatchInvestor[];
+  source?: string;
+}): void {
+  const email = opts.email.trim().toLowerCase();
+  if (!email.includes('@') || !opts.startupId) return;
+
+  const topInvestors = (opts.topInvestors || [])
+    .map((inv) => ({
+      name: String(inv.name || '').trim(),
+      firm: inv.firm ? String(inv.firm).trim() : null,
+    }))
+    .filter((inv) => inv.name);
+
+  void fetch(apiUrl('/api/preview/email-shortlist'), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      email,
+      startup_id: opts.startupId,
+      startup_url: opts.startupUrl || undefined,
+      startup_name: opts.startupName || undefined,
+      match_count: opts.matchCount || topInvestors.length,
+      top_investors: topInvestors.slice(0, 5),
+      source: opts.source || 'save_matches',
+    }),
+  }).catch(() => {});
+}
+
+export function readJoinEmail(): string {
+  if (typeof sessionStorage === 'undefined') return '';
+  return sessionStorage.getItem('pythia_email')?.trim() || '';
+}
+
 /** Invite email when account exists but no startup scan yet. */
 export function sendFounderSignupInviteEmail(opts: {
   email: string;

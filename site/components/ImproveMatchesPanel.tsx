@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, FileText, Loader2, Plus, RefreshCw, UploadCloud, X } from 'lucide-react';
+import { apiUrl } from '@/lib/apiConfig';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
 type FounderInput = { name: string; linkedin_url: string };
@@ -100,7 +101,7 @@ export default function ImproveMatchesPanel({
 
   useEffect(() => {
     let cancelled = false;
-    void fetch(`/api/instant/improve?startup_id=${encodeURIComponent(startupId)}`)
+    void fetch(apiUrl(`/api/instant/improve?startup_id=${encodeURIComponent(startupId)}`))
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Could not load missing data');
@@ -173,7 +174,7 @@ export default function ImproveMatchesPanel({
       if (linkedinValues.some((value) => !/linkedin\.com\//i.test(value))) {
         throw new Error('LinkedIn links must be valid linkedin.com profile or company URLs.');
       }
-      const saveResponse = await fetch('/api/instant/improve', {
+      const saveResponse = await fetch(apiUrl('/api/instant/improve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startup_id: startupId, ...profile }),
@@ -185,12 +186,12 @@ export default function ImproveMatchesPanel({
         const form = new FormData();
         form.append('startup_id', startupId);
         form.append('deck', deck);
-        const deckResponse = await fetch('/api/deck/upload', { method: 'POST', body: form });
+        const deckResponse = await fetch(apiUrl('/api/deck/upload'), { method: 'POST', body: form });
         const deckData = await deckResponse.json();
         if (!deckResponse.ok) throw new Error(deckData.error || 'Could not process the deck');
       }
 
-      const rescoreResponse = await fetch('/api/instant/rescore', {
+      const rescoreResponse = await fetch(apiUrl('/api/instant/rescore'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startup_id: startupId }),
