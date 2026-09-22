@@ -84,12 +84,10 @@ export default function SharedNavbar({
     };
   }, []);
 
-  const navBg = isHero && !scrolled
+  const navBg = isHero && !scrolled && !menuOpen
     ? "transparent"
-    : scrolled
-      ? "oklch(0.12 0.01 264 / 0.96)"
-      : "oklch(0.09 0.01 264 / 0.92)";
-  const navBorder = isHero && !scrolled
+    : "oklch(0.12 0.01 264 / 0.96)";
+  const navBorder = isHero && !scrolled && !menuOpen
     ? "transparent"
     : "oklch(0.18 0.01 264)";
   const linkColor = (active: boolean) => (active ? "oklch(0.88 0.01 264)" : "oklch(0.62 0.01 264)");
@@ -244,7 +242,13 @@ export default function SharedNavbar({
         </div>
 
         {menuOpen && (
-          <div className="md:hidden py-4 border-t" style={{ borderColor: "oklch(0.2 0.01 264)" }}>
+          <div
+            className="md:hidden py-4 border-t"
+            style={{
+              borderColor: "oklch(0.2 0.01 264)",
+              backgroundColor: "oklch(0.12 0.01 264 / 0.98)",
+            }}
+          >
             <div className="flex flex-col gap-5">
               <a
                 href="/newsletter"
