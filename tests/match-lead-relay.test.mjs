@@ -30,7 +30,8 @@ test('preview leads expand all five and unlock without showing addresses', () =>
   const api = readFileSync(new URL('../lib/canonicalMatchApi.js', import.meta.url), 'utf8');
   assert.match(preview, /MatchInvestorLead/);
   assert.doesNotMatch(preview, /i === 0 && why/);
-  assert.match(lead, /Unlock to email through Pythh/);
+  assert.match(lead, /Unlock email/);
+  assert.doesNotMatch(lead, /Unlock to email through Pythh/);
   assert.match(lead, /Email, calls, and the deck outline are on Scout/);
   assert.match(lead, /Recent deals/);
   assert.match(lead, /Fit \$\{fitness\}\/100/);

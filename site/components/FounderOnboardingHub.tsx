@@ -150,6 +150,12 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const stage = String(startup?.stage || '').replace(/-/g, ' ').trim();
   const website = startup?.website || pinned.url;
   const siteHost = hostLabel(website);
+  const previewPath = matchesPathForUrl(website);
+  const findMatchesHref = previewPath !== '/matches'
+    ? previewPath
+    : pinned.id
+      ? `/matches/preview/${encodeURIComponent(pinned.id)}`
+      : '/matches';
 
   return (
     <div className="w-full space-y-8">
@@ -215,7 +221,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold shrink-0"
                 style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)' }}
               >
-                See matches
+                Find matches
                 <ArrowRight size={15} />
               </button>
             </div>
@@ -340,9 +346,19 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           </section>
 
           <section>
-            <h3 className="font-display font-bold text-lg mb-1" style={{ color: TEXT }}>
-              Your saved matches — {companyLabel}
-            </h3>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+              <h3 className="font-display font-bold text-lg" style={{ color: TEXT }}>
+                Your saved matches — {companyLabel}
+              </h3>
+              <Link
+                href={findMatchesHref}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold"
+                style={{ color: G }}
+              >
+                Find matches
+                <ArrowRight size={14} />
+              </Link>
+            </div>
             <p className="text-sm mb-4" style={{ color: MUTED }}>
               {savedMatches.length
                 ? 'These investors stay on your account. Intros below are pending until Scout or Oracle is on.'

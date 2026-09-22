@@ -242,7 +242,7 @@ function MatchesUrlEntry({
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold whitespace-nowrap"
             style={{ backgroundColor: "#22c55e", color: "#000" }}
           >
-            See my five matches
+            Find matches
             <ArrowRight size={16} />
           </button>
         </form>
@@ -695,7 +695,7 @@ export default function Matches() {
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <StartupCTA href="/matches#preview-url" size="lg" showArrow arrowSize={16}>
-              See my five matches
+              Find matches
             </StartupCTA>
             <Link href="/oracle">
               <span
