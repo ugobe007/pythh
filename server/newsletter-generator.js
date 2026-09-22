@@ -423,9 +423,9 @@ async function loadEdition(editionDate) {
   }
 }
 
-async function generateNewsletter({ bust = false } = {}) {
-  const now = Date.now();
-  if (!bust && _cache && now - _cacheTs < CACHE_TTL_MS) {
+async function generateNewsletter({ bust = false, date = null } = {}) {
+  const now = date ? new Date(`${date}T12:00:00Z`).getTime() : Date.now();
+  if (!bust && !date && _cache && Date.now() - _cacheTs < CACHE_TTL_MS) {
     return _cache;
   }
 
@@ -569,7 +569,7 @@ async function generateNewsletter({ bust = false } = {}) {
   const editorial = await generateEditorial(editorialCtx);
 
   const result = {
-    date:             new Date().toISOString().split('T')[0],
+    date:             date || new Date().toISOString().split('T')[0],
     generated_at:     new Date().toISOString(),
     editorial,                                 // { text, source }
     hottestStartups:  hottestStartups || [],

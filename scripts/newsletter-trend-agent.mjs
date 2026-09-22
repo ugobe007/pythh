@@ -17,15 +17,45 @@ import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { generateNewsletter, loadEdition } = require('../server/newsletter-generator.js');
+const { runNewsletterTrendAgent } = require('../server/lib/newsletterTrendAgent.js');
+const { getSupabaseClient } = require('../server/lib/supabaseClient.js');
 
 const dateArg = process.argv.find((a) => a.startsWith('--date='))?.slice('--date='.length);
 const jsonOut = process.argv.includes('--json');
 
 async function main() {
-  const edition = dateArg
-    ? (await loadEdition(dateArg)) || await generateNewsletter({ bust: true })
+  let edition = dateArg
+    ? (await loadEdition(dateArg)) || await generateNewsletter({ bust: true, date: dateArg })
     : await generateNewsletter({ bust: true });
-  const report = edition?.trendReport;
+  
+  // If edition exists but lacks trendReport, run the agent and save
+  if (!edition?.trendReport) {
+    const report = await runNewsletterTrendAgent({
+      edition,
+      loadPrior: (date) => loadEdition(date),
+    });
+    edition.trendReport = report;
+    
+    // Save the updated edition back to the database
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('newsletter_editions')
+      .upsert(
+        { 
+          edition_date: edition.date, 
+          data: edition, 
+          generated_at: edition.generated_at,
+          updated_at: new Date().toISOString() 
+        }, 
+        { onConflict: 'edition_date' }
+      );
+    if (error) {
+      console.error('Failed to save trend report:', error.message);
+      process.exit(1);
+    }
+  }
+  
+  const report = edition.trendReport;
   if (!report) {
     console.error('No trend report on the edition.');
     process.exit(1);
