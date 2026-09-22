@@ -517,12 +517,12 @@ export default function InstantMatchPreview({ url }: Props) {
       : improveOptedOut
         ? `You skipped improve. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
         : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
-    : canConfirmRound
-      ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top. Improving the rest of the profile is optional.'
-      : improveOptedOut
-        ? 'You kept this shortlist. Save it to your profile and we email the list so you can come back from your inbox.'
-        : shortlistSaved
-          ? 'These matches are already on your account. Review them there — do not save again.'
+    : alreadySaved
+      ? 'These matches are already on your account. Review them there — do not save again.'
+      : canConfirmRound
+        ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top. Improving the rest of the profile is optional.'
+        : improveOptedOut
+          ? 'You kept this shortlist. Save it to your profile and we email the list so you can come back from your inbox.'
           : 'These matches are ready. Improving is optional — skip if you want to keep this shortlist as-is.';
 
   return (

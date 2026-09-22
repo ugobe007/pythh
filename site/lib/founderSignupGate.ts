@@ -117,15 +117,12 @@ export function startupAlreadyOnAccount(opts: {
   pinnedUrl?: string | null;
 }): boolean {
   const previewId = String(opts.previewStartupId || '').trim();
-  if (
-    previewId &&
-    (opts.profileStartupId === previewId || opts.pinnedStartupId === previewId)
-  ) {
+  if (previewId && opts.profileStartupId === previewId) {
     return true;
   }
   const previewUrl = String(opts.previewUrl || '').trim();
   if (!previewUrl) return false;
-  return urlsShareDomain(previewUrl, opts.profileUrl) || urlsShareDomain(previewUrl, opts.pinnedUrl);
+  return urlsShareDomain(previewUrl, opts.profileUrl);
 }
 
 /** Optional wizard routes — used from the matches hub, not as default post-signup landing. */
