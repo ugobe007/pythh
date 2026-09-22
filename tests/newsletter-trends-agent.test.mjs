@@ -89,9 +89,16 @@ test('trend report ships on the compiled edition and Daily Signal page', () => {
 });
 
 test('homepage points readers at /newsletter as Daily Signal', () => {
+  const nav = readFileSync(new URL('../site/components/SharedNavbar.tsx', import.meta.url), 'utf8');
   assert.match(home, /href="\/newsletter"/);
+  assert.match(home, /data-testid="hero-daily-signal"/);
   assert.match(home, /Read today.?s Daily Signal|Read today&rsquo;s Daily Signal/);
   assert.match(home, /label: "Daily Signal", href: "\/newsletter"/);
+  const heroCta = home.indexOf('id="hero-cta"');
+  const heroSignal = home.indexOf('data-testid="hero-daily-signal"');
+  assert.ok(heroCta >= 0 && heroSignal > heroCta && heroSignal - heroCta < 900);
+  assert.match(nav, /href="\/newsletter"/);
+  assert.match(nav, /Daily Signal/);
 });
 
 test('daily brief email renders the shaping-capital trend panel', () => {

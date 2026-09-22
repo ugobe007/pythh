@@ -164,6 +164,15 @@ export default function SharedNavbar({
               )}
             </div>
             <a
+              href="/newsletter"
+              className="text-sm font-medium transition-colors"
+              style={{ color: linkColor(activePath === "/newsletter" || activePath?.startsWith("/newsletter/")) }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "oklch(0.88 0.01 264)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = linkColor(activePath === "/newsletter" || Boolean(activePath?.startsWith("/newsletter/"))); }}
+            >
+              Daily Signal
+            </a>
+            <a
               href="/pricing"
               className="text-sm font-medium transition-colors"
               style={{ color: linkColor(activePath === "/pricing") }}
@@ -237,6 +246,14 @@ export default function SharedNavbar({
         {menuOpen && (
           <div className="md:hidden py-4 border-t" style={{ borderColor: "oklch(0.2 0.01 264)" }}>
             <div className="flex flex-col gap-5">
+              <a
+                href="/newsletter"
+                onClick={() => setMenuOpen(false)}
+                className="text-sm font-medium"
+                style={{ color: activePath === "/newsletter" || activePath?.startsWith("/newsletter/") ? "oklch(0.9 0.01 264)" : "oklch(0.68 0.01 264)" }}
+              >
+                Daily Signal
+              </a>
               {PRODUCT_GROUPS.map((group) => (
                 <div key={group.heading}>
                   <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "oklch(0.48 0.01 264)" }}>

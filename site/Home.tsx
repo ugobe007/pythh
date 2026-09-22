@@ -495,6 +495,13 @@ function HeroSection({
                 navigate(path);
               }}
             />
+            <p className="text-[14px] mt-4" data-testid="hero-daily-signal">
+              <Link href="/newsletter">
+                <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: G }}>
+                  Read today&rsquo;s Daily Signal <ArrowRight size={14} />
+                </span>
+              </Link>
+            </p>
           </div>
           <HomeProofStrip
             variant="panel"

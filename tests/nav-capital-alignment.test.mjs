@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-test('top nav is Explore + Pricing, not a seven-link bar', () => {
+test('top nav is Explore + Daily Signal + Pricing, not a seven-link bar', () => {
   const nav = readFileSync(new URL('../site/components/SharedNavbar.tsx', import.meta.url), 'utf8');
   assert.match(nav, /AI for capital alignment/);
   assert.match(nav, /aria-haspopup="menu"/);
   assert.match(nav, /Explore/);
   assert.match(nav, /heading: "Founders"/);
   assert.match(nav, /heading: "Investors"/);
+  assert.match(nav, /href="\/newsletter"/);
+  assert.match(nav, />[\s\n]*Daily Signal[\s\n]*<\//);
   assert.doesNotMatch(nav, /Daily Signal — prominent/);
   assert.doesNotMatch(nav, /NAV_LINKS = \[/);
   assert.match(nav, /See my investor matches/);
