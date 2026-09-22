@@ -1994,13 +1994,13 @@ app.get('/api/hero-preview', async (req, res) => {
 // Newsletter endpoints — Daily Signal Digest
 // Public endpoints — no auth required
 // ============================================================
-const { generateNewsletter, loadEdition } = require('./newsletter-generator');
+const { generateNewsletter, serveNewsletter, loadEdition } = require('./newsletter-generator');
 
 app.get('/api/newsletter/today', async (req, res) => {
   try {
     const bust = req.query.bust === '1';
-    const data = await generateNewsletter({ bust });
-    res.set('Cache-Control', 'public, max-age=1800'); // 30 min browser cache
+    const data = await serveNewsletter({ bust });
+    res.set('Cache-Control', bust ? 'no-store' : 'public, max-age=120, stale-while-revalidate=3600');
     return res.json(data);
   } catch (err) {
     console.error('[newsletter] Error generating digest:', err.message);
@@ -2044,8 +2044,8 @@ app.get('/api/newsletter/:date', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   if (date === today) {
     try {
-      const data = await generateNewsletter();
-      return res.set('Cache-Control', 'public, max-age=1800').json(data);
+      const data = await serveNewsletter();
+      return res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=3600').json(data);
     } catch (err) {
       return res.status(500).json({ error: 'Failed to generate newsletter' });
     }

@@ -14,6 +14,7 @@ on:
     - cron: '0 8 * * *'    # portfolio-signals (daily M&A/funding/partnership/customer/hire/IP scan)
     - cron: '30 8 * * *'   # followon-fund (double down on winners' later-stage rounds, forward-only)
     - cron: '45 8 * * *'   # portfolio-exits (book verified M&A/IPO exits, target-only, honest entries)
+    - cron: '15 7 * * *'   # newsletter-prebuild (after sage-review; Daily Signal page reads this)
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
   workflow_dispatch:
     inputs:
@@ -34,6 +35,7 @@ on:
           - followon-fund
           - portfolio-exits
           - portfolio-score-validate
+          - newsletter-prebuild
           - daily-brief
 
 concurrency:
@@ -171,6 +173,15 @@ jobs:
       run: node scripts/validate-portfolio-scores.mjs
       timeout_minutes: 10
 
+  newsletter-prebuild:
+    if: github.event.schedule == '15 7 * * *' || github.event.inputs.job == 'newsletter-prebuild'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/prebuild-newsletter.mjs
+      timeout_minutes: 15
+      node_version: '22'
+
   daily-brief:
     if: github.event.schedule == '0 13 * * *' || github.event.inputs.job == 'daily-brief'
     uses: ./.github/workflows/reusable-node-batch.yml
@@ -178,3 +189,4 @@ jobs:
     with:
       run: node scripts/send-daily-brief.js
       timeout_minutes: 20
+      node_version: '22'

@@ -416,16 +416,23 @@ async function generateEditorial(ctx) {
 }
 
 // ── Edition persistence ───────────────────────────────────────────────────────
-async function saveEdition(supabase, editionDate, data) {
+async function saveEdition(supabase, editionDate, data, { required = false } = {}) {
   try {
     const { error } = await supabase
       .from('newsletter_editions')
       .upsert({ edition_date: editionDate, data, generated_at: data.generated_at, updated_at: new Date().toISOString() }, { onConflict: 'edition_date' });
-    if (error && !error.message.includes('does not exist')) {
-      console.error('[newsletter] saveEdition error:', error.message);
+    if (error) {
+      if (required) throw new Error(`saveEdition failed: ${error.message}`);
+      if (!error.message.includes('does not exist')) {
+        console.error('[newsletter] saveEdition error:', error.message);
+      }
+      return false;
     }
+    return true;
   } catch (e) {
+    if (required) throw e;
     console.error('[newsletter] saveEdition exception:', e.message);
+    return false;
   }
 }
 
@@ -444,10 +451,77 @@ async function loadEdition(editionDate) {
   }
 }
 
-async function generateNewsletter({ bust = false, date = null } = {}) {
-  const now = date ? new Date(`${date}T12:00:00Z`).getTime() : Date.now();
-  if (!bust && !date && _cache && Date.now() - _cacheTs < CACHE_TTL_MS) {
+function utcDateString(ms = Date.now()) {
+  return new Date(ms).toISOString().split('T')[0];
+}
+
+function shiftUtcDate(date, days) {
+  const d = new Date(`${date}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + days);
+  return utcDateString(d.getTime());
+}
+
+function warmCache(edition) {
+  if (!edition) return edition;
+  _cache = edition;
+  _cacheTs = Date.now();
+  return edition;
+}
+
+let _compiling = false;
+function compileInBackground() {
+  if (_compiling) return;
+  _compiling = true;
+  generateNewsletter({ bust: true })
+    .catch((err) => console.warn('[newsletter] background compile failed:', err.message))
+    .finally(() => { _compiling = false; });
+}
+
+/**
+ * Read path for the Daily Signal page. Never compiles synchronously when a
+ * saved edition exists — the daily prebuild / daily-brief job writes it.
+ */
+async function serveNewsletter({ bust = false, date = null } = {}) {
+  const editionDate = date || utcDateString();
+  if (bust) return generateNewsletter({ bust: true, date });
+
+  if (!date && _cache && Date.now() - _cacheTs < CACHE_TTL_MS && _cache.date === editionDate) {
     return _cache;
+  }
+
+  const saved = await loadEdition(editionDate);
+  if (saved) return warmCache(saved);
+
+  if (!date) {
+    const prior = await loadEdition(shiftUtcDate(editionDate, -1));
+    if (prior) {
+      compileInBackground();
+      return warmCache({ ...prior, compiling_today: true, served_from: prior.date });
+    }
+  }
+
+  return generateNewsletter({ bust: true, date });
+}
+
+async function prebuildNewsletter() {
+  const edition = await generateNewsletter({ bust: true });
+  const saved = await loadEdition(edition.date);
+  if (!saved || saved.generated_at !== edition.generated_at) {
+    throw new Error(`prebuild did not persist newsletter_editions for ${edition.date}`);
+  }
+  return edition;
+}
+
+async function generateNewsletter({ bust = false, date = null } = {}) {
+  const editionDate = date || utcDateString();
+  const now = date ? new Date(`${date}T12:00:00Z`).getTime() : Date.now();
+  if (!bust) {
+    if (!date && _cache && Date.now() - _cacheTs < CACHE_TTL_MS && _cache.date === editionDate) {
+      return _cache;
+    }
+    const saved = await loadEdition(editionDate);
+    if (saved) return date ? saved : warmCache(saved);
   }
 
   const supabase = getSupabaseClient();
@@ -634,12 +708,17 @@ async function generateNewsletter({ bust = false, date = null } = {}) {
     result.trendReport = null;
   }
 
-  _cache   = result;
-  _cacheTs = now;
+  warmCache(result);
 
-  await saveEdition(supabase, result.date, result);
+  await saveEdition(supabase, result.date, result, { required: Boolean(bust) });
 
   return result;
 }
 
-module.exports = { generateNewsletter, loadEdition, DIM_META };
+module.exports = {
+  generateNewsletter,
+  serveNewsletter,
+  prebuildNewsletter,
+  loadEdition,
+  DIM_META,
+};

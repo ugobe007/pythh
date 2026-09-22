@@ -101,6 +101,8 @@ interface TrendReport {
 interface BriefData {
   date: string;
   generated_at: string;
+  compiling_today?: boolean;
+  served_from?: string;
   editorial?: { text: string; source: string } | string;
   trendReport?: TrendReport | null;
   hottestStartups?: HottestStartup[];
@@ -204,7 +206,7 @@ function DailySignalEdition({ date }: { date?: string | null }) {
         style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
       >
         <span className="text-sm animate-pulse" style={{ color: DIM }}>
-          Compiling today&rsquo;s signal&hellip;
+          Loading today&rsquo;s signal&hellip;
         </span>
       </div>
     );
@@ -245,7 +247,7 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           </h1>
         </div>
         <span className="text-xs font-mono" style={{ color: MUTED }}>
-          {data.date ?? "TODAY"} · LIVE
+          {data.date ?? "TODAY"} · {data.compiling_today ? "UPDATING" : "LIVE"}
         </span>
       </div>
 
