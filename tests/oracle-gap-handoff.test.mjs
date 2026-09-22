@@ -10,7 +10,7 @@ test('new users see matches before signup and stay on matches after', async () =
   assert.match(preview, /Save my matches/);
   assert.match(preview, /Confirm your round/);
   assert.match(preview, /Improve my matches/);
-  assert.match(preview, /Skip — keep these matches/);
+  assert.match(preview, /Skip — save my matches/);
   assert.match(preview, /handleSignup\('save'\)/);
   assert.match(preview, /ANON_IMPROVE_LIMIT/);
   assert.doesNotMatch(preview, /href=["']\/newsletter["']/);

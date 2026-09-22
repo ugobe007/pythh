@@ -63,6 +63,11 @@ async function sendSubscriberWelcome(supabase, { email, startupUrl, startupId } 
   if (supabase && (startupUrl || startupId)) {
     try {
       personal = await loadSubscriberMatches(supabase, { startupUrl, startupId });
+      const polls = Number(process.env.NEWSLETTER_WELCOME_POLLS ?? 6);
+      for (let i = 0; i < polls && personal?.pending; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        personal = await loadSubscriberMatches(supabase, { startupUrl, startupId });
+      }
     } catch (err) {
       console.warn('[newsletter] welcome matches:', err.message);
       personal = { inspectUrl: startupUrl || null, matches: [], pending: true };
@@ -83,7 +88,9 @@ async function sendSubscriberWelcome(supabase, { email, startupUrl, startupId } 
     return { sent: false, reason: result.error || 'send_failed', subject: payload.subject };
   }
 
-  if (supabase) {
+  // Leave welcome_sent_at empty while scoring is still pending so a later
+  // retry (or the match-preview send) can deliver the actual shortlist.
+  if (supabase && !personal?.pending) {
     const stamped = await supabase
       .from('newsletter_subscribers')
       .update({ welcome_sent_at: new Date().toISOString() })
@@ -98,6 +105,7 @@ async function sendSubscriberWelcome(supabase, { email, startupUrl, startupId } 
     id: result.id,
     subject: payload.subject,
     matchCount: personal?.matches?.length || 0,
+    pending: Boolean(personal?.pending),
   };
 }
 

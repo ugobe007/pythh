@@ -91,13 +91,17 @@ async function kickoffSubscriberUrlScore(supabase, { email, startupUrl, startupI
   const port = process.env.PORT || 3002;
   const base = (process.env.APP_INTERNAL_URL || `http://127.0.0.1:${port}`).replace(/\/+$/, '');
   try {
-    const resp = await fetch(`${base}/api/instant/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: startupUrl, source: 'newsletter_subscribe' }),
-    });
-    const data = await resp.json().catch(() => ({}));
-    const id = data.startup?.id || data.startup_id || data.id || null;
+    let id = null;
+    for (let i = 0; i < 12 && !id; i++) {
+      const resp = await fetch(`${base}/api/instant/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: startupUrl, source: 'newsletter_subscribe' }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      id = data.startup?.id || data.startup_id || data.id || null;
+      if (!id && i < 11) await new Promise((r) => setTimeout(r, 2000));
+    }
     if (id && email && supabase) {
       await supabase.from('newsletter_subscribers').update({ startup_id: id }).eq('email', email);
     }

@@ -116,7 +116,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
           }}
         >
           {saved
-            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. Open Account from the nav anytime you come back — we do not email the list unless you subscribed separately.`
+            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. We email the ranked list — open Account from the nav anytime you come back.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
                   ? ` — ${companyLabel} is saved. Open your match list below.`

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, ExternalLink, Mail } from "lucide-react";
+import { apiUrl } from "@/lib/apiConfig";
 import { BORDER, CARD, DIM, G, G_HOVER, MUTED, TEXT } from "@/lib/designTokens";
 
 export const NEWSLETTER_JOIN_CTA = "Get the daily brief";
@@ -54,21 +55,40 @@ export default function NewsletterJoinForm({
     }
     setError("");
     setLoading(true);
+    const joined = { email: email.trim(), url: url.trim() };
     try {
-      const response = await fetch("/api/newsletter/subscribe", {
+      const response = await fetch(apiUrl("/api/newsletter/subscribe"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email.trim(),
-          url: url.trim() || undefined,
+          email: joined.email,
+          url: joined.url || undefined,
           source,
         }),
       });
-      if (!response.ok) throw new Error("subscribe_failed");
-      setSubmitted(true);
-      onJoined?.({ email: email.trim(), url: url.trim() });
-    } catch {
-      setError("We could not save that. Please try again.");
+      if (!response.ok) {
+        // On the homepage, still open the shortlist — subscribe/email is best-effort so step 2 cannot trap the hop.
+        // On the newsletter page without a matches hop, show the error.
+        if (revealMatches) {
+          console.warn("[newsletter] subscribe failed", response.status);
+          setSubmitted(true);
+          onJoined?.(joined);
+        } else {
+          setError("Could not subscribe. Try again.");
+        }
+      } else {
+        setSubmitted(true);
+        onJoined?.(joined);
+      }
+    } catch (err) {
+      // Network failure — on homepage hop to matches anyway, on newsletter page show error.
+      if (revealMatches) {
+        console.warn("[newsletter] subscribe network error", err);
+        setSubmitted(true);
+        onJoined?.(joined);
+      } else {
+        setError("Could not subscribe. Try again.");
+      }
     } finally {
       setLoading(false);
     }

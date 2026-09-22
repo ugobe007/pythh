@@ -699,7 +699,7 @@ export default function Account() {
             {subscription
               ? "Manage your Oracle subscription and billing details."
               : showSaved
-                ? "This is your profile. Come back here from Account in the nav — we do not email the list unless you subscribed separately."
+                ? "This is your profile. The ranked list is emailed to you — come back here from your inbox or Account in the nav."
                 : "Track investor matches, save your shortlist, and open your intro pipeline."}
           </p>
         </motion.div>

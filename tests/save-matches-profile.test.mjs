@@ -2,7 +2,7 @@
  * Save / improve contract after the match preview:
  *   - Scout upsell stays off the match page
  *   - anonymous founders get two improve passes
- *   - Save lands on /account?saved=1, not an email or the newsletter
+ *   - Save lands on /account?saved=1 (and emails the shortlist — never the newsletter page)
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -28,15 +28,18 @@ test('match preview lets founders improve twice, then save to their profile', ()
   assert.match(preview, /recordImproveCompletion/);
   assert.match(preview, /Improve my matches/);
   assert.match(preview, /Save my matches/);
-  assert.match(preview, /Skip — keep these matches/);
+  assert.match(preview, /Skip — save my matches/);
   assert.match(preview, /skipImprove/);
   assert.match(preview, /optOutOfImprove/);
+  assert.match(preview, /finishAuthenticatedSave/);
+  assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
+  assert.match(preview, /sendSavedMatchesEmail/);
   assert.match(preview, /IMPROVE_CTA_STYLE/);
   assert.match(preview, /PURPLE_ACCENT/);
   assert.match(preview, /savedMatchesPath\(\)/);
   assert.doesNotMatch(preview, /PaidRaisePanel/);
   assert.doesNotMatch(preview, /Start Scout/);
-  assert.match(preview, /We do not email the list unless you subscribed separately/);
+  assert.match(preview, /emails this shortlist/);
 });
 
 test('improve and automate outreach use different CTA colors', () => {
@@ -64,7 +67,9 @@ test('save signup lands on the account profile, not the newsletter', () => {
   assert.match(gate, /export function savedMatchesPath\(\): string \{\n  return '\/account\?saved=1';/);
   assert.match(signup, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(signup, /Saved on your profile/);
-  assert.match(signup, /We do not email the list unless you subscribed separately/);
+  assert.match(signup, /we email the ranked list/);
+  assert.match(signup, /sendSavedMatchesEmail/);
+  assert.match(hub, /We email the ranked list/);
   assert.match(hub, /Your saved matches — \$\{companyLabel\}/);
   assert.match(hub, /source=account_saved/);
   assert.match(account, /get\("saved"\) === "1"/);
