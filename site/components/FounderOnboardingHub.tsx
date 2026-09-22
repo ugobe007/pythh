@@ -150,7 +150,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const stage = String(startup?.stage || '').replace(/-/g, ' ').trim();
   const website = startup?.website || pinned.url;
   const siteHost = hostLabel(website);
-  const previewPath = matchesPathForUrl(startup?.website);
+  const previewPath = matchesPathForUrl(website);
   const findMatchesHref = previewPath !== '/matches'
     ? previewPath
     : pinned.id
