@@ -220,7 +220,7 @@ export default function NewsletterJoinForm({
             : buttonLabel}
         {!loading && <ArrowRight size={16} />}
       </button>
-      {progressive && !urlReady && (
+      {progressive && !urlReady && !revealMatches && (
         <p className="text-[13px] mt-3 text-left" style={{ color: MUTED }}>
           We score the public site first. Email is only to deliver the ranked list — no account required.
         </p>
