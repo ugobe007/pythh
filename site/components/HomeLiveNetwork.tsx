@@ -18,7 +18,7 @@ function parseAmountUsd(raw: string | null | undefined) {
   return Math.round(n);
 }
 
-function formatAmount(raw: string | null | undefined) {
+export function formatAmount(raw: string | null | undefined) {
   const n = parseAmountUsd(raw);
   if (!(n > 0)) return "";
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
