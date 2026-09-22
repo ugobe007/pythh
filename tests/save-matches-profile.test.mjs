@@ -39,7 +39,7 @@ test('match preview lets founders improve twice, then save to their profile', ()
   assert.match(preview, /savedMatchesPath\(\)/);
   assert.doesNotMatch(preview, /PaidRaisePanel/);
   assert.doesNotMatch(preview, /Start Scout/);
-  assert.match(preview, /emails this shortlist/);
+  assert.match(preview, /Email my 5 matches/);
 });
 
 test('improve and automate outreach use different CTA colors', () => {

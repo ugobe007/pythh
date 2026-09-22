@@ -23,7 +23,16 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /Save matches/);
   assert.match(preview, /Inbox \+ profile/);
   assert.match(preview, /else void finishAuthenticatedSave\(\)/);
+  assert.match(preview, /Email my 5 matches/);
+  assert.match(preview, /Emailed these 5 matches to/);
   assert.doesNotMatch(preview, /We do not email the list unless you subscribed separately/);
+
+  const shortlist = read('server/routes/previewRoute.js');
+  assert.match(shortlist, /Your \$\{listed\.length\} investor matches/);
+  assert.match(shortlist, /\.slice\(0, 5\)/);
+  assert.match(shortlist, /inspectMatchesUrl/);
+  assert.match(shortlist, /\/matches\?url=/);
+  assert.doesNotMatch(shortlist, /\.slice\(0, 3\)/);
 
   assert.match(db, /upsertFounderProfileViaRest/);
   assert.match(db, /getFounderProfileViaRest/);
