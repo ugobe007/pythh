@@ -488,8 +488,8 @@ async function serveNewsletter({ bust = false, date = null } = {}) {
 
   if (!date) {
     const prior = await loadEdition(shiftUtcDate(editionDate, -1));
-    compileInBackground();
     if (prior) {
+      compileInBackground();
       return warmCache({ ...prior, compiling_today: true, served_from: prior.date });
     }
   }
