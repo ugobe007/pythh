@@ -293,8 +293,16 @@ router.post('/email-shortlist', async (req, res) => {
               name: m.investors?.name || '',
               firm: m.investors?.firm || null,
             }));
-            resolvedMatchCount = matches.length;
           }
+        }
+        
+        // Get full match count (not just the slice length)
+        if (resolvedMatchCount === 0) {
+          const { count: totalMatches } = await supabase
+            .from('startup_investor_matches')
+            .select('*', { count: 'exact', head: true })
+            .eq('startup_id', startupId);
+          resolvedMatchCount = totalMatches || 0;
         }
         
         oracleGap = buildPreviewOracleGap(startupRow, resolvedMatchCount);

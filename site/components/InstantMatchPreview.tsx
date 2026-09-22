@@ -180,6 +180,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const emailReadyShortlist = async (id: string, name?: string | null) => {
     const email = (user?.email || readJoinEmail()).trim();
     if (!email.includes('@') || emailedRef.current) return;
+    // Mark as emailed immediately to prevent concurrent sends
+    emailedRef.current = true;
     const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
       name: m.investor?.name || m.investor?.firm || '',
       firm: m.investor?.firm || null,
@@ -194,11 +196,10 @@ export default function InstantMatchPreview({ url }: Props) {
         topInvestors,
         source: 'instant_match_preview',
       });
-      // Only mark as emailed after successful send
-      emailedRef.current = true;
     } catch (err) {
       console.warn('[preview] email shortlist failed:', err);
-      // Leave emailedRef false so retry is allowed
+      // Reset flag on failure so retry is allowed
+      emailedRef.current = false;
     }
   };
 
