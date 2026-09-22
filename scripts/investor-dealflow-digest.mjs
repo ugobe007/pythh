@@ -301,6 +301,10 @@ function buildEmail(matches, recipientName = 'Investor', prefs = {}) {
            style="display:inline-block;background:#f59e0b;color:#000;font-size:14px;font-weight:700;padding:12px 32px;border-radius:10px;text-decoration:none;margin-bottom:12px;">
           Browse full dealflow →
         </a>
+        <p style="font-size:12px;color:#888;margin:0 0 10px;">
+          Daily Signal — what is shaping investor choices:
+          <a href="${SITE_BASE}/newsletter" style="color:#34d399;">${SITE_BASE.replace(/^https:\/\//, '')}/newsletter</a>
+        </p>
         <p style="font-size:11px;color:#333;margin:0;">
           You're receiving this because you signed up as an investor on Pythh.
           <a href="${SITE_BASE}/investor/profile" style="color:#444;">Manage profile</a>

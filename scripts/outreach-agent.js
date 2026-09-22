@@ -834,6 +834,12 @@ function vcEmail({ investor, leads, greeting, featuredStartup }) {
                     text-decoration:none;border-radius:8px;font-size:13px;background:transparent;">
             Browse rankings</a>
         </td>
+        <td style="padding-left:12px;">
+          <a href="https://pythh.ai/newsletter"
+             style="display:inline-block;padding:12px 22px;border:1px solid #1e293b;color:#64748b;
+                    text-decoration:none;border-radius:8px;font-size:13px;background:transparent;">
+            Daily Signal</a>
+        </td>
       </tr>
     </table>
   </div>
@@ -845,7 +851,7 @@ function vcEmail({ investor, leads, greeting, featuredStartup }) {
     <p style="font-size:11px;margin:0;">
       <a href="https://pythh.ai/support" style="color:#334155;text-decoration:none;">Unsubscribe</a>
       &nbsp;&middot;&nbsp;
-      <a href="https://pythh.ai" style="color:#334155;text-decoration:none;">pythh.ai</a>
+      <a href="https://pythh.ai/newsletter" style="color:#334155;text-decoration:none;">Daily Signal</a>
     </p>
   </div>
 
@@ -1016,6 +1022,11 @@ function startupEmail({ startup, matches, greeting, isFirstContact = true }) {
                     text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;
                     background:transparent;">See my full shortlist &rarr;</a>
         </td>
+        <td style="padding-left:12px;">
+          <a href="https://pythh.ai/newsletter"
+             style="display:inline-block;padding:12px 22px;border:1px solid #1e293b;color:#64748b;
+                    text-decoration:none;border-radius:8px;font-size:13px;background:transparent;">Daily Signal</a>
+        </td>
       </tr>
     </table>
   </div>
@@ -1027,7 +1038,7 @@ function startupEmail({ startup, matches, greeting, isFirstContact = true }) {
     <p style="font-size:11px;margin:0;">
       <a href="https://pythh.ai/support" style="color:#334155;text-decoration:none;">Unsubscribe</a>
       &nbsp;&middot;&nbsp;
-      <a href="https://pythh.ai" style="color:#334155;text-decoration:none;">pythh.ai</a>
+      <a href="https://pythh.ai/newsletter" style="color:#334155;text-decoration:none;">Daily Signal</a>
     </p>
   </div>
 

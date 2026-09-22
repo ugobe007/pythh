@@ -5,6 +5,7 @@
 //
 // Sections produced:
 //   editorial        — "PYTHIA's Take": a sharp daily synthesis (hybrid LLM + template)
+//   trendReport      — underlying preference drivers (optics / team / growth / sentiment)
 //   hottestStartups  — top GOD startups WITH the "why" (pillar + signal breakdown)
 //   signalsThatMatter— platform-wide signal momentum (which dimensions are spiking)
 //   topMatches       — most interesting investor↔startup matches WITH reasoning
@@ -19,6 +20,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { getSupabaseClient } = require('./lib/supabaseClient');
+const { runNewsletterTrendAgent } = require('./lib/newsletterTrendAgent');
 
 // Simple in-memory cache: regenerate at most once per hour
 let _cache = null;
@@ -80,12 +82,16 @@ function buildWhy(startup, signal) {
 }
 
 // ── Section fetchers ───────────────────────────────────────────────────────────
-async function fetchInvestorOfWeek(supabase, weekAgo) {
-  const { data: recent } = await supabase
+async function fetchInvestorOfWeek(supabase, weekAgo, upperBound = null) {
+  let query = supabase
     .from('startup_investor_matches')
     .select('investor_id, match_score')
     .gte('created_at', weekAgo)
-    .not('investor_id', 'is', null)
+    .not('investor_id', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: recent } = await query
     .order('match_score', { ascending: false })
     .limit(200);
 
@@ -117,12 +123,16 @@ async function fetchInvestorOfWeek(supabase, weekAgo) {
   };
 }
 
-async function fetchFundingRounds(supabase, weekAgo) {
-  const { data } = await supabase
+async function fetchFundingRounds(supabase, weekAgo, upperBound = null) {
+  let query = supabase
     .from('discovered_startups')
     .select('name, funding_amount, funding_stage, investors_mentioned, article_url, article_date, rss_source')
     .gte('created_at', weekAgo)
-    .not('funding_amount', 'is', null)
+    .not('funding_amount', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data } = await query
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -141,13 +151,17 @@ async function fetchFundingRounds(supabase, weekAgo) {
     }));
 }
 
-async function fetchGODScoreMovers(supabase, weekAgo) {
-  const { data: history } = await supabase
+async function fetchGODScoreMovers(supabase, weekAgo, upperBound = null) {
+  let query = supabase
     .from('score_history')
     .select('startup_id, old_score, new_score, created_at')
     .gte('created_at', weekAgo)
     .not('old_score', 'is', null)
-    .not('new_score', 'is', null)
+    .not('new_score', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: history } = await query
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -183,20 +197,25 @@ async function fetchGODScoreMovers(supabase, weekAgo) {
 }
 
 // Hottest startups WITH "why they score" — leaderboard joined to signal scores.
-async function fetchHottestStartups(supabase) {
-  const { data: top } = await supabase
+async function fetchHottestStartups(supabase, upperBound = null) {
+  let query = supabase
     .from('startup_uploads')
     .select(
       'id, name, tagline, website, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, is_competitive, has_followon, is_repeat_founder'
     )
     .eq('status', 'approved')
-    .not('total_god_score', 'is', null)
+    .not('total_god_score', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: top } = await query
     .order('total_god_score', { ascending: false })
     .limit(6);
 
   if (!top?.length) return [];
 
   const ids = top.map((s) => s.id);
+  
   const { data: signals } = await supabase
     .from('startup_signal_scores')
     .select('startup_id, signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity')
@@ -216,12 +235,22 @@ async function fetchHottestStartups(supabase) {
       pillars: PILLAR_META.map((p) => ({ label: p.label, value: Number(s[p.key]) || 0 })),
       signals_total: sig ? Number(sig.signals_total) || 0 : null,
       why: buildWhy(s, sig),
+      repeat_founder: Boolean(s.is_repeat_founder),
+      signals: sig
+        ? {
+            news_momentum: Number(sig.news_momentum) || 0,
+            investor_receptivity: Number(sig.investor_receptivity) || 0,
+            capital_convergence: Number(sig.capital_convergence) || 0,
+            execution_velocity: Number(sig.execution_velocity) || 0,
+            founder_language_shift: Number(sig.founder_language_shift) || 0,
+          }
+        : null,
     };
   });
 }
 
 // Platform-wide signal momentum — which dimensions are spiking right now.
-async function fetchSignalsThatMatter(supabase) {
+async function fetchSignalsThatMatter(supabase, upperBound = null) {
   const { data: rows } = await supabase
     .from('startup_signal_scores')
     .select(
@@ -274,12 +303,16 @@ async function fetchSignalsThatMatter(supabase) {
 }
 
 // Most interesting matches — WITH PYTHIA's reasoning, not just a score.
-async function fetchTopMatches(supabase) {
-  const { data: rawMatches } = await supabase
+async function fetchTopMatches(supabase, upperBound = null) {
+  let query = supabase
     .from('startup_investor_matches')
     .select('startup_id, investor_id, match_score, reasoning, why_you_match')
     .not('startup_id', 'is', null)
-    .not('investor_id', 'is', null)
+    .not('investor_id', 'is', null);
+  
+  if (upperBound) query = query.lte('created_at', upperBound);
+  
+  const { data: rawMatches } = await query
     .order('match_score', { ascending: false })
     .limit(400);
 
@@ -411,9 +444,9 @@ async function loadEdition(editionDate) {
   }
 }
 
-async function generateNewsletter({ bust = false } = {}) {
-  const now = Date.now();
-  if (!bust && _cache && now - _cacheTs < CACHE_TTL_MS) {
+async function generateNewsletter({ bust = false, date = null } = {}) {
+  const now = date ? new Date(`${date}T12:00:00Z`).getTime() : Date.now();
+  if (!bust && !date && _cache && Date.now() - _cacheTs < CACHE_TTL_MS) {
     return _cache;
   }
 
@@ -422,6 +455,7 @@ async function generateNewsletter({ bust = false } = {}) {
   // News window: prefer fresh, but fall back across a few days so the brief is
   // never empty if the scraper hasn't run in the last 24h.
   const newsWindow = new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString();
+  const nowISO = new Date(now).toISOString();
 
   const [
     leaderboardResult,
@@ -437,54 +471,66 @@ async function generateNewsletter({ bust = false } = {}) {
     topMatches,
   ] = await Promise.all([
     // GOD score leaderboard (legacy field)
-    supabase
-      .from('startup_uploads')
-      .select('id, name, tagline, total_god_score, traction_score, team_score, sectors')
-      .eq('status', 'approved')
-      .order('total_god_score', { ascending: false })
-      .limit(8),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('id, name, tagline, total_god_score, traction_score, team_score, sectors')
+        .eq('status', 'approved');
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('total_god_score', { ascending: false }).limit(8);
+    })(),
 
     // All approved startups (for sector analysis)
-    supabase
-      .from('startup_uploads')
-      .select('sectors, total_god_score')
-      .eq('status', 'approved')
-      .not('sectors', 'is', null),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('sectors, total_god_score')
+        .eq('status', 'approved')
+        .not('sectors', 'is', null);
+      if (date) query = query.lte('created_at', nowISO);
+      return query;
+    })(),
 
     // Dark horse: high momentum, moderate GOD (sleeper picks)
-    supabase
-      .from('startup_uploads')
-      .select('name, tagline, total_god_score, momentum_score, sectors')
-      .eq('status', 'approved')
-      .gte('momentum_score', 60)
-      .lte('total_god_score', 75)
-      .order('momentum_score', { ascending: false })
-      .limit(5),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('name, tagline, total_god_score, momentum_score, sectors')
+        .eq('status', 'approved')
+        .gte('momentum_score', 60)
+        .lte('total_god_score', 75);
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('momentum_score', { ascending: false }).limit(5);
+    })(),
 
     // Recently approved (last 7 days)
-    supabase
-      .from('startup_uploads')
-      .select('name, tagline, sectors, total_god_score, created_at')
-      .eq('status', 'approved')
-      .gte('created_at', weekAgo)
-      .order('created_at', { ascending: false })
-      .limit(6),
+    (async () => {
+      let query = supabase
+        .from('startup_uploads')
+        .select('name, tagline, sectors, total_god_score, created_at')
+        .eq('status', 'approved')
+        .gte('created_at', weekAgo);
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('created_at', { ascending: false }).limit(6);
+    })(),
 
     // Recent RSS-scraped news (last 24h)
-    supabase
-      .from('discovered_startups')
-      .select('name, article_title, article_url, article_date, rss_source, funding_amount, funding_stage, investors_mentioned')
-      .gte('created_at', newsWindow)
-      .not('article_title', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(20),
+    (async () => {
+      let query = supabase
+        .from('discovered_startups')
+        .select('name, article_title, article_url, article_date, rss_source, funding_amount, funding_stage, investors_mentioned')
+        .gte('created_at', newsWindow)
+        .not('article_title', 'is', null);
+      if (date) query = query.lte('created_at', nowISO);
+      return query.order('created_at', { ascending: false }).limit(20);
+    })(),
 
-    safeQuery(() => fetchInvestorOfWeek(supabase, weekAgo)),
-    safeQuery(() => fetchFundingRounds(supabase, weekAgo)),
-    safeQuery(() => fetchGODScoreMovers(supabase, weekAgo)),
-    safeQuery(() => fetchHottestStartups(supabase)),
-    safeQuery(() => fetchSignalsThatMatter(supabase)),
-    safeQuery(() => fetchTopMatches(supabase)),
+    safeQuery(() => fetchInvestorOfWeek(supabase, weekAgo, date ? nowISO : null)),
+    safeQuery(() => fetchFundingRounds(supabase, weekAgo, date ? nowISO : null)),
+    safeQuery(() => fetchGODScoreMovers(supabase, weekAgo, date ? nowISO : null)),
+    safeQuery(() => fetchHottestStartups(supabase, date ? nowISO : null)),
+    safeQuery(() => fetchSignalsThatMatter(supabase, date ? nowISO : null)),
+    safeQuery(() => fetchTopMatches(supabase, date ? nowISO : null)),
   ]);
 
   const leaderboard  = leaderboardResult?.data;
@@ -557,7 +603,7 @@ async function generateNewsletter({ bust = false } = {}) {
   const editorial = await generateEditorial(editorialCtx);
 
   const result = {
-    date:             new Date().toISOString().split('T')[0],
+    date:             date || new Date().toISOString().split('T')[0],
     generated_at:     new Date().toISOString(),
     editorial,                                 // { text, source }
     hottestStartups:  hottestStartups || [],
@@ -577,6 +623,16 @@ async function generateNewsletter({ bust = false } = {}) {
     fundingRounds:    fundingRounds  || [],
     scoreMovers:      scoreMovers    || [],
   };
+
+  try {
+    result.trendReport = await runNewsletterTrendAgent({
+      edition: result,
+      loadPrior: (date) => loadEdition(date),
+    });
+  } catch (err) {
+    console.warn('[newsletter] trend agent failed:', err.message);
+    result.trendReport = null;
+  }
 
   _cache   = result;
   _cacheTs = now;

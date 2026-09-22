@@ -1256,6 +1256,13 @@ function NewsletterSection() {
             }}
           />
           <p className="text-[14px] mt-4" style={{ color: MUTED }}>No spam. Unsubscribe anytime.</p>
+          <p className="text-[14px] mt-3">
+            <Link href="/newsletter">
+              <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: G }}>
+                Read today&rsquo;s Daily Signal <ArrowRight size={14} />
+              </span>
+            </Link>
+          </p>
         </div>
       </div>
     </section>
@@ -1523,7 +1530,7 @@ function Footer() {
   const cols: { title: string; links: { label: string; href: string | null }[] }[] = [
     { title: "Product", links: [
       { label: "Matches", href: "/matches" },
-      { label: "Newsletter", href: "/newsletter" },
+      { label: "Daily Signal", href: "/newsletter" },
       { label: "Pricing", href: "/pricing" },
       { label: "Portfolio", href: "/portfolio" },
     ]},
@@ -1635,7 +1642,9 @@ export default function Home() {
             Live market signal
           </h2>
           <p className="text-[17px] leading-relaxed max-w-[52ch] mb-8" style={{ color: MUTED }}>
-            Freshness only — the same tape as the Daily Brief. It is not the pair-layer claim.
+            Freshness only — the same tape as the{" "}
+            <Link href="/newsletter"><span style={{ color: G }}>Daily Signal</span></Link>
+            . It is not the pair-layer claim.
           </p>
           <HomeLiveTape />
         </div>

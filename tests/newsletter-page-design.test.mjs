@@ -12,6 +12,8 @@ test('newsletter page is Daily Signal, not the gold Daily Brief newspaper', () =
   assert.match(page, /NEWSLETTER_JOIN_CTA/);
   assert.match(page, /PURPLE_WASH/);
   assert.match(page, /Who just got funded/);
+  assert.match(page, /shaping capital/);
+  assert.match(page, /trendReport/);
   assert.match(page, /isPublicFundingMove/);
   assert.match(page, /\/api\/newsletter\/\$\{date\}/);
   assert.match(page, /hidePrimaryCta/);

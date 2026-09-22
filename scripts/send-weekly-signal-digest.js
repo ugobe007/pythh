@@ -264,6 +264,10 @@ function buildEmail(matches, recipientName = 'Investor', prefs = {}) {
            style="display:inline-block;background:#f59e0b;color:#000;font-size:14px;font-weight:700;padding:12px 32px;border-radius:10px;text-decoration:none;margin-bottom:16px;">
           View Full Signal Feed →
         </a>
+        <p style="font-size:12px;color:#888;margin:0 0 10px;">
+          Daily Signal — what is shaping investor choices:
+          <a href="https://pythh.ai/newsletter" style="color:#34d399;">pythh.ai/newsletter</a>
+        </p>
         <p style="font-size:11px;color:#333;margin:0;">
           You're receiving this because you have an investor profile on Pythh.
           <a href="#" style="color:#444;">Unsubscribe</a>

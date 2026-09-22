@@ -54,8 +54,9 @@ async function main() {
   const nl = await generateNewsletter({ bust: true });
   console.log(
     `[daily-brief] Edition ${nl.date} · editorial:${nl.editorial?.source || 'n/a'} · ` +
-    `hottest:${nl.hottestStartups?.length || 0} · matches:${nl.topMatches?.length || 0} · ` +
-    `money:${nl.moneyMoves?.length || 0} · vcNews:${nl.vcNews?.length || 0}`
+    `trends:${nl.trendReport?.source || 'n/a'} · hottest:${nl.hottestStartups?.length || 0} · ` +
+    `matches:${nl.topMatches?.length || 0} · money:${nl.moneyMoves?.length || 0} · ` +
+    `vcNews:${nl.vcNews?.length || 0}`
   );
 
   const subject = `The Pythh Daily Brief — ${nl.date}`;

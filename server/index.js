@@ -5202,6 +5202,10 @@ function renderStartupHotEmail({ userEmail, startupName, sectorKey, payload }) {
     <!-- Footer -->
     <div style="text-align: center; border-top: 1px solid #27272a; padding-top: 24px;">
       <p style="color: #71717a; font-size: 12px; margin: 0 0 8px 0;">
+        Daily Signal — what is shaping investor choices:
+        <a href="https://pythh.ai/newsletter" style="color: #34d399;">pythh.ai/newsletter</a>
+      </p>
+      <p style="color: #71717a; font-size: 12px; margin: 0 0 8px 0;">
         You're receiving this because you're watching this startup on Pythh.
       </p>
       <p style="color: #71717a; font-size: 12px; margin: 0;">
@@ -5223,6 +5227,7 @@ Momentum: ${momentum} | Evidence: ${evidence}
 View startup: ${viewUrl}
 
 ---
+Daily Signal: https://pythh.ai/newsletter
 You're receiving this because you're watching this startup on Pythh.
 Unsubscribe: ${unsubscribeUrl}
   `.trim();
@@ -5650,6 +5655,10 @@ function renderDigestEmail({ userEmail, userId, items, digestDate }) {
     <!-- Footer -->
     <div style="text-align: center; border-top: 1px solid #27272a; padding-top: 24px; margin-top: 32px;">
       <p style="color: #71717a; font-size: 12px; margin: 0 0 8px 0;">
+        Daily Signal — what is shaping investor choices:
+        <a href="https://pythh.ai/newsletter" style="color: #34d399;">pythh.ai/newsletter</a>
+      </p>
+      <p style="color: #71717a; font-size: 12px; margin: 0 0 8px 0;">
         You're receiving this daily digest because you have it enabled on Pythh.
       </p>
       <p style="color: #71717a; font-size: 12px; margin: 0;">
@@ -5674,6 +5683,7 @@ ${items.length} startup${items.length === 1 ? '' : 's'} with activity in the las
 ${textStartups}
 
 ---
+Daily Signal: https://pythh.ai/newsletter
 You're receiving this daily digest because you have it enabled on Pythh.
 Unsubscribe: ${unsubscribeUrl}
   `.trim();
