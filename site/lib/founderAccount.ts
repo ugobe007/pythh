@@ -4,6 +4,7 @@
  */
 
 import { apiUrl } from '@/lib/apiConfig';
+import { pinActiveStartup } from '@/lib/activeStartupContext';
 import { trpcVanilla } from '@/lib/trpcVanilla';
 
 export type FounderWelcomeEmailSource =
@@ -135,6 +136,7 @@ export async function persistFounderStartup(opts: {
       companyUrl: opts.companyUrl?.trim() || undefined,
       companyName: opts.companyName?.trim() || undefined,
     });
+    pinActiveStartup(opts.startupId, opts.companyUrl, opts.companyName);
     return true;
   } catch {
     return false;

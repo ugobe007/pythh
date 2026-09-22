@@ -1,10 +1,10 @@
 /**
- * Post-signup founder hub — resume matches, outreach, or improvements, or analyze a new URL.
+ * Account hub — review the saved shortlist. Oracle upgrade is the only next hop.
  */
 
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, ArrowRight, Bell, Sparkles, Target, Zap } from 'lucide-react';
+import { Activity, ArrowRight, Bell, Target } from 'lucide-react';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
@@ -15,12 +15,7 @@ import {
   getPinnedStartupUrl,
   pinActiveStartup,
 } from '@/lib/activeStartupContext';
-import {
-  allowWizardUnlockFlow,
-  improvementsPath,
-  matchesPathForUrl,
-  outreachPath,
-} from '@/lib/founderSignupGate';
+import { matchesPathForUrl } from '@/lib/founderSignupGate';
 import { G, MUTED, TEXT, DIM, BORDER, CARD } from '@/lib/designTokens';
 
 function normalizeUrl(raw: string): string | null {
@@ -38,9 +33,10 @@ type Props = {
   userName?: string | null;
   welcome?: boolean;
   saved?: boolean;
+  showUpgrade?: boolean;
 };
 
-export default function FounderOnboardingHub({ userName, welcome, saved }: Props) {
+export default function FounderOnboardingHub({ userName, welcome, saved, showUpgrade = true }: Props) {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const { data: profile } = trpc.profile.get.useQuery(undefined, {
@@ -116,10 +112,10 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
           }}
         >
           {saved
-            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. We email the ranked list — open Account from the nav anytime you come back.`
+            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. Review them here — we also emailed the ranked list.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
-                  ? ` — ${companyLabel} is saved. Open your match list below.`
+                  ? ` — ${companyLabel} is saved. Review the shortlist below.`
                   : ' — investor tracking is on. Paste your URL to load your shortlist.'
               }`}
         </div>
@@ -140,7 +136,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
         </h2>
         <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
           {hasPinnedStartup
-            ? 'This is your profile. These five stay attached to your account. Open the full list anytime from here or Account in the nav.'
+            ? 'This is your profile. These five stay here. Upgrade to Oracle at the bottom when you want outreach and automation.'
             : 'Paste your startup URL to see ranked investors, then save the shortlist to this account.'}
         </p>
       </div>
@@ -173,50 +169,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
         </ol>
       )}
 
-      {hasPinnedStartup && pinned.id && pinned.url && (
-        <div className="grid gap-2 mb-8">
-          <button
-            type="button"
-            onClick={() => navigate(matchesPathForUrl(pinned.url))}
-            className="flex items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-left"
-            style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)' }}
-          >
-            <span>
-              <span className="block text-sm font-semibold">Open full match list</span>
-              <span className="block text-[11px] opacity-80">Review why each investor fits and refine the ranking</span>
-            </span>
-            <Target size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(outreachPath(pinned.id!))}
-            className="flex items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-left border"
-            style={{ backgroundColor: 'oklch(0.14 0.01 264)', borderColor: 'oklch(0.22 0.01 264)', color: 'oklch(0.9 0.005 264)' }}
-          >
-            <span>
-              <span className="block text-sm font-semibold">Open outreach drafts</span>
-              <span className="block text-[11px]" style={{ color: 'oklch(0.5 0.01 264)' }}>Personalize and send investor emails</span>
-            </span>
-            <Zap size={16} style={{ color: 'oklch(0.696 0.17 162.48)' }} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              allowWizardUnlockFlow();
-              navigate(improvementsPath(pinned.id!, 'matches'));
-            }}
-            className="flex items-center justify-between gap-3 rounded-xl px-4 py-3.5 text-left border"
-            style={{ backgroundColor: 'oklch(0.14 0.01 264)', borderColor: 'rgba(34,211,238,0.25)', color: 'oklch(0.9 0.005 264)' }}
-          >
-            <span>
-              <span className="block text-sm font-semibold">Optional Oracle improvements</span>
-              <span className="block text-[11px]" style={{ color: 'oklch(0.5 0.01 264)' }}>Three priorities — returns to your match list</span>
-            </span>
-            <Sparkles size={16} style={{ color: '#22d3ee' }} />
-          </button>
-        </div>
-      )}
-
+      {!hasPinnedStartup && (
       <form
         onSubmit={submit}
         className="rounded-xl p-5 border mb-6"
@@ -260,6 +213,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
           </p>
         )}
       </form>
+      )}
 
       {!hasPinnedStartup && (
       <div className="grid sm:grid-cols-3 gap-3 mb-8">
@@ -281,20 +235,8 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
       </div>
       )}
 
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-        <Link href="/find-investors">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border"
-            style={{
-              borderColor: 'oklch(0.25 0.01 264)',
-              color: 'oklch(0.65 0.01 264)',
-              backgroundColor: 'transparent',
-            }}
-          >
-            Learn how matching works
-          </button>
-        </Link>
+      {showUpgrade && (
+      <div className="flex items-center justify-center">
         <Link href="/pricing">
           <button
             type="button"
@@ -306,6 +248,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved }: Props
           </button>
         </Link>
       </div>
+      )}
     </div>
   );
 }

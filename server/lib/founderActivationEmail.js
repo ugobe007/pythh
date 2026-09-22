@@ -56,10 +56,8 @@ async function sendFounderActivationEmail({
     ``,
     ...gapLines,
     ``,
-    `View investor matches: ${matchesUrl}`,
-    `Open outreach drafts: ${outreachUrl}`,
-    `Optional Oracle improvements: ${improvementsUrl}`,
-    `Start 7-day Oracle trial: ${trialUrl}`,
+    `Review your account and matches: ${matchesUrl}`,
+    `Upgrade to Oracle: ${trialUrl}`,
     `Daily Signal: https://pythh.ai/newsletter`,
     ``,
     `— Pythh Oracle`,
@@ -77,14 +75,12 @@ async function sendFounderActivationEmail({
   const html = `
     <div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#111;max-width:560px;">
       <p>Welcome — your Pythh account is ready for <strong>${startupName}</strong>.</p>
-      <p>Your ranked investor matches are the best place to start. Your outreach drafts are ready to personalize; Oracle improvements are optional.</p>
+      <p>Your ranked investor matches are saved on your account. Review them there. Upgrade to Oracle when you want outreach and automation.</p>
       ${gapHtml}
       <p>
-        <a href="${matchesUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">View investor matches</a>
-        <a href="${outreachUrl}" style="display:inline-block;background:#111827;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open outreach drafts</a>
+        <a href="${matchesUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Review your account</a>
       </p>
-      <p style="font-size:13px;"><a href="${improvementsUrl}" style="color:#7c3aed;">Review optional Oracle improvements →</a></p>
-      <p style="font-size:13px;"><a href="${trialUrl}" style="color:#7c3aed;">Start 7-day Oracle trial →</a></p>
+      <p style="font-size:13px;"><a href="${trialUrl}" style="color:#7c3aed;">Upgrade to Oracle →</a></p>
       <p style="font-size:13px;"><a href="https://pythh.ai/newsletter" style="color:#16a34a;">Read today’s Daily Signal →</a></p>
     </div>`;
 
@@ -148,9 +144,7 @@ async function sendFounderActivationNudge(supabase, { email, startupId, startupN
   const oracleGap = buildPreviewOracleGap(startup, matchCount || 0);
   const name = startupName || startup.name || 'your startup';
   const startupUrl = String(startup.website || '').trim();
-  const matchesUrl = startupUrl
-    ? `${APP_BASE}/matches?url=${encodeURIComponent(startupUrl)}`
-    : `${APP_BASE}/matches`;
+  const matchesUrl = `${APP_BASE}/account?saved=1`;
   const outreachUrl = `${APP_BASE}/wizard/${encodeURIComponent(startupId)}?tab=round&force_wizard=1`;
   const improvementsUrl = `${APP_BASE}/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1&return_to=matches`;
   const trialUrl = `${APP_BASE}/pricing?trial=1&startup_id=${startupId}&source=activation_email`;

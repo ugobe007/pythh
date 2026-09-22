@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'wouter';
+import { useLocation } from 'wouter';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { trpc } from '@/lib/trpc';
@@ -16,6 +16,7 @@ import { recordMatchViewOnce, trackFunnelEventOnce } from '@/lib/matchEngagement
 import {
   postSignupPathForAction,
   savedMatchesPath,
+  startupAlreadyOnAccount,
   trackFounderGateStarted,
   completePreviewGateIfPending,
   peekFounderGatePending,
@@ -24,7 +25,7 @@ import {
 } from '@/lib/founderSignupGate';
 import { persistFounderStartup, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
-import { pinActiveStartup } from '@/lib/activeStartupContext';
+import { getPinnedStartupId, getPinnedStartupUrl, pinActiveStartup } from '@/lib/activeStartupContext';
 import {
   ANON_IMPROVE_LIMIT,
   canImproveAnonymously,
@@ -132,6 +133,10 @@ export default function InstantMatchPreview({ url }: Props) {
     status: subscription?.status,
     role: user?.role,
   });
+  const { data: profile } = trpc.profile.get.useQuery(undefined, {
+    enabled: Boolean(isAuthenticated),
+    retry: false,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -151,6 +156,18 @@ export default function InstantMatchPreview({ url }: Props) {
   const gateCompletedRef = useRef(false);
   const emailedRef = useRef(false);
   const emailPromiseRef = useRef<Promise<void> | null>(null);
+  const alreadyOnAccount = Boolean(
+    isAuthenticated &&
+      (shortlistSaved ||
+        startupAlreadyOnAccount({
+          previewStartupId: preview?.startup?.id || startupId,
+          previewUrl: url,
+          profileStartupId: profile?.startupId,
+          profileUrl: profile?.companyUrl,
+          pinnedStartupId: getPinnedStartupId(),
+          pinnedUrl: getPinnedStartupUrl(),
+        })),
+  );
 
   useEffect(() => {
     fetchGrowthAssignment('founder', 'founder_hero_entry')
@@ -175,6 +192,7 @@ export default function InstantMatchPreview({ url }: Props) {
       });
     }
     if (!ok) throw new Error('Could not save matches to your account. Try again.');
+    pinActiveStartup(id, url, name);
     setShortlistSaved(true);
   };
 
@@ -408,6 +426,10 @@ export default function InstantMatchPreview({ url }: Props) {
     optOutOfImprove(id);
     setImproveOptedOut(true);
     setImproveMatchesOpen(false);
+    if (alreadyOnAccount) {
+      navigate(savedMatchesPath());
+      return;
+    }
     if (!isAuthenticated) handleSignup('save');
     else void finishAuthenticatedSave();
   };
@@ -415,17 +437,22 @@ export default function InstantMatchPreview({ url }: Props) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (new URLSearchParams(window.location.search).get('improve') !== '1') return;
+    if (alreadyOnAccount) return;
     const id = preview?.startup?.id || startupId;
     if (!id || hasOptedOutOfImprove(id)) return;
     if (isAuthenticated || canImproveAnonymously(id)) {
       setImproveMatchesOpen(true);
     }
-  }, [isAuthenticated, preview?.startup?.id, startupId]);
+  }, [alreadyOnAccount, isAuthenticated, preview?.startup?.id, startupId]);
 
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     const startupIdForGate = preview?.startup?.id;
     if (isAuthenticated && startupIdForGate) {
       if (action === 'save') {
+        if (alreadyOnAccount) {
+          navigate(savedMatchesPath());
+          return;
+        }
         void finishAuthenticatedSave();
         return;
       }
@@ -480,21 +507,22 @@ export default function InstantMatchPreview({ url }: Props) {
   const godScore =
     typeof preview.startup?.god_score === 'number' ? Math.round(preview.startup.god_score) : null;
   const fundingStage = preview.shortlist_mix?.funding_stage?.replace(/-/g, ' ');
-  const canConfirmRound = Boolean(isAuthenticated && preview.startup?.id && !fundingStage);
+  const alreadySaved = alreadyOnAccount;
+  const canConfirmRound = Boolean(!alreadySaved && isAuthenticated && preview.startup?.id && !fundingStage);
   const improveLeft = Math.max(0, ANON_IMPROVE_LIMIT - improveUsed);
-  const canImproveNow = Boolean(!improveOptedOut && (isAuthenticated || improveLeft > 0));
+  const canImproveNow = Boolean(!alreadySaved && !improveOptedOut && (isAuthenticated || improveLeft > 0));
   const nextCopy = !isAuthenticated
     ? canImproveNow
       ? `These ${visible.length} matches are ready. Improving is optional — skip if you want to keep this shortlist as-is. You can still refine ${improveLeft} more time${improveLeft === 1 ? '' : 's'} without an account.`
       : improveOptedOut
         ? `You skipped improve. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
         : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
-    : canConfirmRound
-      ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top. Improving the rest of the profile is optional.'
-      : improveOptedOut
-        ? 'You kept this shortlist. Save it to your profile and we email the list so you can come back from your inbox.'
-        : shortlistSaved
-          ? 'These matches are saved to your account. Improving is optional — skip if these five are enough.'
+    : alreadySaved
+      ? 'These matches are already on your account. Review them there — do not save again.'
+      : canConfirmRound
+        ? 'These five are ranked without a confirmed round. Confirm seed / A / B so we can rerank who sits on top. Improving the rest of the profile is optional.'
+        : improveOptedOut
+          ? 'You kept this shortlist. Save it to your profile and we email the list so you can come back from your inbox.'
           : 'These matches are ready. Improving is optional — skip if you want to keep this shortlist as-is.';
 
   return (
@@ -508,9 +536,9 @@ export default function InstantMatchPreview({ url }: Props) {
           <div key={step} className="text-center">
             <div
               className="h-1 rounded-full mb-2"
-              style={{ backgroundColor: index <= 1 ? G : 'oklch(0.25 0.01 264)' }}
+              style={{ backgroundColor: alreadySaved || index <= 1 ? G : 'oklch(0.25 0.01 264)' }}
             />
-            <p className="text-[10px]" style={{ color: index <= 1 ? G : DIM }}>
+            <p className="text-[10px]" style={{ color: alreadySaved || index <= 1 ? G : DIM }}>
               {step}. {label}
             </p>
           </div>
@@ -537,13 +565,9 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
       </div>
 
-      {isAuthenticated && shortlistSaved && (
+      {alreadySaved && (
         <p className="mb-4 text-xs" style={{ color: G }}>
-          Saved to your account.{' '}
-          <Link href={savedMatchesPath()} className="underline underline-offset-2">
-            Open your saved matches
-          </Link>
-          .
+          Saved to your account.
         </p>
       )}
 
@@ -577,52 +601,66 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="text-sm mb-4" style={{ color: TEXT }}>
           {nextCopy}
         </p>
-        {canImproveNow && (
+        {alreadySaved ? (
           <button
             type="button"
-            onClick={openImproveOrSignup}
-            className={`${NEXT_STEP_CTA_CLASS} mb-3`}
-            style={IMPROVE_CTA_STYLE}
-            onMouseEnter={(e) => paintImproveCta(e.currentTarget, true)}
-            onMouseLeave={(e) => paintImproveCta(e.currentTarget, false)}
+            onClick={() => navigate(savedMatchesPath())}
+            className={NEXT_STEP_CTA_CLASS}
+            style={NEXT_STEP_CTA_STYLE}
+            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
           >
-            Improve my matches
+            Review your account
             <ArrowRight className="w-4 h-4" />
           </button>
+        ) : (
+          <>
+            {canImproveNow && (
+              <button
+                type="button"
+                onClick={openImproveOrSignup}
+                className={`${NEXT_STEP_CTA_CLASS} mb-3`}
+                style={IMPROVE_CTA_STYLE}
+                onMouseEnter={(e) => paintImproveCta(e.currentTarget, true)}
+                onMouseLeave={(e) => paintImproveCta(e.currentTarget, false)}
+              >
+                Improve my matches
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={saving}
+              onClick={canImproveNow ? skipImprove : canConfirmRound ? openImproveOrSignup : () => handleSignup('save')}
+              className={NEXT_STEP_CTA_CLASS}
+              style={{ ...NEXT_STEP_CTA_STYLE, opacity: saving ? 0.7 : 1 }}
+              onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+              onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : canImproveNow ? (
+                'Skip — save my matches'
+              ) : canConfirmRound ? (
+                'Confirm your round'
+              ) : (
+                'Save my matches'
+              )}
+              {!saving && <ArrowRight className="w-4 h-4" />}
+            </button>
+          </>
         )}
-        <button
-          type="button"
-          disabled={saving}
-          onClick={canImproveNow ? skipImprove : canConfirmRound ? openImproveOrSignup : () => handleSignup('save')}
-          className={NEXT_STEP_CTA_CLASS}
-          style={{ ...NEXT_STEP_CTA_STYLE, opacity: saving ? 0.7 : 1 }}
-          onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
-          onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : canImproveNow ? (
-            isAuthenticated ? (
-              'Skip — save my matches'
-            ) : (
-              'Skip — save my matches'
-            )
-          ) : canConfirmRound ? (
-            'Confirm your round'
-          ) : (
-            'Save my matches'
-          )}
-          {!saving && <ArrowRight className="w-4 h-4" />}
-        </button>
         {saveError && (
           <p className="mt-3 text-xs text-center" style={{ color: AMBER }}>
             {saveError}
           </p>
         )}
         <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
-          {isAuthenticated
-            ? 'Saving keeps this shortlist on your profile and emails the ranked list to you.'
-            : 'Saving creates a free account, emails this shortlist, and keeps it under Account.'}
+          {alreadySaved
+            ? 'Your shortlist lives on Account. Upgrade to Oracle there when you want outreach automation.'
+            : isAuthenticated
+              ? 'Saving keeps this shortlist on your profile and emails the ranked list to you.'
+              : 'Saving creates a free account, emails this shortlist, and keeps it under Account.'}
         </p>
       </div>
 

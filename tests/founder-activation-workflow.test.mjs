@@ -7,13 +7,13 @@ const source = await readFile(
   'utf8',
 );
 
-test('founder activation email follows the matches-first workflow', () => {
-  assert.match(source, /View investor matches/);
-  assert.match(source, /Open outreach drafts/);
-  assert.match(source, /Optional Oracle improvements/);
-  assert.match(source, /\/matches\?url=/);
-  assert.match(source, /\/wizard\/\$\{encodeURIComponent\(startupId\)\}\?tab=round&force_wizard=1/);
-  assert.match(source, /start_unlocks=1&return_to=matches/);
+test('founder activation email sends one hop to the account profile', () => {
+  assert.match(source, /Review your account/);
+  assert.match(source, /\/account\?saved=1/);
+  assert.match(source, /Upgrade to Oracle/);
+  assert.doesNotMatch(source, /Open outreach drafts/);
+  assert.doesNotMatch(source, /Optional Oracle improvements/);
+  assert.doesNotMatch(source, /\/matches\?url=/);
 });
 
 test('founder activation email does not send founders through the legacy welcome route', () => {
