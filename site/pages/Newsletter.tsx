@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation, useRoute } from "wouter";
+import { Link, useRoute } from "wouter";
 import { Helmet } from "react-helmet-async";
 import {
-  ArrowRight,
   Zap,
   TrendingUp,
   Activity,
@@ -10,9 +9,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-import NewsletterJoinForm, { PREVIEW_MATCHES_CTA } from "@/components/NewsletterJoinForm";
+import NewsletterJoinForm, { NEWSLETTER_JOIN_CTA } from "@/components/NewsletterJoinForm";
 import { formatAmount, isPublicFundingMove } from "@/components/HomeLiveNetwork";
-import { persistJoinPreview } from "@/lib/openFirstMatches";
 import {
   G,
   GOLD,
@@ -228,9 +226,9 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           <p className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase mb-1" style={{ color: PURPLE_ACCENT }}>
             Today&rsquo;s edition
           </p>
-          <h2 className="font-display font-bold text-2xl sm:text-3xl" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
+          <h1 className="font-display font-bold text-2xl sm:text-3xl" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
             Daily Signal
-          </h2>
+          </h1>
         </div>
         <span className="text-xs font-mono" style={{ color: MUTED }}>
           {data.date ?? "TODAY"} · LIVE
@@ -572,7 +570,6 @@ function SiteFooter() {
 }
 
 export default function Newsletter() {
-  const [, navigate] = useLocation();
   const [isDated, datedParams] = useRoute("/newsletter/:date");
   const editionDate =
     isDated && datedParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(datedParams.date)
@@ -585,7 +582,7 @@ export default function Newsletter() {
         <title>Daily Signal — ranked matches and today&rsquo;s funding tape</title>
         <meta
           name="description"
-          content="Paste your website. We send the ranked investor shortlist and today’s public funding tape. No account required."
+          content="Today’s Daily Signal: hottest startups, public funding tape, and ranked investor matches. Leave a URL to get the shortlist in your inbox."
         />
         <meta property="og:title" content="Daily Signal — Pythh.ai" />
         <meta property="og:url" content="https://pythh.ai/newsletter" />
@@ -593,49 +590,38 @@ export default function Newsletter() {
 
       <SharedNavbar activePath="/newsletter" hidePrimaryCta />
 
-      <section className="pt-20 pb-14 lg:pb-16 relative overflow-hidden" style={{ backgroundColor: PURPLE_WASH }}>
-        <div className="container max-w-[720px] mx-auto px-6 relative z-10 text-center">
-          <div className="flex items-center justify-center gap-2.5 mb-3">
-            <p className="text-[12px] font-medium tracking-wide uppercase" style={{ color: PURPLE_ACCENT }}>
-              Daily Signal
-            </p>
-            <span className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest" style={{ color: G }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
-              LIVE
-            </span>
-          </div>
-          <h1
-            className="font-display font-bold leading-[1.12] mb-4"
-            style={{ fontSize: "clamp(1.85rem, 3.6vw, 2.75rem)", color: TEXT, letterSpacing: "-0.03em" }}
-          >
-            Your first ranked matches arrive tomorrow morning.
-          </h1>
-          <p className="text-[17px] leading-relaxed mb-8" style={{ color: MUTED }}>
-            Paste your website. We send the shortlist and today&rsquo;s funding tape. No account required.
-          </p>
-          <NewsletterJoinForm
-            source="newsletter_page"
-            progressive
-            revealMatches
-            cta={PREVIEW_MATCHES_CTA}
-            className="mx-auto"
-            onJoined={({ url, email }) => {
-              navigate(persistJoinPreview(url, email));
-            }}
-          />
-          <p className="text-[14px] mt-4" style={{ color: MUTED }}>
-            Free · daily matches + funding news · unsubscribe anytime.
-          </p>
-        </div>
-      </section>
-
-      <section className="py-14 lg:py-16" style={{ backgroundColor: PAGE }}>
+      <section className="pt-20 pb-14 lg:pb-16" style={{ backgroundColor: PAGE }}>
         <div className="container max-w-[1200px] mx-auto px-6">
           <DailySignalEdition date={editionDate} />
         </div>
       </section>
 
       <section className="py-14 border-t" style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }}>
+        <div className="container max-w-[720px] mx-auto px-6">
+          <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+            Daily Signal
+          </p>
+          <h2
+            className="font-display font-bold mb-3"
+            style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", color: TEXT, letterSpacing: "-0.03em" }}
+          >
+            Get the daily brief.
+          </h2>
+          <p className="text-[17px] leading-relaxed mb-8" style={{ color: MUTED }}>
+            Leave your website and email. Tomorrow&rsquo;s issue includes your ranked shortlist and the funding tape.
+          </p>
+          <NewsletterJoinForm
+            source="newsletter_page"
+            cta={NEWSLETTER_JOIN_CTA}
+            className="mx-auto"
+          />
+          <p className="text-[14px] mt-4" style={{ color: MUTED }}>
+            Free · unsubscribe anytime.
+          </p>
+        </div>
+      </section>
+
+      <section className="py-14 border-t" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
         <div className="container max-w-[1200px] mx-auto px-6">
           <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
             Contents
@@ -646,7 +632,7 @@ export default function Newsletter() {
           >
             What&rsquo;s in every issue
           </h2>
-          <div className="grid md:grid-cols-3 gap-6 mb-10">
+          <div className="grid md:grid-cols-3 gap-6">
             {WHAT_YOU_GET.map((item) => (
               <div
                 key={item.label}
@@ -659,14 +645,6 @@ export default function Newsletter() {
               </div>
             ))}
           </div>
-          <Link href="/matches">
-            <span
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold"
-              style={{ backgroundColor: G, color: "#04130d" }}
-            >
-              See your matches <ArrowRight size={15} />
-            </span>
-          </Link>
         </div>
       </section>
 
