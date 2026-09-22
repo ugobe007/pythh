@@ -15,7 +15,10 @@ test('GET /api/newsletter/today serves the prebuilt edition, not a live compile'
   assert.match(generator, /async function prebuildNewsletter/);
   assert.match(generator, /loadEdition\(editionDate\)/);
   assert.match(generator, /compileInBackground/);
+  assert.match(generator, /if \(prior\) \{\n      compileInBackground/);
   assert.match(generator, /if \(saved\) return/);
+  assert.match(generator, /required: Boolean\(bust\)/);
+  assert.match(generator, /prebuild did not persist newsletter_editions/);
   const serveAt = generator.indexOf('async function serveNewsletter');
   const compileAt = generator.indexOf('async function generateNewsletter');
   assert.ok(serveAt >= 0 && compileAt > serveAt);
@@ -27,7 +30,8 @@ test('GET /api/newsletter/today serves the prebuilt edition, not a live compile'
 test('daily prebuild job writes newsletter_editions before readers hit the page', () => {
   assert.match(script, /prebuildNewsletter/);
   assert.match(pkg, /"newsletter:prebuild"/);
-  assert.match(workflow, /15 5 \* \* \*/);
+  assert.match(workflow, /15 7 \* \* \*/);
+  assert.match(workflow, /node_version: '22'/);
   assert.match(workflow, /newsletter-prebuild/);
   assert.match(workflow, /scripts\/prebuild-newsletter\.mjs/);
   assert.match(send, /generateNewsletter\(\{ bust: true \}\)/);

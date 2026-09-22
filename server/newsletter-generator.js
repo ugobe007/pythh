@@ -416,16 +416,23 @@ async function generateEditorial(ctx) {
 }
 
 // ── Edition persistence ───────────────────────────────────────────────────────
-async function saveEdition(supabase, editionDate, data) {
+async function saveEdition(supabase, editionDate, data, { required = false } = {}) {
   try {
     const { error } = await supabase
       .from('newsletter_editions')
       .upsert({ edition_date: editionDate, data, generated_at: data.generated_at, updated_at: new Date().toISOString() }, { onConflict: 'edition_date' });
-    if (error && !error.message.includes('does not exist')) {
-      console.error('[newsletter] saveEdition error:', error.message);
+    if (error) {
+      if (required) throw new Error(`saveEdition failed: ${error.message}`);
+      if (!error.message.includes('does not exist')) {
+        console.error('[newsletter] saveEdition error:', error.message);
+      }
+      return false;
     }
+    return true;
   } catch (e) {
+    if (required) throw e;
     console.error('[newsletter] saveEdition exception:', e.message);
+    return false;
   }
 }
 
@@ -498,7 +505,12 @@ async function serveNewsletter({ bust = false, date = null } = {}) {
 }
 
 async function prebuildNewsletter() {
-  return generateNewsletter({ bust: true });
+  const edition = await generateNewsletter({ bust: true });
+  const saved = await loadEdition(edition.date);
+  if (!saved || saved.generated_at !== edition.generated_at) {
+    throw new Error(`prebuild did not persist newsletter_editions for ${edition.date}`);
+  }
+  return edition;
 }
 
 async function generateNewsletter({ bust = false, date = null } = {}) {
@@ -698,7 +710,7 @@ async function generateNewsletter({ bust = false, date = null } = {}) {
 
   warmCache(result);
 
-  await saveEdition(supabase, result.date, result);
+  await saveEdition(supabase, result.date, result, { required: Boolean(bust) });
 
   return result;
 }

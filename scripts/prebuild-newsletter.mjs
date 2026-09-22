@@ -6,7 +6,7 @@
  *
  *   npm run newsletter:prebuild
  *
- * Scheduled: GitHub Actions Platform Daily Batch at 05:15 UTC.
+ * Scheduled: GitHub Actions Platform Daily Batch at 07:15 UTC (after sage-review).
  * daily-brief (13:00 UTC) also busts and rewrites the edition before email.
  */
 import 'dotenv/config';

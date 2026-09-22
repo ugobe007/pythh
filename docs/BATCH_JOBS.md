@@ -35,7 +35,7 @@ Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, `LINKEDI
 | [batch-platform-daily.yml](../.github/workflows/batch-platform-daily.yml) | 03:00 | Holding review worker |
 | | 04:00 | Oracle signal backfill |
 | | 05:00 | RSS enrich (M&A + funding) |
-| | 05:15 | Daily Signal prebuild (`newsletter_editions` — page reads this, does not compile on request) |
+| | 07:15 | Daily Signal prebuild (after sage-review; page reads `newsletter_editions`, does not compile on request) |
 | | 13:00 | Daily brief email (busts and rewrites today's Daily Signal, then sends) |
 | | 05:30 | Event resolver (uploads + **discovered** promotion) |
 | | 06:00 | Portfolio monitor (+ post-funding rescore) |
