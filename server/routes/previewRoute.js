@@ -94,7 +94,7 @@ async function sendPreviewShortlistEmail({
   const text = [
     `Hi —`,
     ``,
-    `Here are your top ${listed.length || 5} Pythh investor matches for ${startupName}.`,
+    `Here are your top ${listed.length} Pythh investor matches for ${startupName}.`,
     lines ? `\n${lines}\n` : '',
     `Open these matches: ${listUrl}`,
     matchCount && matchCount > listed.length
@@ -121,9 +121,9 @@ async function sendPreviewShortlistEmail({
 
   const html = `
     <div style="font-family: Inter, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
-      <p>Your top ${listed.length || 5} investor matches for <strong>${startupName}</strong>:</p>
+      <p>Your top ${listed.length} investor matches for <strong>${startupName}</strong>:</p>
       ${lines ? `<pre style="background:#f4f4f5;padding:12px;border-radius:8px;font-size:14px;white-space:pre-wrap;">${lines.replace(/</g, '&lt;')}</pre>` : ''}
-      <p><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my 5 matches</a></p>
+      <p><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my ${listed.length} match${listed.length === 1 ? '' : 'es'}</a></p>
       ${matchCount && matchCount > listed.length ? `<p style="color:#666;font-size:13px;">${matchCount.toLocaleString()} ranked matches are on your account.</p>` : ''}
       ${gapHtml}
     </div>`;
