@@ -6,7 +6,7 @@ import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { getUtmParams } from '@/lib/funnelAttribution';
 
-import { pinActiveStartup } from '@/lib/activeStartupContext';
+import { extractDomain, pinActiveStartup } from '@/lib/activeStartupContext';
 
 export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle_gap' | 'outreach';
 
@@ -95,6 +95,37 @@ export function matchesPathForUrl(url?: string | null): string {
 /** Account landing after Save — this is where the shortlist lives. */
 export function savedMatchesPath(): string {
   return '/account?saved=1';
+}
+
+function urlsShareDomain(a?: string | null, b?: string | null): boolean {
+  const left = extractDomain(a);
+  const right = extractDomain(b);
+  if (!left || !right) return false;
+  return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`);
+}
+
+/**
+ * True when this preview is already the founder's saved startup.
+ * Must not treat empty URLs as a match (domainsMatch does).
+ */
+export function startupAlreadyOnAccount(opts: {
+  previewStartupId?: string | null;
+  previewUrl?: string | null;
+  profileStartupId?: string | null;
+  profileUrl?: string | null;
+  pinnedStartupId?: string | null;
+  pinnedUrl?: string | null;
+}): boolean {
+  const previewId = String(opts.previewStartupId || '').trim();
+  if (
+    previewId &&
+    (opts.profileStartupId === previewId || opts.pinnedStartupId === previewId)
+  ) {
+    return true;
+  }
+  const previewUrl = String(opts.previewUrl || '').trim();
+  if (!previewUrl) return false;
+  return urlsShareDomain(previewUrl, opts.profileUrl) || urlsShareDomain(previewUrl, opts.pinnedUrl);
 }
 
 /** Optional wizard routes — used from the matches hub, not as default post-signup landing. */

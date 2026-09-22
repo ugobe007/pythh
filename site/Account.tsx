@@ -390,10 +390,12 @@ function NoSubscription({
   userName,
   welcome,
   saved,
+  showUpgrade = true,
 }: {
   userName: string | null;
   welcome?: boolean;
   saved?: boolean;
+  showUpgrade?: boolean;
 }) {
   return (
     <motion.div
@@ -402,7 +404,7 @@ function NoSubscription({
       transition={{ duration: 0.4 }}
       className="py-12"
     >
-      <FounderOnboardingHub userName={userName} welcome={welcome} saved={saved} />
+      <FounderOnboardingHub userName={userName} welcome={welcome} saved={saved} showUpgrade={showUpgrade} />
       <SavedFounderOpportunities />
     </motion.div>
   );
@@ -472,7 +474,12 @@ export default function Account() {
       setOauthBusy(false);
       clearOAuthHandoff();
       const next = readPostLoginPath();
-      if (next && next !== "/account") {
+      const onSavedAccount = new URLSearchParams(window.location.search).get("saved") === "1";
+      // Save destination wins — do not bounce a just-saved founder back to /matches.
+      if (onSavedAccount && (next.startsWith("/matches") || next.startsWith("/signup/founder"))) {
+        return;
+      }
+      if (next && next !== "/account" && next !== "/account?saved=1") {
         if (next.startsWith("/matches")) {
           void trackFunnelEventOnce("founder_auth_completed:oauth:matches", "founder_auth_completed", {
             source: "pre_match_gate",
@@ -699,14 +706,19 @@ export default function Account() {
             {subscription
               ? "Manage your Oracle subscription and billing details."
               : showSaved
-                ? "This is your profile. The ranked list is emailed to you — come back here from your inbox or Account in the nav."
-                : "Track investor matches, save your shortlist, and open your intro pipeline."}
+                ? "This is your profile. Review your matches here. Upgrade to Oracle at the bottom for outreach and automation."
+                : "Review your saved matches here. Upgrade to Oracle at the bottom when you want outreach automation."}
           </p>
         </motion.div>
 
-        {/* Saved matches view - accessible to all authenticated users when ?saved=1 */}
+        {/* Saved matches stay on account. Paid users still see billing below. */}
         {showSaved && (
-          <NoSubscription userName={user?.name ?? null} welcome={showWelcome} saved={showSaved} />
+          <NoSubscription
+            userName={user?.name ?? null}
+            welcome={showWelcome}
+            saved={showSaved}
+            showUpgrade={!subscription}
+          />
         )}
 
         {/* No subscription */}
@@ -717,8 +729,8 @@ export default function Account() {
           <NoSubscription userName={user?.name ?? null} welcome={showWelcome} saved={showSaved} />
         )}
 
-        {/* Active subscription dashboard */}
-        {!showSaved && subscription && (
+        {/* Active subscription dashboard — keep visible after Save */}
+        {subscription && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

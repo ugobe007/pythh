@@ -69,9 +69,12 @@ test('save signup lands on the account profile, not the newsletter', () => {
   assert.match(signup, /Saved on your profile/);
   assert.match(signup, /we email the ranked list/);
   assert.match(signup, /sendSavedMatchesEmail/);
-  assert.match(hub, /We email the ranked list/);
+  assert.match(hub, /Review them here/);
   assert.match(hub, /Your saved matches — \$\{companyLabel\}/);
   assert.match(hub, /source=account_saved/);
+  assert.doesNotMatch(hub, /Open full match list/);
+  assert.doesNotMatch(hub, /Open outreach drafts/);
+  assert.doesNotMatch(hub, /Optional Oracle improvements/);
   assert.match(account, /get\("saved"\) === "1"/);
   assert.match(account, /Your saved matches/);
   assert.match(nav, /href="\/account\?saved=1"/);

@@ -14,7 +14,7 @@ import CommitmentDocument from "@/components/wizard/CommitmentDocument";
 import RoundAutomation from "@/components/wizard/RoundAutomation";
 import WizardActivationBanner from "@/components/wizard/WizardActivationBanner";
 import GodScoreExplainer from "@/components/wizard/GodScoreExplainer";
-import { allowWizardUnlockFlow, matchesPathForUrl } from "@/lib/founderSignupGate";
+import { allowWizardUnlockFlow, savedMatchesPath } from "@/lib/founderSignupGate";
 import {
   domainsMatch,
   extractDomain,
@@ -528,11 +528,11 @@ export default function Wizard() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(matchesPathForUrl(startupWebsite || getPinnedStartupUrl()))}
+            onClick={() => navigate(savedMatchesPath())}
             className="w-full py-2.5 rounded-xl text-xs font-medium"
             style={{ color: "oklch(0.45 0.01 264)" }}
           >
-            Back to my full match list
+            Back to your account
           </button>
           <p className="text-[10px] mt-4" style={{ color: "oklch(0.35 0.01 264)" }}>
             Skip any unlock — only commit to what you&apos;ll actually prove
@@ -641,7 +641,7 @@ export default function Wizard() {
         {startupMismatch && (
           <div className="mb-4 rounded-xl px-4 py-3 text-xs" style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid #f9731640", color: "oklch(0.65 0.01 264)" }}>
             {startupMismatch}{' '}
-            <Link href={matchesPathForUrl(getPinnedStartupUrl() || startupWebsite)} className="underline" style={{ color: "#22d3ee" }}>Return to your match list</Link>
+            <Link href={savedMatchesPath()} className="underline" style={{ color: "#22d3ee" }}>Return to your account</Link>
           </div>
         )}
 

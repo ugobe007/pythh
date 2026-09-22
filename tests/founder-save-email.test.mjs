@@ -15,7 +15,7 @@ test('save emails the shortlist and advances to the profile', () => {
   const account = read('site/lib/founderAccount.ts');
   const db = read('site/db.ts');
 
-  assert.match(account, /export function sendSavedMatchesEmail/);
+  assert.match(account, /export async function sendSavedMatchesEmail/);
   assert.match(account, /\/api\/preview\/email-shortlist/);
   assert.match(preview, /sendSavedMatchesEmail/);
   assert.match(preview, /finishAuthenticatedSave/);

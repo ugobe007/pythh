@@ -152,18 +152,19 @@ test('login must keep a matches redirect when finishing OAuth', () => {
   assert.doesNotMatch(login, /replace\(["']\/account["']\)/);
 });
 
-test('wizard "match list" returns to /matches, not /activate', () => {
+test('wizard returns to the account profile, not /activate or a save loop', () => {
   const wizard = read('site/pages/Wizard.tsx');
-  assert.match(wizard, /matchesPathForUrl\(startupWebsite \|\| getPinnedStartupUrl\(\)\)/);
-  assert.match(wizard, /Back to my full match list/);
-  assert.match(wizard, /Return to your match list/);
+  assert.match(wizard, /navigate\(savedMatchesPath\(\)\)/);
+  assert.match(wizard, /Back to your account/);
+  assert.match(wizard, /Return to your account/);
+  assert.doesNotMatch(wizard, /Back to my full match list/);
   assert.doesNotMatch(
     wizard,
-    /Return to your match list[\s\S]{0,80}href=["']\/activate["']/,
+    /Return to your account[\s\S]{0,80}href=["']\/activate["']/,
   );
   assert.doesNotMatch(
     wizard,
-    /Back to my full match list[\s\S]{0,200}navigate\(`\/activate/,
+    /Back to your account[\s\S]{0,200}navigate\(`\/activate/,
   );
 });
 

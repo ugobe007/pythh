@@ -11,7 +11,7 @@ const PRODUCT_GROUPS: { heading: string; links: { label: string; href: string; n
     heading: "Founders",
     links: [
       { label: "How it works", href: "/oracle", note: "Score, match, raise" },
-      { label: "Start your raise", href: "/matches", note: "Paste a URL" },
+      { label: "Start your raise", href: "/", note: "Paste a URL" },
       { label: "Pricing", href: "/pricing" },
     ],
   },
@@ -211,7 +211,7 @@ export default function SharedNavbar({
                 Sign in
               </button>
             )}
-            {!hidePrimaryCta && (heroCta ? (
+            {!isAuthenticated && !hidePrimaryCta && (heroCta ? (
               <button
                 onClick={() => {
                   const el = document.getElementById(heroCta.targetId);
@@ -223,7 +223,7 @@ export default function SharedNavbar({
                 {heroCta.label}
               </button>
             ) : (
-              <StartupCTA href="/matches" size="sm" className="px-4 py-1.5">
+              <StartupCTA href="/" size="sm" className="px-4 py-1.5">
                 See my investor matches
               </StartupCTA>
             ))}
@@ -298,7 +298,7 @@ export default function SharedNavbar({
                     Sign in
                   </button>
                 )}
-                {!hidePrimaryCta && (heroCta ? (
+                {!isAuthenticated && !hidePrimaryCta && (heroCta ? (
                   <button
                     onClick={() => {
                       setMenuOpen(false);
@@ -311,7 +311,7 @@ export default function SharedNavbar({
                     {heroCta.label}
                   </button>
                 ) : (
-                  <StartupCTA href="/matches" size="sm" className="text-left">
+                  <StartupCTA href="/" size="sm" className="text-left">
                     See my investor matches
                   </StartupCTA>
                 ))}
