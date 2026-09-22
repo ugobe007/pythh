@@ -10069,7 +10069,10 @@ app.get('/api/portfolio/metrics', async (req, res) => {
       ? Math.round((moics.reduce((a, b) => a + b, 0) / moics.length) * 100) / 100
       : null;
     metrics.verified_avg_moic = trackRecord?.oracle?.verified_avg_moic ?? null;
-    metrics.headline_avg_moic = metrics.avg_moic;
+    metrics.verified_early_picks = trackRecord?.oracle?.verified_early_picks ?? null;
+    metrics.verified_moic_sum = trackRecord?.oracle?.verified_moic_sum ?? null;
+    metrics.early_picks = trackRecord?.oracle?.early_picks ?? early.length;
+    metrics.headline_avg_moic = metrics.verified_avg_moic ?? metrics.avg_moic;
     metrics.fund = getFund(fundKey);
     metrics.total_events = totalEv.count ?? 0;
     metrics.funding_event_count = fundingEv.count ?? 0;

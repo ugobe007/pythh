@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { applyCleanPortfolioMetrics, postEntryFundingSets, averageVerifiedMoic } = require('../server/lib/portfolioTrackRecord');
+const { applyCleanPortfolioMetrics, postEntryFundingSets, averageVerifiedMoic, verifiedMoicSubset } = require('../server/lib/portfolioTrackRecord');
 
 test('headline portfolio metrics exclude quarantined positions and their events', () => {
   const positions = [
@@ -48,4 +48,9 @@ test('verified avg MOIC uses clean early post-entry verified picks only', () => 
   const { verifiedFundedIds } = postEntryFundingSets(picks, events);
   assert.deepEqual([...verifiedFundedIds].sort(), ['a', 'b', 'd']);
   assert.equal(averageVerifiedMoic(picks, verifiedFundedIds), 6);
+  const subset = verifiedMoicSubset(picks, verifiedFundedIds);
+  assert.equal(subset.verified_early_picks, 1);
+  assert.equal(subset.verified_moic_sum, 6);
+  assert.equal(subset.early_picks, 2);
+  assert.equal(subset.avg_moic, 3.5);
 });

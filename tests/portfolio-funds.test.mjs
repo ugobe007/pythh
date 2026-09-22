@@ -52,6 +52,9 @@ test('portfolio page exposes both vintages', () => {
   assert.match(page, /Viewing/);
   assert.match(page, /history\.replaceState/);
   assert.match(page, /\/api\/portfolio\/analytics\?fund=\$\{fund\}/);
+  assert.match(page, /Verified MOIC/);
+  assert.match(page, /Early book/);
+  assert.match(page, /verified_early_picks/);
   assert.doesNotMatch(page, /if \(fund === "pythh_1"\)/);
   assert.doesNotMatch(page, /Pythh_2 has no picks yet/);
   const api = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');

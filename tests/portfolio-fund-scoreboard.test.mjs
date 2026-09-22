@@ -22,6 +22,9 @@ test('scoreboard counts verified funded and MOIC per vintage', () => {
   assert.equal(board.positions, 2);
   assert.equal(board.verified_funded_picks, 1);
   assert.equal(board.verified_avg_moic, 3);
+  assert.equal(board.verified_early_picks, 1);
+  assert.equal(board.verified_moic_sum, 3);
+  assert.equal(board.early_picks, 2);
   assert.equal(board.avg_moic, 2);
 });
 
