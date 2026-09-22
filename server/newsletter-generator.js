@@ -216,14 +216,10 @@ async function fetchHottestStartups(supabase, upperBound = null) {
 
   const ids = top.map((s) => s.id);
   
-  let signalsQuery = supabase
+  const { data: signals } = await supabase
     .from('startup_signal_scores')
     .select('startup_id, signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity')
     .in('startup_id', ids);
-  
-  if (upperBound) signalsQuery = signalsQuery.lte('as_of', upperBound);
-  
-  const { data: signals } = await signalsQuery;
 
   const sigMap = Object.fromEntries((signals || []).map((s) => [s.startup_id, s]));
 
@@ -255,16 +251,12 @@ async function fetchHottestStartups(supabase, upperBound = null) {
 
 // Platform-wide signal momentum — which dimensions are spiking right now.
 async function fetchSignalsThatMatter(supabase, upperBound = null) {
-  let query = supabase
+  const { data: rows } = await supabase
     .from('startup_signal_scores')
     .select(
       'startup_id, signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity, as_of, startup_uploads!inner ( name, sectors, total_god_score, status )'
     )
-    .eq('startup_uploads.status', 'approved');
-  
-  if (upperBound) query = query.lte('as_of', upperBound);
-  
-  const { data: rows } = await query
+    .eq('startup_uploads.status', 'approved')
     .order('as_of', { ascending: false })
     .limit(400);
 
