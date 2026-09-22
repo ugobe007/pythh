@@ -324,7 +324,7 @@ export default function MatchInvestorLead({
                 }}
               >
                 {unlocking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-                Unlock to email through Pythh
+                Unlock email
               </button>
               <p className="mt-2 text-xs" style={{ color: DIM }}>
                 We send from pythh.ai. Their address stays private.

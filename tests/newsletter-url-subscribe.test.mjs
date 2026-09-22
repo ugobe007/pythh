@@ -59,7 +59,7 @@ test('join form and subscribe API collect URL with email', () => {
   assert.match(form, /Get the daily brief/);
   assert.doesNotMatch(form, /Get daily matches/);
   assert.doesNotMatch(form, /Get my daily matches/);
-  assert.match(form, /Preview my matches/);
+  assert.match(form, /Find matches/);
   assert.match(form, /https:\/\/yourstartup.com/);
   assert.match(form, /Paste your startup URL/);
   assert.match(form, /text-\[30px\]/);
@@ -67,8 +67,10 @@ test('join form and subscribe API collect URL with email', () => {
   assert.match(form, /Your first ranked matches arrive in your inbox/);
   assert.match(form, /See my matches/);
   assert.match(form, /Opening your first five investor matches/);
-  assert.match(form, /apiUrl\("\/api\/newsletter\/subscribe"\)/);
+  assert.match(form, /Homepage \/ reveal: URL is enough/);
+  assert.match(form, /if \(revealMatches\)/);
   assert.match(form, /onJoined\?\.\(joined\)/);
+  assert.match(form, /apiUrl\("\/api\/newsletter\/subscribe"\)/);
   const app = readFileSync(new URL('../site/App.tsx', import.meta.url), 'utf8');
   const newsletterPage = readFileSync(new URL('../site/pages/Newsletter.tsx', import.meta.url), 'utf8');
   assert.match(app, /path=\{\s*["']\/newsletter\/:date["']\s*\}/);

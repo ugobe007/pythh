@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/apiConfig";
 import { BORDER, CARD, DIM, G, G_HOVER, MUTED, TEXT } from "@/lib/designTokens";
 
 export const NEWSLETTER_JOIN_CTA = "Get the daily brief";
-export const PREVIEW_MATCHES_CTA = "Preview my matches";
+export const PREVIEW_MATCHES_CTA = "Find matches";
 
 export default function NewsletterJoinForm({
   source,
@@ -42,6 +42,27 @@ export default function NewsletterJoinForm({
     e.preventDefault();
     if (requireUrl && !url.trim()) {
       setError("Enter your startup website.");
+      return;
+    }
+    // Homepage / reveal: URL is enough. Email must not trap the matches hop.
+    if (revealMatches) {
+      const joined = { email: email.trim(), url: url.trim() };
+      setError("");
+      setSubmitted(true);
+      onJoined?.(joined);
+      if (joined.email.includes("@")) {
+        void fetch(apiUrl("/api/newsletter/subscribe"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: joined.email,
+            url: joined.url || undefined,
+            source,
+          }),
+        }).catch((err) => {
+          console.warn("[newsletter] subscribe after matches hop failed", err);
+        });
+      }
       return;
     }
     if (progressive && !urlReady) {
@@ -199,7 +220,7 @@ export default function NewsletterJoinForm({
             : buttonLabel}
         {!loading && <ArrowRight size={16} />}
       </button>
-      {progressive && !urlReady && (
+      {progressive && !urlReady && !revealMatches && (
         <p className="text-[13px] mt-3 text-left" style={{ color: MUTED }}>
           We score the public site first. Email is only to deliver the ranked list — no account required.
         </p>

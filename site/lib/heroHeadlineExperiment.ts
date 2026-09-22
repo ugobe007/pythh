@@ -16,7 +16,7 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'Preview my matches';
+export const HERO_PRIMARY_CTA = 'Find matches';
 
 /** Accent phrase in the H1 — rendered in brand emerald. */
 export const HERO_HEADLINE_ACCENT = 'Meet Your Investors';
