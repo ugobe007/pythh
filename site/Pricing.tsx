@@ -422,10 +422,12 @@ export default function Pricing() {
             {FOUNDER_PLANS.map((plan, i) => (
               <div
                 key={plan.id}
+                id={`plan-${plan.id}`}
                 className="p-5"
                 style={{
                   borderRight: i < FOUNDER_PLANS.length - 1 ? `1px solid ${BORDER}` : undefined,
-                  borderTop: plan.featured ? `2px solid ${plan.borderColor}` : undefined,
+                  borderTop: requestedPlan === plan.id || plan.featured ? `2px solid ${plan.borderColor}` : undefined,
+                  boxShadow: requestedPlan === plan.id ? `0 0 0 1px ${plan.borderColor}` : undefined,
                 }}
               >
                 <p className="font-mono text-xs uppercase tracking-widest mb-1" style={{ color: plan.color }}>
