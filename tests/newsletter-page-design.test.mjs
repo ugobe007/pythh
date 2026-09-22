@@ -22,4 +22,6 @@ test('newsletter page is Daily Signal, not the gold Daily Brief newspaper', () =
   assert.doesNotMatch(page, /Georgia, serif/);
   assert.doesNotMatch(page, /Run PYTHIA on your startup/);
   assert.doesNotMatch(page, /SectionLabel color=\{GOLD\}/);
+  assert.match(page, /hidePrimaryCta/);
+  assert.match(nav, /hidePrimaryCta/);
 });

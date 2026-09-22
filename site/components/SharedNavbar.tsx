@@ -41,10 +41,13 @@ export default function SharedNavbar({
   activePath,
   variant = "default",
   heroCta,
+  hidePrimaryCta = false,
 }: {
   activePath?: string;
   variant?: "default" | "hero";
   heroCta?: { label: string; targetId: string };
+  /** Newsletter page: the join form is the only CTA. */
+  hidePrimaryCta?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
@@ -201,7 +204,7 @@ export default function SharedNavbar({
                 Sign in
               </button>
             )}
-            {heroCta ? (
+            {!hidePrimaryCta && (heroCta ? (
               <button
                 onClick={() => {
                   const el = document.getElementById(heroCta.targetId);
@@ -216,7 +219,7 @@ export default function SharedNavbar({
               <StartupCTA href="/matches" size="sm" className="px-4 py-1.5">
                 See my investor matches
               </StartupCTA>
-            )}
+            ))}
           </div>
 
           <button
@@ -274,7 +277,7 @@ export default function SharedNavbar({
                     Sign in
                   </button>
                 )}
-                {heroCta ? (
+                {!hidePrimaryCta && (heroCta ? (
                   <button
                     onClick={() => {
                       setMenuOpen(false);
@@ -290,7 +293,7 @@ export default function SharedNavbar({
                   <StartupCTA href="/matches" size="sm" className="text-left">
                     See my investor matches
                   </StartupCTA>
-                )}
+                ))}
               </div>
             </div>
           </div>
