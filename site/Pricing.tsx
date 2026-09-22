@@ -127,6 +127,7 @@ function PricingCard({
   activePlanId,
   oracleCtaLabel,
   isAuthenticated,
+  highlighted = false,
 }: {
   plan: PricingPlanConfig;
   billing: BillingCycle;
@@ -135,14 +136,16 @@ function PricingCard({
   activePlanId?: string | null;
   oracleCtaLabel?: string;
   isAuthenticated: boolean;
+  highlighted?: boolean;
 }) {
   return (
     <div
+      id={`plan-${plan.id}`}
       className="border p-5 flex flex-col h-full relative"
       style={{
         backgroundColor: CARD,
-        borderColor: plan.featured ? plan.borderColor : BORDER,
-        boxShadow: plan.featured ? `0 0 0 1px ${plan.borderColor}` : undefined,
+        borderColor: highlighted || plan.featured ? plan.borderColor : BORDER,
+        boxShadow: highlighted || plan.featured ? `0 0 0 1px ${plan.borderColor}` : undefined,
       }}
     >
       {plan.featured && (
@@ -227,6 +230,11 @@ function PricingCard({
 
 export default function Pricing() {
   const [billing, setBilling] = useState<BillingCycle>("monthly");
+  const requestedPlan = (() => {
+    if (typeof window === "undefined") return null;
+    const plan = new URLSearchParams(window.location.search).get("plan");
+    return plan === "scout" || plan === "oracle" ? plan : null;
+  })();
   const [showFullTable, setShowFullTable] = useState(false);
   const [pricingExp, setPricingExp] = useState<GrowthAssignment | null>(null);
   const [oracleCtaLabel, setOracleCtaLabel] = useState("Start 14-day free trial");
@@ -242,9 +250,17 @@ export default function Pricing() {
     subscription?.status === "active" || subscription?.status === "trialing";
 
   useEffect(() => {
+    if (!requestedPlan) return;
+    const el = document.getElementById(`plan-${requestedPlan}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [requestedPlan]);
+
+  useEffect(() => {
     void trackFunnelEventOnce("pythh_pricing_viewed", "pricing_viewed", {
       path: "/pricing",
       authenticated: isAuthenticated,
+      source: typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("source") : null,
+      plan: requestedPlan,
     });
     fetchGrowthAssignment("founder", "pricing_oracle_cta")
       .then((assignment) => {
@@ -392,6 +408,7 @@ export default function Pricing() {
               activePlanId={activePlanId}
               oracleCtaLabel={oracleCtaLabel}
               isAuthenticated={isAuthenticated}
+              highlighted={requestedPlan === plan.id}
             />
           ))}
         </div>
