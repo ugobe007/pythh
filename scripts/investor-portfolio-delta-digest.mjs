@@ -212,6 +212,10 @@ function buildEmailHtml({ recipientName, items, movedCount, pickCount }) {
       <p style="margin-top:20px;">
         <a href="${SITE_BASE}/investor/portfolio?utm_source=portfolio_delta&utm_medium=email" style="display:inline-block;background:#f59e0b;color:#000;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;">Open my portfolio</a>
       </p>
+      <p style="font-size:12px;color:#888;margin:12px 0 0;">
+        Daily Signal — what is shaping investor choices:
+        <a href="${SITE_BASE}/newsletter" style="color:#34d399;">${SITE_BASE.replace(/^https:\/\//, '')}/newsletter</a>
+      </p>
       <p style="font-size:11px;color:#444;margin-top:24px;">Pythh investor portfolio · up to 10 tracked picks</p>
     </div>
   </body></html>`;

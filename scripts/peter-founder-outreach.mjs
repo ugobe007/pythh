@@ -327,7 +327,8 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubs
     <p style="color:#94a3b8;font-size:13px;">Claim ${startupName}, see the complete ranked list, and let Pythh prepare personalized investor outreach and follow-ups.</p>
     <a href="${activateUrl}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#22c55e;color:#03130b;text-decoration:none;border-radius:8px;font-size:13px;font-weight:700;">Claim my matches and automate outreach</a>
   </div>
-  <p style="color:#334155;font-size:11px;text-align:center;margin-top:24px;">${founderEmailSignoff()}</p>
+  <p style="color:#64748b;font-size:12px;text-align:center;margin-top:20px;">Read today's Daily Signal — what is shaping investor choices: <a href="https://pythh.ai/newsletter" style="color:#34d399;">pythh.ai/newsletter</a></p>
+  <p style="color:#334155;font-size:11px;text-align:center;margin-top:12px;">${founderEmailSignoff()}</p>
   ${unsubscribe ? `<p style="color:#475569;font-size:10px;text-align:center;margin-top:12px;">Not raising? <a href="${unsubscribe}" style="color:#64748b;">Unsubscribe from founder match emails</a>.</p>` : ''}
 </div></body></html>`;
 }
@@ -339,7 +340,7 @@ function buildStartupText({ startup, matches, greeting, startupName, utm, unsubs
     const reason = m.match_reason ? m.match_reason.split('.')[0] : defaultMatchReason();
     return `  ${i + 1}. ${m.name} (${m.firm}) — match ${m.match_score}\n     ${reason}`;
   }).join('\n');
-  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\nClaim your matches and automate investor outreach: ${activateUrl}\n\n${founderEmailSignoff()}${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
+  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\nClaim your matches and automate investor outreach: ${activateUrl}\n\nDaily Signal: https://pythh.ai/newsletter\n\n${founderEmailSignoff()}${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
 }
 
 async function main() {

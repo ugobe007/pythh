@@ -5,6 +5,7 @@
 //
 // Sections produced:
 //   editorial        — "PYTHIA's Take": a sharp daily synthesis (hybrid LLM + template)
+//   trendReport      — underlying preference drivers (optics / team / growth / sentiment)
 //   hottestStartups  — top GOD startups WITH the "why" (pillar + signal breakdown)
 //   signalsThatMatter— platform-wide signal momentum (which dimensions are spiking)
 //   topMatches       — most interesting investor↔startup matches WITH reasoning
@@ -19,6 +20,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { getSupabaseClient } = require('./lib/supabaseClient');
+const { runNewsletterTrendAgent } = require('./lib/newsletterTrendAgent');
 
 // Simple in-memory cache: regenerate at most once per hour
 let _cache = null;
@@ -216,6 +218,16 @@ async function fetchHottestStartups(supabase) {
       pillars: PILLAR_META.map((p) => ({ label: p.label, value: Number(s[p.key]) || 0 })),
       signals_total: sig ? Number(sig.signals_total) || 0 : null,
       why: buildWhy(s, sig),
+      repeat_founder: Boolean(s.is_repeat_founder),
+      signals: sig
+        ? {
+            news_momentum: Number(sig.news_momentum) || 0,
+            investor_receptivity: Number(sig.investor_receptivity) || 0,
+            capital_convergence: Number(sig.capital_convergence) || 0,
+            execution_velocity: Number(sig.execution_velocity) || 0,
+            founder_language_shift: Number(sig.founder_language_shift) || 0,
+          }
+        : null,
     };
   });
 }
@@ -577,6 +589,16 @@ async function generateNewsletter({ bust = false } = {}) {
     fundingRounds:    fundingRounds  || [],
     scoreMovers:      scoreMovers    || [],
   };
+
+  try {
+    result.trendReport = await runNewsletterTrendAgent({
+      edition: result,
+      loadPrior: (date) => loadEdition(date),
+    });
+  } catch (err) {
+    console.warn('[newsletter] trend agent failed:', err.message);
+    result.trendReport = null;
+  }
 
   _cache   = result;
   _cacheTs = now;

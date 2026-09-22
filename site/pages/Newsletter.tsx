@@ -86,10 +86,23 @@ interface NewsItem {
   company: string | null;
   funding: string | null;
 }
+interface TrendDriver {
+  key: string;
+  label: string;
+  finding: string;
+  why_it_matters: string;
+}
+interface TrendReport {
+  headline: string;
+  thesis: string;
+  drivers?: TrendDriver[];
+  shifts?: { label: string; detail: string }[];
+}
 interface BriefData {
   date: string;
   generated_at: string;
   editorial?: { text: string; source: string } | string;
+  trendReport?: TrendReport | null;
   hottestStartups?: HottestStartup[];
   signalsThatMatter?: SignalsThatMatter | null;
   topMatches?: TopMatch[];
@@ -212,6 +225,7 @@ function DailySignalEdition({ date }: { date?: string | null }) {
 
   const editorialText =
     typeof data.editorial === "string" ? data.editorial : data.editorial?.text;
+  const trends = data.trendReport ?? null;
   const hottest = data.hottestStartups ?? [];
   const signals = data.signalsThatMatter ?? null;
   const matches = (data.topMatches ?? []).filter((m) => m.startup && m.investor);
@@ -246,6 +260,51 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           <p className="text-base sm:text-lg leading-relaxed" style={{ color: TEXT }}>
             {editorialText}
           </p>
+        </div>
+      )}
+
+      {trends?.headline && (
+        <div
+          className="rounded-xl p-5 sm:p-6"
+          style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
+        >
+          <p className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
+            What&rsquo;s shaping capital
+          </p>
+          <h2 className="font-display font-bold text-xl sm:text-2xl mb-3" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
+            {trends.headline}
+          </h2>
+          {trends.thesis && (
+            <p className="text-[15px] leading-relaxed mb-5" style={{ color: MUTED }}>
+              {trends.thesis}
+            </p>
+          )}
+          {trends.drivers && trends.drivers.length > 0 && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {trends.drivers.map((d) => (
+                <div key={d.key + d.label} className="rounded-lg p-3" style={{ border: `1px solid ${BORDER}` }}>
+                  <p className="text-[11px] font-mono font-semibold tracking-widest uppercase mb-1" style={{ color: G }}>
+                    {d.label}
+                  </p>
+                  <p className="text-sm leading-relaxed" style={{ color: TEXT }}>{d.finding}</p>
+                  {d.why_it_matters && (
+                    <p className="text-xs leading-relaxed mt-1.5" style={{ color: DIM }}>{d.why_it_matters}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {trends.shifts && trends.shifts.length > 0 && (
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER}` }}>
+              {trends.shifts.map((s) => (
+                <p key={s.label} className="text-xs leading-relaxed" style={{ color: MUTED }}>
+                  <span style={{ color: PURPLE_ACCENT }}>{s.label}</span>
+                  {" — "}
+                  {s.detail}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -60,6 +60,7 @@ async function sendFounderActivationEmail({
     `Open outreach drafts: ${outreachUrl}`,
     `Optional Oracle improvements: ${improvementsUrl}`,
     `Start 7-day Oracle trial: ${trialUrl}`,
+    `Daily Signal: https://pythh.ai/newsletter`,
     ``,
     `— Pythh Oracle`,
   ].join('\n');
@@ -84,6 +85,7 @@ async function sendFounderActivationEmail({
       </p>
       <p style="font-size:13px;"><a href="${improvementsUrl}" style="color:#7c3aed;">Review optional Oracle improvements →</a></p>
       <p style="font-size:13px;"><a href="${trialUrl}" style="color:#7c3aed;">Start 7-day Oracle trial →</a></p>
+      <p style="font-size:13px;"><a href="https://pythh.ai/newsletter" style="color:#16a34a;">Read today’s Daily Signal →</a></p>
     </div>`;
 
   try {

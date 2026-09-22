@@ -68,6 +68,25 @@ function renderEditorial(nl) {
   </td></tr>`;
 }
 
+function renderTrendReport(nl) {
+  const t = nl.trendReport;
+  if (!t?.headline) return '';
+  const drivers = (t.drivers || []).slice(0, 4).map((d) => `
+    <div style="margin-top:10px;">
+      <div style="font:700 11px 'Helvetica Neue',Arial,sans-serif;letter-spacing:1px;text-transform:uppercase;color:${C.green};">${esc(d.label)}</div>
+      <div style="font:500 13px/1.5 'Helvetica Neue',Arial,sans-serif;color:${C.text};margin-top:3px;">${esc(d.finding)}</div>
+      ${d.why_it_matters ? `<div style="font:400 12px/1.45 'Helvetica Neue',Arial,sans-serif;color:${C.mute};margin-top:2px;">${esc(d.why_it_matters)}</div>` : ''}
+    </div>`).join('');
+  return `<tr><td style="padding:8px 0;">
+    <div style="background:${C.panel};border:1px solid ${C.border};border-radius:10px;padding:16px;">
+      <div style="font:700 11px 'Helvetica Neue',Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:${C.green};margin-bottom:8px;">What's shaping capital</div>
+      <div style="font:700 18px/1.3 'Helvetica Neue',Arial,sans-serif;color:${C.white};">${esc(t.headline)}</div>
+      ${t.thesis ? `<div style="font:400 14px/1.55 'Helvetica Neue',Arial,sans-serif;color:${C.mute};margin-top:8px;">${esc(t.thesis)}</div>` : ''}
+      ${drivers}
+    </div>
+  </td></tr>`;
+}
+
 function renderHottest(nl) {
   const rows = (nl.hottestStartups || []).slice(0, 5);
   if (!rows.length) return '';
@@ -206,6 +225,7 @@ function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', unsubscribeToke
   const body = [
     renderYourMatches(personal, base),
     renderEditorial(nl),
+    renderTrendReport(nl),
     renderHottest(nl),
     renderSignals(nl),
     renderMatches(nl),
@@ -261,6 +281,15 @@ function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', unsubscribeToke
   }
   const ed = nl.editorial?.text || nl.editorial;
   if (ed) lines.push(`PYTHIA'S TAKE`, ed, '');
+  if (nl.trendReport?.headline) {
+    lines.push("WHAT'S SHAPING CAPITAL");
+    lines.push(nl.trendReport.headline);
+    if (nl.trendReport.thesis) lines.push(nl.trendReport.thesis);
+    (nl.trendReport.drivers || []).forEach((d) => {
+      lines.push(`- ${d.label}: ${d.finding}`);
+    });
+    lines.push('');
+  }
   if (nl.hottestStartups?.length) {
     lines.push('HOTTEST STARTUPS');
     nl.hottestStartups.slice(0, 5).forEach((s, i) => {
