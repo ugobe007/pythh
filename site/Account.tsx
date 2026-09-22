@@ -700,14 +700,12 @@ export default function Account() {
             </span>
           </div>
           <h1 className="font-display font-bold text-3xl md:text-4xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-            {subscription ? "Your Plan" : showSaved ? "Your saved matches" : "Your fundraising hub"}
+            {subscription && !showSaved ? "Your Plan" : "Your startup"}
           </h1>
           <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
-            {subscription
-              ? "Manage your Oracle subscription and billing details."
-              : showSaved
-                ? "This is your profile. Review your matches here. Upgrade to Oracle at the bottom for outreach and automation."
-                : "Review your saved matches here. Upgrade to Oracle at the bottom when you want outreach automation."}
+            {subscription && !showSaved
+              ? "Manage your subscription and billing details."
+              : "Profile, saved matches, and pending investor intros. Scout or Oracle unlocks the connects."}
           </p>
         </motion.div>
 
