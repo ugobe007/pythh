@@ -118,12 +118,12 @@ export default function FounderSignup() {
               startupId,
               source: 'founder_signup_gate_oauth',
             });
-            sendSavedMatchesEmail({
+            void sendSavedMatchesEmail({
               email: userEmail,
               startupId,
               startupUrl: url,
               source: 'founder_signup_gate_oauth',
-            });
+            }).catch(() => {});
           }
         } else if (pendingGate.pending) {
           consumeFounderGatePending();
@@ -148,12 +148,12 @@ export default function FounderSignup() {
             startupId,
             source: 'founder_signup_gate_oauth',
           });
-          sendSavedMatchesEmail({
+          void sendSavedMatchesEmail({
             email: userEmail,
             startupId,
             startupUrl: url,
             source: 'founder_signup_gate_oauth',
-          });
+          }).catch(() => {});
         }
         const post =
           consumePostSignupPath() ?? postSignupPathForAction(resolvedAction, startupId, { url });
@@ -253,12 +253,12 @@ export default function FounderSignup() {
             startupId,
             source: 'founder_signup_gate',
           });
-          sendSavedMatchesEmail({
+          void sendSavedMatchesEmail({
             email: trimmed,
             startupId,
             startupUrl: url,
             source: 'founder_signup_gate',
-          });
+          }).catch(() => {});
         } else {
           sendFounderSignupInviteEmail({
             email: trimmed,
@@ -286,12 +286,12 @@ export default function FounderSignup() {
             startupId,
             source: 'founder_signup_page',
           });
-          sendSavedMatchesEmail({
+          void sendSavedMatchesEmail({
             email: trimmed,
             startupId,
             startupUrl: url,
             source: 'founder_signup_page',
-          });
+          }).catch(() => {});
         } else {
           sendFounderSignupInviteEmail({
             email: trimmed,

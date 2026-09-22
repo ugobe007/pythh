@@ -177,23 +177,29 @@ export default function InstantMatchPreview({ url }: Props) {
     setShortlistSaved(true);
   };
 
-  const emailReadyShortlist = (id: string, name?: string | null) => {
+  const emailReadyShortlist = async (id: string, name?: string | null) => {
     const email = (user?.email || readJoinEmail()).trim();
     if (!email.includes('@') || emailedRef.current) return;
-    emailedRef.current = true;
     const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
       name: m.investor?.name || m.investor?.firm || '',
       firm: m.investor?.firm || null,
     }));
-    sendSavedMatchesEmail({
-      email,
-      startupId: id,
-      startupUrl: url,
-      startupName: name,
-      matchCount: preview?.total_matches ?? topInvestors.length,
-      topInvestors,
-      source: 'instant_match_preview',
-    });
+    try {
+      await sendSavedMatchesEmail({
+        email,
+        startupId: id,
+        startupUrl: url,
+        startupName: name,
+        matchCount: preview?.total_matches ?? topInvestors.length,
+        topInvestors,
+        source: 'instant_match_preview',
+      });
+      // Only mark as emailed after successful send
+      emailedRef.current = true;
+    } catch (err) {
+      console.warn('[preview] email shortlist failed:', err);
+      // Leave emailedRef false so retry is allowed
+    }
   };
 
   const finishAuthenticatedSave = async () => {
@@ -206,7 +212,7 @@ export default function InstantMatchPreview({ url }: Props) {
     setSaveError(null);
     try {
       await persistShortlist(id, preview?.startup?.name);
-      emailReadyShortlist(id, preview?.startup?.name);
+      await emailReadyShortlist(id, preview?.startup?.name);
       navigate(savedMatchesPath());
     } catch (reason) {
       setSaveError(reason instanceof Error ? reason.message : 'Could not save matches. Try again.');

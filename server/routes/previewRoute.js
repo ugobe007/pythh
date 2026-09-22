@@ -264,16 +264,40 @@ router.post('/email-shortlist', async (req, res) => {
     const previewUrl = `${APP_BASE}${previewPath}`;
 
     let oracleGap = null;
+    let resolvedStartupName = startupName;
+    let resolvedTopInvestors = Array.isArray(topInvestors) ? topInvestors : [];
+    let resolvedMatchCount = Number(matchCount) || 0;
+
     try {
       const { data: startupRow } = await supabase
         .from('startup_uploads')
         .select(
-          'id, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
+          'id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
         )
         .eq('id', startupId)
         .maybeSingle();
       if (startupRow) {
-        oracleGap = buildPreviewOracleGap(startupRow, Number(matchCount) || 0);
+        if (!resolvedStartupName) resolvedStartupName = startupRow.name;
+        
+        // Load top matches if not provided (signup paths only pass email + startupId).
+        if (resolvedTopInvestors.length === 0) {
+          const { data: matches } = await supabase
+            .from('startup_investor_matches')
+            .select('match_score, investors!inner(id, name, firm)')
+            .eq('startup_id', startupId)
+            .order('match_score', { ascending: false })
+            .limit(5);
+          
+          if (matches?.length) {
+            resolvedTopInvestors = matches.map(m => ({
+              name: m.investors?.name || '',
+              firm: m.investors?.firm || null,
+            }));
+            resolvedMatchCount = matches.length;
+          }
+        }
+        
+        oracleGap = buildPreviewOracleGap(startupRow, resolvedMatchCount);
       }
     } catch (gapErr) {
       console.warn('[preview/email-shortlist] oracle gap:', gapErr.message);
@@ -281,10 +305,10 @@ router.post('/email-shortlist', async (req, res) => {
 
     const sendResult = await sendPreviewShortlistEmail({
       to: normalizedEmail,
-      startupName: startupName || 'your startup',
+      startupName: resolvedStartupName || 'your startup',
       previewUrl,
-      topInvestors: Array.isArray(topInvestors) ? topInvestors : [],
-      matchCount: Number(matchCount) || 0,
+      topInvestors: resolvedTopInvestors,
+      matchCount: resolvedMatchCount,
       oracleGap,
       startupId,
     });
@@ -293,9 +317,9 @@ router.post('/email-shortlist', async (req, res) => {
       email: normalizedEmail,
       startup_id: startupId,
       startup_url: startupUrl || null,
-      startup_name: startupName || null,
-      top_investors: Array.isArray(topInvestors) ? topInvestors.slice(0, 5) : [],
-      match_count: Number(matchCount) || null,
+      startup_name: resolvedStartupName || null,
+      top_investors: resolvedTopInvestors.slice(0, 5),
+      match_count: resolvedMatchCount || null,
       source: source || 'instant_preview',
       resend_message_id: sendResult.id || null,
       email_sent_at: sendResult.success ? new Date().toISOString() : null,

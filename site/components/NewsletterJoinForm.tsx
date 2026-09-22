@@ -67,14 +67,28 @@ export default function NewsletterJoinForm({
         }),
       });
       if (!response.ok) {
-        // Still open the shortlist — subscribe/email is best-effort so step 2 cannot trap the hop.
-        console.warn("[newsletter] subscribe failed", response.status);
+        // On the homepage, still open the shortlist — subscribe/email is best-effort so step 2 cannot trap the hop.
+        // On the newsletter page without a matches hop, show the error.
+        if (revealMatches) {
+          console.warn("[newsletter] subscribe failed", response.status);
+          setSubmitted(true);
+          onJoined?.(joined);
+        } else {
+          setError("Could not subscribe. Try again.");
+        }
+      } else {
+        setSubmitted(true);
+        onJoined?.(joined);
       }
-      setSubmitted(true);
-      onJoined?.(joined);
-    } catch {
-      setSubmitted(true);
-      onJoined?.(joined);
+    } catch (err) {
+      // Network failure — on homepage hop to matches anyway, on newsletter page show error.
+      if (revealMatches) {
+        console.warn("[newsletter] subscribe network error", err);
+        setSubmitted(true);
+        onJoined?.(joined);
+      } else {
+        setError("Could not subscribe. Try again.");
+      }
     } finally {
       setLoading(false);
     }

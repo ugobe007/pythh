@@ -38,7 +38,7 @@ export function sendFounderWelcomeEmail(opts: {
 export type SavedMatchInvestor = { name?: string | null; firm?: string | null };
 
 /** Email the ranked shortlist once matches exist. Deduped server-side for 24h. */
-export function sendSavedMatchesEmail(opts: {
+export async function sendSavedMatchesEmail(opts: {
   email: string;
   startupId: string;
   startupUrl?: string | null;
@@ -46,7 +46,7 @@ export function sendSavedMatchesEmail(opts: {
   matchCount?: number;
   topInvestors?: SavedMatchInvestor[];
   source?: string;
-}): void {
+}): Promise<void> {
   const email = opts.email.trim().toLowerCase();
   if (!email.includes('@') || !opts.startupId) return;
 
@@ -57,7 +57,7 @@ export function sendSavedMatchesEmail(opts: {
     }))
     .filter((inv) => inv.name);
 
-  void fetch(apiUrl('/api/preview/email-shortlist'), {
+  const response = await fetch(apiUrl('/api/preview/email-shortlist'), {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -70,7 +70,12 @@ export function sendSavedMatchesEmail(opts: {
       top_investors: topInvestors.slice(0, 5),
       source: opts.source || 'save_matches',
     }),
-  }).catch(() => {});
+  });
+  
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || data.error || 'Email send failed');
+  }
 }
 
 export function readJoinEmail(): string {
