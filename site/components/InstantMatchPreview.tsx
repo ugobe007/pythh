@@ -151,6 +151,10 @@ export default function InstantMatchPreview({ url }: Props) {
   const [startupId, setStartupId] = useState<string | null>(null);
   const [investorMix] = useState<InvestorMix>('balanced');
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  const [emailDraft, setEmailDraft] = useState(() => readJoinEmail());
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailedTo, setEmailedTo] = useState<string | null>(null);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const gateCompletedRef = useRef(false);
@@ -196,23 +200,23 @@ export default function InstantMatchPreview({ url }: Props) {
     setShortlistSaved(true);
   };
 
-  const emailReadyShortlist = async (id: string, name?: string | null) => {
-    const email = (user?.email || readJoinEmail()).trim();
+  const emailReadyShortlist = async (id: string, name?: string | null, explicitEmail?: string) => {
+    const email = (explicitEmail || user?.email || emailDraft || readJoinEmail()).trim().toLowerCase();
     if (!email.includes('@')) return;
-    
-    // If already sent or in progress, wait for existing attempt
+
     if (emailedRef.current || emailPromiseRef.current) {
       await emailPromiseRef.current;
       return;
     }
-    
-    // Mark as emailed immediately to prevent concurrent sends
+
     emailedRef.current = true;
+    setEmailStatus('sending');
+    setEmailError(null);
     const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
       name: m.investor?.name || m.investor?.firm || '',
       firm: m.investor?.firm || null,
     }));
-    
+
     const sendPromise = (async () => {
       try {
         await sendSavedMatchesEmail({
@@ -224,16 +228,20 @@ export default function InstantMatchPreview({ url }: Props) {
           topInvestors,
           source: 'instant_match_preview',
         });
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('pythia_email', email);
+        setEmailedTo(email);
+        setEmailStatus('sent');
       } catch (err) {
         console.warn('[preview] email shortlist failed:', err);
-        // Reset flag on failure so retry is allowed
         emailedRef.current = false;
+        setEmailStatus('error');
+        setEmailError(err instanceof Error ? err.message : 'Could not email these matches');
         throw err;
       } finally {
         emailPromiseRef.current = null;
       }
     })();
-    
+
     emailPromiseRef.current = sendPromise;
     await sendPromise;
   };
@@ -260,9 +268,16 @@ export default function InstantMatchPreview({ url }: Props) {
   }, [authLoading, isAuthenticated, preview?.startup?.id, preview?.startup?.name, url, user?.email]);
 
   useEffect(() => {
+    const fromUser = String(user?.email || '').trim();
+    if (fromUser.includes('@') && !emailDraft) setEmailDraft(fromUser);
+  }, [user?.email, emailDraft]);
+
+  useEffect(() => {
     const id = preview?.startup?.id;
     if (!id || loading || !preview?.matches?.length) return;
-    emailReadyShortlist(id, preview.startup?.name);
+    const known = (user?.email || emailDraft || readJoinEmail()).trim();
+    if (!known.includes('@')) return;
+    emailReadyShortlist(id, preview.startup?.name, known);
   }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email]);
 
   useEffect(() => {
@@ -554,6 +569,69 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       )}
 
+      <div
+        className="mb-5 rounded-xl p-4"
+        style={{ backgroundColor: 'oklch(0.14 0.01 264)', border: '1px solid oklch(0.696 0.17 162.48 / 0.28)' }}
+      >
+        {emailStatus === 'sent' && emailedTo ? (
+          <p className="text-sm" style={{ color: G }}>
+            Emailed these 5 matches to {emailedTo}.
+          </p>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const id = preview.startup?.id || startupId;
+              const next = emailDraft.trim();
+              if (!id || !next.includes('@')) {
+                setEmailStatus('error');
+                setEmailError('Enter the email where we should send these 5 matches.');
+                return;
+              }
+              void emailReadyShortlist(id, startupName, next).catch(() => {});
+            }}
+            className="flex flex-col sm:flex-row gap-2"
+          >
+            <input
+              type="email"
+              value={emailDraft}
+              onChange={(e) => {
+                setEmailDraft(e.target.value);
+                if (emailStatus === 'error') {
+                  setEmailStatus('idle');
+                  setEmailError(null);
+                }
+              }}
+              placeholder="founder@startup.com"
+              aria-label="Email these 5 matches"
+              className="flex-1 px-3 py-2.5 rounded-lg text-sm outline-none"
+              style={{
+                backgroundColor: 'oklch(0.11 0.01 264)',
+                border: '1px solid oklch(0.25 0.01 264)',
+                color: TEXT,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={emailStatus === 'sending'}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shrink-0"
+              style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)', opacity: emailStatus === 'sending' ? 0.7 : 1 }}
+            >
+              {emailStatus === 'sending' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Email my 5 matches
+            </button>
+          </form>
+        )}
+        {emailError && (
+          <p className="text-xs mt-2" style={{ color: AMBER }}>{emailError}</p>
+        )}
+        {emailStatus !== 'sent' && (
+          <p className="text-[11px] mt-2" style={{ color: DIM }}>
+            We email the five names and a link back to this shortlist. No account required.
+          </p>
+        )}
+      </div>
+
       <ul className="mb-4 divide-y" style={{ borderColor: 'oklch(0.2 0.01 264)' }}>
         {visible.map((m, i) => {
           const investorId = m.investor_id || m.investor?.id || '';
@@ -655,7 +733,7 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
           {isAuthenticated
             ? 'Your shortlist lives on Account. Upgrade to Oracle there when you want outreach automation.'
-            : 'Saving creates a free account, emails this shortlist, and keeps it under Account.'}
+            : 'Saving creates a free account and keeps this shortlist under Account. Email the five matches above anytime.'}
         </p>
       </div>
 

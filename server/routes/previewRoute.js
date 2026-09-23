@@ -43,10 +43,18 @@ function normalizeAppBase(raw) {
 
 const APP_BASE = normalizeAppBase(process.env.APP_BASE_URL);
 
+function inspectMatchesUrl(startupUrl, fallbackUrl) {
+  const raw = String(startupUrl || '').trim();
+  if (!raw) return fallbackUrl;
+  const normalized = raw.startsWith('http') ? raw : `https://${raw}`;
+  return `${APP_BASE}/matches?url=${encodeURIComponent(normalized)}`;
+}
+
 async function sendPreviewShortlistEmail({
   to,
   startupName,
   previewUrl,
+  inspectUrl,
   topInvestors,
   matchCount,
   oracleGap,
@@ -55,20 +63,20 @@ async function sendPreviewShortlistEmail({
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { success: false, error: 'RESEND_API_KEY not configured' };
 
-  const lines = (topInvestors || [])
-    .slice(0, 3)
+  const listed = (topInvestors || [])
+    .map((inv) => ({
+      name: String(inv?.name || '').trim(),
+      firm: inv?.firm ? String(inv.firm).trim() : '',
+    }))
+    .filter((inv) => inv.name)
+    .slice(0, 5);
+  const lines = listed
     .map((inv, i) => {
-      const label = inv.firm ? `${inv.name} · ${inv.firm}` : inv.name;
+      const label = inv.firm && inv.firm !== inv.name ? `${inv.name} · ${inv.firm}` : inv.name;
       return `${i + 1}. ${label}`;
     })
     .join('\n');
-
-  const trialUrl = startupId
-    ? `${APP_BASE}/pricing?trial=1&startup_id=${startupId}&source=preview_email`
-    : `${APP_BASE}/pricing?trial=1&source=preview_email`;
-  const wizardUrl = startupId
-    ? `${APP_BASE}/activate?startup_id=${startupId}`
-    : previewUrl;
+  const listUrl = inspectUrl || previewUrl;
 
   const gap = oracleGap || null;
   const godLine =
@@ -80,38 +88,21 @@ async function sendPreviewShortlistEmail({
         }`
       : '';
 
-  const gapBlock =
-    gap?.top_gap
-      ? [
-          ``,
-          `Top gap Oracle flagged:`,
-          `${gap.top_gap.title}`,
-          gap.top_gap.partner_objection ? `Partner concern: ${gap.top_gap.partner_objection}` : '',
-          ``,
-          `See your full match list: ${wizardUrl}`,
-        ]
-          .filter(Boolean)
-          .join('\n')
-      : '';
-
-  const subject = gap?.top_gap
-    ? `Oracle read: GOD ${gap.current_god_score} — ${startupName} investor shortlist`
-    : `Your investor shortlist for ${startupName}`;
+  const subject = listed.length
+    ? `Your ${listed.length} investor matches for ${startupName}`
+    : `Your investor matches for ${startupName}`;
   const text = [
     `Hi —`,
     ``,
-    `You asked for your Pythh investor shortlist for ${startupName}.`,
-    matchCount ? `${matchCount.toLocaleString()} ranked matches are ready in your network.` : '',
+    `Here are your top ${listed.length} Pythh investor matches for ${startupName}.`,
+    lines ? `\n${lines}\n` : '',
+    `Open these matches: ${listUrl}`,
+    matchCount && matchCount > listed.length
+      ? `${matchCount.toLocaleString()} ranked matches are on your account.`
+      : '',
     godLine,
-    gapBlock,
     ``,
-    lines ? `Top matches:\n${lines}` : '',
-    ``,
-    `View your full preview: ${previewUrl}`,
-    ``,
-    `Start your 7-day Oracle trial — outreach drafts for your top matches: ${trialUrl}`,
-    ``,
-    `— Pythh Oracle`,
+    `— Pythh`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -130,14 +121,11 @@ async function sendPreviewShortlistEmail({
 
   const html = `
     <div style="font-family: Inter, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
-      <p>You asked for your investor shortlist for <strong>${startupName}</strong>.</p>
-      ${matchCount ? `<p>${matchCount.toLocaleString()} ranked matches are ready in the Pythh network.</p>` : ''}
+      <p>Your top ${listed.length} investor matches for <strong>${startupName}</strong>:</p>
+      ${lines ? `<pre style="background:#f4f4f5;padding:12px;border-radius:8px;font-size:14px;white-space:pre-wrap;">${lines.replace(/</g, '&lt;')}</pre>` : ''}
+      <p><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my ${listed.length} match${listed.length === 1 ? '' : 'es'}</a></p>
+      ${matchCount && matchCount > listed.length ? `<p style="color:#666;font-size:13px;">${matchCount.toLocaleString()} ranked matches are on your account.</p>` : ''}
       ${gapHtml}
-      ${lines ? `<pre style="background:#f4f4f5;padding:12px;border-radius:8px;font-size:13px;white-space:pre-wrap;">${lines.replace(/</g, '&lt;')}</pre>` : ''}
-      <p><a href="${previewUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">View my shortlist</a>
-      <a href="${trialUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Start 7-day Oracle trial</a></p>
-      ${gap?.top_gap ? `<p style="font-size:13px;"><a href="${wizardUrl}" style="color:#7c3aed;">See your full gap map →</a></p>` : ''}
-      <p style="color:#666;font-size:13px;">Oracle automates outreach, meeting prep, and round readiness once you're ready.</p>
     </div>`;
 
   try {
@@ -262,6 +250,7 @@ router.post('/email-shortlist', async (req, res) => {
 
     const previewPath = `/matches/preview/${startupId}`;
     const previewUrl = `${APP_BASE}${previewPath}`;
+    const inspectUrl = inspectMatchesUrl(startupUrl, `${APP_BASE}/account?saved=1`);
 
     let oracleGap = null;
     let resolvedStartupName = startupName;
@@ -315,6 +304,7 @@ router.post('/email-shortlist', async (req, res) => {
       to: normalizedEmail,
       startupName: resolvedStartupName || 'your startup',
       previewUrl,
+      inspectUrl,
       topInvestors: resolvedTopInvestors,
       matchCount: resolvedMatchCount,
       oracleGap,

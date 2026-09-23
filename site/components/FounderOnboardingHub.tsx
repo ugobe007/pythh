@@ -168,7 +168,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           }}
         >
           {saved
-            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. Review them here — we also emailed the ranked list.`
+            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. Review them here — open Find matches to email the five names if the inbox is empty.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
                   ? ` — ${companyLabel} is saved. Review the shortlist below.`
