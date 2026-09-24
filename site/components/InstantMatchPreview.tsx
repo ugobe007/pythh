@@ -254,6 +254,7 @@ export default function InstantMatchPreview({ url }: Props) {
     if (id) {
       await persistShortlist(id, preview?.startup?.name).catch(() => {});
     }
+    await emailPromiseRef.current;
     navigate(savedMatchesPath());
   };
 
