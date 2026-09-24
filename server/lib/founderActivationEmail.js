@@ -2,8 +2,9 @@
 
 const { buildPreviewOracleGap } = require('./previewOracleGap');
 const { recordFunnelEvent } = require('./funnelTelemetry');
+const { resolveTransactionalFrom } = require('./transactionalEmailFrom');
 
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
+const EMAIL_FROM = resolveTransactionalFrom(process.env.EMAIL_FROM || 'Pythh <hello@orbital-ai.io>');
 
 function normalizeAppBase(raw) {
   const cleaned = String(raw || process.env.SITE_URL || 'https://pythh.ai')

@@ -455,7 +455,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                       Emailed these 5 matches to {emailedTo}.
                     </p>
                     <p className="text-xs" style={{ color: MUTED }}>
-                      From Pythh Daily Brief &lt;brief@pythh.ai&gt; — same inbox as the Daily Brief. Subject “{companyLabel} — 5 investor matches from Pythh”.
+                      From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{companyLabel} — 5 investor matches from Pythh”.
                     </p>
                     <button
                       type="button"
@@ -518,7 +518,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 )}
                 {emailStatus !== 'sent' && (
                   <p className="text-[11px] mt-2" style={{ color: DIM }}>
-                    We email the five names from the Daily Brief sender (brief@pythh.ai). Use Send again if that inbox is empty.
+                    We email the five names from the same Daily Brief sender (hello@orbital-ai.io). Use Send again if that inbox is empty.
                   </p>
                 )}
               </div>

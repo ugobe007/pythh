@@ -31,7 +31,7 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /else void finishAuthenticatedSave\(\)/);
   assert.match(preview, /Email my 5 matches/);
   assert.match(preview, /Emailed these 5 matches to/);
-  assert.match(preview, /brief@pythh\.ai/);
+  assert.match(preview, /hello@orbital-ai\.io/);
   assert.match(preview, /Send again/);
   assert.match(account, /force: Boolean\(opts\.force\)/);
   assert.doesNotMatch(preview, /We do not email the list unless you subscribed separately/);
@@ -50,12 +50,13 @@ test('save emails the shortlist and advances to the profile', () => {
 
   const shortlist = read('server/routes/previewRoute.js');
   assert.match(shortlist, /investor matches from Pythh/);
-  assert.match(shortlist, /Pythh Daily Brief <brief@pythh\.ai>/);
+  assert.match(shortlist, /resolveTransactionalFrom/);
+  assert.match(shortlist, /hello@orbital-ai\.io/);
   assert.match(shortlist, /\.slice\(0, 5\)/);
   assert.match(shortlist, /inspectMatchesUrl/);
   assert.match(shortlist, /\/matches\?url=/);
   assert.match(shortlist, /MATCHES_EMAIL_FROM/);
-  assert.match(shortlist, /brief@pythh\.ai/);
+  assert.match(shortlist, /transactionalEmailFrom/);
   assert.match(shortlist, /X-Entity-Ref-ID/);
   assert.match(shortlist, /if \(!force && recent/);
   assert.doesNotMatch(shortlist, /\.slice\(0, 3\)/);

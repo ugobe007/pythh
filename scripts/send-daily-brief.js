@@ -21,9 +21,10 @@ const { generateNewsletter } = require('../server/newsletter-generator');
 const { buildBriefEmailHtml, buildBriefEmailText } = require('../server/lib/newsletterEmail');
 const { loadSubscriberMatches } = require('../server/lib/subscriberMatches');
 const { filterBriefRecipients, isBlockedBriefEmail } = require('../server/lib/newsletterRecipientPolicy');
+const { resolveTransactionalFrom } = require('../server/lib/transactionalEmailFrom');
 
 const SITE_URL = process.env.APP_BASE_URL || process.env.SITE_URL || 'https://pythh.ai';
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh Daily Brief <brief@pythh.ai>';
+const EMAIL_FROM = resolveTransactionalFrom(process.env.EMAIL_FROM);
 
 function arg(flag) {
   const i = process.argv.indexOf(flag);

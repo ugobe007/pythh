@@ -29,9 +29,14 @@ const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
 const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
+const {
+  resolveTransactionalFrom,
+  resolveTransactionalReplyTo,
+} = require('../lib/transactionalEmailFrom');
 
-/** Same From identity as the Daily Brief so Gmail files this with mail the founder already opens. */
-const MATCHES_EMAIL_FROM = process.env.MATCHES_EMAIL_FROM || 'Pythh Daily Brief <brief@pythh.ai>';
+/** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
+const MATCHES_EMAIL_FROM = resolveTransactionalFrom(process.env.MATCHES_EMAIL_FROM);
+const MATCHES_EMAIL_REPLY_TO = resolveTransactionalReplyTo('brief@pythh.ai');
 
 /** Fly/env typos sometimes prefix APP_BASE_URL with '=' — strip and fall back safely. */
 function normalizeAppBase(raw) {
@@ -103,7 +108,7 @@ async function sendPreviewShortlistEmail({
       : '',
     godLine,
     ``,
-    `This is the same sender as the Daily Brief.`,
+    `Sent from hello@orbital-ai.io so Gmail will keep it.`,
     `— Pythh`,
   ]
     .filter(Boolean)
@@ -134,7 +139,7 @@ async function sendPreviewShortlistEmail({
       <p style="margin-top:20px;"><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my ${listed.length} match${listed.length === 1 ? '' : 'es'}</a></p>
       ${matchCount && matchCount > listed.length ? `<p style="color:#666;font-size:13px;">${matchCount.toLocaleString()} ranked matches are on your account.</p>` : ''}
       ${gapHtml}
-      <p style="color:#888;font-size:12px;margin-top:24px;">Same sender as the Daily Brief · brief@pythh.ai</p>
+      <p style="color:#888;font-size:12px;margin-top:24px;">Sent from hello@orbital-ai.io until pythh.ai mail authentication is fixed.</p>
     </div>`;
 
   try {
@@ -147,7 +152,7 @@ async function sendPreviewShortlistEmail({
       body: JSON.stringify({
         from: MATCHES_EMAIL_FROM,
         to: [to],
-        reply_to: ['brief@pythh.ai'],
+        reply_to: [MATCHES_EMAIL_REPLY_TO],
         subject,
         html,
         text,

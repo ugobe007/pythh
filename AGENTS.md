@@ -76,6 +76,14 @@ User preference (**2026-08-29**): **automate PRs**. For every branch with commit
   and gitignored). Copy secrets into the VM `.env` or Cursor Secrets when setting up a new agent.
 - Provide real `SUPABASE_*`, `DATABASE_URL`, and `OPENAI_API_KEY` values for full E2E; the app
   degrades gracefully (homepage + submit analysis) with only the service key + a placeholder OpenAI key.
+- **Gmail will not keep `brief@pythh.ai`.** Root SPF is GoDaddy-only
+  (`v=spf1 include:secureserver.net -all`), `send.pythh.ai` has no public MX/TXT, and DMARC is
+  `p=quarantine`. Resend `last_event=delivered` is **not** inbox proof — owner Gmail
+  (`ugobe07@gmail.com`) has no brief@ mail. Transactional + Daily Brief mail therefore sends from
+  `Pythh Daily Brief <hello@orbital-ai.io>` (verified SES bounce domain) unless
+  `PYTHH_FROM_DNS_OK=1`. After adding GoDaddy records (`npm run check:email-dns` must pass), set
+  that flag to restore brief@. Do not treat Resend delivery as received. Do not email
+  `bob@readyforrobots.com`.
 
 ### Quick verification
 

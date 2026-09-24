@@ -581,7 +581,7 @@ export default function InstantMatchPreview({ url }: Props) {
               Emailed these 5 matches to {emailedTo}.
             </p>
             <p className="text-xs" style={{ color: MUTED }}>
-              From Pythh Daily Brief &lt;brief@pythh.ai&gt; — same inbox as the Daily Brief. Subject “{startupName} — 5 investor matches from Pythh”.
+              From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{startupName} — 5 investor matches from Pythh”.
             </p>
             <button
               type="button"
@@ -645,7 +645,7 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
         {emailStatus !== 'sent' && (
           <p className="text-[11px] mt-2" style={{ color: DIM }}>
-            We email the five names and a link back to this shortlist. No account required.
+            We email the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
           </p>
         )}
       </div>
