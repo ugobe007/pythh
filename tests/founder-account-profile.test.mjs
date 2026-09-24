@@ -71,6 +71,8 @@ test('account hub builds a startup profile, saved matches, and Scout/Oracle intr
   assert.match(hub, /readStartupDescription/);
   assert.match(hub, /Startup profile/);
   assert.match(hub, /Your saved matches — \{companyLabel\}/);
+  assert.match(hub, /Email my 5 matches/);
+  assert.match(hub, /sendSavedMatchesEmail/);
   assert.match(hub, /Find matches/);
   assert.match(hub, /findMatchesHref = website/);
   assert.match(hub, /matchesPathForUrl\(website\)/);

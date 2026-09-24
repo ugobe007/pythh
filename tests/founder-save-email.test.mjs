@@ -16,8 +16,11 @@ test('save emails the shortlist and advances to the profile', () => {
   const db = read('site/db.ts');
 
   assert.match(account, /export async function sendSavedMatchesEmail/);
+  assert.match(account, /export function readAccountEmail/);
   assert.match(account, /\/api\/preview\/email-shortlist/);
   assert.match(preview, /sendSavedMatchesEmail/);
+  assert.match(preview, /readAccountEmail/);
+  assert.match(preview, /event.preventDefault\(\)/);
   assert.match(preview, /finishAuthenticatedSave/);
   assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(preview, /Save matches/);
@@ -29,6 +32,14 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /Send again/);
   assert.match(account, /force: Boolean\(opts\.force\)/);
   assert.doesNotMatch(preview, /We do not email the list unless you subscribed separately/);
+
+  const hub = read('site/components/FounderOnboardingHub.tsx');
+  assert.match(hub, /Email my 5 matches/);
+  assert.match(hub, /sendSavedMatchesEmail/);
+  assert.match(hub, /source: 'account_saved'/);
+  assert.match(hub, /force: Boolean\(explicitEmail\) \|\| Boolean\(saved\)/);
+  assert.match(hub, /readAccountEmail/);
+  assert.match(hub, /Send again/);
 
   const shortlist = read('server/routes/previewRoute.js');
   assert.match(shortlist, /Your \$\{listed\.length\} investor matches/);
@@ -44,6 +55,13 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(db, /getFounderProfileViaRest/);
   assert.match(db, /from\("pythh_founder_profiles"\)/);
   assert.match(db, /Postgres unavailable — upserting founder profile via Supabase REST/);
+});
+
+test('account email helper prefers auth email then email: openId', () => {
+  const account = read('site/lib/founderAccount.ts');
+  assert.match(account, /export function readAccountEmail/);
+  assert.match(account, /openId.startsWith\('email:'\)/);
+  assert.match(account, /return readJoinEmail\(\)/);
 });
 
 test('homepage join still opens matches when subscribe fails', () => {

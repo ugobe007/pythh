@@ -69,9 +69,14 @@ test('save signup lands on the account profile, not the newsletter', () => {
   assert.match(signup, /Saved on your profile/);
   assert.match(signup, /we email the ranked list/);
   assert.match(signup, /sendSavedMatchesEmail/);
-  assert.match(hub, /Review them here/);
+  assert.match(hub, /We email the five names to you from brief@pythh.ai/);
   assert.match(hub, /Your saved matches — \{companyLabel\}/);
   assert.match(hub, /source=account_saved/);
+  assert.match(hub, /Email my 5 matches/);
+  assert.match(hub, /sendSavedMatchesEmail/);
+  assert.match(hub, /readAccountEmail/);
+  assert.match(hub, /Send again/);
+  assert.match(hub, /brief@pythh\.ai/);
   assert.match(hub, /Startup profile/);
   assert.match(hub, /Pending opportunities/);
   assert.match(hub, /Start Scout/);

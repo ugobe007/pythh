@@ -40,6 +40,8 @@ test('account hub has one CTA after save — Upgrade to Oracle', () => {
   const hub = read('site/components/FounderOnboardingHub.tsx');
   assert.match(hub, /Upgrade to Oracle/);
   assert.match(hub, /Start Scout/);
+  assert.match(hub, /Email my 5 matches/);
+  assert.match(hub, /sendSavedMatchesEmail/);
   assert.match(hub, /Pending opportunities/);
   assert.match(hub, /Startup profile/);
   assert.match(hub, /showUpgrade/);

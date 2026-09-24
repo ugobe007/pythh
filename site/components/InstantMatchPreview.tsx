@@ -23,7 +23,7 @@ import {
   type FounderGatedAction,
   type GatedInvestorContext,
 } from '@/lib/founderSignupGate';
-import { persistFounderStartup, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
+import { persistFounderStartup, readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { getPinnedStartupId, getPinnedStartupUrl, pinActiveStartup } from '@/lib/activeStartupContext';
 import {
@@ -151,7 +151,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const [startupId, setStartupId] = useState<string | null>(null);
   const [investorMix] = useState<InvestorMix>('balanced');
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
-  const [emailDraft, setEmailDraft] = useState(() => readJoinEmail());
+  const [emailDraft, setEmailDraft] = useState(() => readAccountEmail(user) || readJoinEmail());
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
@@ -201,7 +201,7 @@ export default function InstantMatchPreview({ url }: Props) {
   };
 
   const emailReadyShortlist = async (id: string, name?: string | null, explicitEmail?: string) => {
-    const email = (explicitEmail || user?.email || emailDraft || readJoinEmail()).trim().toLowerCase();
+    const email = (explicitEmail || readAccountEmail(user) || emailDraft || readJoinEmail()).trim().toLowerCase();
     if (!email.includes('@')) return;
 
     if (emailedRef.current || emailPromiseRef.current) {
@@ -247,17 +247,17 @@ export default function InstantMatchPreview({ url }: Props) {
     await sendPromise;
   };
 
-  const openAccount = () => {
+  const openAccount = async () => {
     const id = preview?.startup?.id || startupId;
     if (id) {
-      void persistShortlist(id, preview?.startup?.name).catch(() => {});
-      void emailReadyShortlist(id, preview?.startup?.name).catch(() => {});
+      await persistShortlist(id, preview?.startup?.name).catch(() => {});
+      await emailReadyShortlist(id, preview?.startup?.name).catch(() => {});
     }
     navigate(savedMatchesPath());
   };
 
   const finishAuthenticatedSave = async () => {
-    openAccount();
+    await openAccount();
   };
 
   useEffect(() => {
@@ -269,17 +269,17 @@ export default function InstantMatchPreview({ url }: Props) {
   }, [authLoading, isAuthenticated, preview?.startup?.id, preview?.startup?.name, url, user?.email]);
 
   useEffect(() => {
-    const fromUser = String(user?.email || '').trim();
+    const fromUser = readAccountEmail(user);
     if (fromUser.includes('@') && !emailDraft) setEmailDraft(fromUser);
-  }, [user?.email, emailDraft]);
+  }, [user?.email, user?.openId, emailDraft]);
 
   useEffect(() => {
     const id = preview?.startup?.id;
     if (!id || loading || !preview?.matches?.length) return;
-    const known = (user?.email || emailDraft || readJoinEmail()).trim();
+    const known = (readAccountEmail(user) || emailDraft || readJoinEmail()).trim();
     if (!known.includes('@')) return;
     emailReadyShortlist(id, preview.startup?.name, known);
-  }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email]);
+  }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email, user?.openId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -694,12 +694,16 @@ export default function InstantMatchPreview({ url }: Props) {
             href={savedMatchesPath()}
             className={NEXT_STEP_CTA_CLASS}
             style={NEXT_STEP_CTA_STYLE}
-            onClick={() => {
-              const id = preview.startup?.id || startupId;
-              if (id) {
-                void persistShortlist(id, preview.startup?.name).catch(() => {});
-                void emailReadyShortlist(id, preview.startup?.name).catch(() => {});
-              }
+            onClick={(event) => {
+              event.preventDefault();
+              void (async () => {
+                const id = preview.startup?.id || startupId;
+                if (id) {
+                  await persistShortlist(id, preview.startup?.name).catch(() => {});
+                  await emailReadyShortlist(id, preview.startup?.name).catch(() => {});
+                }
+                navigate(savedMatchesPath());
+              })();
             }}
             onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
             onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
