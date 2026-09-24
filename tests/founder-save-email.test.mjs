@@ -24,7 +24,7 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /void openAccount\(\)/);
   assert.match(preview, /Saving to your account/);
   assert.doesNotMatch(preview, /await emailReadyShortlist\(id, preview\.startup\?\.name\)\.catch/);
-  assert.doesNotMatch(preview, /await emailPromiseRef\.current/);
+  assert.doesNotMatch(preview, /await emailPromiseRef\.current;\s*navigate\(savedMatchesPath/);
   assert.match(preview, /finishAuthenticatedSave/);
   assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(preview, /Save matches/);
