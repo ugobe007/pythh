@@ -30,7 +30,8 @@ const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
 const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
 
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
+/** Same mailbox as the Daily Brief so the five-match mail is not buried under Alerts. */
+const MATCHES_EMAIL_FROM = process.env.MATCHES_EMAIL_FROM || 'Pythh <brief@pythh.ai>';
 
 /** Fly/env typos sometimes prefix APP_BASE_URL with '=' — strip and fall back safely. */
 function normalizeAppBase(raw) {
@@ -135,7 +136,7 @@ async function sendPreviewShortlistEmail({
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html, text }),
+      body: JSON.stringify({ from: MATCHES_EMAIL_FROM, to: [to], subject, html, text }),
     });
     const data = await response.json();
     if (!response.ok) return { success: false, error: data.message || 'Resend error' };
@@ -225,6 +226,7 @@ router.post('/email-shortlist', async (req, res) => {
       match_count: matchCount,
       top_investors: topInvestors,
       source,
+      force,
     } = req.body || {};
 
     if (!isValidEmail(email)) {
@@ -244,7 +246,7 @@ router.post('/email-shortlist', async (req, res) => {
       .gte('created_at', since)
       .limit(1);
 
-    if (recent?.[0]?.resend_message_id) {
+    if (!force && recent?.[0]?.resend_message_id) {
       return res.json({ success: true, deduped: true, message_id: recent[0].resend_message_id });
     }
 
