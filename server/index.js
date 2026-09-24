@@ -2461,6 +2461,8 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
     }
 
     if (subError) throw subError;
+    const { filterBriefRecipients } = require('./lib/newsletterRecipientPolicy');
+    subscribers = filterBriefRecipients(subscribers);
     if (!subscribers || subscribers.length === 0) {
       return res.json({ ok: true, sent: 0, message: 'No subscribers found' });
     }
