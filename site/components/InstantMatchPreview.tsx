@@ -227,6 +227,7 @@ export default function InstantMatchPreview({ url }: Props) {
           matchCount: preview?.total_matches ?? topInvestors.length,
           topInvestors,
           source: 'instant_match_preview',
+          force: Boolean(explicitEmail),
         });
         if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('pythia_email', email);
         setEmailedTo(email);
@@ -574,9 +575,25 @@ export default function InstantMatchPreview({ url }: Props) {
         style={{ backgroundColor: 'oklch(0.14 0.01 264)', border: '1px solid oklch(0.696 0.17 162.48 / 0.28)' }}
       >
         {emailStatus === 'sent' && emailedTo ? (
-          <p className="text-sm" style={{ color: G }}>
-            Emailed these 5 matches to {emailedTo}.
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm" style={{ color: G }}>
+              Emailed these 5 matches to {emailedTo}.
+            </p>
+            <p className="text-xs" style={{ color: MUTED }}>
+              From Pythh &lt;brief@pythh.ai&gt; — subject “Your 5 investor matches for {startupName}”. Check Primary, Promotions, and Spam.
+            </p>
+            <button
+              type="button"
+              className="text-xs font-semibold underline"
+              style={{ color: G }}
+              onClick={() => {
+                emailedRef.current = false;
+                setEmailStatus('idle');
+              }}
+            >
+              Send again
+            </button>
+          </div>
         ) : (
           <form
             onSubmit={(e) => {

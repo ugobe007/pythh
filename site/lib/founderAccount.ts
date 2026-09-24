@@ -47,6 +47,7 @@ export async function sendSavedMatchesEmail(opts: {
   matchCount?: number;
   topInvestors?: SavedMatchInvestor[];
   source?: string;
+  force?: boolean;
 }): Promise<void> {
   const email = opts.email.trim().toLowerCase();
   if (!email.includes('@') || !opts.startupId) return;
@@ -70,6 +71,7 @@ export async function sendSavedMatchesEmail(opts: {
       match_count: opts.matchCount || topInvestors.length,
       top_investors: topInvestors.slice(0, 5),
       source: opts.source || 'save_matches',
+      force: Boolean(opts.force),
     }),
   });
   

@@ -25,6 +25,9 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /else void finishAuthenticatedSave\(\)/);
   assert.match(preview, /Email my 5 matches/);
   assert.match(preview, /Emailed these 5 matches to/);
+  assert.match(preview, /brief@pythh\.ai/);
+  assert.match(preview, /Send again/);
+  assert.match(account, /force: Boolean\(opts\.force\)/);
   assert.doesNotMatch(preview, /We do not email the list unless you subscribed separately/);
 
   const shortlist = read('server/routes/previewRoute.js');
@@ -32,6 +35,9 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(shortlist, /\.slice\(0, 5\)/);
   assert.match(shortlist, /inspectMatchesUrl/);
   assert.match(shortlist, /\/matches\?url=/);
+  assert.match(shortlist, /MATCHES_EMAIL_FROM/);
+  assert.match(shortlist, /brief@pythh\.ai/);
+  assert.match(shortlist, /if \(!force && recent/);
   assert.doesNotMatch(shortlist, /\.slice\(0, 3\)/);
 
   assert.match(db, /upsertFounderProfileViaRest/);
