@@ -155,7 +155,6 @@ export default function InstantMatchPreview({ url }: Props) {
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
-  const [reviewAccountLoading, setReviewAccountLoading] = useState(false);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const gateCompletedRef = useRef(false);
@@ -249,10 +248,11 @@ export default function InstantMatchPreview({ url }: Props) {
   };
 
   const openAccount = async () => {
+    if (saving) return;
+    setSaving(true);
     const id = preview?.startup?.id || startupId;
     if (id) {
       await persistShortlist(id, preview?.startup?.name).catch(() => {});
-      await emailReadyShortlist(id, preview?.startup?.name).catch(() => {});
     }
     navigate(savedMatchesPath());
   };
@@ -691,33 +691,22 @@ export default function InstantMatchPreview({ url }: Props) {
             Continue
           </button>
         ) : isAuthenticated ? (
-          <button
-            type="button"
-            disabled={reviewAccountLoading}
+          <Link
+            href={savedMatchesPath()}
             className={NEXT_STEP_CTA_CLASS}
-            style={{ ...NEXT_STEP_CTA_STYLE, opacity: reviewAccountLoading ? 0.7 : 1 }}
-            onClick={() => {
-              void (async () => {
-                setReviewAccountLoading(true);
-                try {
-                  const id = preview.startup?.id || startupId;
-                  if (id) {
-                    await persistShortlist(id, preview.startup?.name).catch(() => {});
-                    await emailReadyShortlist(id, preview.startup?.name).catch(() => {});
-                  }
-                  navigate(savedMatchesPath());
-                } finally {
-                  setReviewAccountLoading(false);
-                }
-              })();
+            style={{ ...NEXT_STEP_CTA_STYLE, opacity: saving ? 0.7 : 1, pointerEvents: saving ? 'none' : 'auto' }}
+            aria-disabled={saving}
+            onClick={(event) => {
+              event.preventDefault();
+              void openAccount();
             }}
-            onMouseEnter={(e) => !reviewAccountLoading && paintNextStepCta(e.currentTarget, true)}
-            onMouseLeave={(e) => !reviewAccountLoading && paintNextStepCta(e.currentTarget, false)}
+            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
+            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
           >
-            {reviewAccountLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Review your account
-            {!reviewAccountLoading && <ArrowRight className="w-4 h-4" />}
-          </button>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {saving ? 'Saving to your account' : 'Review your account'}
+            {!saving && <ArrowRight className="w-4 h-4" />}
+          </Link>
         ) : (
           <>
             {canImproveNow && (

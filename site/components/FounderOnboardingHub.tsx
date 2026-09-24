@@ -17,7 +17,7 @@ import {
   pinActiveStartup,
 } from '@/lib/activeStartupContext';
 import { matchesPathForUrl } from '@/lib/founderSignupGate';
-import { readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
+import { accountShortlistSentKey, readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import {
   listSectors,
   readStartupDescription,
@@ -194,11 +194,11 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           matchCount: preview?.total_matches ?? topInvestors.length,
           topInvestors,
           source: 'account_saved',
-          force: Boolean(explicitEmail) || Boolean(saved),
+          force: Boolean(explicitEmail),
         });
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.setItem('pythia_email', email);
-          sessionStorage.setItem(`pythh_account_shortlist_sent_${id}`, '1');
+          sessionStorage.setItem(accountShortlistSentKey(id), '1');
         }
         setEmailedTo(email);
         setEmailStatus('sent');
@@ -224,12 +224,17 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   useEffect(() => {
     const id = pinned.id;
     if (!saved || !id || !savedMatches.length) return;
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(`pythh_account_shortlist_sent_${id}`) === '1') {
+    const known = (readAccountEmail(user) || readJoinEmail()).trim();
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(accountShortlistSentKey(id))) {
+      emailedRef.current = true;
+      if (known.includes('@')) {
+        setEmailedTo(known);
+        setEmailStatus('sent');
+      }
       return;
     }
-    const known = (emailDraft || readAccountEmail(user) || readJoinEmail()).trim();
     if (!known.includes('@')) return;
-    void emailFiveMatches(known).catch(() => {});
+    void emailFiveMatches().catch(() => {});
   }, [saved, pinned.id, savedMatches.length, user?.email, user?.openId]);
 
   return (

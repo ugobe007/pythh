@@ -21,6 +21,9 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /sendSavedMatchesEmail/);
   assert.match(preview, /readAccountEmail/);
   assert.match(preview, /event.preventDefault\(\)/);
+  assert.match(preview, /void openAccount\(\)/);
+  assert.match(preview, /Saving to your account/);
+  assert.doesNotMatch(preview, /await emailReadyShortlist\(id, preview\.startup\?\.name\)\.catch/);
   assert.match(preview, /finishAuthenticatedSave/);
   assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(preview, /Save matches/);
@@ -37,9 +40,13 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(hub, /Email my 5 matches/);
   assert.match(hub, /sendSavedMatchesEmail/);
   assert.match(hub, /source: 'account_saved'/);
-  assert.match(hub, /force: Boolean\(explicitEmail\) \|\| Boolean\(saved\)/);
+  assert.match(hub, /force: Boolean\(explicitEmail\)/);
+  assert.match(hub, /accountShortlistSentKey/);
+  assert.match(hub, /sessionStorage.getItem\(accountShortlistSentKey\(id\)\)/);
+  assert.doesNotMatch(hub, /force: Boolean\(explicitEmail\) \|\| Boolean\(saved\)/);
   assert.match(hub, /readAccountEmail/);
   assert.match(hub, /Send again/);
+  assert.match(account, /export function accountShortlistSentKey/);
 
   const shortlist = read('server/routes/previewRoute.js');
   assert.match(shortlist, /Your \$\{listed\.length\} investor matches/);
