@@ -200,8 +200,8 @@ export default function InstantMatchPreview({ url }: Props) {
     setShortlistSaved(true);
   };
 
-  const emailReadyShortlist = async (id: string, name?: string | null, explicitEmail?: string) => {
-    const email = (explicitEmail || user?.email || emailDraft || readJoinEmail()).trim().toLowerCase();
+  const emailReadyShortlist = async (id: string, name?: string | null) => {
+    const email = (user?.email || emailDraft || readJoinEmail()).trim().toLowerCase();
     if (!email.includes('@')) return;
 
     if (emailedRef.current || emailPromiseRef.current) {
@@ -227,7 +227,6 @@ export default function InstantMatchPreview({ url }: Props) {
           matchCount: preview?.total_matches ?? topInvestors.length,
           topInvestors,
           source: 'instant_match_preview',
-          force: Boolean(explicitEmail),
         });
         if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('pythia_email', email);
         setEmailedTo(email);
@@ -278,7 +277,7 @@ export default function InstantMatchPreview({ url }: Props) {
     if (!id || loading || !preview?.matches?.length) return;
     const known = (user?.email || emailDraft || readJoinEmail()).trim();
     if (!known.includes('@')) return;
-    emailReadyShortlist(id, preview.startup?.name, known);
+    emailReadyShortlist(id, preview.startup?.name);
   }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email]);
 
   useEffect(() => {
@@ -589,6 +588,10 @@ export default function InstantMatchPreview({ url }: Props) {
               onClick={() => {
                 emailedRef.current = false;
                 setEmailStatus('idle');
+                const id = preview.startup?.id || startupId;
+                if (id) {
+                  void emailReadyShortlist(id, preview.startup?.name).catch(() => {});
+                }
               }}
             >
               Send again
@@ -605,7 +608,7 @@ export default function InstantMatchPreview({ url }: Props) {
                 setEmailError('Enter the email where we should send these 5 matches.');
                 return;
               }
-              void emailReadyShortlist(id, startupName, next).catch(() => {});
+              void emailReadyShortlist(id, startupName).catch(() => {});
             }}
             className="flex flex-col sm:flex-row gap-2"
           >

@@ -226,7 +226,6 @@ router.post('/email-shortlist', async (req, res) => {
       match_count: matchCount,
       top_investors: topInvestors,
       source,
-      force,
     } = req.body || {};
 
     if (!isValidEmail(email)) {
@@ -246,7 +245,7 @@ router.post('/email-shortlist', async (req, res) => {
       .gte('created_at', since)
       .limit(1);
 
-    if (!force && recent?.[0]?.resend_message_id) {
+    if (recent?.[0]?.resend_message_id) {
       return res.json({ success: true, deduped: true, message_id: recent[0].resend_message_id });
     }
 
