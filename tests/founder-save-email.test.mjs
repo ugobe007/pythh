@@ -24,6 +24,7 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /void openAccount\(\)/);
   assert.match(preview, /Saving to your account/);
   assert.doesNotMatch(preview, /await emailReadyShortlist\(id, preview\.startup\?\.name\)\.catch/);
+  assert.doesNotMatch(preview, /await emailPromiseRef\.current/);
   assert.match(preview, /finishAuthenticatedSave/);
   assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(preview, /Save matches/);
@@ -33,6 +34,8 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(preview, /Emailed these 5 matches to/);
   assert.match(preview, /hello@orbital-ai\.io/);
   assert.match(preview, /Send again/);
+  assert.match(preview, /accountShortlistSentKey/);
+  assert.doesNotMatch(preview, /emailReadyShortlist\(id, preview\.startup\?\.name, known\)/);
   assert.match(account, /force: Boolean\(opts\.force\)/);
   assert.doesNotMatch(preview, /We do not email the list unless you subscribed separately/);
 

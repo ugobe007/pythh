@@ -23,7 +23,13 @@ import {
   type FounderGatedAction,
   type GatedInvestorContext,
 } from '@/lib/founderSignupGate';
-import { persistFounderStartup, readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
+import {
+  accountShortlistSentKey,
+  persistFounderStartup,
+  readAccountEmail,
+  readJoinEmail,
+  sendSavedMatchesEmail,
+} from '@/lib/founderAccount';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { getPinnedStartupId, getPinnedStartupUrl, pinActiveStartup } from '@/lib/activeStartupContext';
 import {
@@ -212,6 +218,9 @@ export default function InstantMatchPreview({ url }: Props) {
     emailedRef.current = true;
     setEmailStatus('sending');
     setEmailError(null);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(accountShortlistSentKey(id), '1');
+    }
     const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
       name: m.investor?.name || m.investor?.firm || '',
       firm: m.investor?.firm || null,
@@ -235,6 +244,7 @@ export default function InstantMatchPreview({ url }: Props) {
       } catch (err) {
         console.warn('[preview] email shortlist failed:', err);
         emailedRef.current = false;
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(accountShortlistSentKey(id));
         setEmailStatus('error');
         setEmailError(err instanceof Error ? err.message : 'Could not email these matches');
         throw err;
@@ -254,7 +264,6 @@ export default function InstantMatchPreview({ url }: Props) {
     if (id) {
       await persistShortlist(id, preview?.startup?.name).catch(() => {});
     }
-    await emailPromiseRef.current;
     navigate(savedMatchesPath());
   };
 
@@ -280,7 +289,13 @@ export default function InstantMatchPreview({ url }: Props) {
     if (!id || loading || !preview?.matches?.length) return;
     const known = (readAccountEmail(user) || emailDraft || readJoinEmail()).trim();
     if (!known.includes('@')) return;
-    emailReadyShortlist(id, preview.startup?.name, known);
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(accountShortlistSentKey(id))) {
+      emailedRef.current = true;
+      setEmailedTo(known);
+      setEmailStatus('sent');
+      return;
+    }
+    void emailReadyShortlist(id, preview.startup?.name);
   }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email, user?.openId]);
 
   useEffect(() => {
@@ -590,6 +605,10 @@ export default function InstantMatchPreview({ url }: Props) {
               style={{ color: G }}
               onClick={() => {
                 emailedRef.current = false;
+                const id = preview.startup?.id || startupId;
+                if (id && typeof sessionStorage !== 'undefined') {
+                  sessionStorage.removeItem(accountShortlistSentKey(id));
+                }
                 setEmailStatus('idle');
               }}
             >

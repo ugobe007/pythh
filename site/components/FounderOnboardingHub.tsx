@@ -179,6 +179,9 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
     emailedRef.current = true;
     setEmailStatus('sending');
     setEmailError(null);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(accountShortlistSentKey(id), '1');
+    }
     const topInvestors = pendingMatches.map((match) => ({
       name: match.investor?.name || match.investor?.firm || '',
       firm: match.investor?.firm || null,
@@ -204,6 +207,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
         setEmailStatus('sent');
       } catch (err) {
         emailedRef.current = false;
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(accountShortlistSentKey(id));
         setEmailStatus('error');
         setEmailError(err instanceof Error ? err.message : 'Could not email these matches');
         throw err;
@@ -463,6 +467,9 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                       style={{ color: G }}
                       onClick={() => {
                         emailedRef.current = false;
+                        if (typeof sessionStorage !== 'undefined') {
+                          sessionStorage.removeItem(accountShortlistSentKey(pinned.id));
+                        }
                         setEmailStatus('idle');
                       }}
                     >
