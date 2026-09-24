@@ -581,7 +581,7 @@ export default function InstantMatchPreview({ url }: Props) {
               Emailed these 5 matches to {emailedTo}.
             </p>
             <p className="text-xs" style={{ color: MUTED }}>
-              From Pythh &lt;brief@pythh.ai&gt; — subject “Your 5 investor matches for {startupName}”. Check Primary, Promotions, and Spam.
+              From Pythh Daily Brief &lt;brief@pythh.ai&gt; — same inbox as the Daily Brief. Subject “{startupName} — 5 investor matches from Pythh”.
             </p>
             <button
               type="button"

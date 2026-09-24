@@ -249,7 +249,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           }}
         >
           {saved
-            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. We email the five names to you from brief@pythh.ai — send again below if the inbox is empty.`
+            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. We email the five names from the same Daily Brief sender — send again below if that inbox is empty.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
                   ? ` — ${companyLabel} is saved. Review the shortlist below.`
@@ -455,7 +455,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                       Emailed these 5 matches to {emailedTo}.
                     </p>
                     <p className="text-xs" style={{ color: MUTED }}>
-                      From Pythh &lt;brief@pythh.ai&gt; — subject “Your 5 investor matches for {companyLabel}”. Check Primary, Promotions, and Spam.
+                      From Pythh Daily Brief &lt;brief@pythh.ai&gt; — same inbox as the Daily Brief. Subject “{companyLabel} — 5 investor matches from Pythh”.
                     </p>
                     <button
                       type="button"
@@ -518,7 +518,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 )}
                 {emailStatus !== 'sent' && (
                   <p className="text-[11px] mt-2" style={{ color: DIM }}>
-                    We email the five names from brief@pythh.ai. Use Send again if Gmail hid the first copy.
+                    We email the five names from the Daily Brief sender (brief@pythh.ai). Use Send again if that inbox is empty.
                   </p>
                 )}
               </div>

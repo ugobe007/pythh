@@ -49,12 +49,14 @@ test('save emails the shortlist and advances to the profile', () => {
   assert.match(account, /export function accountShortlistSentKey/);
 
   const shortlist = read('server/routes/previewRoute.js');
-  assert.match(shortlist, /Your \$\{listed\.length\} investor matches/);
+  assert.match(shortlist, /investor matches from Pythh/);
+  assert.match(shortlist, /Pythh Daily Brief <brief@pythh\.ai>/);
   assert.match(shortlist, /\.slice\(0, 5\)/);
   assert.match(shortlist, /inspectMatchesUrl/);
   assert.match(shortlist, /\/matches\?url=/);
   assert.match(shortlist, /MATCHES_EMAIL_FROM/);
   assert.match(shortlist, /brief@pythh\.ai/);
+  assert.match(shortlist, /X-Entity-Ref-ID/);
   assert.match(shortlist, /if \(!force && recent/);
   assert.doesNotMatch(shortlist, /\.slice\(0, 3\)/);
 
