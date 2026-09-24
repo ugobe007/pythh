@@ -155,6 +155,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
+  const [reviewAccountLoading, setReviewAccountLoading] = useState(false);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const gateCompletedRef = useRef(false);
@@ -690,27 +691,33 @@ export default function InstantMatchPreview({ url }: Props) {
             Continue
           </button>
         ) : isAuthenticated ? (
-          <Link
-            href={savedMatchesPath()}
+          <button
+            type="button"
+            disabled={reviewAccountLoading}
             className={NEXT_STEP_CTA_CLASS}
-            style={NEXT_STEP_CTA_STYLE}
-            onClick={(event) => {
-              event.preventDefault();
+            style={{ ...NEXT_STEP_CTA_STYLE, opacity: reviewAccountLoading ? 0.7 : 1 }}
+            onClick={() => {
               void (async () => {
-                const id = preview.startup?.id || startupId;
-                if (id) {
-                  await persistShortlist(id, preview.startup?.name).catch(() => {});
-                  await emailReadyShortlist(id, preview.startup?.name).catch(() => {});
+                setReviewAccountLoading(true);
+                try {
+                  const id = preview.startup?.id || startupId;
+                  if (id) {
+                    await persistShortlist(id, preview.startup?.name).catch(() => {});
+                    await emailReadyShortlist(id, preview.startup?.name).catch(() => {});
+                  }
+                  navigate(savedMatchesPath());
+                } finally {
+                  setReviewAccountLoading(false);
                 }
-                navigate(savedMatchesPath());
               })();
             }}
-            onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
-            onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
+            onMouseEnter={(e) => !reviewAccountLoading && paintNextStepCta(e.currentTarget, true)}
+            onMouseLeave={(e) => !reviewAccountLoading && paintNextStepCta(e.currentTarget, false)}
           >
+            {reviewAccountLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             Review your account
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+            {!reviewAccountLoading && <ArrowRight className="w-4 h-4" />}
+          </button>
         ) : (
           <>
             {canImproveNow && (

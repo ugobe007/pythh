@@ -224,10 +224,13 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   useEffect(() => {
     const id = pinned.id;
     if (!saved || !id || !savedMatches.length) return;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(`pythh_account_shortlist_sent_${id}`) === '1') {
+      return;
+    }
     const known = (emailDraft || readAccountEmail(user) || readJoinEmail()).trim();
     if (!known.includes('@')) return;
     void emailFiveMatches(known).catch(() => {});
-  }, [saved, pinned.id, savedMatches.length, emailDraft, user?.email, user?.openId]);
+  }, [saved, pinned.id, savedMatches.length, user?.email, user?.openId]);
 
   return (
     <div className="w-full space-y-8">
