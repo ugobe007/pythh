@@ -7,7 +7,7 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 test('new users see matches before signup and stay on matches after', async () => {
   const preview = await read('site/components/InstantMatchPreview.tsx');
   assert.match(preview, /keep these \$\{visible\.length\} matches on your profile/);
-  assert.match(preview, /Save my matches/);
+  assert.match(preview, /Start this raise/);
   assert.match(preview, /Review your account/);
   assert.match(preview, /href=\{savedMatchesPath\(\)\}/);
   assert.match(preview, /Improve my matches/);

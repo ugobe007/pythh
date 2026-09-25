@@ -26,6 +26,8 @@ const https   = require('https');
 const http    = require('http');
 const { URL } = require('url');
 const { createClient } = require('@supabase/supabase-js');
+let classifyMarketMovement = () => null;
+let curatedDiscoveryRows = () => [];
 
 const SB_URL   = process.env.SUPABASE_URL;
 const SB_KEY   = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -65,12 +67,33 @@ const DISCOVERY_SOURCES = [
 ];
 
 // Startup keyword signals
-const STARTUP_RE = /\b(launch|series\s+[a-e]|seed\s+round|raises?\s+\$|pre[-\s]?seed|funding\s+round|backed\s+by|yc\s+(s|w)\d{2}|ycombinator|techstars|announced today|new\s+startup|founded|co-founded|seed\s+stage)\b/i;
+const STARTUP_RE = /\b(launch|series\s+[a-e]|seed\s+round|raises?\s+\$|pre[-\s]?seed|funding\s+round|backed\s+by|yc\s+(s|w)\d{2}|ycombinator|techstars|announced today|new\s+startup|founded|co-founded|seed\s+stage|arr|annualized|run rate|acquir\w*|acquisition|venture fund|emerging from stealth)\b/i;
 const FUNDING_RE = /\$\s*(\d+(?:\.\d+)?)\s*(M|million|B|billion)\b/i;
 const URL_RE     = /https?:\/\/(?:www\.)?([a-z0-9-]+\.[a-z]{2,}(?:\.[a-z]{2})?)/i;
-const VC_RE      = /\b(a16z|sequoia|andreessen|first round|yc|ycombinator|accel|benchmark|lightspeed|greylock|khosla|kleiner|bessemer|general catalyst|tiger global|coatue|insight|softbank)\b/i;
+const VC_RE      = /\b(a16z|sequoia|andreessen|first round|yc|ycombinator|accel|benchmark|lightspeed|greylock|khosla|kleiner|bessemer|general catalyst|tiger global|coatue|insight|softbank|eclipse|lux|founders fund|valor|dst|goldman|ark)\b/i;
 
 function sb() { return createClient(SB_URL, SB_KEY); }
+
+async function captureCurated(client) {
+  const rows = curatedDiscoveryRows();
+  const { data: existing, error: readError } = await client
+    .from('hot_startup_discoveries')
+    .select('headline')
+    .in('headline', rows.map((row) => row.headline));
+  if (readError) {
+    console.error('Curated lookup:', readError.message);
+    return 0;
+  }
+  const seen = new Set((existing || []).map((row) => row.headline));
+  const fresh = rows.filter((row) => !seen.has(row.headline));
+  if (!fresh.length) return 0;
+  const { error } = await client.from('hot_startup_discoveries').insert(fresh);
+  if (error) {
+    console.error('Curated insert:', error.message);
+    return 0;
+  }
+  return fresh.length;
+}
 
 function fetchRaw(url) {
   return new Promise((resolve, reject) => {
@@ -145,6 +168,7 @@ function extractSectorGuess(text) {
     [/\b(AI|machine learning|LLM|GPT|generative)\b/i, 'AI/ML'],
     [/\b(fintech|payments?|banking|finance|crypto|DeFi)\b/i, 'Fintech'],
     [/\b(health|medical|biotech|pharma|clinical|drug)\b/i, 'Healthcare'],
+    [/\b(turbine|gas generator|data center power)\b/i, 'Energy for AI'],
     [/\b(climate|clean energy|renewable|solar|carbon)\b/i, 'Climate'],
     [/\b(saas|b2b|enterprise\s+software|productivity)\b/i, 'B2B SaaS'],
     [/\b(marketplace|platform|gig|on-demand)\b/i, 'Marketplace'],
@@ -166,7 +190,7 @@ function extractSectorGuess(text) {
 
 function extractVcsMentioned(text) {
   const matches = [];
-  const re = /\b(a16z|sequoia|andreessen horowitz|first round|yc|ycombinator|accel|benchmark|lightspeed|greylock|khosla|kleiner perkins|bessemer|general catalyst|tiger global|coatue|insight partners|softbank|founders fund|union square|usv|spark capital|index ventures|crv|felicis|battery ventures|general atlantic)\b/gi;
+  const re = /\b(a16z|sequoia|andreessen horowitz|first round|yc|ycombinator|accel|benchmark|lightspeed|greylock|khosla|kleiner perkins|bessemer|general catalyst|tiger global|coatue|insight partners|softbank|founders fund|union square|usv|spark capital|index ventures|crv|felicis|battery ventures|general atlantic|eclipse|lux capital|valor|dst global|goldman sachs|ark)\b/gi;
   let m;
   while ((m = re.exec(text)) !== null) {
     const name = m[1].toLowerCase().replace(/\s+/g, '_');
@@ -186,24 +210,25 @@ async function processSource(sourceConfig) {
 
   for (const item of items) {
     const text = `${item.title} ${item.excerpt}`;
-    if (!STARTUP_RE.test(text) && source !== 'producthunt') continue; // ProductHunt is all startups
+    const movement = classifyMarketMovement(text);
+    if (!movement && !STARTUP_RE.test(text) && source !== 'producthunt') continue; // ProductHunt is all startups
 
-    const signals = [];
-    if (FUNDING_RE.test(text))          signals.push('funding');
+    const signals = movement?.signals ? [...movement.signals] : [];
+    if (FUNDING_RE.test(text) && !signals.includes('funding')) signals.push('funding');
     if (/launch|ship|release/i.test(text)) signals.push('launch');
     if (/hiring|join\s+us|team/i.test(text)) signals.push('hiring');
     if (/yc|ycombinator/i.test(text))   signals.push('yc_backed');
     if (/award|winner|top/i.test(text)) signals.push('recognition');
 
     const companyUrl = extractCompanyUrl(item.excerpt || '', item.title);
-    const sector     = extractSectorGuess(text);
+    const sector     = movement?.sector || extractSectorGuess(text);
     const vcs        = extractVcsMentioned(text);
-    const heat       = calcHeatScore(item, heat_base, text);
+    const heat       = Math.max(calcHeatScore(item, heat_base, text), movement?.heat || 0);
 
     discoveries.push({
       source,
       source_url:   item.url || url,
-      company_name: null, // LLM could extract this later
+      company_name: movement?.companyName || null,
       company_url:  companyUrl,
       headline:     item.title,
       summary:      item.excerpt?.slice(0, 600),
@@ -245,6 +270,7 @@ async function dedupeDiscoveries(discoveries, client) {
 }
 
 async function main() {
+  ({ classifyMarketMovement, curatedDiscoveryRows } = await import('../../lib/marketMovement.mjs'));
   console.log('🔥 Hot Startup Discovery Agent');
   console.log('═'.repeat(50));
   console.log('Run at:', new Date().toISOString());
@@ -253,6 +279,12 @@ async function main() {
   console.log('');
 
   const client = sb();
+  if (!DRY_RUN) {
+    const captured = await captureCurated(client);
+    console.log(`Curated market movements captured: ${captured}`);
+  } else {
+    console.log(`Curated market movements: ${curatedDiscoveryRows().map((row) => row.company_name).join(', ')}`);
+  }
 
   // ── Also fetch active RSS feeds from Pythh's own rss_sources table ─────────
   let rssRows = [];
@@ -314,7 +346,12 @@ async function main() {
 
   // ── Auto-submit high-heat startups with URLs to the pipeline ─────────────
   if (AUTO_SUBMIT && !DRY_RUN) {
-    const submitCandidates = fresh.filter(d => d.company_url && d.heat_score >= 75);
+    const submitCandidates = fresh.filter((d) => (
+      d.company_url
+      && d.heat_score >= 75
+      && !d.signals?.includes('acquisition')
+      && !d.signals?.includes('new_fund')
+    ));
     console.log(`\n📬 Auto-submitting ${submitCandidates.length} high-heat startups...`);
 
     for (const candidate of submitCandidates.slice(0, 20)) {

@@ -27,7 +27,7 @@ test('match preview lets founders improve twice, then save to their profile', ()
   assert.match(preview, /canImproveAnonymously/);
   assert.match(preview, /recordImproveCompletion/);
   assert.match(preview, /Improve my matches/);
-  assert.match(preview, /Save my matches/);
+  assert.match(preview, /Start this raise/);
   assert.match(preview, /Skip — save my matches/);
   assert.match(preview, /skipImprove/);
   assert.match(preview, /optOutOfImprove/);
@@ -40,6 +40,7 @@ test('match preview lets founders improve twice, then save to their profile', ()
   assert.doesNotMatch(preview, /PaidRaisePanel/);
   assert.doesNotMatch(preview, /Start Scout/);
   assert.match(preview, /Email my 5 matches/);
+  assert.match(preview, /Investor notes go out only after you approve them/);
 });
 
 test('improve and automate outreach use different CTA colors', () => {

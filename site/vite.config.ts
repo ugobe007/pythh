@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "."),
       "@shared": path.resolve(__dirname, "shared"),
+      "@marketMovement": path.resolve(__dirname, "../lib/marketMovement.mjs"),
     },
   },
   publicDir: "public",

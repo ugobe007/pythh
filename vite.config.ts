@@ -62,6 +62,7 @@ export default defineConfig({
     alias: {
       '@': siteRoot,
       '@shared': path.join(siteRoot, 'shared'),
+      '@marketMovement': path.resolve(__dirname, 'lib/marketMovement.mjs'),
     },
   },
   server: {

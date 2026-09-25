@@ -10,7 +10,8 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      "@marketMovement": ["../lib/marketMovement.mjs"]
     },
     "types": ["vite/client"]
   },
