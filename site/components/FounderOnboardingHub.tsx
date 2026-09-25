@@ -3,9 +3,9 @@
  * Scout / Oracle is the paid hop to actually connect.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, ArrowRight, Bell, Target, Users } from 'lucide-react';
+import { Activity, ArrowRight, Bell, Loader2, Target, Users } from 'lucide-react';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
@@ -17,6 +17,7 @@ import {
   pinActiveStartup,
 } from '@/lib/activeStartupContext';
 import { matchesPathForUrl } from '@/lib/founderSignupGate';
+import { accountShortlistSentKey, readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import {
   listSectors,
   readStartupDescription,
@@ -24,7 +25,7 @@ import {
   truncateWhy,
 } from '@/lib/founderAccountProfile';
 import { SCOUT_PLAN, ORACLE_PLAN } from '@/lib/pricingPlans';
-import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD } from '@/lib/designTokens';
+import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER } from '@/lib/designTokens';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -81,7 +82,7 @@ function hostLabel(url?: string | null): string | null {
 
 export default function FounderOnboardingHub({ userName, welcome, saved, showUpgrade = true }: Props) {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { data: profile } = trpc.profile.get.useQuery(undefined, {
     enabled: isAuthenticated,
     retry: false,
@@ -89,6 +90,12 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [emailDraft, setEmailDraft] = useState(() => readAccountEmail(user) || readJoinEmail());
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailedTo, setEmailedTo] = useState<string | null>(null);
+  const emailedRef = useRef(false);
+  const emailPromiseRef = useRef<Promise<void> | null>(null);
   const [localPinned] = useState(() => ({
     id: getPinnedStartupId(),
     url: getPinnedStartupUrl(),
@@ -156,6 +163,84 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
       ? `/matches/preview/${encodeURIComponent(pinned.id)}`
       : '/matches';
 
+  const emailFiveMatches = async (explicitEmail?: string) => {
+    const id = pinned.id;
+    const email = (explicitEmail || emailDraft || readAccountEmail(user) || readJoinEmail()).trim().toLowerCase();
+    if (!id || !email.includes('@')) {
+      setEmailStatus('error');
+      setEmailError('Enter the email where we should send these 5 matches.');
+      return;
+    }
+    if (emailedRef.current || emailPromiseRef.current) {
+      await emailPromiseRef.current;
+      return;
+    }
+
+    emailedRef.current = true;
+    setEmailStatus('sending');
+    setEmailError(null);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(accountShortlistSentKey(id), '1');
+    }
+    const topInvestors = pendingMatches.map((match) => ({
+      name: match.investor?.name || match.investor?.firm || '',
+      firm: match.investor?.firm || null,
+    }));
+
+    const sendPromise = (async () => {
+      try {
+        await sendSavedMatchesEmail({
+          email,
+          startupId: id,
+          startupUrl: website,
+          startupName: companyLabel,
+          matchCount: preview?.total_matches ?? topInvestors.length,
+          topInvestors,
+          source: 'account_saved',
+          force: Boolean(explicitEmail),
+        });
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('pythia_email', email);
+          sessionStorage.setItem(accountShortlistSentKey(id), '1');
+        }
+        setEmailedTo(email);
+        setEmailStatus('sent');
+      } catch (err) {
+        emailedRef.current = false;
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(accountShortlistSentKey(id));
+        setEmailStatus('error');
+        setEmailError(err instanceof Error ? err.message : 'Could not email these matches');
+        throw err;
+      } finally {
+        emailPromiseRef.current = null;
+      }
+    })();
+
+    emailPromiseRef.current = sendPromise;
+    await sendPromise;
+  };
+
+  useEffect(() => {
+    const known = readAccountEmail(user);
+    if (known.includes('@') && !emailDraft) setEmailDraft(known);
+  }, [user?.email, user?.openId, emailDraft]);
+
+  useEffect(() => {
+    const id = pinned.id;
+    if (!saved || !id || !savedMatches.length) return;
+    const known = (readAccountEmail(user) || readJoinEmail()).trim();
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(accountShortlistSentKey(id))) {
+      emailedRef.current = true;
+      if (known.includes('@')) {
+        setEmailedTo(known);
+        setEmailStatus('sent');
+      }
+      return;
+    }
+    if (!known.includes('@')) return;
+    void emailFiveMatches().catch(() => {});
+  }, [saved, pinned.id, savedMatches.length, user?.email, user?.openId]);
+
   return (
     <div className="w-full space-y-8">
       {(welcome || saved) && (
@@ -168,7 +253,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           }}
         >
           {saved
-            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. Review them here — open Find matches to email the five names if the inbox is empty.`
+            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. We email the five names from the same Daily Brief sender — send again below if that inbox is empty.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
                   ? ` — ${companyLabel} is saved. Review the shortlist below.`
@@ -360,9 +445,91 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
             </div>
             <p className="text-sm mb-4" style={{ color: MUTED }}>
               {savedMatches.length
-                ? 'These investors stay on your account. Intros below are pending until Scout or Oracle is on.'
+                ? 'These investors stay on your account. Email the five names, then open Scout or Oracle when you want intros.'
                 : 'Matches will land here once the shortlist finishes loading.'}
             </p>
+            {savedMatches.length > 0 && (
+              <div
+                className="mb-4 rounded-xl border p-4"
+                style={{ borderColor: BORDER, backgroundColor: CARD }}
+              >
+                {emailStatus === 'sent' && emailedTo ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium" style={{ color: TEXT }}>
+                      Emailed these 5 matches to {emailedTo}.
+                    </p>
+                    <p className="text-xs" style={{ color: MUTED }}>
+                      From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{companyLabel} — 5 investor matches from Pythh”.
+                    </p>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold underline"
+                      style={{ color: G }}
+                      onClick={() => {
+                        emailedRef.current = false;
+                        if (typeof sessionStorage !== 'undefined') {
+                          sessionStorage.removeItem(accountShortlistSentKey(pinned.id));
+                        }
+                        setEmailStatus('idle');
+                      }}
+                    >
+                      Send again
+                    </button>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const next = emailDraft.trim();
+                      if (!next.includes('@')) {
+                        setEmailStatus('error');
+                        setEmailError('Enter the email where we should send these 5 matches.');
+                        return;
+                      }
+                      void emailFiveMatches(next).catch(() => {});
+                    }}
+                    className="flex flex-col sm:flex-row gap-2"
+                  >
+                    <input
+                      type="email"
+                      value={emailDraft}
+                      onChange={(e) => {
+                        setEmailDraft(e.currentTarget.value);
+                        if (emailStatus === 'error') {
+                          setEmailStatus('idle');
+                          setEmailError(null);
+                        }
+                      }}
+                      placeholder="founder@startup.com"
+                      aria-label="Email these 5 matches"
+                      className="flex-1 px-3 py-2.5 rounded-lg text-sm outline-none"
+                      style={{
+                        backgroundColor: 'oklch(0.11 0.01 264)',
+                        border: '1px solid oklch(0.25 0.01 264)',
+                        color: TEXT,
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={emailStatus === 'sending'}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shrink-0"
+                      style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)', opacity: emailStatus === 'sending' ? 0.7 : 1 }}
+                    >
+                      {emailStatus === 'sending' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      Email my 5 matches
+                    </button>
+                  </form>
+                )}
+                {emailError && (
+                  <p className="text-xs mt-2" style={{ color: AMBER }}>{emailError}</p>
+                )}
+                {emailStatus !== 'sent' && (
+                  <p className="text-[11px] mt-2" style={{ color: DIM }}>
+                    We email the five names from the same Daily Brief sender (hello@orbital-ai.io). Use Send again if that inbox is empty.
+                  </p>
+                )}
+              </div>
+            )}
             {savedMatches.length > 0 && (
               <ol className="divide-y rounded-xl border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
                 {savedMatches.map((match, index) => {

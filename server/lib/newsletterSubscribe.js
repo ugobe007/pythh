@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeUrl, extractDomain } = require('../utils/urlNormalizer');
+const { isBlockedBriefEmail } = require('./newsletterRecipientPolicy');
 
 function normalizeEmail(raw) {
   return String(raw || '').trim().toLowerCase();
@@ -30,6 +31,9 @@ async function upsertNewsletterSubscriber(supabase, { email, url, source = 'webs
   const normalizedEmail = normalizeEmail(email);
   if (!isValidEmail(normalizedEmail)) {
     return { ok: false, status: 400, error: 'Valid email required' };
+  }
+  if (isBlockedBriefEmail(normalizedEmail)) {
+    return { ok: false, status: 400, error: 'That inbox is not on the Daily Brief list.' };
   }
   const startupUrl = normalizeStartupUrl(url);
   const row = {

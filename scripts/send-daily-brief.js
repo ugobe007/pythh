@@ -20,9 +20,11 @@ const { getSupabaseClient } = require('../server/lib/supabaseClient');
 const { generateNewsletter } = require('../server/newsletter-generator');
 const { buildBriefEmailHtml, buildBriefEmailText } = require('../server/lib/newsletterEmail');
 const { loadSubscriberMatches } = require('../server/lib/subscriberMatches');
+const { filterBriefRecipients, isBlockedBriefEmail } = require('../server/lib/newsletterRecipientPolicy');
+const { resolveTransactionalFrom } = require('../server/lib/transactionalEmailFrom');
 
 const SITE_URL = process.env.APP_BASE_URL || process.env.SITE_URL || 'https://pythh.ai';
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh Daily Brief <brief@pythh.ai>';
+const EMAIL_FROM = resolveTransactionalFrom(process.env.EMAIL_FROM);
 
 function arg(flag) {
   const i = process.argv.indexOf(flag);
@@ -77,6 +79,10 @@ async function main() {
   }
 
   if (SINGLE_TO) {
+    if (isBlockedBriefEmail(SINGLE_TO)) {
+      console.log(`[daily-brief] Blocked inbox ${SINGLE_TO} — not sending.`);
+      return;
+    }
     recipients = [{ email: SINGLE_TO, unsubscribe_token: '' }];
     if (supabase) {
       const lookup = await supabase
@@ -106,6 +112,7 @@ async function main() {
       recipients = data || [];
     }
     if (LIMIT) recipients = recipients.slice(0, LIMIT);
+    recipients = filterBriefRecipients(recipients);
   }
 
   if (!recipients.length) {

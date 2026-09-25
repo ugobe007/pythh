@@ -86,6 +86,22 @@ export function readJoinEmail(): string {
   return sessionStorage.getItem('pythia_email')?.trim() || '';
 }
 
+export function accountShortlistSentKey(startupId: string): string {
+  return `pythh_account_shortlist_sent_${startupId}`;
+}
+
+/** Auth email, email: openId, or the last address stored on this device. */
+export function readAccountEmail(user?: { email?: string | null; openId?: string | null } | null): string {
+  const direct = String(user?.email || '').trim();
+  if (direct.includes('@')) return direct;
+  const openId = String(user?.openId || '');
+  if (openId.startsWith('email:')) {
+    const fromOpenId = openId.slice('email:'.length).trim();
+    if (fromOpenId.includes('@')) return fromOpenId;
+  }
+  return readJoinEmail();
+}
+
 /** Invite email when account exists but no startup scan yet. */
 export function sendFounderSignupInviteEmail(opts: {
   email: string;

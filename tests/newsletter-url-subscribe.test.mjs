@@ -5,6 +5,10 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { normalizeEmail, normalizeStartupUrl, isValidEmail } = require('../server/lib/newsletterSubscribe.js');
+const {
+  isBlockedBriefEmail,
+  filterBriefRecipients,
+} = require('../server/lib/newsletterRecipientPolicy.js');
 const { sendSubscriberWelcome } = require('../server/lib/newsletterWelcome.js');
 const {
   buildBriefEmailHtml,
@@ -14,6 +18,19 @@ const {
   welcomeSubject,
   publicSiteUrl,
 } = require('../server/lib/newsletterEmail.js');
+
+test('daily brief drops the wrong inbox and keeps owner addresses', () => {
+  assert.equal(isBlockedBriefEmail('bob@readyforrobots.com'), true);
+  assert.equal(isBlockedBriefEmail('bob@pythh.ai'), false);
+  const filtered = filterBriefRecipients([
+    { email: 'bob@readyforrobots.com', unsubscribe_token: 'x' },
+    { email: 'ugobe07@gmail.com', unsubscribe_token: 'g' },
+  ]);
+  assert.deepEqual(
+    filtered.map((row) => row.email),
+    ['ugobe07@gmail.com', 'bob@pythh.ai'],
+  );
+});
 
 test('subscribe helpers normalize email and startup URL', () => {
   assert.equal(normalizeEmail('  Founder@Startup.COM '), 'founder@startup.com');

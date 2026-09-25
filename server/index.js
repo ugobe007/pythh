@@ -2461,6 +2461,8 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
     }
 
     if (subError) throw subError;
+    const { filterBriefRecipients } = require('./lib/newsletterRecipientPolicy');
+    subscribers = filterBriefRecipients(subscribers);
     if (!subscribers || subscribers.length === 0) {
       return res.json({ ok: true, sent: 0, message: 'No subscribers found' });
     }
@@ -5051,10 +5053,11 @@ app.post('/api/admin/alerts/sweep', async (req, res) => {
 // ============================================================
 
 const crypto = require('crypto');
+const { resolveTransactionalFrom } = require('./lib/transactionalEmailFrom');
 
-// Email configuration
+// Email configuration — override *@pythh.ai until GoDaddy SPF/send records exist.
 const EMAIL_CONFIG = {
-  from: process.env.EMAIL_FROM || 'Pythh Alerts <alerts@pythh.ai>',
+  from: resolveTransactionalFrom(process.env.EMAIL_FROM),
   baseUrl: process.env.APP_BASE_URL || 'https://pythh.ai',
   secret: process.env.EMAIL_SECRET || 'dev-email-secret-change-in-prod'
 };

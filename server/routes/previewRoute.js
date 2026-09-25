@@ -29,9 +29,14 @@ const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
 const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
+const {
+  resolveTransactionalFrom,
+  resolveTransactionalReplyTo,
+} = require('../lib/transactionalEmailFrom');
 
-/** Same mailbox as the Daily Brief so the five-match mail is not buried under Alerts. */
-const MATCHES_EMAIL_FROM = process.env.MATCHES_EMAIL_FROM || 'Pythh <brief@pythh.ai>';
+/** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
+const MATCHES_EMAIL_FROM = resolveTransactionalFrom(process.env.MATCHES_EMAIL_FROM);
+const MATCHES_EMAIL_REPLY_TO = resolveTransactionalReplyTo('brief@pythh.ai');
 
 /** Fly/env typos sometimes prefix APP_BASE_URL with '=' — strip and fall back safely. */
 function normalizeAppBase(raw) {
@@ -90,8 +95,8 @@ async function sendPreviewShortlistEmail({
       : '';
 
   const subject = listed.length
-    ? `Your ${listed.length} investor matches for ${startupName}`
-    : `Your investor matches for ${startupName}`;
+    ? `${startupName} — ${listed.length} investor matches from Pythh`
+    : `${startupName} — investor matches from Pythh`;
   const text = [
     `Hi —`,
     ``,
@@ -103,6 +108,7 @@ async function sendPreviewShortlistEmail({
       : '',
     godLine,
     ``,
+    `Sent from hello@orbital-ai.io so Gmail will keep it.`,
     `— Pythh`,
   ]
     .filter(Boolean)
@@ -110,23 +116,30 @@ async function sendPreviewShortlistEmail({
 
   const gapHtml =
     gap?.top_gap
-      ? `<div style="margin:16px 0;padding:14px;border-radius:8px;background:#1a1a2e;border:1px solid #7c3aed40;">
-      <p style="margin:0 0 8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#a78bfa;">Oracle read</p>
-      <p style="margin:0 0 6px;font-size:15px;color:#fff;"><strong>GOD ${gap.current_god_score}</strong> → <strong>${gap.projected_god_if_top_fix ?? gap.projected_god_score}</strong> if you close the top gap</p>
-      <p style="margin:0 0 8px;font-size:13px;color:#ccc;">${gap.top_gap.title} · ~${gap.investors_unlocked_if_top_fix} investors unlocked</p>
-      ${gap.top_gap.partner_objection ? `<p style="margin:0;font-size:12px;color:#888;font-style:italic;">${String(gap.top_gap.partner_objection).replace(/</g, '&lt;')}</p>` : ''}
+      ? `<div style="margin:16px 0;padding:14px;border-radius:8px;background:#f4f4f5;border:1px solid #ddd;">
+      <p style="margin:0 0 8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6b21a8;">Oracle read</p>
+      <p style="margin:0 0 6px;font-size:15px;color:#111;"><strong>GOD ${gap.current_god_score}</strong> → <strong>${gap.projected_god_if_top_fix ?? gap.projected_god_score}</strong> if you close the top gap</p>
+      <p style="margin:0 0 8px;font-size:13px;color:#444;">${String(gap.top_gap.title || '').replace(/</g, '&lt;')} · ~${gap.investors_unlocked_if_top_fix} investors unlocked</p>
     </div>`
       : gap?.current_god_score != null
         ? `<p style="color:#666;">Oracle GOD score: <strong>${gap.current_god_score}</strong></p>`
         : '';
 
+  const rows = listed
+    .map((inv, i) => {
+      const label = inv.firm && inv.firm !== inv.name ? `${inv.name} · ${inv.firm}` : inv.name;
+      return `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;font-size:15px;color:#111;">${i + 1}. ${label.replace(/</g, '&lt;')}</td></tr>`;
+    })
+    .join('');
+
   const html = `
-    <div style="font-family: Inter, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
-      <p>Your top ${listed.length} investor matches for <strong>${startupName}</strong>:</p>
-      ${lines ? `<pre style="background:#f4f4f5;padding:12px;border-radius:8px;font-size:14px;white-space:pre-wrap;">${lines.replace(/</g, '&lt;')}</pre>` : ''}
-      <p><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my ${listed.length} match${listed.length === 1 ? '' : 'es'}</a></p>
+    <div style="font-family: Helvetica Neue, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
+      <p>Your top ${listed.length} investor matches for <strong>${String(startupName).replace(/</g, '&lt;')}</strong>:</p>
+      ${rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>` : ''}
+      <p style="margin-top:20px;"><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my ${listed.length} match${listed.length === 1 ? '' : 'es'}</a></p>
       ${matchCount && matchCount > listed.length ? `<p style="color:#666;font-size:13px;">${matchCount.toLocaleString()} ranked matches are on your account.</p>` : ''}
       ${gapHtml}
+      <p style="color:#888;font-size:12px;margin-top:24px;">Sent from hello@orbital-ai.io until pythh.ai mail authentication is fixed.</p>
     </div>`;
 
   try {
@@ -136,7 +149,22 @@ async function sendPreviewShortlistEmail({
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: MATCHES_EMAIL_FROM, to: [to], subject, html, text }),
+      body: JSON.stringify({
+        from: MATCHES_EMAIL_FROM,
+        to: [to],
+        reply_to: [MATCHES_EMAIL_REPLY_TO],
+        subject,
+        html,
+        text,
+        headers: {
+          'X-Entity-Ref-ID': `${startupId || 'matches'}-${Date.now()}`,
+          'List-Unsubscribe': `<${APP_BASE}/account?saved=1>`,
+        },
+        tags: [
+          { name: 'type', value: 'five_matches' },
+          { name: 'startup', value: String(startupId || startupName || 'unknown').slice(0, 64) },
+        ],
+      }),
     });
     const data = await response.json();
     if (!response.ok) return { success: false, error: data.message || 'Resend error' };

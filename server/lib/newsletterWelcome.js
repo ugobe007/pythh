@@ -7,8 +7,9 @@ const {
   publicSiteUrl,
 } = require('./newsletterEmail');
 const { loadSubscriberMatches } = require('./subscriberMatches');
+const { resolveTransactionalFrom } = require('./transactionalEmailFrom');
 
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh Daily Brief <brief@pythh.ai>';
+const EMAIL_FROM = resolveTransactionalFrom(process.env.EMAIL_FROM);
 
 async function sendViaResend({ to, subject, html, text }) {
   const apiKey = process.env.RESEND_API_KEY;

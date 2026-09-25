@@ -23,7 +23,13 @@ import {
   type FounderGatedAction,
   type GatedInvestorContext,
 } from '@/lib/founderSignupGate';
-import { persistFounderStartup, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
+import {
+  accountShortlistSentKey,
+  persistFounderStartup,
+  readAccountEmail,
+  readJoinEmail,
+  sendSavedMatchesEmail,
+} from '@/lib/founderAccount';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { getPinnedStartupId, getPinnedStartupUrl, pinActiveStartup } from '@/lib/activeStartupContext';
 import {
@@ -151,7 +157,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const [startupId, setStartupId] = useState<string | null>(null);
   const [investorMix] = useState<InvestorMix>('balanced');
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
-  const [emailDraft, setEmailDraft] = useState(() => readJoinEmail());
+  const [emailDraft, setEmailDraft] = useState(() => readAccountEmail(user) || readJoinEmail());
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
@@ -201,7 +207,7 @@ export default function InstantMatchPreview({ url }: Props) {
   };
 
   const emailReadyShortlist = async (id: string, name?: string | null, explicitEmail?: string) => {
-    const email = (explicitEmail || user?.email || emailDraft || readJoinEmail()).trim().toLowerCase();
+    const email = (explicitEmail || readAccountEmail(user) || emailDraft || readJoinEmail()).trim().toLowerCase();
     if (!email.includes('@')) return;
 
     if (emailedRef.current || emailPromiseRef.current) {
@@ -212,6 +218,9 @@ export default function InstantMatchPreview({ url }: Props) {
     emailedRef.current = true;
     setEmailStatus('sending');
     setEmailError(null);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(accountShortlistSentKey(id), '1');
+    }
     const topInvestors = (preview?.matches || []).slice(0, 5).map((m) => ({
       name: m.investor?.name || m.investor?.firm || '',
       firm: m.investor?.firm || null,
@@ -235,6 +244,7 @@ export default function InstantMatchPreview({ url }: Props) {
       } catch (err) {
         console.warn('[preview] email shortlist failed:', err);
         emailedRef.current = false;
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(accountShortlistSentKey(id));
         setEmailStatus('error');
         setEmailError(err instanceof Error ? err.message : 'Could not email these matches');
         throw err;
@@ -247,17 +257,18 @@ export default function InstantMatchPreview({ url }: Props) {
     await sendPromise;
   };
 
-  const openAccount = () => {
+  const openAccount = async () => {
+    if (saving) return;
+    setSaving(true);
     const id = preview?.startup?.id || startupId;
     if (id) {
-      void persistShortlist(id, preview?.startup?.name).catch(() => {});
-      void emailReadyShortlist(id, preview?.startup?.name).catch(() => {});
+      await persistShortlist(id, preview?.startup?.name).catch(() => {});
     }
     navigate(savedMatchesPath());
   };
 
   const finishAuthenticatedSave = async () => {
-    openAccount();
+    await openAccount();
   };
 
   useEffect(() => {
@@ -269,17 +280,23 @@ export default function InstantMatchPreview({ url }: Props) {
   }, [authLoading, isAuthenticated, preview?.startup?.id, preview?.startup?.name, url, user?.email]);
 
   useEffect(() => {
-    const fromUser = String(user?.email || '').trim();
+    const fromUser = readAccountEmail(user);
     if (fromUser.includes('@') && !emailDraft) setEmailDraft(fromUser);
-  }, [user?.email, emailDraft]);
+  }, [user?.email, user?.openId, emailDraft]);
 
   useEffect(() => {
     const id = preview?.startup?.id;
     if (!id || loading || !preview?.matches?.length) return;
-    const known = (user?.email || emailDraft || readJoinEmail()).trim();
+    const known = (readAccountEmail(user) || emailDraft || readJoinEmail()).trim();
     if (!known.includes('@')) return;
-    emailReadyShortlist(id, preview.startup?.name, known);
-  }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email]);
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(accountShortlistSentKey(id))) {
+      emailedRef.current = true;
+      setEmailedTo(known);
+      setEmailStatus('sent');
+      return;
+    }
+    void emailReadyShortlist(id, preview.startup?.name);
+  }, [preview?.startup?.id, preview?.startup?.name, preview?.matches?.length, loading, user?.email, user?.openId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -580,7 +597,7 @@ export default function InstantMatchPreview({ url }: Props) {
               Emailed these 5 matches to {emailedTo}.
             </p>
             <p className="text-xs" style={{ color: MUTED }}>
-              From Pythh &lt;brief@pythh.ai&gt; — subject “Your 5 investor matches for {startupName}”. Check Primary, Promotions, and Spam.
+              From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{startupName} — 5 investor matches from Pythh”.
             </p>
             <button
               type="button"
@@ -588,6 +605,10 @@ export default function InstantMatchPreview({ url }: Props) {
               style={{ color: G }}
               onClick={() => {
                 emailedRef.current = false;
+                const id = preview.startup?.id || startupId;
+                if (id && typeof sessionStorage !== 'undefined') {
+                  sessionStorage.removeItem(accountShortlistSentKey(id));
+                }
                 setEmailStatus('idle');
               }}
             >
@@ -644,7 +665,7 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
         {emailStatus !== 'sent' && (
           <p className="text-[11px] mt-2" style={{ color: DIM }}>
-            We email the five names and a link back to this shortlist. No account required.
+            We email the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
           </p>
         )}
       </div>
@@ -693,19 +714,18 @@ export default function InstantMatchPreview({ url }: Props) {
           <Link
             href={savedMatchesPath()}
             className={NEXT_STEP_CTA_CLASS}
-            style={NEXT_STEP_CTA_STYLE}
-            onClick={() => {
-              const id = preview.startup?.id || startupId;
-              if (id) {
-                void persistShortlist(id, preview.startup?.name).catch(() => {});
-                void emailReadyShortlist(id, preview.startup?.name).catch(() => {});
-              }
+            style={{ ...NEXT_STEP_CTA_STYLE, opacity: saving ? 0.7 : 1, pointerEvents: saving ? 'none' : 'auto' }}
+            aria-disabled={saving}
+            onClick={(event) => {
+              event.preventDefault();
+              void openAccount();
             }}
             onMouseEnter={(e) => paintNextStepCta(e.currentTarget, true)}
             onMouseLeave={(e) => paintNextStepCta(e.currentTarget, false)}
           >
-            Review your account
-            <ArrowRight className="w-4 h-4" />
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {saving ? 'Saving to your account' : 'Review your account'}
+            {!saving && <ArrowRight className="w-4 h-4" />}
           </Link>
         ) : (
           <>
