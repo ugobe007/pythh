@@ -7,11 +7,11 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 test('new users see matches before signup and stay on matches after', async () => {
   const preview = await read('site/components/InstantMatchPreview.tsx');
   assert.match(preview, /keep these \$\{visible\.length\} matches on your profile/);
-  assert.match(preview, /Start this raise/);
+  assert.match(preview, /Next — save these matches/);
   assert.match(preview, /Review your account/);
   assert.match(preview, /href=\{savedMatchesPath\(\)\}/);
   assert.match(preview, /Improve my matches/);
-  assert.match(preview, /Skip — save my matches/);
+  assert.match(preview, /skipImprove/);
   assert.match(preview, /handleSignup\('save'\)/);
   assert.match(preview, /ANON_IMPROVE_LIMIT/);
   assert.doesNotMatch(preview, /href=["']\/newsletter["']/);

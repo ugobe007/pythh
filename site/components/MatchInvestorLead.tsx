@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
 import { ChevronDown, ChevronUp, Lock, Mail, Loader2, Send } from 'lucide-react';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { parseExplainBullets } from '@/components/MatchExplainBlock';
 import InlineMeta from '@/components/design/InlineMeta';
 import { sendLeadEmail, unlockMatchLead } from '@/lib/matchLeadRelay';
-import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { G, G_HOVER, AMBER, DIM, MUTED, TEXT, BORDER, CARD } from '@/lib/designTokens';
 
 export type LeadDeal = {
@@ -276,30 +274,9 @@ export default function MatchInvestorLead({
           </div>
 
           {!isPaid ? (
-            <div>
-              <Link
-                href="/pricing"
-                onClick={() => {
-                  void trackFunnelEvent('pricing_bridge_clicked', {
-                    startup_id: startupId,
-                    investor_id: investorId,
-                    investor_name: inv?.name || label,
-                    rank,
-                    match_score: fitness,
-                    source: 'match_lead_use_to_paid',
-                    variant: 'oracle_bridge_outcome',
-                  });
-                }}
-                className="inline-flex items-center gap-2 text-sm font-semibold"
-                style={{ color: G }}
-              >
-                <Send className="w-3.5 h-3.5" />
-                Let PYTHIA write &amp; send this intro →
-              </Link>
-              <p className="mt-1 text-xs" style={{ color: DIM }}>
-                14-day free trial · we send from pythh.ai — their address stays private.
-              </p>
-            </div>
+            <p className="text-xs leading-relaxed" style={{ color: DIM }}>
+              Email, calls, and the deck outline are on Scout. Sending this intro comes after positioning, and nothing goes out until you approve it.
+            </p>
           ) : !unlocked ? (
             <div>
               <button

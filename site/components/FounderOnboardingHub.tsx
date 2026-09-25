@@ -25,6 +25,7 @@ import {
   truncateWhy,
 } from '@/lib/founderAccountProfile';
 import { SCOUT_PLAN, ORACLE_PLAN } from '@/lib/pricingPlans';
+import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER } from '@/lib/designTokens';
 
 function normalizeUrl(raw: string): string | null {
@@ -253,7 +254,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           }}
         >
           {saved
-            ? `These matches are saved to your account${firstName ? `, ${firstName}` : ''}. We email the five names from the same Daily Brief sender — send again below if that inbox is empty.`
+            ? `Saved${firstName ? `, ${firstName}` : ''}. Review them here. Positioning is next, and it is free. The pitch deck comes after that. We email the five names from the same Daily Brief sender (hello@orbital-ai.io) — send again below if that inbox is empty.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
                   ? ` — ${companyLabel} is saved. Review the shortlist below.`
@@ -337,97 +338,16 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
 
       {hasPinnedStartup && (
         <>
-          <section className="rounded-xl border p-5" style={{ borderColor: BORDER, backgroundColor: CARD }}>
-            <p className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: G }}>Startup profile</p>
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-              <div className="min-w-0">
-                <h2 className="font-display font-bold text-2xl" style={{ color: TEXT }}>{companyLabel}</h2>
-                {siteHost && website && (
-                  <a
-                    href={website.startsWith('http') ? website : `https://${website}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs underline"
-                    style={{ color: MUTED }}
-                  >
-                    {siteHost}
-                  </a>
-                )}
-              </div>
-              {godScore != null && (
-                <div className="text-right shrink-0">
-                  <p className="text-[10px] uppercase tracking-wide" style={{ color: DIM }}>GOD</p>
-                  <p className="font-mono text-xl" style={{ color: G }}>{godScore}</p>
-                </div>
-              )}
-            </div>
-            {description && (
-              <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>{description}</p>
-            )}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {stage && (
-                <span className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: BORDER, color: TEXT }}>
-                  {stage}
-                </span>
-              )}
-              {sectors.map((sector) => (
-                <span key={sector} className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: BORDER, color: DIM }}>
-                  {sector}
-                </span>
-              ))}
-            </div>
-            {startup?.score_components && (
-              <div className="grid grid-cols-5 gap-2 mb-5">
-                {([
-                  ['Team', startup.score_components.team],
-                  ['Traction', startup.score_components.traction],
-                  ['Market', startup.score_components.market],
-                  ['Product', startup.score_components.product],
-                  ['Vision', startup.score_components.vision],
-                ] as const).map(([label, value]) => (
-                  <div key={label} className="text-center">
-                    <p className="text-[10px]" style={{ color: DIM }}>{label}</p>
-                    <p className="text-xs font-mono" style={{ color: TEXT }}>
-                      {typeof value === 'number' ? Math.round(value) : '—'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Users size={14} style={{ color: G }} />
-                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: MUTED }}>Team</p>
-              </div>
-              {team.length ? (
-                <ul className="space-y-2">
-                  {team.map((member) => (
-                    <li key={member.name} className="flex items-baseline justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm" style={{ color: TEXT }}>{member.name}</p>
-                        {member.role && <p className="text-[11px]" style={{ color: DIM }}>{member.role}</p>}
-                      </div>
-                      {member.linkedin && (
-                        <a
-                          href={member.linkedin}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] underline shrink-0"
-                          style={{ color: MUTED }}
-                        >
-                          LinkedIn
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs" style={{ color: DIM }}>
-                  Team names appear here when the scan has founders on file. We do not invent them.
-                </p>
-              )}
-            </div>
-          </section>
+          <RaiseCampaignBoard
+            saved
+            startupName={companyLabel}
+            sectors={sectors}
+            stage={stage || startup?.stage}
+            godScore={godScore}
+            matchCount={savedMatches.length || preview?.total_matches || null}
+            topInvestorName={savedMatches[0]?.investor?.name || savedMatches[0]?.investor?.firm || null}
+            why={savedMatches[0]?.why_you_match}
+          />
 
           <section>
             <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
@@ -445,7 +365,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
             </div>
             <p className="text-sm mb-4" style={{ color: MUTED }}>
               {savedMatches.length
-                ? 'These investors stay on your account. Email the five names, then open Scout or Oracle when you want intros.'
+                ? 'These are the investors this raise is built around. Keeping them here is free.'
                 : 'Matches will land here once the shortlist finishes loading.'}
             </p>
             {savedMatches.length > 0 && (
@@ -557,6 +477,98 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
               </ol>
             )}
           </section>
+
+          <section className="rounded-xl border p-5" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+            <p className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: G }}>Startup profile</p>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                <h2 className="font-display font-bold text-2xl" style={{ color: TEXT }}>{companyLabel}</h2>
+                {siteHost && website && (
+                  <a
+                    href={website.startsWith('http') ? website : `https://${website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs underline"
+                    style={{ color: MUTED }}
+                  >
+                    {siteHost}
+                  </a>
+                )}
+              </div>
+              {godScore != null && (
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: DIM }}>GOD</p>
+                  <p className="font-mono text-xl" style={{ color: G }}>{godScore}</p>
+                </div>
+              )}
+            </div>
+            {description && (
+              <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>{description}</p>
+            )}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {stage && (
+                <span className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: BORDER, color: TEXT }}>
+                  {stage}
+                </span>
+              )}
+              {sectors.map((sector) => (
+                <span key={sector} className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: BORDER, color: DIM }}>
+                  {sector}
+                </span>
+              ))}
+            </div>
+            {startup?.score_components && (
+              <div className="grid grid-cols-5 gap-2 mb-5">
+                {([
+                  ['Team', startup.score_components.team],
+                  ['Traction', startup.score_components.traction],
+                  ['Market', startup.score_components.market],
+                  ['Product', startup.score_components.product],
+                  ['Vision', startup.score_components.vision],
+                ] as const).map(([label, value]) => (
+                  <div key={label} className="text-center">
+                    <p className="text-[10px]" style={{ color: DIM }}>{label}</p>
+                    <p className="text-xs font-mono" style={{ color: TEXT }}>
+                      {typeof value === 'number' ? Math.round(value) : '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Users size={14} style={{ color: G }} />
+                <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: MUTED }}>Team</p>
+              </div>
+              {team.length ? (
+                <ul className="space-y-2">
+                  {team.map((member) => (
+                    <li key={member.name} className="flex items-baseline justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm" style={{ color: TEXT }}>{member.name}</p>
+                        {member.role && <p className="text-[11px]" style={{ color: DIM }}>{member.role}</p>}
+                      </div>
+                      {member.linkedin && (
+                        <a
+                          href={member.linkedin}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] underline shrink-0"
+                          style={{ color: MUTED }}
+                        >
+                          LinkedIn
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs" style={{ color: DIM }}>
+                  Team names appear here when the scan has founders on file. We do not invent them.
+                </p>
+              )}
+            </div>
+          </section>
         </>
       )}
 
@@ -565,25 +577,15 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           <p className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: GOLD }}>Pending opportunities</p>
           <h3 className="font-display font-bold text-lg mb-2" style={{ color: TEXT }}>
             {pendingMatches.length
-              ? `${pendingMatches.length} investor${pendingMatches.length === 1 ? '' : 's'} ready to connect`
-              : 'Connect these matches when you are ready'}
+              ? `Pay only when you want to send to these ${pendingMatches.length} investor${pendingMatches.length === 1 ? '' : 's'}`
+              : 'Pay only when you want the deck and the send'}
           </h3>
-          <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>
-            Intros stay pending until a raise plan is on. Scout runs three campaigns. Oracle runs ten in parallel with meeting prep.
+          <p className="text-sm leading-relaxed mb-2" style={{ color: MUTED }}>
+            You do not pay to keep the matches or the positioning. Intro pending until you want the pitch deck outline, the notes sent, or help on a term sheet.
           </p>
-          {pendingMatches.length > 0 && (
-            <ul className="mb-5 space-y-1.5">
-              {pendingMatches.map((match, index) => {
-                const name = match.investor?.name || match.investor?.firm || `Match ${index + 1}`;
-                return (
-                  <li key={`pending-${name}-${index}`} className="flex items-center justify-between gap-3 text-sm">
-                    <span style={{ color: TEXT }}>{name}</span>
-                    <span className="text-[11px] shrink-0" style={{ color: GOLD }}>Intro pending</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>
+            Scout is the plan that unlocks that. Oracle is the same work with more campaigns and meeting prep. Nothing is sent until you approve it.
+          </p>
           <div className="grid sm:grid-cols-2 gap-3">
             <Link href={`/pricing?plan=scout&source=account_connect`}>
               <div
@@ -591,7 +593,9 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 style={{ borderColor: 'oklch(0.696 0.17 162.48 / 0.35)', backgroundColor: 'oklch(0.14 0.02 162)' }}
               >
                 <p className="text-sm font-semibold" style={{ color: TEXT }}>{SCOUT_PLAN.name} · ${SCOUT_PLAN.monthlyPrice}/mo</p>
-                <p className="text-xs mt-1 mb-3" style={{ color: MUTED }}>{SCOUT_PLAN.headline}</p>
+                <p className="text-xs mt-1 mb-3" style={{ color: MUTED }}>
+                  Pitch deck outline, 3 campaigns, and term-sheet help. {SCOUT_PLAN.headline}.
+                </p>
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: G }}>
                   Start Scout
                   <ArrowRight size={14} />
@@ -604,7 +608,9 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 style={{ borderColor: 'oklch(0.769 0.188 70.08 / 0.4)', backgroundColor: 'oklch(0.16 0.03 70)' }}
               >
                 <p className="text-sm font-semibold" style={{ color: TEXT }}>{ORACLE_PLAN.name} · ${ORACLE_PLAN.monthlyPrice}/mo</p>
-                <p className="text-xs mt-1 mb-3" style={{ color: MUTED }}>{ORACLE_PLAN.headline}</p>
+                <p className="text-xs mt-1 mb-3" style={{ color: MUTED }}>
+                  Same deck and term-sheet help, plus meeting prep. {ORACLE_PLAN.headline}.
+                </p>
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: GOLD }}>
                   Upgrade to Oracle
                   <ArrowRight size={14} />

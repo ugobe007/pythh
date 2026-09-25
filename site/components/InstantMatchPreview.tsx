@@ -535,30 +535,33 @@ export default function InstantMatchPreview({ url }: Props) {
   const improveLeft = Math.max(0, ANON_IMPROVE_LIMIT - improveUsed);
   const canImproveNow = Boolean(!isAuthenticated && !improveOptedOut && improveLeft > 0);
   const nextCopy = isAuthenticated
-    ? 'These matches are on your account. Review them there — Upgrade to Oracle is at the bottom when you want outreach and automation.'
+    ? 'These matches are on your account. Next is positioning, and that is free. The pitch deck comes after that — the outline, sending notes, and the term sheet are on Scout or Oracle.'
     : canImproveNow
-      ? `These ${visible.length} matches are ready. Improving is optional — skip if you want to keep this shortlist as-is. You can still refine ${improveLeft} more time${improveLeft === 1 ? '' : 's'} without an account.`
+      ? `Read these ${visible.length} matches first. Improving the shortlist is optional and free. Next is saving them, which opens positioning — also free. The pitch deck is not the next step.`
       : improveOptedOut
-        ? `You skipped improve. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`
-        : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile — open Account from the nav anytime you come back.`;
+        ? `You skipped improve. Create a free account to keep these ${visible.length} matches on your profile. Positioning is next, and it is free. The pitch deck comes after that.`
+        : `You've refined this shortlist twice. Create a free account to keep these ${visible.length} matches on your profile. Positioning is next, and it is free.`;
+
+  const campaignInput = {
+    startupName,
+    sectors: preview.startup?.sectors,
+    stage: fundingStage || preview.startup?.stage,
+    godScore,
+    vcCount: preview.shortlist_mix?.vc_count,
+    angelCount: preview.shortlist_mix?.angel_count,
+    topInvestorName: visible[0]?.investor?.name || visible[0]?.investor?.firm || null,
+    why: visible[0]?.why_you_match,
+  };
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
-      <RaiseCampaignBoard
-        startupName={startupName}
-        sectors={preview.startup?.sectors}
-        stage={fundingStage || preview.startup?.stage}
-        godScore={godScore}
-        vcCount={preview.shortlist_mix?.vc_count}
-        angelCount={preview.shortlist_mix?.angel_count}
-        topInvestorName={visible[0]?.investor?.name || visible[0]?.investor?.firm || null}
-        why={visible[0]?.why_you_match}
-      />
-
-      <div className="mb-4">
+      <div className="mb-5">
         <h1 className="text-xl font-bold mb-1" style={{ color: TEXT }}>
-          Investors for this raise
+          Investors for {startupName}
         </h1>
+        <p className="text-sm leading-relaxed mb-3 max-w-[68ch]" style={{ color: MUTED }}>
+          We read the public site and ranked who fits this raise. The matches are the point of this page, and they are free.
+        </p>
         <InlineMeta
           items={[
             { text: `${total.toLocaleString()} in network`, color: MUTED },
@@ -578,9 +581,34 @@ export default function InstantMatchPreview({ url }: Props) {
 
       {alreadySaved && (
         <p className="mb-4 text-xs" style={{ color: G }}>
-          Saved to your account.
+          Saved to your account. Positioning is the free next step there.
         </p>
       )}
+
+      <ul className="mb-8 divide-y" style={{ borderColor: 'oklch(0.2 0.01 264)' }}>
+        {visible.map((m, i) => {
+          const investorId = m.investor_id || m.investor?.id || '';
+          return (
+            <MatchInvestorLead
+              key={investorId || i}
+              match={m}
+              rank={i}
+              startupId={preview.startup?.id || startupId || ''}
+              startupName={startupName}
+              defaultOpen={i === 0}
+              isAuthenticated={Boolean(isAuthenticated)}
+              isPaid={isPaid}
+              unlocked={Boolean(investorId && unlockedIds.includes(investorId))}
+              replyTo={user?.email}
+              onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+              onNeedSignup={(id, name, firm) => handleSignup('save', { id, name, firm })}
+              onNeedPlan={() => navigate('/pricing')}
+            />
+          );
+        })}
+      </ul>
+
+      <RaiseCampaignBoard {...campaignInput} matchCount={visible.length} saved={alreadySaved} />
 
       <div
         className="mb-5 rounded-xl p-4"
@@ -660,33 +688,10 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
         {emailStatus !== 'sent' && (
           <p className="text-[11px] mt-2" style={{ color: DIM }}>
-            We email the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
+            Optional, and free. We email the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
           </p>
         )}
       </div>
-
-      <ul className="mb-4 divide-y" style={{ borderColor: 'oklch(0.2 0.01 264)' }}>
-        {visible.map((m, i) => {
-          const investorId = m.investor_id || m.investor?.id || '';
-          return (
-            <MatchInvestorLead
-              key={investorId || i}
-              match={m}
-              rank={i}
-              startupId={preview.startup?.id || startupId || ''}
-              startupName={startupName}
-              defaultOpen={i === 0}
-              isAuthenticated={Boolean(isAuthenticated)}
-              isPaid={isPaid}
-              unlocked={Boolean(investorId && unlockedIds.includes(investorId))}
-              replyTo={user?.email}
-              onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
-              onNeedSignup={(id, name, firm) => handleSignup('save', { id, name, firm })}
-              onNeedPlan={() => navigate('/pricing')}
-            />
-          );
-        })}
-      </ul>
 
       <div
         className="mt-2 pt-5"
@@ -724,19 +729,6 @@ export default function InstantMatchPreview({ url }: Props) {
           </Link>
         ) : (
           <>
-            {canImproveNow && (
-              <button
-                type="button"
-                onClick={openImproveOrSignup}
-                className={`${NEXT_STEP_CTA_CLASS} mb-3`}
-                style={IMPROVE_CTA_STYLE}
-                onMouseEnter={(e) => paintImproveCta(e.currentTarget, true)}
-                onMouseLeave={(e) => paintImproveCta(e.currentTarget, false)}
-              >
-                Improve my matches
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            )}
             <button
               type="button"
               disabled={saving}
@@ -748,13 +740,21 @@ export default function InstantMatchPreview({ url }: Props) {
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
-              ) : canImproveNow ? (
-                'Skip — save my matches'
               ) : (
-                'Start this raise'
+                'Next — save these matches'
               )}
               {!saving && <ArrowRight className="w-4 h-4" />}
             </button>
+            {canImproveNow && (
+              <button
+                type="button"
+                onClick={openImproveOrSignup}
+                className="mt-3 w-full text-sm font-semibold"
+                style={{ color: PURPLE_ACCENT }}
+              >
+                Improve my matches
+              </button>
+            )}
           </>
         )}
         {saveError && (
@@ -764,8 +764,8 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
         <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
           {isAuthenticated
-            ? 'Your shortlist lives on Account. Upgrade to Oracle there when you want outreach automation.'
-            : 'Starting the raise keeps this campaign on your account. Investor notes go out only after you approve them.'}
+            ? 'Your account shows what is done, what is next, and what is free. Investor notes go out only after you approve them.'
+            : 'Saving is free. Positioning is next, and it is free. The pitch deck, sending notes, and the term sheet are paid. Investor notes go out only after you approve them.'}
         </p>
       </div>
 

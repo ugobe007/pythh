@@ -32,4 +32,10 @@ test('a URL preview becomes a five-stage raise campaign', () => {
   assert.match(campaign.stages[2].body, /finished campaign/);
   assert.match(campaign.stages[3].body, /until you approve/);
   assert.match(campaign.stages[4].body, /term sheet/);
+  assert.equal(campaign.stages[0].label, 'Positioning');
+  assert.equal(campaign.stages[0].paid, false);
+  assert.equal(campaign.stages[0].timing, 'Next');
+  assert.equal(campaign.stages[1].label, 'Pitch deck');
+  assert.equal(campaign.stages[1].timing, 'After positioning');
+  assert.equal(campaign.stages[1].paid, true);
 });

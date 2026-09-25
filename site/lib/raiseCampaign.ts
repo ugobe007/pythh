@@ -12,6 +12,10 @@ export type RaiseStage = {
   title: string;
   body: string;
   status: string;
+  /** When this step happens relative to the one before it. */
+  timing: string;
+  /** Free steps stay on the account. Paid steps wait for Scout or Oracle. */
+  paid: boolean;
 };
 
 export type RaiseCampaignInput = {
@@ -59,38 +63,48 @@ export function buildRaiseCampaign(input: RaiseCampaignInput): RaiseCampaign {
     stages: [
       {
         id: 'strategy',
-        label: 'Strategy',
-        title: `Who funds ${round}`,
+        label: 'Positioning',
+        title: `Who should fund this ${round}`,
         body: `${who} Lead with ${lead}. ${fit}${god}`,
-        status: 'Ready',
+        status: 'Free',
+        timing: 'Next',
+        paid: false,
       },
       {
         id: 'deck',
-        label: 'Deck',
-        title: 'The story investors can underwrite',
+        label: 'Pitch deck',
+        title: 'The story those investors can underwrite',
         body: `Five slides from the site: the problem in ${sector}, why now, what ${name} has built, why ${lead} fits, and the ask for ${round}.`,
-        status: 'Outline',
+        status: 'Scout · $19/mo',
+        timing: 'After positioning',
+        paid: true,
       },
       {
         id: 'messaging',
-        label: 'Messaging',
-        title: `The note to ${lead}`,
+        label: 'The note',
+        title: `What you would send ${lead}`,
         body: fit,
-        status: 'Draft',
+        status: 'Scout or Oracle',
+        timing: 'With the deck',
+        paid: true,
       },
       {
         id: 'meetings',
         label: 'Meetings',
-        title: 'Outreach that asks for the meeting',
+        title: 'Ask for the meeting',
         body: `We take that note to ${lead} and the rest of this list and ask for a meeting. Nothing is sent until you approve it.`,
-        status: 'On approval',
+        status: 'Scout or Oracle',
+        timing: 'After the deck',
+        paid: true,
       },
       {
         id: 'term_sheet',
         label: 'Term sheet',
         title: 'Help once a yes is on the table',
         body: 'When a meeting becomes a yes, we work the term sheet with you: valuation, ownership, and the terms that decide the round.',
-        status: 'After a yes',
+        status: 'Included with a plan',
+        timing: 'After a yes',
+        paid: true,
       },
     ],
   };

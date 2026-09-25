@@ -112,13 +112,13 @@ test('Save my matches stays on founder signup — never the newsletter', () => {
   const gate = read('site/lib/founderSignupGate.ts');
   const signup = read('site/pages/FounderSignup.tsx');
 
-  assert.match(preview, /Start this raise/);
+  assert.match(preview, /Next — save these matches/);
   assert.match(preview, /handleSignup\('save'\)/);
   assert.match(preview, /founderSignupPath\(\{ startupId: startupIdForGate, url, intent: 'matches' \}\)/);
   assert.match(preview, /ANON_IMPROVE_LIMIT/);
   assert.match(preview, /recordImproveCompletion/);
   assert.match(preview, /optOutOfImprove/);
-  assert.match(preview, /Skip — save my matches/);
+  assert.match(preview, /skipImprove/);
   assert.match(preview, /finishAuthenticatedSave/);
   assert.match(preview, /navigate\(savedMatchesPath\(\)\)/);
   assert.match(preview, /sendSavedMatchesEmail/);
