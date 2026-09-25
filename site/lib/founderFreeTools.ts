@@ -94,7 +94,7 @@ const COMPONENT_ADVICE: Record<keyof ScoreComponents, { title: string; line: (sc
 
 function sectorLabel(sectors?: string[] | null): string {
   const first = sectors?.find((item) => item && item.trim());
-  return first?.trim() || 'your';
+  return first?.trim() || 'target';
 }
 
 function componentScore(components: ScoreComponents | null | undefined, key: keyof ScoreComponents): number | null {
@@ -206,8 +206,7 @@ export function buildAdvisorMatches(matches: ToolMatch[] | null | undefined): {
   const advisors = (matches || [])
     .filter((match) => {
       const klass = String(match.investor_class || '').toLowerCase();
-      const why = String(match.why_you_match || '').toLowerCase();
-      return klass === 'angel' || /\b(angel|operator|advisor)\b/.test(why);
+      return klass === 'angel';
     })
     .slice(0, 5)
     .map((match) => {
