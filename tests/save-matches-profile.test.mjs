@@ -27,8 +27,7 @@ test('match preview lets founders improve twice, then save to their profile', ()
   assert.match(preview, /canImproveAnonymously/);
   assert.match(preview, /recordImproveCompletion/);
   assert.match(preview, /Improve my matches/);
-  assert.match(preview, /Start this raise/);
-  assert.match(preview, /Skip — save my matches/);
+  assert.match(preview, /Next — save these matches/);
   assert.match(preview, /skipImprove/);
   assert.match(preview, /optOutOfImprove/);
   assert.match(preview, /finishAuthenticatedSave/);

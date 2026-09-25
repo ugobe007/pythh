@@ -705,7 +705,7 @@ export default function Account() {
           <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
             {subscription && !showSaved
               ? "Manage your subscription and billing details."
-              : "Profile, saved matches, and pending investor intros. Scout or Oracle unlocks the connects."}
+              : "Matches and positioning are free. The pitch deck and sending notes are paid. These are pending investor intros until you choose a plan."}
           </p>
         </motion.div>
 
