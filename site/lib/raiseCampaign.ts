@@ -35,8 +35,9 @@ export type RaiseCampaign = {
 };
 
 function roundLabel(stage?: string | null): string {
-  const cleaned = stage?.replace(/-/g, ' ').trim();
-  return cleaned ? `${cleaned} round` : 'this round';
+  const cleaned = String(stage ?? '').replace(/-/g, ' ').trim();
+  if (!cleaned || /^\d+$/.test(cleaned)) return '';
+  return cleaned;
 }
 
 function sectorLabel(sectors?: string[] | null): string {
@@ -46,7 +47,8 @@ function sectorLabel(sectors?: string[] | null): string {
 
 export function buildRaiseCampaign(input: RaiseCampaignInput): RaiseCampaign {
   const name = input.startupName.trim() || 'Your startup';
-  const round = roundLabel(input.stage);
+  const roundName = roundLabel(input.stage);
+  const round = roundName ? `${roundName} round` : 'this round';
   const sector = sectorLabel(input.sectors);
   const lead = input.topInvestorName?.trim() || 'the lead investor on this list';
   const why = input.why?.trim();
@@ -56,7 +58,7 @@ export function buildRaiseCampaign(input: RaiseCampaignInput): RaiseCampaign {
     input.vcCount != null ? `${input.vcCount} VCs` : null,
     input.angelCount != null ? `${input.angelCount} angels` : null,
   ].filter(Boolean).join(' and ');
-  const who = mix ? `${mix} fit ${round}.` : `The investors below fit ${round}.`;
+  const who = mix ? `${mix} fit ${round}.` : `The investors on this list fit ${round}.`;
 
   return {
     startupName: name,
@@ -64,7 +66,7 @@ export function buildRaiseCampaign(input: RaiseCampaignInput): RaiseCampaign {
       {
         id: 'strategy',
         label: 'Positioning',
-        title: `Who should fund this ${round}`,
+        title: roundName ? `Who should fund this ${round}` : 'Who should fund this round',
         body: `${who} Lead with ${lead}. ${fit}${god}`,
         status: 'Free',
         timing: 'Next',

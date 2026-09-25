@@ -26,7 +26,7 @@ import {
 } from '@/lib/founderAccountProfile';
 import { SCOUT_PLAN, ORACLE_PLAN } from '@/lib/pricingPlans';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
-import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER } from '@/lib/designTokens';
+import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER, godScoreColor, signalScoreColor } from '@/lib/designTokens';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -43,6 +43,7 @@ type PreviewStartup = {
   sectors?: unknown;
   stage?: string | null;
   god_score?: number | null;
+  signal_score?: number | null;
   score_components?: {
     team?: number | null;
     traction?: number | null;
@@ -63,6 +64,11 @@ type PreviewPayload = {
   startup?: PreviewStartup | null;
   matches?: SavedMatch[];
   total_matches?: number;
+  shortlist_mix?: {
+    vc_count?: number | null;
+    angel_count?: number | null;
+    funding_stage?: string | null;
+  } | null;
 };
 
 type Props = {
@@ -71,6 +77,11 @@ type Props = {
   saved?: boolean;
   showUpgrade?: boolean;
 };
+
+function formatSignal(value: number | null | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
 
 function hostLabel(url?: string | null): string | null {
   if (!url) return null;
@@ -91,6 +102,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
   const [emailDraft, setEmailDraft] = useState(() => readAccountEmail(user) || readJoinEmail());
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -119,12 +131,16 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
     const id = localPinned.id || profile?.startupId;
     if (!id) return;
     let cancelled = false;
+    setPreviewLoaded(false);
     void fetch(apiUrl(`/api/preview/${id}?source=account_saved`))
       .then((response) => (response.ok ? response.json() : null))
       .then((data: PreviewPayload | null) => {
         if (!cancelled && data) setPreview(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPreviewLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -155,7 +171,9 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const savedMatches = (preview?.matches || []).slice(0, 8);
   const pendingMatches = savedMatches.slice(0, 5);
   const godScore = typeof startup?.god_score === 'number' ? Math.round(startup.god_score) : null;
-  const stage = String(startup?.stage || '').replace(/-/g, ' ').trim();
+  const signalScore = typeof startup?.signal_score === 'number' ? startup.signal_score : null;
+  const rawStage = String(preview?.shortlist_mix?.funding_stage || startup?.stage || '').replace(/-/g, ' ').trim();
+  const stage = rawStage && !/^\d+$/.test(rawStage) ? rawStage : '';
   const website = startup?.website || pinned.url;
   const siteHost = hostLabel(website);
   const findMatchesHref = website
@@ -244,6 +262,42 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
 
   return (
     <div className="w-full space-y-8">
+      {hasPinnedStartup && (
+        <header className="flex flex-wrap items-end justify-between gap-5">
+          <div className="min-w-0">
+            <h2 className="font-display font-bold text-3xl md:text-4xl" style={{ color: TEXT }}>
+              {companyLabel}
+            </h2>
+            {siteHost && website && (
+              <a
+                href={website.startsWith('http') ? website : `https://${website}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm underline"
+                style={{ color: MUTED }}
+              >
+                {siteHost}
+              </a>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <div className="min-w-[88px] rounded-xl border px-3 py-2" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+              <p className="text-[10px] font-semibold tracking-[0.16em] uppercase" style={{ color: DIM }}>GOD</p>
+              <p className="font-mono text-2xl leading-none mt-1" style={{ color: godScoreColor(godScore) }}>
+                {godScore != null ? godScore : '—'}
+              </p>
+              <p className="text-[10px] mt-1" style={{ color: DIM }}>out of 100</p>
+            </div>
+            <div className="min-w-[88px] rounded-xl border px-3 py-2" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+              <p className="text-[10px] font-semibold tracking-[0.16em] uppercase" style={{ color: DIM }}>SIGNAL</p>
+              <p className="font-mono text-2xl leading-none mt-1" style={{ color: signalScoreColor(signalScore) }}>
+                {formatSignal(signalScore)}
+              </p>
+              <p className="text-[10px] mt-1" style={{ color: DIM }}>out of 10</p>
+            </div>
+          </div>
+        </header>
+      )}
       {(welcome || saved) && (
         <div
           className="px-4 py-3 rounded-xl text-sm text-center"
@@ -338,17 +392,6 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
 
       {hasPinnedStartup && (
         <>
-          <RaiseCampaignBoard
-            saved
-            startupName={companyLabel}
-            sectors={sectors}
-            stage={stage || startup?.stage}
-            godScore={godScore}
-            matchCount={savedMatches.length || preview?.total_matches || null}
-            topInvestorName={savedMatches[0]?.investor?.name || savedMatches[0]?.investor?.firm || null}
-            why={savedMatches[0]?.why_you_match}
-          />
-
           <section>
             <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
               <h3 className="font-display font-bold text-lg" style={{ color: TEXT }}>
@@ -366,7 +409,9 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
             <p className="text-sm mb-4" style={{ color: MUTED }}>
               {savedMatches.length
                 ? 'These are the investors this raise is built around. Keeping them here is free.'
-                : 'Matches will land here once the shortlist finishes loading.'}
+                : previewLoaded
+                  ? 'No matches on this shortlist yet.'
+                  : 'Loading your matches…'}
             </p>
             {savedMatches.length > 0 && (
               <div
@@ -478,30 +523,23 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
             )}
           </section>
 
+          {savedMatches.length > 0 && (
+            <RaiseCampaignBoard
+              saved
+              startupName={companyLabel}
+              sectors={sectors}
+              stage={stage}
+              godScore={godScore}
+              matchCount={savedMatches.length}
+              vcCount={preview?.shortlist_mix?.vc_count}
+              angelCount={preview?.shortlist_mix?.angel_count}
+              topInvestorName={savedMatches[0]?.investor?.name || savedMatches[0]?.investor?.firm || null}
+              why={savedMatches[0]?.why_you_match}
+            />
+          )}
+
           <section className="rounded-xl border p-5" style={{ borderColor: BORDER, backgroundColor: CARD }}>
             <p className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: G }}>Startup profile</p>
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-              <div className="min-w-0">
-                <h2 className="font-display font-bold text-2xl" style={{ color: TEXT }}>{companyLabel}</h2>
-                {siteHost && website && (
-                  <a
-                    href={website.startsWith('http') ? website : `https://${website}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs underline"
-                    style={{ color: MUTED }}
-                  >
-                    {siteHost}
-                  </a>
-                )}
-              </div>
-              {godScore != null && (
-                <div className="text-right shrink-0">
-                  <p className="text-[10px] uppercase tracking-wide" style={{ color: DIM }}>GOD</p>
-                  <p className="font-mono text-xl" style={{ color: G }}>{godScore}</p>
-                </div>
-              )}
-            </div>
             {description && (
               <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>{description}</p>
             )}

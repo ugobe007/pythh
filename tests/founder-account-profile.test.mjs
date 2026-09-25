@@ -70,6 +70,8 @@ test('account hub builds a startup profile, saved matches, and Scout/Oracle intr
   assert.match(hub, /readStartupTeam/);
   assert.match(hub, /readStartupDescription/);
   assert.match(hub, /Startup profile/);
+  assert.match(hub, /signal_score/);
+  assert.match(hub, />SIGNAL</);
   assert.match(hub, /Your saved matches — \{companyLabel\}/);
   assert.match(hub, /Email my 5 matches/);
   assert.match(hub, /sendSavedMatchesEmail/);
