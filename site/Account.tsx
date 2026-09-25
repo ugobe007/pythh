@@ -691,7 +691,7 @@ export default function Account() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="mb-10"
+          className={showSaved ? "mb-6" : "mb-10"}
         >
           <div className="flex items-center gap-3 mb-2">
             <div className="h-px w-6" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
@@ -699,14 +699,18 @@ export default function Account() {
               ACCOUNT
             </span>
           </div>
-          <h1 className="font-display font-bold text-3xl md:text-4xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-            {subscription && !showSaved ? "Your Plan" : "Your startup"}
-          </h1>
-          <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
-            {subscription && !showSaved
-              ? "Manage your subscription and billing details."
-              : "Matches and positioning are free. The pitch deck and sending notes are paid. These are pending investor intros until you choose a plan."}
-          </p>
+          {!showSaved && (
+            <h1 className="font-display font-bold text-3xl md:text-4xl" style={{ color: "oklch(0.97 0.005 264)" }}>
+              {subscription ? "Your Plan" : "Your startup"}
+            </h1>
+          )}
+          {!showSaved && (
+            <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
+              {subscription
+                ? "Manage your subscription and billing details."
+                : "Matches and positioning are free. The pitch deck and sending notes are paid. These are pending investor intros until you choose a plan."}
+            </p>
+          )}
         </motion.div>
 
         {/* Saved matches stay on account. Paid users still see billing below. */}

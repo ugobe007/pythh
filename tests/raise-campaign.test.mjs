@@ -38,4 +38,12 @@ test('a URL preview becomes a five-stage raise campaign', () => {
   assert.equal(campaign.stages[1].label, 'Pitch deck');
   assert.equal(campaign.stages[1].timing, 'After positioning');
   assert.equal(campaign.stages[1].paid, true);
+  assert.equal(
+    buildRaiseCampaign({ startupName: 'Orbital', stage: '1' }).stages[0].title,
+    'Who should fund this round',
+  );
+  assert.doesNotMatch(
+    buildRaiseCampaign({ startupName: 'Orbital', stage: '1' }).stages[0].body,
+    /1 round/,
+  );
 });
