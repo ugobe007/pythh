@@ -391,11 +391,13 @@ function NoSubscription({
   welcome,
   saved,
   showUpgrade = true,
+  hasPlan = false,
 }: {
   userName: string | null;
   welcome?: boolean;
   saved?: boolean;
   showUpgrade?: boolean;
+  hasPlan?: boolean;
 }) {
   return (
     <motion.div
@@ -404,7 +406,7 @@ function NoSubscription({
       transition={{ duration: 0.4 }}
       className="py-12"
     >
-      <FounderOnboardingHub userName={userName} welcome={welcome} saved={saved} showUpgrade={showUpgrade} />
+      <FounderOnboardingHub userName={userName} welcome={welcome} saved={saved} showUpgrade={showUpgrade} hasPlan={hasPlan} />
       <SavedFounderOpportunities />
     </motion.div>
   );
@@ -705,7 +707,9 @@ export default function Account() {
           <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
             {subscription && !showSaved
               ? "Manage your subscription and billing details."
-              : "Matches and positioning are free. The pitch deck and sending notes are paid. These are pending investor intros until you choose a plan."}
+              : subscription
+                ? "Matches and positioning are free. The pitch deck and sending notes are included in your plan."
+                : "Matches and positioning are free. The pitch deck and sending notes are paid. These are pending investor intros until you choose a plan."}
           </p>
         </motion.div>
 
@@ -716,6 +720,7 @@ export default function Account() {
             welcome={showWelcome}
             saved={showSaved}
             showUpgrade={!subscription}
+            hasPlan={!!subscription}
           />
         )}
 

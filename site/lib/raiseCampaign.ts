@@ -64,7 +64,7 @@ export function buildRaiseCampaign(input: RaiseCampaignInput): RaiseCampaign {
       {
         id: 'strategy',
         label: 'Positioning',
-        title: `Who should fund this ${round}`,
+        title: `Who should fund ${round}`,
         body: `${who} Lead with ${lead}. ${fit}${god}`,
         status: 'Free',
         timing: 'Next',

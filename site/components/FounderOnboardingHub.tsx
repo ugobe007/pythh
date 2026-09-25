@@ -70,6 +70,7 @@ type Props = {
   welcome?: boolean;
   saved?: boolean;
   showUpgrade?: boolean;
+  hasPlan?: boolean;
 };
 
 function hostLabel(url?: string | null): string | null {
@@ -81,7 +82,7 @@ function hostLabel(url?: string | null): string | null {
   }
 }
 
-export default function FounderOnboardingHub({ userName, welcome, saved, showUpgrade = true }: Props) {
+export default function FounderOnboardingHub({ userName, welcome, saved, showUpgrade = true, hasPlan = false }: Props) {
   const [, navigate] = useLocation();
   const { isAuthenticated, user } = useAuth();
   const { data: profile } = trpc.profile.get.useQuery(undefined, {
@@ -344,9 +345,10 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
             sectors={sectors}
             stage={stage || startup?.stage}
             godScore={godScore}
-            matchCount={savedMatches.length || preview?.total_matches || null}
+            matchCount={savedMatches.length || null}
             topInvestorName={savedMatches[0]?.investor?.name || savedMatches[0]?.investor?.firm || null}
             why={savedMatches[0]?.why_you_match}
+            hasPlan={hasPlan}
           />
 
           <section>

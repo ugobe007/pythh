@@ -5,6 +5,7 @@ type Props = RaiseCampaignInput & {
   /** Account page already saved the matches, so the summary leads. */
   saved?: boolean;
   matchCount?: number | null;
+  hasPlan?: boolean;
 };
 
 function StepRow({
@@ -53,7 +54,7 @@ function positioning(stages: RaiseStage[]): RaiseStage | undefined {
   return stages.find((stage) => stage.id === 'strategy');
 }
 
-export default function RaiseCampaignBoard({ saved = false, matchCount, ...input }: Props) {
+export default function RaiseCampaignBoard({ saved = false, matchCount, hasPlan = false, ...input }: Props) {
   const campaign = buildRaiseCampaign(input);
   const next = positioning(campaign.stages);
   const countLabel = typeof matchCount === 'number' && matchCount > 0
@@ -70,7 +71,9 @@ export default function RaiseCampaignBoard({ saved = false, matchCount, ...input
       </h2>
       <p className="text-sm leading-relaxed mb-4 max-w-[68ch]" style={{ color: MUTED }}>
         {saved
-          ? `Done, and free: we read ${campaign.startupName} and saved ${countLabel}. Next, still free: positioning — who should fund this round. The pitch deck comes after that. The deck outline, sending notes, and term-sheet help need Scout or Oracle.`
+          ? hasPlan
+            ? `Done, and free: we read ${campaign.startupName} and saved ${countLabel}. Next, still free: positioning — who should fund this round. The pitch deck comes after that. The deck outline, sending notes, and term-sheet help are included in your plan.`
+            : `Done, and free: we read ${campaign.startupName} and saved ${countLabel}. Next, still free: positioning — who should fund this round. The pitch deck comes after that. The deck outline, sending notes, and term-sheet help need Scout or Oracle.`
           : 'The investors on this page are free. Positioning — who to lead with, and why — is the next step, and it is free. The pitch deck comes after positioning. You pay when you want the deck outline, the notes sent, or help on a term sheet.'}
       </p>
       <ol className="rounded-xl border overflow-hidden divide-y" style={{ borderColor: BORDER, backgroundColor: CARD }}>
