@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/apiConfig";
 import { BORDER, CARD, DIM, G, G_HOVER, MUTED, TEXT } from "@/lib/designTokens";
 
 export const NEWSLETTER_JOIN_CTA = "Get the daily brief";
-export const PREVIEW_MATCHES_CTA = "Find matches";
+export const PREVIEW_MATCHES_CTA = "Automate my raise";
 
 export default function NewsletterJoinForm({
   source,
@@ -119,7 +119,7 @@ export default function NewsletterJoinForm({
     return (
       <p className="text-[15px] leading-relaxed" style={{ color: G }} id={id}>
         {revealMatches
-          ? "Opening your first five investor matches…"
+          ? "Opening your raise campaign…"
           : "You’re in. Your first ranked matches arrive in your inbox. Tomorrow’s brief adds funding news."}
       </p>
     );
@@ -168,7 +168,7 @@ export default function NewsletterJoinForm({
         <>
           {progressive && (
             <p className="text-[14px] mb-2 text-left" style={{ color: MUTED }}>
-              Where should we send the full ranked list?
+              Where should we send the raise?
             </p>
           )}
           <div
@@ -211,18 +211,18 @@ export default function NewsletterJoinForm({
       >
         {loading
           ? revealMatches
-            ? "Finding your matches…"
+            ? "Building your raise…"
             : "Subscribing…"
           : urlReady && progressive
             ? revealMatches
-              ? "See my matches"
+              ? "Build my raise"
               : "Send my matches"
             : buttonLabel}
         {!loading && <ArrowRight size={16} />}
       </button>
       {progressive && !urlReady && !revealMatches && (
         <p className="text-[13px] mt-3 text-left" style={{ color: MUTED }}>
-          We score the public site first. Email is only to deliver the ranked list — no account required.
+          We read the public site first. Email is where the campaign is delivered — no account required.
         </p>
       )}
       {error && (

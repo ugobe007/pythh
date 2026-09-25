@@ -38,6 +38,7 @@ import {
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
+import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
@@ -484,7 +485,7 @@ export default function InstantMatchPreview({ url }: Props) {
     return (
       <div className="py-12 flex flex-col items-center gap-3 text-center">
         <Loader2 className="w-6 h-6 animate-spin" style={{ color: G }} />
-        <p className="text-sm font-medium" style={{ color: TEXT }}>Finding your top investor matches…</p>
+        <p className="text-sm font-medium" style={{ color: TEXT }}>Building your raise campaign…</p>
         <p className="text-xs" style={{ color: DIM }}>Usually 20–60 seconds</p>
       </div>
     );
@@ -526,26 +527,20 @@ export default function InstantMatchPreview({ url }: Props) {
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
-      <div className="grid grid-cols-3 gap-2 mb-6" aria-label="Match save progress">
-        {[
-          ['1', 'Matches ready'],
-          ['2', 'Save matches'],
-          ['3', 'Inbox + profile'],
-        ].map(([step, label], index) => (
-          <div key={step} className="text-center">
-            <div
-              className="h-1 rounded-full mb-2"
-              style={{ backgroundColor: alreadySaved || index <= 1 ? G : 'oklch(0.25 0.01 264)' }}
-            />
-            <p className="text-[10px]" style={{ color: alreadySaved || index <= 1 ? G : DIM }}>
-              {step}. {label}
-            </p>
-          </div>
-        ))}
-      </div>
+      <RaiseCampaignBoard
+        startupName={startupName}
+        sectors={preview.startup?.sectors}
+        stage={fundingStage || preview.startup?.stage}
+        godScore={godScore}
+        vcCount={preview.shortlist_mix?.vc_count}
+        angelCount={preview.shortlist_mix?.angel_count}
+        topInvestorName={visible[0]?.investor?.name || visible[0]?.investor?.firm || null}
+        why={visible[0]?.why_you_match}
+      />
+
       <div className="mb-4">
         <h1 className="text-xl font-bold mb-1" style={{ color: TEXT }}>
-          {startupName} — top {visible.length} matches
+          Investors for this raise
         </h1>
         <InlineMeta
           items={[
@@ -736,7 +731,7 @@ export default function InstantMatchPreview({ url }: Props) {
               ) : canImproveNow ? (
                 'Skip — save my matches'
               ) : (
-                'Save my matches'
+                'Start this raise'
               )}
               {!saving && <ArrowRight className="w-4 h-4" />}
             </button>
@@ -750,7 +745,7 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="mt-3 text-xs text-center" style={{ color: DIM }}>
           {isAuthenticated
             ? 'Your shortlist lives on Account. Upgrade to Oracle there when you want outreach automation.'
-            : 'Saving creates a free account and keeps this shortlist under Account. Email the five matches above anytime.'}
+            : 'Starting the raise keeps this campaign on your account. Investor notes go out only after you approve them.'}
         </p>
       </div>
 

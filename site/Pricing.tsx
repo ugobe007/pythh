@@ -553,10 +553,10 @@ export default function Pricing() {
 
         <div className="text-center border-t pt-10" style={{ borderColor: BORDER }}>
           <p className="text-sm mb-2" style={{ color: MUTED }}>
-            Not ready to automate? Preview your matches free.
+            Start with the URL. The raise campaign is free to preview.
           </p>
           <StartupCTA href="/matches" showArrow size="lg">
-            Preview my matches
+            Automate my raise
           </StartupCTA>
           <p className="text-xs mt-4" style={{ color: DIM }}>
             Already subscribed?{" "}

@@ -10511,6 +10511,26 @@ app.get('/api/intelligence/vc-profiles/:investor_id', async (req, res) => {
   }
 });
 
+// GET /api/market/movement — sourced revenue, acquisition, growth, and fund movements
+app.get('/api/market/movement', async (req, res) => {
+  const { curatedMarketMovements, mergeShowcase } = await import('../lib/marketMovement.mjs');
+  let live = [];
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('hot_startup_discoveries')
+      .select('company_name, headline, summary, signals, sector_guess, heat_score, source_url, company_url, discovered_at')
+      .gte('heat_score', 85)
+      .order('discovered_at', { ascending: false })
+      .limit(20);
+    if (!error) live = data || [];
+  } catch (err) {
+    console.warn('[market/movement] live discoveries unavailable:', err.message);
+  }
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({ movements: mergeShowcase(curatedMarketMovements(), live) });
+});
+
 // GET /api/intelligence/discoveries — hot startup discovery feed
 app.get('/api/intelligence/discoveries', async (req, res) => {
   try {

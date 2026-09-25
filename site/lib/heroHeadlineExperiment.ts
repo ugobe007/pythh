@@ -16,17 +16,17 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'Find matches';
+export const HERO_PRIMARY_CTA = 'Automate my raise';
 
 /** Accent phrase in the H1 — rendered in brand emerald. */
-export const HERO_HEADLINE_ACCENT = 'Meet Your Investors';
+export const HERO_HEADLINE_ACCENT = 'Automate Your Raise';
 
-/** Public subline — URL first, so the field is the obvious next step. */
+/** Public subline — URL in, raise campaign out. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your startup URL below. We score the company and rank investors for this round.';
+  'Paste your startup URL. We read the company and build the raise: strategy, deck, and the note that gets the meeting.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
-  const headline = 'Meet Your Investors. We connect the dots to fund your round.';
+  const headline = 'Automate Your Raise. We find investors who will fund you.';
   if (previewFirst) {
     return {
       headline,

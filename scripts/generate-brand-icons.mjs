@@ -101,7 +101,7 @@ async function main() {
   writeFileSync(out('site.webmanifest'), `${JSON.stringify({
     name: 'Pythh.ai',
     short_name: 'Pythh',
-    description: 'Meet Your Investors. We connect the dots to fund your round.',
+    description: 'Automate Your Raise. We find investors who will fund you.',
     start_url: '/',
     display: 'standalone',
     background_color: '#000000',

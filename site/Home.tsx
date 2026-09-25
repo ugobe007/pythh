@@ -14,6 +14,7 @@ import NewsletterJoinForm, { PREVIEW_MATCHES_CTA } from "@/components/Newsletter
 import { HomeLiveTape } from "@/components/HomeLiveNetwork";
 import HomeFeaturedMatch from "@/components/HomeFeaturedMatch";
 import HomeProofStrip from "@/components/HomeProofStrip";
+import MarketMovementShowcase from "@/components/MarketMovementShowcase";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
@@ -527,22 +528,22 @@ const HOW_IT_WORKS_STEPS = [
     num: "01",
     title: "You paste a URL",
     give: "A public startup website.",
-    does: "Pythh reads market, traction, and thesis signals from the site.",
-    get: "A scored company profile the same day.",
+    does: "Pythh reads the company the way an ad agent reads a brand: market, traction, and the story.",
+    get: "The raw material for the raise.",
   },
   {
     num: "02",
-    title: "We rank investors",
-    give: "Your email, only after the preview.",
-    does: "Each morning we attach your shortlist to funding news.",
-    get: "Ranked matches in the inbox you already open.",
+    title: "We build the campaign",
+    give: "Nothing else to start.",
+    does: "Strategy, deck outline, and the investor note are written from that read.",
+    get: "A raise you can see, with the investors it is aimed at.",
   },
   {
     num: "03",
-    title: "You inspect when it matters",
-    give: "A click from the email.",
-    does: "The site opens the full why — fit, stage, and behavior.",
-    get: "A shortlist worth investigating, not a pilgrimage.",
+    title: "We run it with you",
+    give: "Approval before anything is sent.",
+    does: "We reach the list, ask for meetings, and help negotiate the term sheet when a yes arrives.",
+    get: "Meetings, then the terms of the round.",
   },
 ] as const;
 
@@ -554,7 +555,7 @@ function HowItWorksSection() {
           How it works
         </p>
         <h2 className="font-display font-bold mb-8" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
-          How Pythh decides
+          How the raise runs
         </h2>
         <div className="grid gap-6 md:grid-cols-3">
           {HOW_IT_WORKS_STEPS.map(({ num, title, give, does, get }) => (
@@ -580,16 +581,18 @@ function ExampleResultSection() {
           The path
         </p>
         <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
-          From URL to ranked investors
+          From URL to a raise campaign
         </h2>
         <p className="text-[17px] leading-relaxed max-w-[52ch] mb-8" style={{ color: MUTED }}>
-          One annotated path. We do not rematch or rewrite prediction clocks when you subscribe.
+          Drop the site. The campaign comes back: who to raise from, the deck, the note, the meetings, and help on the term sheet.
         </p>
-        <ol className="grid md:grid-cols-3 gap-6">
+        <ol className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { n: "1", t: "Public site", d: "Your website is the input. No deck required to start." },
-            { n: "2", t: "Thesis extract", d: "Market, traction, and stage signals become the scoring profile." },
-            { n: "3", t: "Ranked inbox", d: "Investor fit /100 plus why this firm — delivered the same day when we already have matches." },
+            { n: "1", t: "Read", d: "The URL is the brief. We take market, traction, and story from the public site." },
+            { n: "2", t: "Strategy", d: "Which round, which investors, and why they should take the meeting." },
+            { n: "3", t: "Deck", d: "The narrative an investor can underwrite, built from that read." },
+            { n: "4", t: "Messaging", d: "A note for each investor on the list, ready for your approval." },
+            { n: "5", t: "Close", d: "We set the meetings and help negotiate the term sheet." },
           ].map((s) => (
             <li key={s.n} className="rounded-xl p-5" style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}>
               <p className="text-[13px] font-mono mb-2" style={{ color: PURPLE_ACCENT }}>{s.n}</p>
@@ -1245,13 +1248,13 @@ function NewsletterSection() {
       <div className="container relative z-10">
         <div className="max-w-2xl mx-auto text-center">
           <p className="text-[12px] font-medium tracking-wide uppercase mb-2" style={{ color: PURPLE_ACCENT }}>
-            Daily shortlist
+            The raise
           </p>
           <h2 className="font-display font-bold mb-4" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", color: TEXT, letterSpacing: "-0.03em" }}>
-            Your first ranked matches arrive tomorrow morning.
+            Your raise campaign starts with the URL.
           </h2>
           <p className="text-[17px] leading-relaxed mb-8" style={{ color: MUTED }}>
-            Paste your website. We send the shortlist to your inbox. No account required.
+            Paste your website. We build the strategy, deck, and investor note, then send the campaign to your inbox. No account required.
           </p>
           <NewsletterJoinForm
             source="home_newsletter"
@@ -1629,6 +1632,7 @@ export default function Home() {
       />
       <ExampleResultSection />
       <HowItWorksSection />
+      <MarketMovementShowcase />
       <VerifiedOutcomesSection
         pairRate={platformStats?.pair_funding_rate_pct}
         pairHits={platformStats?.pair_funding_hits}

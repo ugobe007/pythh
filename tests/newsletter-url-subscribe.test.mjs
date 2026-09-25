@@ -59,14 +59,14 @@ test('join form and subscribe API collect URL with email', () => {
   assert.match(form, /Get the daily brief/);
   assert.doesNotMatch(form, /Get daily matches/);
   assert.doesNotMatch(form, /Get my daily matches/);
-  assert.match(form, /Find matches/);
+  assert.match(form, /Automate my raise/);
   assert.match(form, /https:\/\/yourstartup.com/);
   assert.match(form, /Paste your startup URL/);
   assert.match(form, /text-\[30px\]/);
-  assert.match(form, /Where should we send the full ranked list/);
+  assert.match(form, /Where should we send the raise/);
   assert.match(form, /Your first ranked matches arrive in your inbox/);
-  assert.match(form, /See my matches/);
-  assert.match(form, /Opening your first five investor matches/);
+  assert.match(form, /Build my raise/);
+  assert.match(form, /Opening your raise campaign/);
   assert.match(form, /Homepage \/ reveal: URL is enough/);
   assert.match(form, /if \(revealMatches\)/);
   assert.match(form, /onJoined\?\.\(joined\)/);

@@ -246,7 +246,7 @@ export default function Rankings() {
             </p>
             {!isAuthenticated && (
               <StartupCTA href="/matches" showArrow>
-                Preview my matches
+                Automate my raise
               </StartupCTA>
             )}
           </div>

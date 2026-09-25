@@ -6,16 +6,16 @@ const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), '
 
 assert.match(
   hero,
-  /Paste your startup URL below\. We score the company and rank investors for this round/,
+  /Paste your startup URL\. We read the company and build the raise: strategy, deck, and the note that gets the meeting/,
 );
-assert.match(hero, /Meet Your Investors\. We connect the dots to fund your round/);
+assert.match(hero, /Automate Your Raise\. We find investors who will fund you/);
 assert.doesNotMatch(hero, /You build the company/);
 assert.doesNotMatch(hero, /Oracle qualifies investors/);
 assert.doesNotMatch(hero, /investors that "get it"/);
 
 assert.match(
   indexHtml,
-  /Paste your startup URL below\. We score the company and rank investors for this round/,
+  /Paste your startup URL\. We read the company and build the raise: strategy, deck, and the note that gets the meeting/,
 );
 assert.doesNotMatch(indexHtml, /Oracle qualifies investors/);
 assert.doesNotMatch(indexHtml, /maximum-scale/);
