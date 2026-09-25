@@ -171,7 +171,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const savedMatches = (preview?.matches || []).slice(0, 8);
   const pendingMatches = savedMatches.slice(0, 5);
   const godScore = typeof startup?.god_score === 'number' ? Math.round(startup.god_score) : null;
-  const signalScore = typeof startup?.signal_score === 'number' ? startup.signal_score : null;
+  const signalScore = typeof startup?.signal_score === 'number' && startup.signal_score !== 0 ? startup.signal_score : null;
   const rawStage = String(preview?.shortlist_mix?.funding_stage || startup?.stage || '').replace(/-/g, ' ').trim();
   const stage = rawStage && !/^\d+$/.test(rawStage) ? rawStage : '';
   const website = startup?.website || pinned.url;
