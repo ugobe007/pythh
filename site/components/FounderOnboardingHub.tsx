@@ -26,6 +26,7 @@ import {
 } from '@/lib/founderAccountProfile';
 import { SCOUT_PLAN, ORACLE_PLAN } from '@/lib/pricingPlans';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
+import FounderFreeTools from '@/components/FounderFreeTools';
 import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER, godScoreColor, signalScoreColor } from '@/lib/designTokens';
 
 function normalizeUrl(raw: string): string | null {
@@ -57,6 +58,7 @@ type PreviewStartup = {
 type SavedMatch = {
   match_score?: number;
   why_you_match?: string | null;
+  investor_class?: string | null;
   investor?: { name?: string | null; firm?: string | null } | null;
 };
 
@@ -315,6 +317,19 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                   : ' — investor tracking is on. Paste your URL to load your shortlist.'
               }`}
         </div>
+      )}
+
+      {hasPinnedStartup && previewLoaded && (
+        <FounderFreeTools
+          startupId={pinned.id}
+          startupName={companyLabel}
+          tagline={startup?.tagline}
+          description={description}
+          sectors={sectors}
+          stage={stage}
+          scoreComponents={startup?.score_components}
+          matches={savedMatches}
+        />
       )}
 
       {!hasPinnedStartup && (
