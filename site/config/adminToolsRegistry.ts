@@ -38,6 +38,7 @@ export const ADMIN_TOOLS: AdminTool[] = [
   { id: "outreach", label: "Outreach (Peter)", description: "VC draft review and bulk send", route: "/admin/outreach", category: "outreach" },
   { id: "analytics", label: "Platform Analytics", description: "Signups, events, page views", route: "/admin/analytics", category: "outreach" },
   { id: "calendar", label: "Meeting Pipeline", description: "Calendar and meeting flow", route: "/admin/calendar", category: "outreach" },
+  { id: "scout-coupons", label: "Scout codes", description: "Share Scout access for a match count or a time window", route: "/admin/scout-coupons", category: "outreach", vital: true },
   { id: "tools", label: "All Tools", description: "Full admin console index", route: "/admin/tools", category: "system", vital: true },
   { id: "dashboard", label: "Dashboard", description: "Platform stats and users", route: "/admin", category: "system" },
 ];

@@ -48,6 +48,7 @@ const NAV = [
     group: "OUTREACH",
     links: [
       { label: "Outreach",        href: "/admin/outreach" },
+      { label: "Scout codes",     href: "/admin/scout-coupons" },
       { label: "Meeting Pipeline",href: "/admin/calendar" },
       { label: "Evidence Review", href: "/admin/fundraising-evidence" },
     ],

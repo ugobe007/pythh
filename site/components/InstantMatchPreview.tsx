@@ -136,11 +136,15 @@ export default function InstantMatchPreview({ url }: Props) {
     enabled: Boolean(isAuthenticated),
     retry: false,
   });
+  const { data: scoutAccess } = trpc.scoutCoupons.status.useQuery(undefined, {
+    enabled: Boolean(isAuthenticated),
+    retry: false,
+  });
   const isPaid = hasPaidRaiseAccess({
     plan: subscription?.plan,
     status: subscription?.status,
     role: user?.role,
-  });
+  }) || Boolean(scoutAccess?.active);
   const { data: profile } = trpc.profile.get.useQuery(undefined, {
     enabled: Boolean(isAuthenticated),
     retry: false,
@@ -599,6 +603,9 @@ export default function InstantMatchPreview({ url }: Props) {
         />
         {refreshed && (
           <p className="mt-2 text-xs" style={{ color: G }}>Shortlist reranked with your latest data.</p>
+        )}
+        {scoutAccess?.active && scoutAccess.summary && (
+          <p className="mt-2 text-xs" style={{ color: G }}>{scoutAccess.summary}</p>
         )}
       </div>
 

@@ -4,6 +4,9 @@ import superjson from "superjson";
 import { UNAUTHED_ERR_MSG } from "../shared/const";
 import { getSubscriptionByUserId } from "../db";
 import { ENV } from "../env";
+import { createRequire } from "node:module";
+
+const requireCjs = createRequire(import.meta.url);
 
 export type AuthedUser = {
   id: number;
@@ -67,12 +70,18 @@ const requireOutreachPlan = t.middleware(async ({ ctx, next }) => {
     return next({ ctx: { ...ctx, user: ctx.user } });
   }
   const sub = await getSubscriptionByUserId(ctx.user.id).catch(() => null);
-  if (!sub || sub.status !== "active" || !OUTREACH_PLANS.has(sub.plan)) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        "PYTHIA outreach agent requires a Scout or Oracle subscription. Upgrade at pythh.ai/pricing.",
-    });
+  const paid =
+    sub && sub.status === "active" && OUTREACH_PLANS.has(sub.plan);
+  if (!paid) {
+    const { getAccess } = requireCjs("../../server/lib/scoutCouponStore.js");
+    const access = await getAccess(ctx.user.id).catch(() => null);
+    if (!access?.active) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "PYTHIA outreach requires Scout, Oracle, or a Scout access code.",
+      });
+    }
   }
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

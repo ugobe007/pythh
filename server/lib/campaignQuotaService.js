@@ -6,6 +6,7 @@
  */
 
 const { pool } = require('../db');
+const { planForEmail } = require('./scoutCouponStore');
 
 const PLAN_LIMITS = {
   scout: { campaigns: 3, investorsPerCampaign: 50 },
@@ -40,11 +41,11 @@ async function getFounderPlanByEmail(email) {
        LIMIT 1`,
       [normalized],
     );
-    return rows[0]?.plan || null;
+    if (rows[0]?.plan) return rows[0].plan;
   } catch (err) {
     console.warn('[campaignQuota] subscription lookup failed:', err.message);
-    return null;
   }
+  return planForEmail(normalized);
 }
 
 async function resolveFounderEmail(supabase, startupId, overrideEmail) {

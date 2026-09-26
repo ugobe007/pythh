@@ -12,6 +12,7 @@ const { getOutreachFromAddress } = require('../../lib/outreachFrom');
 const { investorHasContact, resolveInvestorEmail } = require('../../lib/recentInvestorDeals');
 const { buildDeckOutline } = require('../../lib/deckOutline');
 const { hasPaidRaiseAccess } = require('../../site/lib/pricingPlans.ts');
+const { getAccess, consumeMatch } = require('../lib/scoutCouponStore');
 
 const router = express.Router();
 const DAILY_EMAIL_CAP = 8;
@@ -82,12 +83,38 @@ async function requirePaidUser(req, res) {
   } catch (err) {
     console.error('[match-leads] subscription', err.message);
   }
+  try {
+    const access = await getAccess(user.id);
+    if (access?.active) {
+      return { ...user, scoutCoupon: true, matchLimited: access.matchLimit != null };
+    }
+  } catch (err) {
+    console.error('[match-leads] scout coupon', err.message);
+  }
   res.status(403).json({
     error: 'plan_required',
-    message: 'Email, investor calls, term sheets, and the PPT outline are on a monthly plan.',
+    message: 'Email, investor calls, term sheets, and the PPT outline need Scout, Oracle, or a Scout access code.',
     upgrade: '/pricing',
   });
   return null;
+}
+
+async function chargeCouponMatch(user, startupId, investorId, res) {
+  if (!user?.scoutCoupon || !user.matchLimited) return true;
+  try {
+    const charged = await consumeMatch({ userId: user.id, startupId, investorId });
+    if (charged.ok) return true;
+  } catch (err) {
+    console.error('[match-leads] coupon match', err.message);
+    res.status(500).json({ error: 'Could not apply this Scout code.' });
+    return false;
+  }
+  res.status(403).json({
+    error: 'match_limit',
+    message: 'This Scout code has used all of its matches.',
+    upgrade: '/pricing',
+  });
+  return false;
 }
 
 async function loadInvestor(client, investorId) {
@@ -176,6 +203,7 @@ router.post('/unlock', async (req, res) => {
     
     const investor = await loadInvestor(client, investorId);
     if (!investor) return res.status(404).json({ error: 'investor not found' });
+    if (!(await chargeCouponMatch(user, startupId, investorId, res))) return;
     await recordUnlock(client, startupId, investorId);
     return res.json(
       publicUnlockPayload({
@@ -283,6 +311,7 @@ router.post('/email', async (req, res) => {
     if (!investor) return res.status(404).json({ error: 'investor not found' });
 
     if (!(await isUnlocked(client, startupId, investorId))) {
+      if (!(await chargeCouponMatch(user, startupId, investorId, res))) return;
       await recordUnlock(client, startupId, investorId);
     }
 

@@ -41,6 +41,82 @@ import { outreachRouter } from "./outreachRouter";
 import { artRouter } from "./artRouter";
 import { getCheckoutPlan, formatCampaignLimit, SCOUT_PLAN, ORACLE_PLAN } from "./lib/pricingPlans";
 
+const {
+  createCoupon,
+  listCoupons,
+  setCouponActive,
+  redeemCoupon,
+  getAccess,
+} = requireCjs("../server/lib/scoutCouponStore.js");
+
+function couponProcedureError(err: unknown): never {
+  if (err && typeof err === "object" && (err as { name?: string }).name === "ScoutCouponError") {
+    const status = (err as ScoutCouponErrorLike).statusCode;
+    throw new TRPCError({
+      code: status === 409 ? "CONFLICT" : "BAD_REQUEST",
+      message: (err as Error).message,
+    });
+  }
+  console.error("[scout-coupon]", err);
+  throw new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Could not update Scout codes.",
+  });
+}
+
+type ScoutCouponErrorLike = { statusCode?: number };
+
+const scoutCouponsRouter = router({
+  status: protectedProcedure.query(async ({ ctx }) => getAccess(ctx.user.id)),
+
+  redeem: protectedProcedure
+    .input(z.object({ code: z.string().min(1).max(40) }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await redeemCoupon({ userId: ctx.user.id, code: input.code });
+      } catch (err) {
+        couponProcedureError(err);
+      }
+    }),
+
+  list: adminProcedure.query(async () => {
+    try {
+      return await listCoupons();
+    } catch (err) {
+      couponProcedureError(err);
+    }
+  }),
+
+  create: adminProcedure
+    .input(
+      z.object({
+        code: z.string().max(40).optional(),
+        label: z.string().max(160).optional(),
+        matchLimit: z.number().int().positive().max(10000).nullable().optional(),
+        durationDays: z.number().int().positive().max(3650).nullable().optional(),
+        maxRedemptions: z.number().int().positive().max(100000).nullable().optional(),
+        redeemBy: z.string().max(40).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createCoupon({ ...input, createdBy: ctx.user.id });
+      } catch (err) {
+        couponProcedureError(err);
+      }
+    }),
+
+  setActive: adminProcedure
+    .input(z.object({ id: z.string().uuid(), active: z.boolean() }))
+    .mutation(async ({ input }) => {
+      try {
+        return await setCouponActive(input.id, input.active);
+      } catch (err) {
+        couponProcedureError(err);
+      }
+    }),
+});
+
 // Lazily initialise Stripe so the server still starts without the key set.
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -53,6 +129,7 @@ export const appRouter = router({
   system: systemRouter,
   outreach: outreachRouter,
   art: artRouter,
+  scoutCoupons: scoutCouponsRouter,
   auth: router({
     me: publicProcedure.query(async (opts) => {
       const user = opts.ctx.user;

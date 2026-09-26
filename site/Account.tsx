@@ -39,6 +39,7 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import FounderOnboardingHub from "@/components/FounderOnboardingHub";
 import ProfileMediaUploads from "@/components/ProfileMediaUploads";
+import ScoutCouponCard from "@/components/ScoutCouponCard";
 import SavedFounderOpportunities from "@/components/SavedFounderOpportunities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -714,6 +715,12 @@ export default function Account() {
             </p>
           )}
         </motion.div>
+
+        {isAuthenticated && (
+          <div className="mb-6">
+            <ScoutCouponCard />
+          </div>
+        )}
 
         {isAuthenticated && (
           <div className="mb-10">

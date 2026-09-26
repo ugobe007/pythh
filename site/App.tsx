@@ -54,6 +54,7 @@ import MlAgent from "./pages/admin/MlAgent";
 import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
 import JunkStartups from "./pages/admin/JunkStartups";
+import ScoutCoupons from "./pages/admin/ScoutCoupons";
 import FundraisingEvidence from "./pages/admin/FundraisingEvidence";
 import MatchOutcomes from "./pages/admin/MatchOutcomes";
 import Pythiam from "./pages/Pythiam";
@@ -135,6 +136,7 @@ function Router() {
       <Route path={"/admin/ml"}        component={MlAgent} />
       <Route path={"/admin/rss"}       component={RssManager} />
       <Route path={"/admin/junk-startups"} component={JunkStartups} />
+      <Route path={"/admin/scout-coupons"} component={ScoutCoupons} />
       <Route path={"/login"} component={Login} />
       <Route path={"/auth/callback"} component={AuthCallback} />
       <Route path={"/404"} component={NotFound} />
