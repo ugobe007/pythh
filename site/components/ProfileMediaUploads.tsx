@@ -91,7 +91,7 @@ export default function ProfileMediaUploads() {
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (clearError: boolean = true) => {
     const requestId = ++requestRef.current;
     try {
       const response = await fetch(apiUrl('/api/profile/media'), { credentials: 'include' });
@@ -103,7 +103,7 @@ export default function ProfileMediaUploads() {
         videos: Array.isArray(data.videos) ? data.videos : [],
       });
       setLoaded(true);
-      setError(null);
+      if (clearError) setError(null);
     } catch (err) {
       if (requestId !== requestRef.current) return;
       throw err;
@@ -142,8 +142,12 @@ export default function ProfileMediaUploads() {
       setError(message);
       toast.error(message);
     } finally {
-      if (failed) await load().catch(() => {/* ignore */});
-      else await load();
+      try {
+        if (failed) await load(false);
+        else await load();
+      } catch {
+        /* ignore refresh failures */
+      }
       setBusy(null);
       if (deckInputRef.current) deckInputRef.current.value = '';
       if (videoInputRef.current) videoInputRef.current.value = '';
