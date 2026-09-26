@@ -4,9 +4,13 @@
  */
 
 import { isNonInvestorAggregator } from './investorAggregatorBlocklist';
+import { rankValue } from './distinctiveInvestorFit';
 
 export type MatchWithInvestor = {
   match_score?: number | null;
+  fit_rank?: number | null;
+  result?: { score?: number | null } | null;
+  funding_lifecycle_fit?: { level?: string } | null;
   investor?: {
     id?: string;
     firm?: string | null;
@@ -36,9 +40,13 @@ export function normalizeInvestorFirmKey(
 
 export function dedupeInvestorMatchesByFirm<T extends MatchWithInvestor>(matches: T[], limit = 5): T[] {
   if (!Array.isArray(matches) || matches.length === 0) return [];
-  const sorted = [...matches].sort(
-    (a, b) => (Number(b.match_score) || 0) - (Number(a.match_score) || 0)
-  );
+  const lifecycleRank: Record<string, number> = { exact: 3, compatible: 2, inferred: 1, unknown: 0 };
+  const sorted = [...matches].sort((a, b) => {
+    const lifecycleDelta =
+      (lifecycleRank[b.funding_lifecycle_fit?.level || ''] || 0) -
+      (lifecycleRank[a.funding_lifecycle_fit?.level || ''] || 0);
+    return lifecycleDelta || rankValue(b) - rankValue(a);
+  });
   const seen = new Set<string>();
   const out: T[] = [];
   for (const m of sorted) {

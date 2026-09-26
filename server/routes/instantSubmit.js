@@ -475,7 +475,20 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
   candidates.sort(
     (a, b) => distinctiveFitScore(startupForFit, b) - distinctiveFitScore(startupForFit, a),
   );
-  return candidates.slice(0, cap);
+  
+  // Preserve prior funders before cap — they must survive for later reserve logic.
+  const priorLower = new Set(priorNames.map((v) => v.toLowerCase()));
+  const priors = [];
+  const rest = [];
+  for (const inv of candidates) {
+    const labels = [inv.firm, inv.name].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+    if (labels.some((label) => priorLower.has(label))) {
+      priors.push(inv);
+    } else {
+      rest.push(inv);
+    }
+  }
+  return [...priors, ...rest.slice(0, Math.max(0, cap - priors.length))];
 }
 
 function matchFeatureSnapshotFor(engine, phase, startupPayload, investor, extra) {
@@ -1237,8 +1250,9 @@ async function generateSyncTopMatchesForHttpResponse(
         /* one investor */
       }
     }
+    const startupForFit = { ...placeholderStartup, sectors: sectorsForMatching(placeholderStartup) };
     for (const row of withScores) {
-      row.fit_rank = distinctiveFitScore(placeholderStartup, row.inv);
+      row.fit_rank = distinctiveFitScore(startupForFit, row.inv);
     }
     withScores.sort((a, b) => b.fit_rank - a.fit_rank);
     const investorById = new Map(candidates.map((inv) => [String(inv.id), inv]));
@@ -1263,8 +1277,9 @@ async function generateSyncTopMatchesForHttpResponse(
           allScored.push({ inv, result });
         } catch { /* skip */ }
       }
+      const startupForFit = { ...placeholderStartup, sectors: sectorsForMatching(placeholderStartup) };
       for (const row of allScored) {
-        row.fit_rank = distinctiveFitScore(placeholderStartup, row.inv);
+        row.fit_rank = distinctiveFitScore(startupForFit, row.inv);
       }
       allScored.sort((a, b) => b.fit_rank - a.fit_rank);
       top = selectTopMatchesByFirm(allScored, investorById, SYNC_RESPONSE_TOP_N, {
@@ -1473,8 +1488,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       
     }
     const phase1InvestorById = new Map(quickInvestors.map((inv) => [String(inv.id), inv]));
+    const startupForFit = { ...placeholderStartup, sectors: sectorsForMatching(placeholderStartup) };
     for (const row of quickMatches) {
-      row.fit_rank = distinctiveFitScore(placeholderStartup, phase1InvestorById.get(String(row.investor_id)));
+      row.fit_rank = distinctiveFitScore(startupForFit, phase1InvestorById.get(String(row.investor_id)));
     }
     quickMatches.sort((a, b) => b.fit_rank - a.fit_rank);
     fastMatches = selectTopMatchesByFirm(
@@ -2049,9 +2065,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
 
       const phase3InvestorById = new Map(investors.map((inv) => [String(inv.id), inv]));
+      const startupForFit = { ...phase3Startup, sectors: sectorsForMatching(phase3Startup) };
       for (const row of allMatches) {
         row.fit_rank = distinctiveFitScore(
-          phase3Startup,
+          startupForFit,
           phase3InvestorById.get(String(row.investor_id)),
         );
       }
