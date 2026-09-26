@@ -277,13 +277,13 @@ function matchCacheGet(startupId) {
   return entry;
 }
 
-function matchCacheSet(startupId, matches, matchCount) {
+function matchCacheSet(startupId, matches, matchCount, extra = {}) {
   if (matchResultsCache.size >= MATCH_CACHE_MAX) {
     // Evict the oldest entry
     const oldest = matchResultsCache.keys().next().value;
     matchResultsCache.delete(oldest);
   }
-  matchResultsCache.set(startupId, { matches, matchCount, loadedAt: Date.now() });
+  matchResultsCache.set(startupId, { matches, matchCount, loadedAt: Date.now(), ...extra });
 }
 
 function matchCacheInvalidate(startupId) {
@@ -1163,6 +1163,11 @@ function uploadRowToPlaceholderStartup(startupId, row) {
     name: r.name || 'Startup',
     sectors,
     stage: r.stage ?? 1,
+    website: url,
+    description: r.description || null,
+    tagline: r.tagline || null,
+    pitch: r.pitch || null,
+    extracted_data: extracted,
     total_god_score: typeof r.total_god_score === 'number' ? r.total_god_score : 50,
     team_score: r.team_score ?? null,
     traction_score: r.traction_score ?? null,
@@ -2448,11 +2453,12 @@ router.post('/submit', async (req, res) => {
       }
       
       if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate && !sectorRegenRequired) {
-        // ── Check in-memory cache first (avoids a Supabase SELECT per request) ──
+        // Previously this returned the stored high-score list and never reranked.
+        // Resubmits of Stripe, a robotics company, and an insurer were all served that old list.
         const cached = matchCacheGet(startupId);
-        if (cached && !forceGenerate) {
+        if (cached?.distinctive && cached.matches?.length) {
           const processingTime = Date.now() - startTime;
-          console.log(`  ⚡ Cache hit for ${startupId} — ${cached.matchCount} matches in ${processingTime}ms`);
+          console.log(`  ⚡ Distinctive cache hit for ${startupId} — ${cached.matchCount} matches in ${processingTime}ms`);
           _intelMatches = cached.matchCount;
           trackInstantSubmitFunnel(req, {
             startupId,
@@ -2467,10 +2473,52 @@ router.post('/submit', async (req, res) => {
             match_count: cached.matchCount,
             is_new: false,
             cached: true,
-            cache_source: 'memory',
+            cache_source: 'distinctive',
             processing_time_ms: processingTime,
           });
         }
+
+        try {
+          const ph = uploadRowToPlaceholderStartup(startupId, startup);
+          let sigT = signalTotalFromGod(ph.total_god_score);
+          const { data: sigRow } = await supabase
+            .from('startup_signal_scores')
+            .select('signals_total')
+            .eq('startup_id', startupId)
+            .maybeSingle();
+          if (sigRow?.signals_total != null) sigT = parseFloat(sigRow.signals_total);
+          const budget = Math.max(800, Math.min(5500, HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime) - 500));
+          const sm = await generateSyncTopMatchesForHttpResponse(supabase, {
+            startupId,
+            placeholderStartup: ph,
+            signalTotal: sigT,
+            maxMs: budget,
+          });
+          if (sm.matches?.length) {
+            matchCacheSet(startupId, sm.matches, sm.match_count || sm.matches.length, { distinctive: true });
+            const processingTime = Date.now() - startTime;
+            console.log(`  ⚡ Refreshed distinctive top ${sm.matches.length} for ${startup?.name} in ${processingTime}ms`);
+            trackInstantSubmitFunnel(req, {
+              startupId,
+              url: inputRaw,
+              matchCount: sm.match_count || sm.matches.length,
+              startup,
+            });
+            return res.json({
+              startup_id: startupId,
+              startup,
+              matches: sm.matches,
+              match_count: sm.match_count || sm.matches.length,
+              is_new: false,
+              cached: false,
+              cache_source: 'distinctive_refresh',
+              processing_time_ms: processingTime,
+            });
+          }
+        } catch (e) {
+          console.warn('[INSTANT] distinctive refresh failed:', e?.message);
+        }
+
 
         const { data: existingMatches } = await supabase
           .from('startup_investor_matches')

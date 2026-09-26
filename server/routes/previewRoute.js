@@ -584,7 +584,7 @@ router.get('/:startupId', async (req, res) => {
         )
       `)
       .eq('startup_id', startupId)
-      .order('match_score', { ascending: false })
+      .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(120);
 
     if (mErr) {
