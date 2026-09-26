@@ -38,6 +38,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import FounderOnboardingHub from "@/components/FounderOnboardingHub";
+import ProfileMediaUploads from "@/components/ProfileMediaUploads";
 import SavedFounderOpportunities from "@/components/SavedFounderOpportunities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -593,7 +594,8 @@ export default function Account() {
     }
   };
 
-  const isLoading = authLoading || subLoading || oauthBusy;
+  // Billing details can take tens of seconds. The saved page does not need them to paint.
+  const isLoading = authLoading || oauthBusy || (subLoading && !showSaved);
 
   if (oauthError && !isAuthenticated && !authLoading) {
     return (
@@ -712,6 +714,12 @@ export default function Account() {
             </p>
           )}
         </motion.div>
+
+        {isAuthenticated && (
+          <div className="mb-10">
+            <ProfileMediaUploads />
+          </div>
+        )}
 
         {/* Saved matches stay on account. Paid users still see billing below. */}
         {showSaved && (

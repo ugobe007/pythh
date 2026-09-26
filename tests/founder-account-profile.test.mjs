@@ -88,6 +88,10 @@ test('account hub builds a startup profile, saved matches, and Scout/Oracle intr
   assert.doesNotMatch(hub, /Open full match list/);
   assert.doesNotMatch(hub, /Open outreach drafts/);
   assert.match(account, /pending investor intros/);
+  assert.match(account, /ProfileMediaUploads/);
+  assert.match(read('site/pages/Profile.tsx'), /ProfileMediaUploads/);
+  assert.match(read('site/components/ProfileMediaUploads.tsx'), /\/api\/profile\/media/);
+  assert.match(read('server/routes/profileMedia.js'), /pythh_founder_media/);
 });
 
 test('team and description readers do not invent people or copy', () => {
