@@ -6901,6 +6901,10 @@ app.use('/api', resolveRouter);
 const deckUploadRouter = require('./routes/deckUpload');
 app.use('/api/deck', deckUploadRouter);
 
+// Founder account profile — private deck + video uploads
+const profileMediaRouter = require('./routes/profileMedia');
+app.use('/api/profile/media', profileMediaRouter);
+
 // Enrichment API - Founder self-service data completion
 const enrichRouter = require('./routes/enrich');
 app.use('/api/enrich', enrichRouter);
