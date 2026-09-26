@@ -97,6 +97,7 @@ type PreviewPayload = {
   total_matches?: number;
   matches?: PreviewMatch[];
   shortlist_mix?: ShortlistMix | null;
+  suggested_investor_fallback?: boolean;
 };
 
 const NEXT_STEP_CTA_CLASS =
@@ -330,8 +331,8 @@ export default function InstantMatchPreview({ url }: Props) {
 
         let id = submitJson.startup_id || submitJson.id;
         if (!id && submitJson.status === 'queued') {
-          for (let i = 0; i < 30 && !cancelled; i++) {
-            await new Promise((r) => setTimeout(r, 2000));
+          for (let i = 0; i < 4 && !cancelled; i++) {
+            await new Promise((r) => setTimeout(r, 1500));
             const retry = await fetch(apiUrl('/api/instant/submit'), {
               method: 'POST',
               credentials: 'same-origin',
@@ -386,6 +387,28 @@ export default function InstantMatchPreview({ url }: Props) {
         if (cancelled) return;
 
         setPreview(data);
+        if (!cancelled) setLoading(false);
+
+        if (
+          !isMixRefetch
+          && !cancelled
+          && (data.suggested_investor_fallback || !(data.total_matches && data.total_matches > 0))
+        ) {
+          for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            if (cancelled) break;
+            const again = await fetch(
+              apiUrl(`/api/preview/${startupId}?source=matches_preview&investor_class=${investorMix}`),
+            );
+            if (!again.ok) continue;
+            const next = (await again.json()) as PreviewPayload;
+            if (cancelled) break;
+            if ((next.total_matches || 0) > 0 && !next.suggested_investor_fallback) {
+              setPreview(next);
+              break;
+            }
+          }
+        }
 
         if (!isMixRefetch) {
           void trackFunnelEventOnce(`instant_matches_viewed:${startupId}`, 'instant_matches_viewed', {
@@ -503,7 +526,7 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="py-12 flex flex-col items-center gap-3 text-center">
         <Loader2 className="w-6 h-6 animate-spin" style={{ color: G }} />
         <p className="text-sm font-medium" style={{ color: TEXT }}>Building your raise campaign…</p>
-        <p className="text-xs" style={{ color: DIM }}>Usually 20–60 seconds</p>
+        <p className="text-xs" style={{ color: DIM }}>Usually a few seconds</p>
       </div>
     );
   }
