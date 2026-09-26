@@ -50,6 +50,32 @@ test('a fintech startup does not share the robotics startup top investor', () =>
   assert.notEqual(top(robotics).firm, top(fintech).firm);
 });
 
+test('a seed-stage generalist does not outrank a focused sector fund', () => {
+  const startup = { name: 'Harbor Robotics', sectors: ['Robotics'], stage: 1, description: 'Warehouse robots.' };
+  const focused = { name: 'Bolt Robotics', firm: 'Bolt Robotics', sectors: ['Robotics'], stage: ['Seed'], investor_score: 40 };
+  const famous = {
+    name: 'Famous Angel',
+    firm: 'Famous Angel',
+    sectors: ['AI/ML', 'Fintech', 'Healthcare', 'Consumer', 'SaaS', 'Crypto', 'Enterprise'],
+    stage: ['Seed'],
+    investor_score: 99,
+    is_individual: true,
+  };
+  assert.ok(distinctiveFitScore(startup, focused) > distinctiveFitScore(startup, famous));
+});
+
+test('repeated sector tags do not inflate one startup over another', () => {
+  const once = distinctiveFitScore(
+    { name: 'Ledger Pay', sectors: ['FinTech'], stage: 1 },
+    fintechFund,
+  );
+  const thrice = distinctiveFitScore(
+    { name: 'Ledger Pay', sectors: ['FinTech', 'FinTech', 'FinTech'], stage: 1 },
+    fintechFund,
+  );
+  assert.equal(once, thrice);
+});
+
 test('a payments description is not matched as generic Technology', () => {
   const sectors = sectorsForMatching({
     name: 'Ledger Pay',
