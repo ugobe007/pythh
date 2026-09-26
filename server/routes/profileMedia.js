@@ -279,19 +279,6 @@ router.post('/commit', async (req, res) => {
       }
     }
 
-    if (owned.kind === 'deck') {
-      const { data: previous } = await supabase
-        .from('pythh_founder_media')
-        .select('id, storage_path')
-        .eq('user_id', user.id)
-        .eq('kind', 'deck');
-      const stale = (previous || []).filter((row) => row.storage_path !== owned.path);
-      if (stale.length) {
-        await supabase.storage.from(BUCKET).remove(stale.map((row) => row.storage_path));
-        await supabase.from('pythh_founder_media').delete().in('id', stale.map((row) => row.id));
-      }
-    }
-
     const sizeBytes = Math.max(0, Math.round(stat.size > 0 ? stat.size : Number(req.body?.sizeBytes) || 0));
     const { data: inserted, error: insertErr } = await supabase
       .from('pythh_founder_media')
@@ -308,6 +295,19 @@ router.post('/commit', async (req, res) => {
     if (insertErr) {
       if (isMissingTable(insertErr)) return jsonError(res, 503, 'Profile uploads are not ready yet.');
       throw insertErr;
+    }
+
+    if (owned.kind === 'deck') {
+      const { data: previous } = await supabase
+        .from('pythh_founder_media')
+        .select('id, storage_path')
+        .eq('user_id', user.id)
+        .eq('kind', 'deck');
+      const stale = (previous || []).filter((row) => row.storage_path !== owned.path);
+      if (stale.length) {
+        await supabase.storage.from(BUCKET).remove(stale.map((row) => row.storage_path));
+        await supabase.from('pythh_founder_media').delete().in('id', stale.map((row) => row.id));
+      }
     }
 
     if (owned.kind === 'deck') {

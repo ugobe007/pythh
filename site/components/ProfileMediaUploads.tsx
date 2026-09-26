@@ -130,17 +130,20 @@ export default function ProfileMediaUploads() {
     if (!files.length) return;
     setBusy(kind);
     setError(null);
+    let failed = false;
     try {
       for (const file of files) {
         await uploadFile(file);
       }
-      await load();
       toast.success(kind === 'deck' ? 'Deck saved to your profile' : 'Video saved to your profile');
     } catch (err) {
+      failed = true;
       const message = err instanceof Error ? err.message : 'Upload failed.';
       setError(message);
       toast.error(message);
     } finally {
+      if (failed) await load().catch(() => {/* ignore */});
+      else await load();
       setBusy(null);
       if (deckInputRef.current) deckInputRef.current.value = '';
       if (videoInputRef.current) videoInputRef.current.value = '';
