@@ -924,8 +924,8 @@ function pickFrequentFundersForStartup(investors, { expandedSectors = [], priorN
     const labels = [inv.firm, inv.name].map(normalizeFunderLabel).filter(Boolean);
     if (labels.some((l) => prior.has(l))) return true;
     const invSectors = getExpandedInvestorSectors(inv.sectors || []);
-    // Incomplete sector tags must not recreate candidate_generation_miss for allowlisted firms.
-    if (!invSectors.length) return true;
+    // Missing sector tags used to match every startup and pinned the same firms on every top five.
+    if (!invSectors.length) return false;
     return invSectors.some((s) => sectorSet.has(String(s).toLowerCase()));
   });
 }
