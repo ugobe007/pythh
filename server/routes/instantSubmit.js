@@ -30,10 +30,12 @@ const {
   pickFrequentFundersForStartup,
   collectFrequentLedgerFunderIds,
   extractPriorFunderLabels,
+  collectPriorFunderIds,
   buildDisplayedTopFiveForceIds,
   applyPersistenceFloorWithForcedLedger,
 } = require('../lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
+const { distinctiveFitScore, sectorsForMatching } = require('../../lib/distinctiveInvestorFit');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -421,7 +423,14 @@ function getRelevantInvestors(startupSectors) {
  * shortlist (candidate_generation_miss fix). Does not retune GOD/fit.
  */
 function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
-  const relevant = getRelevantInvestors(startupSectors || []);
+  const startupForSectors = {
+    ...(startup || {}),
+    sectors: (Array.isArray(startup?.sectors) && startup.sectors.length)
+      ? startup.sectors
+      : (startupSectors || []),
+  };
+  const sectors = sectorsForMatching(startupForSectors);
+  const relevant = getRelevantInvestors(sectors.length ? sectors : (startupSectors || []));
   const minScore = PIPELINE_CONFIG.MIN_INVESTOR_SCORE;
   const cap = Math.min(maxCandidates || PIPELINE_CONFIG.FAST_MATCH_LIMIT, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
 
@@ -438,8 +447,8 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
 
   const priorNames = extractPriorFunderLabels(startup);
 
-  const expandedSectors = startupSectors?.length
-    ? expandRelatedSectors(normalizeSectors(startupSectors))
+  const expandedSectors = sectors.length
+    ? expandRelatedSectors(normalizeSectors(sectors))
     : [];
 
   if (priorNames.length && investorCache.data) {
@@ -460,16 +469,12 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
     }
   }
 
-  for (const inv of relevant
-    .filter((row) => {
-      const score = Number(row.investor_score);
-      return Number.isFinite(score) && score >= minScore;
-    })
-    .sort((a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0))) {
-    push(inv);
-    if (candidates.length >= cap) break;
-  }
+  for (const inv of relevant) push(inv);
 
+  const startupForFit = { ...startupForSectors, sectors };
+  candidates.sort(
+    (a, b) => distinctiveFitScore(startupForFit, b) - distinctiveFitScore(startupForFit, a),
+  );
   return candidates.slice(0, cap);
 }
 
@@ -1232,13 +1237,16 @@ async function generateSyncTopMatchesForHttpResponse(
         /* one investor */
       }
     }
-    withScores.sort((a, b) => b.result.score - a.result.score);
+    for (const row of withScores) {
+      row.fit_rank = distinctiveFitScore(placeholderStartup, row.inv);
+    }
+    withScores.sort((a, b) => b.fit_rank - a.fit_rank);
     const investorById = new Map(candidates.map((inv) => [String(inv.id), inv]));
     const syncForceIds = buildDisplayedTopFiveForceIds(candidates, placeholderStartup, {
       scoredRows: withScores,
       getId: (row) => row.inv?.id,
-      getScore: (row) => Number(row.result?.score || 0),
-      maxLedgerSlots: 2,
+      getScore: (row) => Number(row.fit_rank || 0),
+      maxLedgerSlots: 0,
     });
     let top = selectTopMatchesByFirm(withScores, investorById, SYNC_RESPONSE_TOP_N, {
       getInvestorId: (row) => row.inv?.id,
@@ -1255,7 +1263,10 @@ async function generateSyncTopMatchesForHttpResponse(
           allScored.push({ inv, result });
         } catch { /* skip */ }
       }
-      allScored.sort((a, b) => b.result.score - a.result.score);
+      for (const row of allScored) {
+        row.fit_rank = distinctiveFitScore(placeholderStartup, row.inv);
+      }
+      allScored.sort((a, b) => b.fit_rank - a.fit_rank);
       top = selectTopMatchesByFirm(allScored, investorById, SYNC_RESPONSE_TOP_N, {
         getInvestorId: (row) => row.inv?.id,
       });
@@ -1460,20 +1471,19 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       const batchResults = await Promise.all(batchPromises);
       quickMatches.push(...batchResults.flat());
       
-      // Early exit if we have enough matches
-      if (quickMatches.length >= MATCH_CONFIG.TOP_MATCHES_PER_STARTUP * 2) {
-        console.log(`  ⚡ [BG] Early exit - found ${quickMatches.length} matches`);
-        break;
-      }
     }
-    quickMatches.sort((a, b) => b.match_score - a.match_score);
     const phase1InvestorById = new Map(quickInvestors.map((inv) => [String(inv.id), inv]));
+    for (const row of quickMatches) {
+      row.fit_rank = distinctiveFitScore(placeholderStartup, phase1InvestorById.get(String(row.investor_id)));
+    }
+    quickMatches.sort((a, b) => b.fit_rank - a.fit_rank);
     fastMatches = selectTopMatchesByFirm(
       quickMatches,
       phase1InvestorById,
       MATCH_CONFIG.TOP_MATCHES_PER_STARTUP,
-      { forceInvestorIds: phase1ForceIds },
+      { forceInvestorIds: collectPriorFunderIds(quickInvestors, placeholderStartup) },
     );
+    for (const row of fastMatches) delete row.fit_rank;
     
     // Upsert fast matches so frontend picks them up on next poll (~3s).
     // Never delete-all: that rewrote created_at and destroyed the Hit@5 prediction clock.
@@ -2036,22 +2046,23 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         
         const batchResults = await Promise.all(batchPromises);
         allMatches.push(...batchResults.flat());
-        
-        // Early exit if we have enough matches
-        if (allMatches.length >= MATCH_CONFIG.TOP_MATCHES_PER_STARTUP * 2) {
-          console.log(`  ⚡ [BG] Early exit - found ${allMatches.length} matches`);
-          break;
-        }
       }
 
-      allMatches.sort((a, b) => b.match_score - a.match_score);
       const phase3InvestorById = new Map(investors.map((inv) => [String(inv.id), inv]));
+      for (const row of allMatches) {
+        row.fit_rank = distinctiveFitScore(
+          phase3Startup,
+          phase3InvestorById.get(String(row.investor_id)),
+        );
+      }
+      allMatches.sort((a, b) => b.fit_rank - a.fit_rank);
       const matches = selectTopMatchesByFirm(
         allMatches,
         phase3InvestorById,
         MATCH_CONFIG.TOP_MATCHES_PER_STARTUP,
-        { forceInvestorIds: phase3ForceIds },
+        { forceInvestorIds: collectPriorFunderIds(investors, phase3Startup) },
       );
+      for (const row of matches) delete row.fit_rank;
       
       if (matches.length > 0) {
         // Upsert enriched scores only — preserve original created_at prediction clocks.

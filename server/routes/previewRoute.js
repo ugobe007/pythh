@@ -33,6 +33,8 @@ const {
   resolveTransactionalFrom,
   resolveTransactionalReplyTo,
 } = require('../lib/transactionalEmailFrom');
+const { distinctiveFitScore, sectorsForMatching } = require('../../lib/distinctiveInvestorFit');
+const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
 
 /** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
 const MATCHES_EMAIL_FROM = resolveTransactionalFrom(process.env.MATCHES_EMAIL_FROM);
@@ -386,85 +388,54 @@ router.post('/email-shortlist', async (req, res) => {
  * return top sector investors via get_lookup_top_investors so /submit and share links are not empty.
  */
 async function buildSuggestedInvestorMatches(startup) {
-  const fromList = (arr) =>
-    (Array.isArray(arr) ? arr : [])
-      .map((s) => String(s).trim())
-      .filter((s) => s.length > 0);
-  const sectorQueue = fromList(startup.sectors);
-  for (const extra of ['Technology', 'SaaS', 'FinTech', 'AI', 'Healthcare', 'B2B']) {
-    if (!sectorQueue.includes(extra)) sectorQueue.push(extra);
-  }
-  const tried = new Set();
+  const sectors = sectorsForMatching(startup);
+  if (!sectors.length) return [];
+  const expanded = expandRelatedSectors(normalizeSectors(sectors));
+  const sectorQueue = [...new Set([...sectors, ...expanded])].slice(0, 6);
+  const byId = new Map();
   for (const sec of sectorQueue) {
-    const k = sec.toLowerCase();
-    if (tried.has(k)) continue;
-    tried.add(k);
     const { data, error } = await supabase.rpc('get_lookup_top_investors', {
       p_sector: sec,
-      p_limit: 10,
+      p_limit: 40,
     });
     if (error) {
       console.warn('[preview] suggested-investor RPC:', error.message || error);
       continue;
     }
-    if (data && data.length > 0) {
-      return data.map((inv) => {
-        const base = Number(inv.investor_score);
-        const match_score = Math.min(100, Math.max(20, (Number.isFinite(base) ? base : 50) + 5));
-        return {
-          investor_id: inv.id,
-          match_score,
-          why_you_match:
-            'Top investors in this sector (suggested for preview). Your personalized matches appear once scoring finishes.',
-          investor: {
-            id: inv.id,
-            name: inv.name,
-            firm: inv.firm,
-            title: null,
-            sectors: inv.sectors,
-            stage: inv.stage,
-            check_size_min: null,
-            check_size_max: null,
-            investor_tier: null,
-            twitter_url: null,
-            linkedin_url: inv.linkedin_url || null,
-            photo_url: null,
-          },
-        };
-      });
+    for (const inv of data || []) {
+      if (inv?.id && !byId.has(inv.id)) byId.set(inv.id, inv);
     }
   }
-  const { data: topPace, error: paceErr } = await supabase
-    .from('investors')
-    .select(
-      'id, name, firm, title, sectors, stage, check_size_min, check_size_max, investor_tier, investor_score, twitter_url, linkedin_url, photo_url'
-    )
-    .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
-    .limit(8);
-  if (paceErr) {
-    console.warn('[preview] suggested-investor pace fallback:', paceErr.message);
-    return [];
-  }
-  return (topPace || []).map((inv) => ({
-    investor_id: inv.id,
-    match_score: Math.min(100, Math.max(25, Math.round(Number(inv.investor_score) || 40))),
-    why_you_match:
-      'Actively deploying investors (suggested for preview) while we compute your custom fit scores.',
-    investor: {
-      id: inv.id,
-      name: inv.name,
-      firm: inv.firm,
-      title: inv.title,
-      sectors: inv.sectors,
-      stage: inv.stage,
-      check_size_min: inv.check_size_min,
-      check_size_max: inv.check_size_max,
-      investor_tier: inv.investor_tier,
-      twitter_url: inv.twitter_url,
-      linkedin_url: inv.linkedin_url,
-      photo_url: inv.photo_url,
-    },
-  }));
+  const startupForFit = { ...startup, sectors };
+  return [...byId.values()]
+    .map((inv) => {
+      const base = Number(inv.investor_score);
+      const match_score = Math.min(100, Math.max(20, (Number.isFinite(base) ? base : 50) + 5));
+      return {
+        investor_id: inv.id,
+        match_score,
+        fit_rank: distinctiveFitScore(startupForFit, inv),
+        why_you_match:
+          'Investors focused on this startup’s sector (suggested for preview). Personalized scores replace these once matching finishes.',
+        investor: {
+          id: inv.id,
+          name: inv.name,
+          firm: inv.firm,
+          title: null,
+          sectors: inv.sectors,
+          stage: inv.stage,
+          check_size_min: null,
+          check_size_max: null,
+          investor_tier: null,
+          twitter_url: null,
+          linkedin_url: inv.linkedin_url || null,
+          photo_url: null,
+          investor_score: inv.investor_score,
+          investment_thesis: inv.investment_thesis || null,
+        },
+      };
+    })
+    .sort((a, b) => b.fit_rank - a.fit_rank);
 }
 
 /** Narrative for UI when top-level columns are empty but inference JSON has text */
@@ -641,6 +612,12 @@ router.get('/:startupId', async (req, res) => {
       const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
       return inv && (inv.id || row.investor_id);
     });
+    const fitSectors = sectorsForMatching(startup);
+    const startupForFit = { ...startup, sectors: fitSectors.length ? fitSectors : startup.sectors };
+    for (const row of eligibleRows) {
+      const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+      row.fit_rank = distinctiveFitScore(startupForFit, inv);
+    }
 
     let matches = buildPreviewMatchList(eligibleRows, mixOptions);
     let suggestedInvestorFallback = false;

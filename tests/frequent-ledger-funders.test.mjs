@@ -92,13 +92,13 @@ const {
 }
 
 {
-  // Allowlisted firm with empty sectors still force-includes when startup has sectors.
+  // Empty sector tags must not ride along on every startup.
   const all = [
     { id: 'tcv', name: 'TCV', firm: 'TCV', sectors: [], investor_score: 70, is_individual: false },
     { id: 'other', name: 'Random Fund', firm: 'Random Fund', sectors: [], investor_score: 90, is_individual: false },
   ];
   const picked = pickFrequentFundersForStartup(all, { expandedSectors: ['SaaS', 'AI/ML'] });
-  assert.deepEqual(picked.map((r) => r.id), ['tcv']);
+  assert.deepEqual(picked.map((r) => r.id), []);
 }
 
 {
