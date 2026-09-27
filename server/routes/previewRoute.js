@@ -670,6 +670,7 @@ router.get('/:startupId', async (req, res) => {
     let suggestedInvestorFallback = false;
     if (matches.length === 0) {
       const suggested = await buildSuggestedInvestorMatches(startup);
+      applyCampaignRank(startup, suggested);
       matches = buildPreviewMatchList(suggested, { ...mixOptions, total: 5 });
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
