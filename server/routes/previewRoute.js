@@ -27,13 +27,14 @@ const {
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
+const { buildFreeDeckFocus } = require('../../lib/deckOutline');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
 const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
 const {
   resolveTransactionalFrom,
   resolveTransactionalReplyTo,
 } = require('../lib/transactionalEmailFrom');
-const { distinctiveFitScore, sectorsForMatching } = require('../../lib/distinctiveInvestorFit');
+const { distinctiveFitScore, sectorsForMatching, hasSpecificSector, blendStoredWithSectorSuggestions } = require('../../lib/distinctiveInvestorFit');
 const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
 
 /** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
@@ -384,14 +385,40 @@ router.post('/email-shortlist', async (req, res) => {
 });
 
 /**
+ * Save sector specialists the stored shortlist was missing.
+ * ignoreDuplicates keeps existing prediction clocks (created_at) untouched.
+ */
+async function persistSectorSuggestions(startupId, rows) {
+  const inserts = (Array.isArray(rows) ? rows : [])
+    .filter((row) => row?.investor_id)
+    .slice(0, 15)
+    .map((row) => ({
+      startup_id: startupId,
+      investor_id: row.investor_id,
+      match_score: row.match_score,
+      why_you_match: Array.isArray(row.why_you_match)
+        ? row.why_you_match
+        : [String(row.why_you_match || 'This investor focuses on the same sector as the startup.')],
+      status: 'suggested',
+      algorithm_version: 'v3.5-sector-blend',
+      updated_at: new Date().toISOString(),
+    }));
+  if (!inserts.length) return;
+  const { error } = await supabase
+    .from('startup_investor_matches')
+    .upsert(inserts, { onConflict: 'startup_id,investor_id', ignoreDuplicates: true });
+  if (error) console.warn('[preview] sector blend persist:', error.message || error);
+}
+
+/**
  * When startup_investor_matches has no rows yet (pipeline still running, or failed),
  * return top sector investors via get_lookup_top_investors so /submit and share links are not empty.
  */
-async function buildSuggestedInvestorMatches(startup) {
+async function buildSuggestedInvestorMatches(startup, { maxSectors = 6 } = {}) {
   const sectors = sectorsForMatching(startup);
   if (!sectors.length) return [];
   const expanded = expandRelatedSectors(normalizeSectors(sectors));
-  const sectorQueue = [...new Set([...sectors, ...expanded])].slice(0, 6);
+  const sectorQueue = [...new Set([...sectors, ...expanded])].slice(0, maxSectors);
   const byId = new Map();
   for (const sec of sectorQueue) {
     const { data, error } = await supabase.rpc('get_lookup_top_investors', {
@@ -416,7 +443,7 @@ async function buildSuggestedInvestorMatches(startup) {
         match_score,
         fit_rank: distinctiveFitScore(startupForFit, inv),
         why_you_match:
-          'Investors focused on this startup’s sector (suggested for preview). Personalized scores replace these once matching finishes.',
+          'This investor focuses on the same sector as the startup.',
         investor: {
           id: inv.id,
           name: inv.name,
@@ -619,7 +646,22 @@ router.get('/:startupId', async (req, res) => {
       row.fit_rank = distinctiveFitScore(startupForFit, inv);
     }
 
-    let matches = buildPreviewMatchList(eligibleRows, mixOptions);
+    let pool = eligibleRows;
+    let shortlistBlended = false;
+    const strongStored = eligibleRows.filter((row) => (Number(row.fit_rank) || 0) >= 48).length;
+    if (eligibleRows.length > 0 && hasSpecificSector(fitSectors) && strongStored < 3) {
+      const suggested = await buildSuggestedInvestorMatches(startup, { maxSectors: 3 });
+      const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
+      pool = blended.rows;
+      shortlistBlended = blended.added > 0;
+      if (shortlistBlended) {
+        const storedIds = new Set(eligibleRows.map((row) => String(row.investor_id)));
+        const fresh = pool.filter((row) => row.investor_id && !storedIds.has(String(row.investor_id)));
+        void persistSectorSuggestions(startup.id, fresh);
+      }
+    }
+
+    let matches = buildPreviewMatchList(pool, mixOptions);
     let suggestedInvestorFallback = false;
     if (matches.length === 0) {
       const suggested = await buildSuggestedInvestorMatches(startup);
@@ -685,6 +727,17 @@ router.get('/:startupId', async (req, res) => {
       match_movement: matchMovement,
       oracle_gap: oracleGap,
       suggested_investor_fallback: suggestedInvestorFallback,
+      shortlist_blended: shortlistBlended,
+      deck_focus: buildFreeDeckFocus({
+        ...startup,
+        score_components: {
+          team: startup.team_score,
+          traction: startup.traction_score,
+          market: startup.market_score,
+          product: startup.product_score,
+          vision: startup.vision_score,
+        },
+      }),
     });
 
   } catch (err) {

@@ -80,7 +80,7 @@ export default function ProfilePage() {
       <h1 className="text-2xl font-bold mb-2">Founder profile</h1>
       <p className="text-sm opacity-70 mb-6">Used to pre-fill PYTHIA runs and outreach context.</p>
       <div className="mb-8">
-        <ProfileMediaUploads />
+        <ProfileMediaUploads companyUrl={companyUrl} />
       </div>
       <form onSubmit={onSubmit} className="space-y-4">
         <label className="block text-xs font-semibold tracking-wide opacity-70">

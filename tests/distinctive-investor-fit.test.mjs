@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { distinctiveFitScore, sectorsForMatching } = require('../lib/distinctiveInvestorFit.js');
+const { distinctiveFitScore, sectorsForMatching, blendStoredWithSectorSuggestions } = require('../lib/distinctiveInvestorFit.js');
 
 const roboticsFund = {
   name: 'Bolt Robotics',
@@ -94,4 +94,20 @@ test('a generic Technology tag does not hide a robotics company name', () => {
     description: 'Autonomous warehouse robots.',
   });
   assert.ok(sectors.some((sector) => /robot/i.test(sector)));
+});
+
+test('a stored generalist shortlist picks up a sector specialist', () => {
+  const stored = [{
+    investor_id: 'generalist',
+    fit_rank: 30,
+    investor: generalist,
+  }];
+  const suggested = [
+    { investor_id: 'robot', fit_rank: 70, investor: roboticsFund },
+    { investor_id: 'generalist', fit_rank: 90, investor: generalist },
+    { investor_id: 'weak', fit_rank: 10, investor: fintechFund },
+  ];
+  const blended = blendStoredWithSectorSuggestions(stored, suggested);
+  assert.equal(blended.added, 1);
+  assert.deepEqual(blended.rows.map((row) => row.investor_id), ['generalist', 'robot']);
 });
