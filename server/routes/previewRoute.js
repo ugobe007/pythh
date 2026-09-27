@@ -28,6 +28,7 @@ const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry'
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 const { buildFreeDeckFocus } = require('../../lib/deckOutline');
+const { applyCampaignRank, campaignBriefFromStartup, campaignIsActionable } = require('../../lib/campaignBrief');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
 const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
 const {
@@ -649,7 +650,10 @@ router.get('/:startupId', async (req, res) => {
     let pool = eligibleRows;
     let shortlistBlended = false;
     const strongStored = eligibleRows.filter((row) => (Number(row.fit_rank) || 0) >= 48).length;
-    if (eligibleRows.length > 0 && hasSpecificSector(fitSectors) && strongStored < 3) {
+    const hasCampaign = campaignIsActionable(campaignBriefFromStartup(startup));
+    // A saved campaign, or a shortlist that is still generalist, must pull sector investors
+    // into the five. Otherwise the previous stored names stay on top.
+    if (eligibleRows.length > 0 && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))) {
       const suggested = await buildSuggestedInvestorMatches(startup, { maxSectors: 3 });
       const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
       pool = blended.rows;
@@ -660,6 +664,7 @@ router.get('/:startupId', async (req, res) => {
         void persistSectorSuggestions(startup.id, fresh);
       }
     }
+    applyCampaignRank(startup, pool);
 
     let matches = buildPreviewMatchList(pool, mixOptions);
     let suggestedInvestorFallback = false;
