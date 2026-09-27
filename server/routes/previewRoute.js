@@ -28,7 +28,13 @@ const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry'
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 const { buildFreeDeckFocus } = require('../../lib/deckOutline');
-const { applyCampaignRank, campaignBriefFromStartup, campaignIsActionable } = require('../../lib/campaignBrief');
+const {
+  applyCampaignRank,
+  campaignBriefFromStartup,
+  campaignIsActionable,
+  overlayCampaignQuery,
+  prioritySearchTerms,
+} = require('../../lib/campaignBrief');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
 const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
 const {
@@ -466,6 +472,34 @@ async function buildSuggestedInvestorMatches(startup, { maxSectors = 6 } = {}) {
     .sort((a, b) => b.fit_rank - a.fit_rank);
 }
 
+/**
+ * Pull investors whose thesis names the raise priority into the pool.
+ * Sector lookup alone kept the previous five on top.
+ */
+async function buildPriorityInvestorMatches(startup, priorities) {
+  const terms = prioritySearchTerms(priorities).slice(0, 8);
+  if (!terms.length) return [];
+  const { data, error } = await supabase
+    .from('investors')
+    .select('id, name, firm, sectors, stage, investment_thesis, linkedin_url, type, capital_type, is_individual, check_size_min, check_size_max')
+    .or(terms.map((term) => `investment_thesis.ilike.%${term}%`).join(','))
+    .limit(80);
+  if (error) {
+    console.warn('[preview] priority investors:', error.message || error);
+    return [];
+  }
+  const startupForFit = { ...startup, sectors: sectorsForMatching(startup) };
+  return (data || [])
+    .filter((inv) => inv?.id)
+    .map((inv) => ({
+      investor_id: inv.id,
+      match_score: 55,
+      fit_rank: distinctiveFitScore(startupForFit, inv),
+      why_you_match: 'This investor’s thesis matches what this round needs to do.',
+      investor: inv,
+    }));
+}
+
 /** Narrative for UI when top-level columns are empty but inference JSON has text */
 function effectiveStartupDescription(row) {
   const ex = row.extracted_data && typeof row.extracted_data === 'object' ? row.extracted_data : {};
@@ -556,6 +590,7 @@ router.get('/:startupId', async (req, res) => {
     if (String(startup.status || '').toLowerCase() === 'rejected') {
       return res.status(404).json({ error: 'Startup not found' });
     }
+    const rankedStartup = overlayCampaignQuery(startup, req.query);
 
     // 1b. Fetch signal scores
     const { data: signalData } = await supabase
@@ -571,7 +606,7 @@ router.get('/:startupId', async (req, res) => {
       .eq('startup_id', startupId);
 
     const mixOptions = resolvePreviewMixOptions(
-      startup,
+      rankedStartup,
       req.query.investor_class || req.query.investor_mix,
       10
     );
@@ -640,8 +675,8 @@ router.get('/:startupId', async (req, res) => {
       const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
       return inv && (inv.id || row.investor_id);
     });
-    const fitSectors = sectorsForMatching(startup);
-    const startupForFit = { ...startup, sectors: fitSectors.length ? fitSectors : startup.sectors };
+    const fitSectors = sectorsForMatching(rankedStartup);
+    const startupForFit = { ...rankedStartup, sectors: fitSectors.length ? fitSectors : rankedStartup.sectors };
     for (const row of eligibleRows) {
       const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
       row.fit_rank = distinctiveFitScore(startupForFit, inv);
@@ -650,26 +685,37 @@ router.get('/:startupId', async (req, res) => {
     let pool = eligibleRows;
     let shortlistBlended = false;
     const strongStored = eligibleRows.filter((row) => (Number(row.fit_rank) || 0) >= 48).length;
-    const hasCampaign = campaignIsActionable(campaignBriefFromStartup(startup));
+    const campaignBrief = campaignBriefFromStartup(rankedStartup);
+    const hasCampaign = campaignIsActionable(campaignBrief);
     // A saved campaign, or a shortlist that is still generalist, must pull sector investors
     // into the five. Otherwise the previous stored names stay on top.
     if (eligibleRows.length > 0 && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))) {
-      const suggested = await buildSuggestedInvestorMatches(startup, { maxSectors: 3 });
+      const suggested = await buildSuggestedInvestorMatches(rankedStartup, { maxSectors: 3 });
       const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
       pool = blended.rows;
       shortlistBlended = blended.added > 0;
       if (shortlistBlended) {
         const storedIds = new Set(eligibleRows.map((row) => String(row.investor_id)));
         const fresh = pool.filter((row) => row.investor_id && !storedIds.has(String(row.investor_id)));
-        void persistSectorSuggestions(startup.id, fresh);
+        void persistSectorSuggestions(rankedStartup.id, fresh);
       }
     }
-    applyCampaignRank(startup, pool);
+    if (campaignBrief.priorities.length) {
+      const priorityRows = await buildPriorityInvestorMatches(rankedStartup, campaignBrief.priorities);
+      const seen = new Set(pool.map((row) => String(row.investor_id)));
+      for (const row of priorityRows) {
+        const id = String(row.investor_id || '');
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        pool.push(row);
+      }
+    }
+    applyCampaignRank(rankedStartup, pool);
 
     let matches = buildPreviewMatchList(pool, mixOptions);
     let suggestedInvestorFallback = false;
     if (matches.length === 0) {
-      const suggested = await buildSuggestedInvestorMatches(startup);
+      const suggested = await buildSuggestedInvestorMatches(rankedStartup);
       matches = buildPreviewMatchList(suggested, { ...mixOptions, total: 5 });
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
@@ -704,10 +750,10 @@ router.get('/:startupId', async (req, res) => {
         name: startup.name,
         tagline: startup.tagline,
         description: descriptionForUi,
-        extracted_data: startup.extracted_data || null,
+        extracted_data: rankedStartup.extracted_data || null,
         website: startup.website,
         sectors: startup.sectors,
-        stage: startup.stage,
+        stage: rankedStartup.stage ?? startup.stage,
         god_score: startup.total_god_score,
         score_components: {
           team: startup.team_score,
@@ -734,7 +780,7 @@ router.get('/:startupId', async (req, res) => {
       suggested_investor_fallback: suggestedInvestorFallback,
       shortlist_blended: shortlistBlended,
       deck_focus: buildFreeDeckFocus({
-        ...startup,
+        ...rankedStartup,
         score_components: {
           team: startup.team_score,
           traction: startup.traction_score,

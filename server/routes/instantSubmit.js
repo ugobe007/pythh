@@ -36,7 +36,7 @@ const {
 } = require('../lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
 const { distinctiveFitScore, sectorsForMatching } = require('../../lib/distinctiveInvestorFit');
-const { campaignColumns } = require('../../lib/campaignBrief');
+const { campaignColumns, retainCampaignExtracted, stageNumber } = require('../../lib/campaignBrief');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -285,6 +285,17 @@ function matchCacheSet(startupId, matches, matchCount, extra = {}) {
     matchResultsCache.delete(oldest);
   }
   matchResultsCache.set(startupId, { matches, matchCount, loadedAt: Date.now(), ...extra });
+}
+
+async function retainedCampaignWrite(startupId, extracted, stage) {
+  const { data } = await supabase
+    .from('startup_uploads')
+    .select('extracted_data')
+    .eq('id', startupId)
+    .maybeSingle();
+  const extracted_data = retainCampaignExtracted(data?.extracted_data, extracted);
+  const campaignStage = stageNumber(extracted_data.funding_stage);
+  return { extracted_data, stage: campaignStage == null ? stage : campaignStage };
 }
 
 function matchCacheInvalidate(startupId) {
@@ -1056,6 +1067,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
 
     const scores = calculateGODScore(enrichedRow);
     const completenessResult = calculateCompleteness(enrichedRow);
+    const keptCampaign = await retainedCampaignWrite(startupId, enrichedRow.extracted_data, enrichedRow.stage);
 
     await supabase
       .from('startup_uploads')
@@ -1067,7 +1079,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
         description: enrichedRow.description,
         pitch: enrichedRow.pitch,
         sectors: enrichedRow.sectors,
-        stage: enrichedRow.stage,
+        stage: keptCampaign.stage,
         is_launched: enrichedRow.is_launched,
         has_demo: enrichedRow.has_demo,
         has_technical_cofounder: enrichedRow.has_technical_cofounder,
@@ -1076,7 +1088,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
         arr: enrichedRow.arr,
         customer_count: enrichedRow.customer_count,
         growth_rate_monthly: enrichedRow.growth_rate_monthly,
-        extracted_data: enrichedRow.extracted_data,
+        extracted_data: keptCampaign.extracted_data,
         data_completeness: completenessResult.percentage,
         total_god_score: scores.total_god_score,
         team_score: scores.team_score,
@@ -1780,6 +1792,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // Calculate data completeness after enrichment
     completenessResult = calculateCompleteness(enrichedRow);
     console.log(`  🔄 [BG] Data completeness: ${completenessResult.percentage}%`);
+    const keptCampaign = await retainedCampaignWrite(startupId, enrichedRow.extracted_data, enrichedRow.stage);
+    enrichedRow = {
+      ...enrichedRow,
+      extracted_data: keptCampaign.extracted_data,
+      stage: keptCampaign.stage,
+    };
 
     // ── Update startup row with enriched data ──
     await supabase
