@@ -14,18 +14,13 @@ test('public GOD weight copy matches live config JSON', () => {
   const cfg = JSON.parse(read('../server/config/god-score-weights.json'));
   const live = cfg.weights.componentWeights;
   const pub = read('../site/lib/godScorePublicWeights.ts');
-  assert.equal(live.team, 0.22);
-  assert.equal(live.traction, 0.3);
-  assert.equal(live.market, 0.2);
-  assert.equal(live.product, 0.15);
-  assert.equal(live.vision, 0.13);
-  assert.match(pub, /team: 0\.22/);
-  assert.match(pub, /traction: 0\.3/);
-  assert.match(pub, /market: 0\.2/);
-  assert.match(pub, /product: 0\.15/);
-  assert.match(pub, /vision: 0\.13/);
-  assert.match(pub, /traction 30/);
-  assert.match(pub, /0–20 scale · live weights 22 \/ 30 \/ 20 \/ 15 \/ 13/);
+  const sum = live.team + live.traction + live.market + live.product + live.vision;
+  assert.ok(Math.abs(sum - 1) < 1e-6);
+  for (const [key, value] of Object.entries(live)) {
+    assert.match(pub, new RegExp(`${key}: ${value}`));
+  }
+  const pts = ['team', 'traction', 'market', 'product', 'vision'].map((key) => Math.round(live[key] * 100));
+  assert.match(pub, new RegExp(pts.join(' / ').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('public scoring pages no longer claim equal 20-point GOD buckets', () => {

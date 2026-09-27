@@ -233,10 +233,10 @@ const GOD_SCORE_CONFIG = {
    * traction↑, team↓, vision↓ — see docs/SIGNAL_INFORMED_GOD.md.
    */
   componentWeights: {
-    team: 0.22,
-    traction: 0.30,
-    market: 0.20,
-    product: 0.15,
+    team: 0.2325,
+    traction: 0.2875,
+    market: 0.1875,
+    product: 0.1625,
     vision: 0.13,
   },
 

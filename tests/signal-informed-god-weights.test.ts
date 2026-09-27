@@ -14,8 +14,8 @@ const cfg = JSON.parse(
 );
 const w = cfg.weights.componentWeights;
 assert.equal(Number((w.team + w.traction + w.market + w.product + w.vision).toFixed(6)), 1);
-assert.equal(w.traction, 0.3);
-assert.equal(w.team, 0.22);
+assert.equal(w.team, 0.2325);
+assert.equal(w.traction, 0.2875);
 assert.equal(w.vision, 0.13);
 assert.equal(cfg.proposed_signal_informed.status, 'applied_live');
 

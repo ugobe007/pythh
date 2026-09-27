@@ -5,10 +5,10 @@
  * server/config/god-score-weights.json.
  */
 export const STARTUP_GOD_WEIGHTS = {
-  team: 0.22,
-  traction: 0.3,
-  market: 0.2,
-  product: 0.15,
+  team: 0.2325,
+  traction: 0.2875,
+  market: 0.1875,
+  product: 0.1625,
   vision: 0.13,
 } as const;
 
@@ -23,11 +23,11 @@ export function godWeightPtsLabel(key: StartupGodWeightKey): string {
 }
 
 export const STARTUP_GOD_WEIGHT_SUMMARY =
-  'Team 22, traction 30, market 20, product 15, vision 13 — signal-informed live shares that sum to 100.';
+  'Team 23, traction 29, market 19, product 16, vision 13 — learned from funded rounds, shares that sum to 100.';
 
 /** Chart header: bars stay 0–20; the numbers are composite shares, not bar maxes. */
 export const STARTUP_GOD_WEIGHT_CHART_LABEL =
-  'GOD dimensions · 0–20 scale · live weights 22 / 30 / 20 / 15 / 13';
+  'GOD dimensions · 0–20 scale · live weights 23 / 29 / 19 / 16 / 13';
 
 /** What Vision measures for investors — scale of destination, not narrative polish. */
 export const STARTUP_GOD_VISION_THESIS =
