@@ -63,11 +63,11 @@ Live `GOD_SCORE_CONFIG.componentWeights`:
 
 | Component | Share | Rationale |
 |-----------|-------|-----------|
-| team | 0.22 | Slightly down vs equal team-heavy inflation |
-| traction | 0.30 | Up — capital/news evidence should move fundability |
-| market | 0.20 | Unchanged |
-| product | 0.15 | Unchanged |
-| vision | 0.13 | Down — thin thesis-only rows |
+| team | 0.2325 | One step toward hiring and board cites in funded rounds |
+| traction | 0.2875 | Still the largest share; one step down from the August prior |
+| market | 0.1875 | Partnership cites were rarer than product cites |
+| product | 0.1625 | One step up — proprietary product was the most common cite |
+| vision | 0.13 | Held. No investment aspect maps to vision |
 
 Applied in `calculateHotScore` via `weightedCore` (normalize each bucket to its max, multiply by weight, scale by core budget). Base boost + red flags remain additive outside the rebalance.
 

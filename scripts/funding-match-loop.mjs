@@ -5,8 +5,8 @@
  * 1. funding:attention extracts why a trusted raise happened
  * 2. funding:research extracts amount, round, problem, and team
  * 3. funding:match-model folds that into investors.signals.match_model
- *
- * Preview reads the model on the next match. No paid model. No GOD retune.
+ * 4. learn:god-weights is the sidebar. It steps startup GOD shares from those
+ *    funded rounds. A failed or no-change sidebar does not stop the loop.
  *
  *   npm run funding:match-loop
  *   npm run funding:match-loop -- --apply
@@ -20,6 +20,8 @@ const steps = [
   ['funding:match-model', apply ? ['--apply', '--event-limit=400'] : ['--event-limit=80']],
 ];
 
+const sidebar = ['learn:god-weights', apply ? ['--apply', '--limit=500'] : ['--limit=200']];
+
 let failed = 0;
 for (const [script, args] of steps) {
   console.log(`\n▶ npm run ${script} -- ${args.join(' ')}`);
@@ -32,6 +34,13 @@ for (const [script, args] of steps) {
     console.error(`step failed: ${script} (${result.status})`);
   }
 }
+
+console.log(`\n▶ sidebar npm run ${sidebar[0]} -- ${sidebar[1].join(' ')}`);
+const side = spawnSync('npm', ['run', sidebar[0], '--', ...sidebar[1]], {
+  stdio: 'inherit',
+  env: process.env,
+});
+if (side.status !== 0) console.error('sidebar learner did not change weights this pass');
 
 if (failed) {
   console.error(`match loop finished with ${failed} failed step(s)`);

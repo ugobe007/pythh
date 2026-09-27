@@ -1,20 +1,20 @@
 {
   "version": "1.3.0",
   "created_at": "2026-01-29T00:00:00Z",
-  "updated_at": "2026-08-28T00:00:00Z",
+  "updated_at": "2026-09-27T23:46:50.629Z",
   "immutable": false,
   "description": "Reference snapshot of startup GOD display weights. Live scoring uses GOD_SCORE_CONFIG in server/services/startupScoringService.ts (normalizationDivisor 19.5, vibeBonusCap 0.8, componentWeights applied via core-bucket rebalance). Signal dims may feed profile features before GOD (lib/signalInformedGod.js).",
   "live_ssot": "server/services/startupScoringService.ts#GOD_SCORE_CONFIG",
   "weights": {
     "normalizationDivisor": 19.5,
-    "baseBoostMinimum": 2.0,
+    "baseBoostMinimum": 2,
     "vibeBonusCap": 0.8,
     "finalScoreMultiplier": 10,
     "componentWeights": {
-      "team": 0.22,
-      "traction": 0.30,
-      "market": 0.20,
-      "product": 0.15,
+      "team": 0.2325,
+      "traction": 0.2875,
+      "market": 0.1875,
+      "product": 0.1625,
       "vision": 0.13
     }
   },
@@ -30,28 +30,36 @@
     "operator_founder_signal": "lib/operatorFounderInvestors.js — public thesis themes / known operators fold into profile+focus+track without raising caps"
   },
   "invariants": {
-    "componentWeightSum": 1.0,
-    "normalizedFeatureBounds": [0, 1],
-    "totalScoreBounds": [0, 100],
+    "componentWeightSum": 1,
+    "normalizedFeatureBounds": [
+      0,
+      1
+    ],
+    "totalScoreBounds": [
+      0,
+      100
+    ],
     "maxSignalContribution": 10
   },
   "proposed_signal_informed": {
     "status": "applied_live",
-    "applied_at": "2026-08-28",
+    "applied_at": "2026-09-27",
     "gate_override": "user-directed — apply [1] weights then [2] frequentLedger expand despite proof-cohort signup_evidence_met < 5",
     "doc": "docs/SIGNAL_INFORMED_GOD.md",
     "componentWeights": {
-      "team": 0.22,
-      "traction": 0.30,
-      "market": 0.20,
-      "product": 0.15,
+      "team": 0.2325,
+      "traction": 0.2875,
+      "market": 0.1875,
+      "product": 0.1625,
       "vision": 0.13
     },
     "notes": [
       "Traction up when capital_convergence / news_momentum feed profile before GOD",
       "Vision down for thin-evidence rows — reduces thesis-only inflation",
       "Live via GOD_SCORE_CONFIG.componentWeights + weightedCore rebalance in calculateHotScore"
-    ]
+    ],
+    "learned_from": "funded_round_aspects",
+    "observations": 493
   },
-  "changelog": "1.3.0 — apply signal-informed componentWeights live (team 0.22 / traction 0.30 / market 0.20 / product 0.15 / vision 0.13). 1.2.0 — signal-before-GOD plumbing + draft proposed weights. 1.1.0 — sync live divisor 19.5; document investor GOD + operator-founder thesis signal. 1.0.0 — initial frozen snapshot."
+  "changelog": "2026-09-27 — sidebar learner stepped componentWeights from funded rounds (493 observations). 1.3.0 — apply signal-informed componentWeights live (team 0.22 / traction 0.30 / market 0.20 / product 0.15 / vision 0.13). 1.2.0 — signal-before-GOD plumbing + draft proposed weights. 1.1.0 — sync live divisor 19.5; document investor GOD + operator-founder thesis signal. 1.0.0 — initial frozen snapshot."
 }

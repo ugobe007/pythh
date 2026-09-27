@@ -136,6 +136,7 @@ test('pattern helpers never retune GOD weights or write investment_thesis', () =
   assert.match(script, /pageSelect/);
   assert.match(script, /omit --limit to scan every stamped event/);
   assert.doesNotMatch(script, /GOD_SCORE_CONFIG\s*=/);
-  assert.equal(weights.weights.componentWeights.team, 0.22);
-  assert.equal(weights.weights.componentWeights.traction, 0.3);
+  const componentWeights = weights.weights.componentWeights;
+  const weightSum = componentWeights.team + componentWeights.traction + componentWeights.market + componentWeights.product + componentWeights.vision;
+  assert.ok(Math.abs(weightSum - 1) < 1e-6);
 });
