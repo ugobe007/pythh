@@ -81,10 +81,11 @@ test('featured match is a six-row livewire tape and proof strip keeps the pair c
   const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
   assert.match(featured, /FEATURED_PAGE_SIZE = LIVEWIRE_PAGE_SIZE/);
   assert.match(panel, /LIVEWIRE_PAGE_SIZE = 6/);
-  assert.match(panel, /Live matches/);
-  assert.match(panel, /text-sm inline m-0 p-0/);
+  assert.match(panel, /Live Matches/);
+  assert.match(panel, /font-display font-semibold/);
+  assert.match(panel, /fontSize: "1.5rem"/);
   assert.doesNotMatch(panel, /Livewire matches/);
-  const labelAt = panel.indexOf("text-sm inline m-0 p-0");
+  const labelAt = panel.indexOf("Live Matches");
   const asideAt = panel.indexOf("<aside");
   assert.ok(labelAt !== -1 && asideAt !== -1 && labelAt < asideAt);
   assert.match(panel, /Inspect the network/);
