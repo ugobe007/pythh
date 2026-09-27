@@ -8,6 +8,8 @@ const {
   campaignColumns,
   campaignFitDelta,
   buildRaisePlan,
+  retainCampaignExtracted,
+  overlayCampaignQuery,
 } = require('../lib/campaignBrief.js');
 const { buildFreeDeckFocus } = require('../lib/deckOutline.js');
 
@@ -57,6 +59,33 @@ test('raise priorities change which investor ranks first', () => {
   };
   assert.ok(campaignFitDelta(hiring, talent) > campaignFitDelta(hiring, growth));
   assert.ok(campaignFitDelta(customers, growth) > campaignFitDelta(customers, talent));
+  const generalist = {
+    name: 'General Fund',
+    firm: 'General Fund',
+    sectors: ['Robotics'],
+    stage: ['Seed'],
+    investment_thesis: 'We back the team and the product.',
+  };
+  assert.ok(campaignFitDelta(hiring, talent) - campaignFitDelta(hiring, generalist) >= 80);
+});
+
+test('enrichment keeps the founder answers and preview can rank from the request', () => {
+  const kept = retainCampaignExtracted(
+    { funding_stage: 'seed', has_revenue: false, raise_priorities: ['hire'], description: 'old' },
+    { description: 'new scrape', funding_stage: 'series-b' },
+  );
+  assert.equal(kept.funding_stage, 'seed');
+  assert.equal(kept.has_revenue, false);
+  assert.deepEqual(kept.raise_priorities, ['hire']);
+  assert.equal(kept.description, 'new scrape');
+  const overlaid = overlayCampaignQuery(
+    { extracted_data: { description: 'keep' } },
+    { funding_stage: 'series-a', has_revenue: 'true', has_product: 'false', raise_priorities: 'customers,product' },
+  );
+  assert.equal(overlaid.extracted_data.funding_stage, 'series-a');
+  assert.equal(overlaid.extracted_data.has_revenue, true);
+  assert.equal(overlaid.extracted_data.description, 'keep');
+  assert.deepEqual(overlaid.extracted_data.raise_priorities, ['customers', 'product']);
 });
 
 test('the raise plan names the round and what the money is for', () => {

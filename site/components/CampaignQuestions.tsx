@@ -48,7 +48,13 @@ export default function CampaignQuestions({
   onQualified: (brief: CampaignBrief) => void;
 }) {
   const [step, setStep] = useState<QualifyStep>('stage');
-  const [brief, setBrief] = useState<CampaignBrief>(() => readCampaignBrief(url));
+  const [brief, setBrief] = useState<CampaignBrief>(() => ({
+    ...readCampaignBrief(url),
+    stage: null,
+    hasRevenue: null,
+    hasProduct: null,
+    priorities: [],
+  }));
 
   const save = (next: CampaignBrief) => {
     setBrief(next);

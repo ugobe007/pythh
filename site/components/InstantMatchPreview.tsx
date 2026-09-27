@@ -331,7 +331,6 @@ export default function InstantMatchPreview({ url }: Props) {
         const submitBody = JSON.stringify({
           url,
           source: 'matches_preview',
-          force_generate: matchPass > 0,
           ...campaignSubmitBody(readCampaignBrief(url)),
         });
         const submitRes = await fetch(apiUrl('/api/instant/submit'), {
@@ -383,6 +382,20 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [url, matchPass]);
 
+  const previewRequestUrl = (id: string) => {
+    const brief = readCampaignBrief(url);
+    const params = new URLSearchParams({
+      source: 'matches_preview',
+      investor_class: investorMix,
+      pass: String(matchPass),
+    });
+    if (brief.stage) params.set('funding_stage', brief.stage);
+    if (brief.hasRevenue != null) params.set('has_revenue', String(brief.hasRevenue));
+    if (brief.hasProduct != null) params.set('has_product', String(brief.hasProduct));
+    if (brief.priorities.length) params.set('raise_priorities', brief.priorities.join(','));
+    return apiUrl(`/api/preview/${id}?${params.toString()}`);
+  };
+
   useEffect(() => {
     if (!startupId) return;
     let cancelled = false;
@@ -395,9 +408,7 @@ export default function InstantMatchPreview({ url }: Props) {
         const assignment = await fetchGrowthAssignment('founder', 'founder_hero_entry');
         if (assignment) founderExpRef.current = assignment;
 
-        const previewRes = await fetch(
-          apiUrl(`/api/preview/${startupId}?source=matches_preview&investor_class=${investorMix}`),
-        );
+        const previewRes = await fetch(previewRequestUrl(startupId), { cache: 'no-store' });
         if (!previewRes.ok) throw new Error('Match preview not ready yet');
         const data = (await previewRes.json()) as PreviewPayload;
         if (cancelled) return;
@@ -405,7 +416,7 @@ export default function InstantMatchPreview({ url }: Props) {
         setPreview(data);
         if (!cancelled) setLoading(false);
 
-        if (!isMixRefetch && !cancelled) {
+        if (!isMixRefetch && !cancelled && matchPass === 0) {
           const waitingForStored = Boolean(
             data.suggested_investor_fallback || !(data.total_matches && data.total_matches > 0),
           );
@@ -417,9 +428,7 @@ export default function InstantMatchPreview({ url }: Props) {
           for (let attempt = 0; attempt < attempts && !cancelled; attempt++) {
             await new Promise((r) => setTimeout(r, 2000));
             if (cancelled) break;
-            const again = await fetch(
-              apiUrl(`/api/preview/${startupId}?source=matches_preview&investor_class=${investorMix}`),
-            );
+            const again = await fetch(previewRequestUrl(startupId), { cache: 'no-store' });
             if (!again.ok) continue;
             const next = (await again.json()) as PreviewPayload;
             if (cancelled) break;
@@ -474,7 +483,7 @@ export default function InstantMatchPreview({ url }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [startupId, investorMix, url]);
+  }, [startupId, investorMix, url, matchPass]);
 
   useEffect(() => {
     if (!startupId || authLoading || !isAuthenticated || !isPaid) return;
