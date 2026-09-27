@@ -441,6 +441,14 @@ async function buildSuggestedInvestorMatches(startup, { maxSectors = 6 } = {}) {
       if (inv?.id && !byId.has(inv.id)) byId.set(inv.id, inv);
     }
   }
+  const investorIds = [...byId.keys()];
+  const fullInvestors = investorIds.length
+    ? await supabase
+        .from('investors')
+        .select('id, signals')
+        .in('id', investorIds)
+        .then(({ data }) => new Map((data || []).map(row => [row.id, row.signals])))
+    : new Map();
   const startupForFit = { ...startup, sectors };
   return [...byId.values()]
     .map((inv) => {
@@ -467,6 +475,7 @@ async function buildSuggestedInvestorMatches(startup, { maxSectors = 6 } = {}) {
           photo_url: null,
           investor_score: inv.investor_score,
           investment_thesis: inv.investment_thesis || null,
+          signals: fullInvestors.get(inv.id) || null,
         },
       };
     })
@@ -719,6 +728,7 @@ router.get('/:startupId', async (req, res) => {
     let suggestedInvestorFallback = false;
     if (matches.length === 0) {
       const suggested = await buildSuggestedInvestorMatches(rankedStartup);
+      applyResearchRank(rankedStartup, suggested);
       matches = buildPreviewMatchList(suggested, { ...mixOptions, total: 5 });
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
