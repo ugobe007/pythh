@@ -138,19 +138,19 @@ export function LivewireMatchPanel({
   const horizontal = orientation === "horizontal";
 
   return (
-    <aside
-      id={id}
-      className={`rounded-xl text-left overflow-hidden min-w-0 ${horizontal ? "w-full" : "flex flex-col h-full"}`}
-      style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
-      aria-label="Live matches"
-      onMouseEnter={() => onPause?.(true)}
-      onMouseLeave={() => onPause?.(false)}
-    >
+    <div className={`min-w-0 text-left flex flex-col gap-2 ${horizontal ? "w-full" : "h-full"}`}>
       <p className="text-sm inline m-0 p-0" style={{ color: MUTED }}>
         Live matches
         <span style={{ color: DIM }}> · {livewireHeaderStatus(loading, visible.length, page, pageCount)}</span>
       </p>
-
+      <aside
+        id={id}
+        className={`rounded-xl overflow-hidden min-w-0 ${horizontal ? "w-full" : "flex flex-col flex-1"}`}
+        style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
+        aria-label="Live matches"
+        onMouseEnter={() => onPause?.(true)}
+        onMouseLeave={() => onPause?.(false)}
+      >
       {loading && visible.length === 0 ? (
         <div
           className={horizontal ? "grid grid-cols-1 sm:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))] min-w-0" : "flex-1 px-5 py-3 space-y-2"}
@@ -209,6 +209,7 @@ export function LivewireMatchPanel({
       >
         {footerLabel} <ArrowRight size={14} />
       </Link>
-    </aside>
+      </aside>
+    </div>
   );
 }

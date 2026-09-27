@@ -84,6 +84,9 @@ test('featured match is a six-row livewire tape and proof strip keeps the pair c
   assert.match(panel, /Live matches/);
   assert.match(panel, /text-sm inline m-0 p-0/);
   assert.doesNotMatch(panel, /Livewire matches/);
+  const labelAt = panel.indexOf("text-sm inline m-0 p-0");
+  const asideAt = panel.indexOf("<aside");
+  assert.ok(labelAt !== -1 && asideAt !== -1 && labelAt < asideAt);
   assert.match(panel, /Inspect the network/);
   assert.match(featured, /LivewireMatchPanel/);
   assert.match(featured, /orientation/);
