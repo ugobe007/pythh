@@ -81,7 +81,9 @@ test('featured match is a six-row livewire tape and proof strip keeps the pair c
   const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
   assert.match(featured, /FEATURED_PAGE_SIZE = LIVEWIRE_PAGE_SIZE/);
   assert.match(panel, /LIVEWIRE_PAGE_SIZE = 6/);
-  assert.match(panel, /Livewire matches/);
+  assert.match(panel, /Live matches/);
+  assert.match(panel, /text-sm inline m-0 p-0/);
+  assert.doesNotMatch(panel, /Livewire matches/);
   assert.match(panel, /Inspect the network/);
   assert.match(featured, /LivewireMatchPanel/);
   assert.match(featured, /orientation/);
