@@ -138,10 +138,17 @@ export function LivewireMatchPanel({
   const horizontal = orientation === "horizontal";
 
   return (
-    <div className={`min-w-0 text-left flex flex-col gap-2 ${horizontal ? "w-full" : "h-full"}`}>
-      <p className="text-sm inline m-0 p-0" style={{ color: MUTED }}>
-        Live matches
-        <span style={{ color: DIM }}> · {livewireHeaderStatus(loading, visible.length, page, pageCount)}</span>
+    <div className={`min-w-0 text-left flex flex-col gap-3 ${horizontal ? "w-full" : "h-full"}`}>
+      <p className="m-0 p-0 inline">
+        <span
+          className="font-display font-semibold"
+          style={{ color: TEXT, fontSize: "1.5rem", letterSpacing: "-0.03em" }}
+        >
+          Live Matches
+        </span>
+        <span className="text-[13px] font-medium" style={{ color: DIM }}>
+          {" "}· {livewireHeaderStatus(loading, visible.length, page, pageCount)}
+        </span>
       </p>
       <aside
         id={id}
