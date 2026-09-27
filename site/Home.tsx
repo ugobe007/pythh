@@ -466,55 +466,53 @@ function HeroSection({
       className="relative pt-16"
       style={{ backgroundColor: PAGE }}
     >
-      <div className="container relative z-10 max-w-[1280px] mx-auto px-6 pt-14 pb-10 lg:pt-16 lg:pb-12">
-        <div className="grid w-full lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.68fr)] gap-6 lg:gap-8 items-start">
-          <div className="min-w-0 flex flex-col">
-            <HeroHeadline
-              headline={heroHeadline}
-              className="font-display font-bold leading-[1.12] mb-5"
-              style={{ fontSize: "clamp(2.25rem, 4.2vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
-            />
-            <p
-              className="leading-relaxed mb-8 max-w-[52ch]"
-              style={{ color: MUTED, fontSize: "clamp(1.05rem, 1.6vw, 1.125rem)" }}
-            >
-              {heroSubline}
-            </p>
-            <NewsletterJoinForm
-              id="hero-cta"
-              source="home_hero"
-              cta={PREVIEW_MATCHES_CTA}
-              className="mx-0"
-              progressive
-              revealMatches
-              emphasis
-              onJoined={({ url, email }) => {
-                const normalized = normalizeStartupPreviewUrl(url);
-                const path = persistJoinPreview(url, email);
-                trackUrlSubmitted(normalized, "home_hero", founderExperiment);
-                trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
-                navigate(path);
-              }}
-            />
-            <p className="text-[14px] mt-4" data-testid="hero-daily-signal">
-              <Link href="/newsletter">
-                <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: G }}>
-                  Read today&rsquo;s Daily Signal <ArrowRight size={14} />
-                </span>
-              </Link>
-            </p>
-          </div>
-          <HomeProofStrip
-            variant="panel"
-            pairRate={pairRate}
-            pairHits={pairHits}
-            pairStartups={pairStartups}
-            pairRateTop50={pairRateTop50}
-            pairHitsTop50={pairHitsTop50}
-            startupsFunded={startupsFunded}
-            investors={investors}
-          />
-        </div>
+      <div className="container relative z-10 max-w-[720px] mx-auto px-6 pt-14 pb-8 lg:pt-16">
+        <HeroHeadline
+          headline={heroHeadline}
+          className="font-display font-bold leading-[1.12] mb-5"
+          style={{ fontSize: "clamp(2.25rem, 4.2vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
+        />
+        <p
+          className="leading-relaxed mb-8 max-w-[52ch]"
+          style={{ color: MUTED, fontSize: "clamp(1.05rem, 1.6vw, 1.125rem)" }}
+        >
+          {heroSubline}
+        </p>
+        <NewsletterJoinForm
+          id="hero-cta"
+          source="home_hero"
+          cta={PREVIEW_MATCHES_CTA}
+          className="mx-0"
+          progressive
+          revealMatches
+          emphasis
+          onJoined={({ url, email }) => {
+            const normalized = normalizeStartupPreviewUrl(url);
+            const path = persistJoinPreview(url, email);
+            trackUrlSubmitted(normalized, "home_hero", founderExperiment);
+            trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
+            navigate(path);
+          }}
+        />
+        <p className="text-[14px] mt-4" data-testid="hero-daily-signal">
+          <Link href="/newsletter">
+            <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: G }}>
+              Read today&rsquo;s Daily Signal <ArrowRight size={14} />
+            </span>
+          </Link>
+        </p>
+      </div>
+      <div className="container relative z-10 max-w-[1280px] mx-auto px-6 pb-10 lg:pb-12">
+        <HomeProofStrip
+          variant="panel"
+          pairRate={pairRate}
+          pairHits={pairHits}
+          pairStartups={pairStartups}
+          pairRateTop50={pairRateTop50}
+          pairHitsTop50={pairHitsTop50}
+          startupsFunded={startupsFunded}
+          investors={investors}
+        />
         <div className="w-full min-w-0 mt-10">
           <HomeFeaturedMatch orientation="horizontal" />
         </div>
@@ -527,23 +525,23 @@ const HOW_IT_WORKS_STEPS = [
   {
     num: "01",
     title: "You paste a URL",
-    give: "A public startup website.",
-    does: "Pythh reads the company the way an ad agent reads a brand: market, traction, and the story.",
-    get: "The raw material for the raise.",
+    give: "A public startup website. That starts the campaign.",
+    does: "Pythh reads the company from the site.",
+    get: "The brief for the questions that come next.",
   },
   {
     num: "02",
-    title: "We build the campaign",
-    give: "Nothing else to start.",
-    does: "Strategy, deck outline, and the investor note are written from that read.",
-    get: "A raise you can see, with the investors it is aimed at.",
+    title: "You answer three questions",
+    give: "The round, whether there is revenue, and whether there is a working product.",
+    does: "Those answers decide who is eligible.",
+    get: "Five investors for this company.",
   },
   {
     num: "03",
-    title: "We run it with you",
-    give: "Approval before anything is sent.",
-    does: "We reach the list, ask for meetings, and help negotiate the term sheet when a yes arrives.",
-    get: "Meetings, then the terms of the round.",
+    title: "You say what the round is for",
+    give: "Revenue, hiring, customers, or the next version.",
+    does: "Pythh matches again and writes the raise plan.",
+    get: "Who to raise from, what the money is for, and a campaign worth saving.",
   },
 ] as const;
 
@@ -584,15 +582,15 @@ function ExampleResultSection() {
           From URL to a raise campaign
         </h2>
         <p className="text-[17px] leading-relaxed max-w-[52ch] mb-8" style={{ color: MUTED }}>
-          Drop the site. The campaign comes back: who to raise from, the deck, the note, the meetings, and help on the term sheet.
+          Start with the URL. Answer the round, the proof, and what the money is for. The five investors and the plan come from that.
         </p>
         <ol className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { n: "1", t: "Read", d: "The URL is the brief. We take market, traction, and story from the public site." },
-            { n: "2", t: "Strategy", d: "Which round, which investors, and why they should take the meeting." },
-            { n: "3", t: "Deck", d: "The narrative an investor can underwrite, built from that read." },
-            { n: "4", t: "Messaging", d: "A note for each investor on the list, ready for your approval." },
-            { n: "5", t: "Close", d: "We set the meetings and help negotiate the term sheet." },
+            { n: "1", t: "URL", d: "Paste the site. That starts the campaign." },
+            { n: "2", t: "Round", d: "Pre-seed, seed, or Series A. Revenue or not. Working product or not." },
+            { n: "3", t: "Match", d: "Five investors who fit this company and this round." },
+            { n: "4", t: "Priorities", d: "Revenue, hiring, customers, or the next version." },
+            { n: "5", t: "Plan", d: "A second match, then who to raise from and what the money is for. Save it to your account." },
           ].map((s) => (
             <li key={s.n} className="rounded-xl p-5" style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}>
               <p className="text-[13px] font-mono mb-2" style={{ color: PURPLE_ACCENT }}>{s.n}</p>

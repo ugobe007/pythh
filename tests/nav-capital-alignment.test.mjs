@@ -26,7 +26,7 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(hero, /Automate Your Raise\. We find investors who will fund you/);
   assert.match(hero, /HERO_HEADLINE_ACCENT = 'Automate Your Raise'/);
   assert.match(home, /<HeroHeadline/);
-  assert.match(hero, /Paste your startup URL\. We read the company and build the raise: strategy, deck, and the note that gets the meeting/);
+  assert.match(hero, /Paste your startup URL to start the campaign/);
   assert.doesNotMatch(hero, /You build the company/);
   assert.match(hero, /HERO_PRIMARY_CTA = 'Automate my raise'/);
   assert.match(home, /PREVIEW_MATCHES_CTA/);

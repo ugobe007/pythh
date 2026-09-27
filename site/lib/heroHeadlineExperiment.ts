@@ -23,7 +23,7 @@ export const HERO_HEADLINE_ACCENT = 'Automate Your Raise';
 
 /** Public subline — URL in, raise campaign out. */
 const TRUSTED_HERO_SUBLINE =
-  'Paste your startup URL. We read the company and build the raise: strategy, deck, and the note that gets the meeting.';
+  'Paste your startup URL to start the campaign.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   const headline = 'Automate Your Raise. We find investors who will fund you.';

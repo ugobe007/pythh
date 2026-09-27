@@ -36,6 +36,7 @@ const {
 } = require('../lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
 const { distinctiveFitScore, sectorsForMatching } = require('../../lib/distinctiveInvestorFit');
+const { campaignColumns } = require('../../lib/campaignBrief');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
@@ -2431,6 +2432,18 @@ router.post('/submit', async (req, res) => {
 
     // ── EXISTING STARTUP: check for cached matches ──
     if (startupId) {
+      const campaign = campaignColumns(req.body, startup?.extracted_data);
+      if (campaign) {
+        const { error: campaignErr } = await supabase
+          .from('startup_uploads')
+          .update(campaign)
+          .eq('id', startupId);
+        if (campaignErr) console.warn('[INSTANT] campaign brief:', campaignErr.message);
+        else {
+          startup = { ...startup, ...campaign };
+          matchCacheInvalidate(startupId);
+        }
+      }
       const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';
       const { count: existingMatchCount } = await supabase
         .from('startup_investor_matches')
@@ -2644,6 +2657,7 @@ router.post('/submit', async (req, res) => {
     // Insert minimal startup row immediately (no scraping, no AI)
     let insertName = displayName;
     const enrichmentToken = crypto.randomUUID(); // Generate unique token for founder enrichment
+    const campaignSeed = campaignColumns(req.body, null) || {};
     let { data: newStartup, error: insertErr } = await supabase
       .from('startup_uploads')
       .insert({
@@ -2652,7 +2666,8 @@ router.post('/submit', async (req, res) => {
         company_domain: domain,
         tagline: null,
         sectors: ['Technology'],
-        stage: 1,
+        stage: campaignSeed.stage ?? 1,
+        extracted_data: campaignSeed.extracted_data || null,
         status: 'approved',
         source_type: 'url',
         entity_gate: 'qualified',
@@ -2681,7 +2696,8 @@ router.post('/submit', async (req, res) => {
           company_domain: domain,
           tagline: null,
           sectors: ['Technology'],
-          stage: 1,
+          stage: campaignSeed.stage ?? 1,
+          extracted_data: campaignSeed.extracted_data || null,
           status: 'approved',
           source_type: 'url',
           entity_gate: 'qualified',
