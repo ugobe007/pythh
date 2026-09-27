@@ -47,7 +47,7 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(home, /id="hero-cta"/);
   assert.match(proofStrip, /id="hero-status-bar"/);
   assert.match(proofStrip, /variant === "panel"/);
-  assert.match(home, /variant="panel"/);
+  assert.match(home, /variant="strip"/);
   assert.match(home, /<HomeFeaturedMatch/);
   assert.match(home, /orientation="horizontal"/);
   assert.match(home, /<HomeProofStrip/);
