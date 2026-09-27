@@ -489,7 +489,7 @@ function HeroSection({
           emphasis
           onJoined={({ url, email }) => {
             const normalized = normalizeStartupPreviewUrl(url);
-            const path = persistJoinPreview(url, email);
+            const path = `${persistJoinPreview(url, email)}&step=qualify`;
             trackUrlSubmitted(normalized, "home_hero", founderExperiment);
             trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
             navigate(path);
@@ -1260,7 +1260,7 @@ function NewsletterSection() {
             revealMatches
             className="mx-auto"
             onJoined={({ url, email }) => {
-              navigate(persistJoinPreview(url, email));
+              navigate(`${persistJoinPreview(url, email)}&step=qualify`);
             }}
           />
           <p className="text-[14px] mt-4" style={{ color: MUTED }}>No spam. Unsubscribe anytime.</p>

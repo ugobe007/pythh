@@ -649,7 +649,7 @@ export default function InstantMatchPreview({ url }: Props) {
               rank={i}
               startupId={preview.startup?.id || startupId || ''}
               startupName={startupName}
-              defaultOpen={i === 0}
+              defaultOpen={false}
               isAuthenticated={Boolean(isAuthenticated)}
               isPaid={isPaid}
               unlocked={Boolean(investorId && unlockedIds.includes(investorId))}

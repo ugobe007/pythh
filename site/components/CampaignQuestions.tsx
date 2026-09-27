@@ -117,7 +117,7 @@ export default function CampaignQuestions({
               label="Working product"
               selected={brief.hasProduct === true}
               onClick={() => {
-                const next = { ...brief, url, hasProduct: true };
+                const next = { ...brief, url, hasProduct: true, priorities: [] };
                 save(next);
                 onQualified(next);
               }}
@@ -126,7 +126,7 @@ export default function CampaignQuestions({
               label="Not yet"
               selected={brief.hasProduct === false}
               onClick={() => {
-                const next = { ...brief, url, hasProduct: false };
+                const next = { ...brief, url, hasProduct: false, priorities: [] };
                 save(next);
                 onQualified(next);
               }}
@@ -141,6 +141,8 @@ export default function CampaignQuestions({
   );
 }
 
+type FollowStep = 'revenue' | 'hire' | 'focus';
+
 export function CampaignPriorities({
   url,
   onDone,
@@ -148,45 +150,55 @@ export function CampaignPriorities({
   url: string;
   onDone: (brief: CampaignBrief) => void;
 }) {
-  const [selected, setSelected] = useState<CampaignPriority[]>(() => readCampaignBrief(url).priorities);
+  const [step, setStep] = useState<FollowStep>('revenue');
+  const [priorities, setPriorities] = useState<CampaignPriority[]>([]);
 
-  const toggle = (id: CampaignPriority) => {
-    setSelected((current) => (
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
-    ));
+  const finish = (nextPriorities: CampaignPriority[]) => {
+    const unique = [...new Set(nextPriorities)];
+    const next = { ...readCampaignBrief(url), url, priorities: unique };
+    writeCampaignBrief(next);
+    onDone(next);
   };
 
   return (
     <section className="mb-8 max-w-xl">
       <p className="text-[13px] font-medium mb-2" style={{ color: G }}>
-        This round
+        {step === 'revenue' ? '1' : step === 'hire' ? '2' : '3'} of 3 · after the five
       </p>
-      <h2 className="font-display font-semibold mb-3" style={{ color: TEXT, fontSize: '1.5rem', letterSpacing: '-0.03em' }}>
-        What does this raise need to do?
-      </h2>
-      <div className="space-y-2 mb-4">
-        {PRIORITY_CHOICES.map((choice) => (
-          <Choice
-            key={choice.id}
-            label={choice.label}
-            selected={selected.includes(choice.id)}
-            onClick={() => toggle(choice.id)}
-          />
-        ))}
-      </div>
-      <button
-        type="button"
-        disabled={!selected.length}
-        onClick={() => {
-          const next = { ...readCampaignBrief(url), url, priorities: selected };
-          writeCampaignBrief(next);
-          onDone(next);
-        }}
-        className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50"
-        style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)' }}
-      >
-        Match again and build the plan
-      </button>
+      {step === 'revenue' && (
+        <>
+          <h2 className="font-display font-semibold mb-4" style={{ color: TEXT, fontSize: '1.5rem', letterSpacing: '-0.03em' }}>
+            Does this round need to reach revenue?
+          </h2>
+          <div className="space-y-2">
+            <Choice label="Yes, reach revenue" selected={false} onClick={() => { setPriorities(['revenue']); setStep('hire'); }} />
+            <Choice label="Not this round" selected={false} onClick={() => { setPriorities([]); setStep('hire'); }} />
+          </div>
+        </>
+      )}
+      {step === 'hire' && (
+        <>
+          <h2 className="font-display font-semibold mb-4" style={{ color: TEXT, fontSize: '1.5rem', letterSpacing: '-0.03em' }}>
+            Do you need to hire?
+          </h2>
+          <div className="space-y-2">
+            <Choice label="Yes, hire the team" selected={false} onClick={() => { setPriorities((current) => [...current, 'hire']); setStep('focus'); }} />
+            <Choice label="Not this round" selected={false} onClick={() => setStep('focus')} />
+          </div>
+        </>
+      )}
+      {step === 'focus' && (
+        <>
+          <h2 className="font-display font-semibold mb-4" style={{ color: TEXT, fontSize: '1.5rem', letterSpacing: '-0.03em' }}>
+            What else should this round do?
+          </h2>
+          <div className="space-y-2">
+            <Choice label="Pick up customers" selected={false} onClick={() => finish([...priorities, 'customers'])} />
+            <Choice label="Ship the next version" selected={false} onClick={() => finish([...priorities, 'product'])} />
+            <Choice label="Customers and the next version" selected={false} onClick={() => finish([...priorities, 'customers', 'product'])} />
+          </div>
+        </>
+      )}
     </section>
   );
 }
