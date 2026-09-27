@@ -139,15 +139,16 @@ export function LivewireMatchPanel({
 
   return (
     <div className={`min-w-0 text-left flex flex-col gap-3 ${horizontal ? "w-full" : "h-full"}`}>
-      <p className="m-0 p-0 inline">
+      <p className="m-0 p-0 inline-flex items-center gap-2">
+        <ArrowRight size={20} strokeWidth={2.25} style={{ color: G }} aria-hidden />
         <span
           className="font-display font-semibold"
-          style={{ color: G, fontSize: "1.5rem", letterSpacing: "-0.03em" }}
+          style={{ color: G, fontSize: "1.25rem", letterSpacing: "-0.03em" }}
         >
-          {`---> Live Matches`}
+          Live Matches
         </span>
         <span className="text-[13px] font-medium" style={{ color: DIM }}>
-          {" "}· {livewireHeaderStatus(loading, visible.length, page, pageCount)}
+          · {livewireHeaderStatus(loading, visible.length, page, pageCount)}
         </span>
       </p>
       <aside
