@@ -2442,6 +2442,18 @@ router.post('/submit', async (req, res) => {
         else {
           startup = { ...startup, ...campaign };
           matchCacheInvalidate(startupId);
+          // Campaign stage change requires rematch (just like sector changes)
+          if (campaign.stage != null) {
+            sectorRegenRequired = true;
+            console.log(`  🔄 Campaign stage updated for ${startup.name} — queuing rematch`);
+            void supabase
+              .from('startup_investor_matches')
+              .delete()
+              .eq('startup_id', startupId)
+              .eq('status', 'suggested')
+              .then(() => {})
+              .catch((e) => console.warn('[INSTANT] campaign match purge failed:', e?.message));
+          }
         }
       }
       const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';

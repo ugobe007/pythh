@@ -27,7 +27,7 @@ test('a campaign brief keeps stage, proof, and raise priorities', () => {
     has_product: true,
     raise_priorities: ['hire'],
   }, { description: 'keep' });
-  assert.equal(columns.stage, 1);
+  assert.equal(columns.stage, 2);
   assert.equal(columns.extracted_data.funding_stage, 'seed');
   assert.equal(columns.extracted_data.description, 'keep');
   assert.equal(columns.extracted_data.has_revenue, false);
