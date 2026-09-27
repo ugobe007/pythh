@@ -45,6 +45,7 @@ import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
+import FreeDeckFocus from '@/components/FreeDeckFocus';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
@@ -98,6 +99,8 @@ type PreviewPayload = {
   matches?: PreviewMatch[];
   shortlist_mix?: ShortlistMix | null;
   suggested_investor_fallback?: boolean;
+  shortlist_blended?: boolean;
+  deck_focus?: { title: string; detail: string }[];
 };
 
 const NEXT_STEP_CTA_CLASS =
@@ -393,12 +396,16 @@ export default function InstantMatchPreview({ url }: Props) {
         setPreview(data);
         if (!cancelled) setLoading(false);
 
-        if (
-          !isMixRefetch
-          && !cancelled
-          && (data.suggested_investor_fallback || !(data.total_matches && data.total_matches > 0))
-        ) {
-          for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+        if (!isMixRefetch && !cancelled) {
+          const waitingForStored = Boolean(
+            data.suggested_investor_fallback || !(data.total_matches && data.total_matches > 0),
+          );
+          const attempts = waitingForStored ? 4 : 3;
+          let seen = (data.matches || [])
+            .slice(0, PREVIEW_LIMIT)
+            .map((m) => m.investor_id || m.investor?.id || '')
+            .join(',');
+          for (let attempt = 0; attempt < attempts && !cancelled; attempt++) {
             await new Promise((r) => setTimeout(r, 2000));
             if (cancelled) break;
             const again = await fetch(
@@ -407,9 +414,17 @@ export default function InstantMatchPreview({ url }: Props) {
             if (!again.ok) continue;
             const next = (await again.json()) as PreviewPayload;
             if (cancelled) break;
-            if ((next.total_matches || 0) > 0 && !next.suggested_investor_fallback) {
+            const nextKey = (next.matches || [])
+              .slice(0, PREVIEW_LIMIT)
+              .map((m) => m.investor_id || m.investor?.id || '')
+              .join(',');
+            const storedArrived = waitingForStored
+              && (next.total_matches || 0) > 0
+              && !next.suggested_investor_fallback;
+            if (storedArrived || (nextKey && nextKey !== seen)) {
               setPreview(next);
-              break;
+              seen = nextKey;
+              if (storedArrived || !waitingForStored) break;
             }
           }
         }
@@ -637,6 +652,8 @@ export default function InstantMatchPreview({ url }: Props) {
           );
         })}
       </ul>
+
+      <FreeDeckFocus items={preview.deck_focus} />
 
       <RaiseCampaignBoard {...campaignInput} matchCount={visible.length} saved={alreadySaved} />
 

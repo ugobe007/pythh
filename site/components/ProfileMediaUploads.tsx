@@ -3,10 +3,14 @@
  * Files upload directly to private storage; the API only records ownership.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileText, Film, Loader2, Trash2, Upload } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { ArrowRight, FileText, Film, Loader2, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/apiConfig';
+import { getPinnedStartupUrl } from '@/lib/activeStartupContext';
+import { trpc } from '@/lib/trpc';
 import { BORDER, CARD, DIM, G, MUTED, TEXT } from '@/lib/designTokens';
+import FreeDeckFocus from '@/components/FreeDeckFocus';
 
 type MediaItem = {
   id: string;
@@ -81,13 +85,18 @@ async function uploadFile(file: File): Promise<void> {
   if (!commitRes.ok) throw new Error(await readError(commitRes));
 }
 
-export default function ProfileMediaUploads() {
+export default function ProfileMediaUploads({ companyUrl: companyUrlProp }: { companyUrl?: string | null } = {}) {
   const deckInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const [, navigate] = useLocation();
+  const profile = trpc.profile.get.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const companyUrl = (companyUrlProp || profile.data?.companyUrl || getPinnedStartupUrl() || '').trim();
   const [media, setMedia] = useState<MediaList>({ deck: null, videos: [] });
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<'deck' | 'video' | null>(null);
+  const [rerunning, setRerunning] = useState(false);
+  const [promptRerun, setPromptRerun] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
 
@@ -135,7 +144,8 @@ export default function ProfileMediaUploads() {
       for (const file of files) {
         await uploadFile(file);
       }
-      toast.success(kind === 'deck' ? 'Deck saved to your profile' : 'Video saved to your profile');
+      toast.success(kind === 'deck' ? 'Deck saved. Run matches again below.' : 'Video saved. Run matches again below.');
+      setPromptRerun(true);
     } catch (err) {
       failed = true;
       const message = err instanceof Error ? err.message : 'Upload failed.';
@@ -311,6 +321,53 @@ export default function ProfileMediaUploads() {
       {error && (
         <p className="text-xs mt-3" style={{ color: 'oklch(0.75 0.15 27)' }}>{error}</p>
       )}
+
+      <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${BORDER}` }}>
+        <FreeDeckFocus />
+        <p className="text-sm mb-3" style={{ color: promptRerun ? TEXT : MUTED }}>
+          Saving a deck or video does not change the shortlist by itself. Run a new match after the file is on your account.
+        </p>
+        {companyUrl ? (
+          <button
+            type="button"
+            disabled={rerunning || busy !== null}
+            onClick={() => void rerunMatches()}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
+            style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)' }}
+          >
+            {rerunning ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={16} strokeWidth={2.25} />}
+            Run matches again
+          </button>
+        ) : (
+          <p className="text-sm" style={{ color: DIM }}>
+            Add your company URL on this profile, then run matches again.
+          </p>
+        )}
+      </div>
     </section>
   );
+
+  async function rerunMatches() {
+    if (!companyUrl) return;
+    setRerunning(true);
+    setError(null);
+    try {
+      const response = await fetch(apiUrl('/api/instant/submit'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: companyUrl, force_generate: true, source: 'deck_rerun' }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 202) {
+        throw new Error(body.message || body.error || 'Could not start a new match.');
+      }
+      navigate(`/matches?url=${encodeURIComponent(companyUrl)}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not start a new match.';
+      setError(message);
+      toast.error(message);
+      setRerunning(false);
+    }
+  }
 }
