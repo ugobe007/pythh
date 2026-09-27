@@ -42,6 +42,7 @@ const {
   resolveTransactionalReplyTo,
 } = require('../lib/transactionalEmailFrom');
 const { distinctiveFitScore, sectorsForMatching, hasSpecificSector, blendStoredWithSectorSuggestions } = require('../../lib/distinctiveInvestorFit');
+const { applyResearchRank } = require('../../lib/matchModelFromResearch');
 const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
 
 /** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
@@ -481,7 +482,7 @@ async function buildPriorityInvestorMatches(startup, priorities) {
   if (!terms.length) return [];
   const { data, error } = await supabase
     .from('investors')
-    .select('id, name, firm, sectors, stage, investment_thesis, linkedin_url, type, capital_type, is_individual, check_size_min, check_size_max')
+    .select('id, name, firm, sectors, stage, investment_thesis, signals, linkedin_url, type, capital_type, is_individual, check_size_min, check_size_max')
     .or(terms.map((term) => `investment_thesis.ilike.%${term}%`).join(','))
     .limit(80);
   if (error) {
@@ -640,6 +641,7 @@ router.get('/:startupId', async (req, res) => {
           email_status,
           email_has_mx,
           investment_thesis,
+          signals,
           notable_investments,
           portfolio_companies,
           total_investments,
@@ -711,6 +713,7 @@ router.get('/:startupId', async (req, res) => {
       }
     }
     applyCampaignRank(rankedStartup, pool);
+    applyResearchRank(rankedStartup, pool);
 
     let matches = buildPreviewMatchList(pool, mixOptions);
     let suggestedInvestorFallback = false;
