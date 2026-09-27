@@ -52,6 +52,7 @@ import {
 } from "@/lib/supabaseOAuth";
 import { planPriceLabel, SCOUT_PLAN, ORACLE_PLAN, formatCampaignLimit } from "@/lib/pricingPlans";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
+import { captureScoutCouponFromSearch, founderSignupWithCoupon } from "@/lib/scoutCouponSession";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -522,9 +523,16 @@ export default function Account() {
   }, [oauthBusy, utils.auth.me]);
 
   useEffect(() => {
+    const code = captureScoutCouponFromSearch();
+    if (!code || oauthBusy || oauthError || authLoading || isAuthenticated || isOAuthHandoffActive()) return;
+    window.location.replace(founderSignupWithCoupon(code));
+  }, [authLoading, isAuthenticated, oauthBusy, oauthError]);
+
+  useEffect(() => {
     if (oauthBusy || oauthError) return;
     if (authLoading || isAuthenticated) return;
     if (isOAuthHandoffActive()) return;
+    if (captureScoutCouponFromSearch()) return;
 
     const delay = wasAuthenticated.current ? 0 : 12_000;
     const timer = window.setTimeout(() => {

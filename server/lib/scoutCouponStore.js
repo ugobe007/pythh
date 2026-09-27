@@ -10,6 +10,7 @@ const {
   grantView,
   accessSummary,
   consumeDecision,
+  founderSharePath,
 } = require('../../lib/scoutCoupons');
 
 class ScoutCouponError extends Error {
@@ -131,7 +132,7 @@ function mapCoupon(row) {
     redeemBy: row.redeem_by ? new Date(row.redeem_by).toISOString() : null,
     active: row.active,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
-    sharePath: `/account?coupon=${encodeURIComponent(row.code)}`,
+    sharePath: founderSharePath(row.code),
   };
 }
 

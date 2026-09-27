@@ -63,7 +63,7 @@ export default function ScoutCouponsPage() {
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 700, margin: "0 0 8px" }}>Access codes</h1>
         <p style={{ fontSize: 13, color: "oklch(0.55 0.01 264)", marginTop: 0, maxWidth: 640 }}>
-          Share a link with a founder. Scout stays on until the match count or the time window runs out. Pausing a code stops new redemptions. Founders who already redeemed keep access until their own limit.
+          Share a signup link. The code is on that page, and creating the account turns Scout on until the match count or the time window runs out. Pausing a code stops new signups from claiming it. Founders who already redeemed keep access until their own limit.
         </p>
 
         <form

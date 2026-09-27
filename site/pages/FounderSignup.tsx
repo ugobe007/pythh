@@ -23,6 +23,14 @@ import {
   type FounderGatedAction,
 } from '@/lib/founderSignupGate';
 import { isOAuthHandoffActive } from '@/lib/supabaseOAuth';
+import {
+  captureScoutCouponFromSearch,
+  clearScoutCoupon,
+  readScoutCoupon,
+  rememberScoutCoupon,
+  normalizeScoutCoupon,
+  withScoutCoupon,
+} from '@/lib/scoutCouponSession';
 import { persistFounderStartup, sendFounderWelcomeEmail, sendFounderSignupInviteEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
 import { trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
@@ -36,6 +44,7 @@ export default function FounderSignup() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const loginMutation = trpc.auth.login.useMutation();
+  const redeemCoupon = trpc.scoutCoupons.redeem.useMutation();
   const utils = trpc.useUtils();
   const startedRef = useRef(false);
   const oauthHandledRef = useRef(false);
@@ -60,11 +69,22 @@ export default function FounderSignup() {
   const fromMatchGate = readQueryParam('intent') === 'matches' || Boolean(url);
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
-  const oauthReturnPath = buildFounderGateOAuthReturnPath(startupId, url);
-
   const [email, setEmail] = useState(() => sessionStorage.getItem('pythia_email') || '');
+  const [coupon, setCoupon] = useState(() => captureScoutCouponFromSearch());
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const oauthReturnPath = withScoutCoupon(buildFounderGateOAuthReturnPath(startupId, url), coupon);
+
+  const applyStoredCoupon = async () => {
+    const code = readScoutCoupon();
+    if (!code) return;
+    try {
+      const result = await redeemCoupon.mutateAsync({ code });
+      if (result?.active) clearScoutCoupon();
+    } catch {
+      // Keep the code. The account page retries the redeem.
+    }
+  };
 
   useEffect(() => {
     void trackFunnelEventOnce(`founder_signup_viewed:${fromMatchGate ? 'matches' : fromGate ? 'gate' : 'direct'}`, 'founder_signup_viewed', {
@@ -79,12 +99,15 @@ export default function FounderSignup() {
     const pendingGate = peekFounderGatePending();
     if (!isOAuthHandoffActive() && !pendingGate.pending) {
       oauthHandledRef.current = true;
-      navigate(url ? savedMatchesPath() : '/account');
+      void applyStoredCoupon().finally(() => {
+        navigate(url ? savedMatchesPath() : '/account');
+      });
       return;
     }
 
     const finishAuth = async () => {
       oauthHandledRef.current = true;
+      await applyStoredCoupon();
       const pendingGate = peekFounderGatePending();
       const userEmail = user?.email ?? sessionStorage.getItem('pythia_email') ?? '';
       if (userEmail) sessionStorage.setItem('pythia_email', userEmail);
@@ -173,7 +196,7 @@ export default function FounderSignup() {
     };
 
     void finishAuth();
-  }, [authLoading, isAuthenticated, navigate, startupId, url, gateAction, fromMatchGate, user?.email]);
+  }, [authLoading, isAuthenticated, navigate, startupId, url, gateAction, fromMatchGate, user?.email, redeemCoupon]);
 
   const trackDirectSignup = async () => {
     if (startedRef.current) return;
@@ -217,6 +240,7 @@ export default function FounderSignup() {
       await utils.auth.me.invalidate();
       await utils.auth.me.fetch();
       sessionStorage.setItem('pythia_email', trimmed);
+      await applyStoredCoupon();
       void trackFunnelEvent('founder_auth_completed', {
         source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
         method: 'email',
@@ -393,6 +417,41 @@ export default function FounderSignup() {
             {subline}
           </p>
 
+          <div
+            className="mb-6 px-4 py-3 rounded-lg text-left"
+            style={{
+              backgroundColor: coupon ? 'oklch(0.696 0.17 162.48 / 0.1)' : 'oklch(0.16 0.01 264)',
+              border: coupon
+                ? '1px solid oklch(0.696 0.17 162.48 / 0.35)'
+                : '1px solid oklch(0.22 0.01 264)',
+            }}
+          >
+            <label className="block text-[10px] font-bold tracking-widest mb-2" style={{ color: 'oklch(0.696 0.17 162.48)' }}>
+              SCOUT CODE
+            </label>
+            <input
+              value={coupon}
+              onChange={(event) => {
+                const next = event.target.value.toUpperCase();
+                setCoupon(next);
+                if (!next.trim() || normalizeScoutCoupon(next)) rememberScoutCoupon(next);
+              }}
+              placeholder="Paste a code if you have one"
+              autoComplete="off"
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{
+                backgroundColor: 'oklch(0.13 0.01 264)',
+                borderColor: 'oklch(0.3 0.01 264)',
+                color: 'oklch(0.94 0.005 264)',
+              }}
+            />
+            <p className="text-xs mt-2" style={{ color: coupon ? 'oklch(0.85 0.05 162.48)' : 'oklch(0.5 0.01 264)' }}>
+              {coupon
+                ? `${coupon} turns on Scout when this account is created — outreach, investor email, the deck outline, and term sheets.`
+                : 'Leave this blank for a free account. A code from Pythh turns Scout on after you sign up.'}
+            </p>
+          </div>
+
           {(fromGate || fromMatchGate) && url && (
             <div
               className="mb-4 px-4 py-3 rounded-lg text-xs text-center"
@@ -509,7 +568,7 @@ export default function FounderSignup() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    {fromGate || fromMatchGate ? 'Continue with email' : 'Sign up with email'}
+                    {coupon ? 'Create account and turn on Scout' : fromGate || fromMatchGate ? 'Continue with email' : 'Sign up with email'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

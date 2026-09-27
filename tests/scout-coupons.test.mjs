@@ -73,6 +73,11 @@ test('counts each investor match once', () => {
   assert.equal(consumeDecision({ matchLimit: null, matchesUsed: 4, alreadyUsed: false }).increment, false);
 });
 
+test('share link opens founder signup with the code attached', () => {
+  const { founderSharePath } = require('../lib/scoutCoupons.js');
+  assert.equal(founderSharePath('ROBOT5'), '/signup/founder?coupon=ROBOT5');
+});
+
 test('time window starts at redemption', () => {
   const end = expiresAtFromRedeem(14, now);
   assert.equal(end.toISOString(), '2026-10-10T12:00:00.000Z');

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { captureScoutCouponFromSearch, clearScoutCoupon } from "@/lib/scoutCouponSession";
 
 const G = "oklch(0.696 0.17 162.48)";
 
@@ -26,6 +27,7 @@ export default function ScoutCouponCard() {
       } else if (result?.summary) {
         toast.message(result.summary);
       }
+      if (result?.active) clearScoutCoupon();
       const url = new URL(window.location.href);
       if (url.searchParams.has("coupon")) {
         url.searchParams.delete("coupon");
@@ -39,7 +41,7 @@ export default function ScoutCouponCard() {
 
   useEffect(() => {
     if (autoTried.current || isLoading || access?.active) return;
-    const preset = new URLSearchParams(window.location.search).get("coupon");
+    const preset = captureScoutCouponFromSearch();
     if (!preset) return;
     autoTried.current = true;
     setCode(preset);
