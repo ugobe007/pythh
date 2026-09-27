@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const {
   parseCampaignBrief,
   campaignColumns,
+  campaignFitDelta,
   buildRaisePlan,
 } = require('../lib/campaignBrief.js');
 const { buildFreeDeckFocus } = require('../lib/deckOutline.js');
@@ -31,6 +32,31 @@ test('a campaign brief keeps stage, proof, and raise priorities', () => {
   assert.equal(columns.extracted_data.funding_stage, 'seed');
   assert.equal(columns.extracted_data.description, 'keep');
   assert.equal(columns.extracted_data.has_revenue, false);
+});
+
+test('raise priorities change which investor ranks first', () => {
+  const talent = {
+    name: 'Talent Fund',
+    firm: 'Talent Fund',
+    sectors: ['Robotics'],
+    stage: ['Seed'],
+    investment_thesis: 'We back hiring and team building.',
+  };
+  const growth = {
+    name: 'Growth Fund',
+    firm: 'Growth Fund',
+    sectors: ['Robotics'],
+    stage: ['Seed'],
+    investment_thesis: 'We back customer acquisition and growth.',
+  };
+  const hiring = {
+    extracted_data: { funding_stage: 'seed', raise_priorities: ['hire'], has_revenue: false, has_product: true },
+  };
+  const customers = {
+    extracted_data: { funding_stage: 'seed', raise_priorities: ['customers'], has_revenue: false, has_product: true },
+  };
+  assert.ok(campaignFitDelta(hiring, talent) > campaignFitDelta(hiring, growth));
+  assert.ok(campaignFitDelta(customers, growth) > campaignFitDelta(customers, talent));
 });
 
 test('the raise plan names the round and what the money is for', () => {
