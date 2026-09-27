@@ -142,26 +142,14 @@ export function LivewireMatchPanel({
       id={id}
       className={`rounded-xl text-left overflow-hidden min-w-0 ${horizontal ? "w-full" : "flex flex-col h-full"}`}
       style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
-      aria-label="Livewire investor matches"
+      aria-label="Live matches"
       onMouseEnter={() => onPause?.(true)}
       onMouseLeave={() => onPause?.(false)}
     >
-      <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <p
-          className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase flex items-center gap-2"
-          style={{ color: PURPLE_ACCENT }}
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
-            style={{ backgroundColor: PURPLE_ACCENT }}
-            aria-hidden
-          />
-          Livewire matches
-        </p>
-        <span className="text-[12px] font-mono" style={{ color: DIM }}>
-          {livewireHeaderStatus(loading, visible.length, page, pageCount)}
-        </span>
-      </div>
+      <p className="text-sm inline m-0 p-0" style={{ color: MUTED }}>
+        Live matches
+        <span style={{ color: DIM }}> · {livewireHeaderStatus(loading, visible.length, page, pageCount)}</span>
+      </p>
 
       {loading && visible.length === 0 ? (
         <div
@@ -187,7 +175,7 @@ export function LivewireMatchPanel({
             <div
               className={`flex items-center gap-1.5 px-5 pb-3 ${horizontal ? "justify-center pt-3" : "pt-2"}`}
               role="tablist"
-              aria-label="Rotate livewire matches"
+              aria-label="Rotate live matches"
             >
               {Array.from({ length: pageCount }, (_, i) => (
                 <button
