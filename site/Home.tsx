@@ -462,6 +462,7 @@ function HeroSection({
   );
 
   return (
+    <>
     <section
       className="relative pt-16"
       style={{ backgroundColor: PAGE }}
@@ -502,22 +503,21 @@ function HeroSection({
           </Link>
         </p>
       </div>
-      <div className="container relative z-10 max-w-[1280px] mx-auto px-6 pb-10 lg:pb-12">
-        <HomeProofStrip
-          variant="panel"
-          pairRate={pairRate}
-          pairHits={pairHits}
-          pairStartups={pairStartups}
-          pairRateTop50={pairRateTop50}
-          pairHitsTop50={pairHitsTop50}
-          startupsFunded={startupsFunded}
-          investors={investors}
-        />
-        <div className="w-full min-w-0 mt-10">
-          <HomeFeaturedMatch orientation="horizontal" />
-        </div>
-      </div>
     </section>
+    <HomeProofStrip
+      variant="strip"
+      pairRate={pairRate}
+      pairHits={pairHits}
+      pairStartups={pairStartups}
+      pairRateTop50={pairRateTop50}
+      pairHitsTop50={pairHitsTop50}
+      startupsFunded={startupsFunded}
+      investors={investors}
+    />
+    <div className="container max-w-[1280px] mx-auto px-6 py-10">
+      <HomeFeaturedMatch orientation="horizontal" />
+    </div>
+    </>
   );
 }
 
