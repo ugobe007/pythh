@@ -45,7 +45,8 @@ import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
-import FreeDeckFocus from '@/components/FreeDeckFocus';
+import { CampaignPlan, CampaignPriorities } from '@/components/CampaignQuestions';
+import { campaignSubmitBody, readCampaignBrief } from '@/lib/campaignBrief';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
@@ -164,6 +165,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const refreshed =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refreshed') === '1';
   const [startupId, setStartupId] = useState<string | null>(null);
+  const [matchPass, setMatchPass] = useState(0);
+  const [planBrief, setPlanBrief] = useState(() => readCampaignBrief(url));
   const [investorMix] = useState<InvestorMix>('balanced');
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [emailDraft, setEmailDraft] = useState(() => readAccountEmail(user) || readJoinEmail());
@@ -325,11 +328,17 @@ export default function InstantMatchPreview({ url }: Props) {
       setLoading(true);
       setError(null);
       try {
+        const submitBody = JSON.stringify({
+          url,
+          source: 'matches_preview',
+          force_generate: matchPass > 0,
+          ...campaignSubmitBody(readCampaignBrief(url)),
+        });
         const submitRes = await fetch(apiUrl('/api/instant/submit'), {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, source: 'matches_preview' }),
+          body: submitBody,
         });
         const submitJson = await submitRes.json().catch(() => ({}));
         if (!submitRes.ok && submitRes.status !== 202) {
@@ -344,7 +353,7 @@ export default function InstantMatchPreview({ url }: Props) {
               method: 'POST',
               credentials: 'same-origin',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url, source: 'matches_preview' }),
+              body: submitBody,
             });
             const retryJson = await retry.json().catch(() => ({}));
             if (!retry.ok && retry.status !== 202) {
@@ -372,7 +381,7 @@ export default function InstantMatchPreview({ url }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, matchPass]);
 
   useEffect(() => {
     if (!startupId) return;
@@ -653,7 +662,22 @@ export default function InstantMatchPreview({ url }: Props) {
         })}
       </ul>
 
-      <FreeDeckFocus items={preview.deck_focus} />
+      {planBrief.priorities.length ? (
+        <CampaignPlan
+          names={visible.map((match) => match.investor?.firm || match.investor?.name || '')}
+          brief={planBrief}
+          deckFocus={preview.deck_focus}
+          onSave={() => handleSignup('save')}
+        />
+      ) : (
+        <CampaignPriorities
+          url={url}
+          onDone={(next) => {
+            setPlanBrief(next);
+            setMatchPass((pass) => pass + 1);
+          }}
+        />
+      )}
 
       <RaiseCampaignBoard {...campaignInput} matchCount={visible.length} saved={alreadySaved} />
 

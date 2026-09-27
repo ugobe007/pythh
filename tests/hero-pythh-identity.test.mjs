@@ -6,7 +6,7 @@ const indexHtml = readFileSync(new URL('../site/index.html', import.meta.url), '
 
 assert.match(
   hero,
-  /Paste your startup URL\. We read the company and build the raise: strategy, deck, and the note that gets the meeting/,
+  /Paste your startup URL to start the campaign/,
 );
 assert.match(hero, /Automate Your Raise\. We find investors who will fund you/);
 assert.doesNotMatch(hero, /You build the company/);
@@ -15,7 +15,7 @@ assert.doesNotMatch(hero, /investors that "get it"/);
 
 assert.match(
   indexHtml,
-  /Paste your startup URL\. We read the company and build the raise: strategy, deck, and the note that gets the meeting/,
+  /Paste your startup URL to start the campaign/,
 );
 assert.doesNotMatch(indexHtml, /Oracle qualifies investors/);
 assert.doesNotMatch(indexHtml, /maximum-scale/);

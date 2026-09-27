@@ -18,6 +18,8 @@ import { trpc } from "@/lib/trpc";
 
 import SharedNavbar from "@/components/SharedNavbar";
 import InstantMatchPreview from "@/components/InstantMatchPreview";
+import CampaignQuestions from "@/components/CampaignQuestions";
+import { briefReadyForMatch, readCampaignBrief } from "@/lib/campaignBrief";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import { fetchGrowthAssignment } from "@/lib/growthExperiment";
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
@@ -277,11 +279,20 @@ export default function Matches() {
   const [urlEntryError, setUrlEntryError] = useState(
     () => readMatchesSearchState().missingUrlParam,
   );
+  const [qualifiedUrl, setQualifiedUrl] = useState<string | null>(() => {
+    const initial = readMatchesSearchState().previewUrl;
+    return initial && briefReadyForMatch(readCampaignBrief(initial)) ? initial : null;
+  });
 
   useEffect(() => {
     const state = readMatchesSearchState();
     setHighlightId(state.highlightId);
     setPreviewUrl(state.previewUrl);
+    setQualifiedUrl(
+      state.previewUrl && briefReadyForMatch(readCampaignBrief(state.previewUrl))
+        ? state.previewUrl
+        : null,
+    );
     setMissingUrlParam(state.missingUrlParam);
     setUrlEntryError(state.missingUrlParam);
 
@@ -397,7 +408,12 @@ export default function Matches() {
 
       <main className="container pt-24 pb-20 max-w-7xl px-4 sm:px-6">
 
-        {previewUrl ? (
+        {previewUrl && qualifiedUrl !== previewUrl ? (
+          <CampaignQuestions
+            url={previewUrl}
+            onQualified={() => setQualifiedUrl(previewUrl)}
+          />
+        ) : previewUrl ? (
           <InstantMatchPreview url={previewUrl} />
         ) : (
         <>
