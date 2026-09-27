@@ -650,11 +650,13 @@ router.get('/:startupId', async (req, res) => {
     let shortlistBlended = false;
     const strongStored = eligibleRows.filter((row) => (Number(row.fit_rank) || 0) >= 48).length;
     if (eligibleRows.length > 0 && hasSpecificSector(fitSectors) && strongStored < 3) {
-      const suggested = await buildSuggestedInvestorMatches(startup, { maxSectors: 3 });
+      const specificFirst = fitSectors.filter((s) => !require('../../lib/distinctiveInvestorFit').GENERIC_SECTORS.has(String(s).toLowerCase()));
+      const lookupSectors = [...specificFirst, ...fitSectors.filter((s) => !specificFirst.includes(s))].slice(0, 6);
+      const suggested = await buildSuggestedInvestorMatches({ ...startup, sectors: lookupSectors }, { maxSectors: 6 });
       const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
       pool = blended.rows;
       shortlistBlended = blended.added > 0;
-      if (shortlistBlended) {
+      if (shortlistBlended && eligibleRows.length >= 20) {
         const storedIds = new Set(eligibleRows.map((row) => String(row.investor_id)));
         const fresh = pool.filter((row) => row.investor_id && !storedIds.has(String(row.investor_id)));
         void persistSectorSuggestions(startup.id, fresh);
