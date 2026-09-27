@@ -181,6 +181,7 @@ function readMatchesSearchState() {
     highlightId: params.get("highlight"),
     previewUrl: normalizePreviewUrl(rawUrl),
     missingUrlParam: params.has("url") && !rawUrl?.trim(),
+    improveRequested: params.get("improve") === "1",
   };
 }
 
@@ -283,6 +284,9 @@ export default function Matches() {
     const initial = readMatchesSearchState().previewUrl;
     return initial && briefReadyForMatch(readCampaignBrief(initial)) ? initial : null;
   });
+  const [improveRequested, setImproveRequested] = useState(
+    () => readMatchesSearchState().improveRequested,
+  );
 
   useEffect(() => {
     const state = readMatchesSearchState();
@@ -293,6 +297,7 @@ export default function Matches() {
         ? state.previewUrl
         : null,
     );
+    setImproveRequested(state.improveRequested);
     setMissingUrlParam(state.missingUrlParam);
     setUrlEntryError(state.missingUrlParam);
 
@@ -408,7 +413,7 @@ export default function Matches() {
 
       <main className="container pt-24 pb-20 max-w-7xl px-4 sm:px-6">
 
-        {previewUrl && qualifiedUrl !== previewUrl ? (
+        {previewUrl && !improveRequested && qualifiedUrl !== previewUrl ? (
           <CampaignQuestions
             url={previewUrl}
             onQualified={() => setQualifiedUrl(previewUrl)}
