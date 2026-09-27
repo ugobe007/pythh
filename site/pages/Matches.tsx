@@ -182,6 +182,7 @@ function readMatchesSearchState() {
     previewUrl: normalizePreviewUrl(rawUrl),
     missingUrlParam: params.has("url") && !rawUrl?.trim(),
     improveRequested: params.get("improve") === "1",
+    qualifyRequested: params.get("step") === "qualify",
   };
 }
 
@@ -287,6 +288,9 @@ export default function Matches() {
   const [improveRequested, setImproveRequested] = useState(
     () => readMatchesSearchState().improveRequested,
   );
+  const [qualifyRequested, setQualifyRequested] = useState(
+    () => readMatchesSearchState().qualifyRequested,
+  );
 
   useEffect(() => {
     const state = readMatchesSearchState();
@@ -298,6 +302,7 @@ export default function Matches() {
         : null,
     );
     setImproveRequested(state.improveRequested);
+    setQualifyRequested(state.qualifyRequested);
     setMissingUrlParam(state.missingUrlParam);
     setUrlEntryError(state.missingUrlParam);
 
@@ -413,10 +418,16 @@ export default function Matches() {
 
       <main className="container pt-24 pb-20 max-w-7xl px-4 sm:px-6">
 
-        {previewUrl && !improveRequested && qualifiedUrl !== previewUrl ? (
+        {previewUrl && !improveRequested && (qualifyRequested || qualifiedUrl !== previewUrl) ? (
           <CampaignQuestions
             url={previewUrl}
-            onQualified={() => setQualifiedUrl(previewUrl)}
+            onQualified={() => {
+              setQualifiedUrl(previewUrl);
+              setQualifyRequested(false);
+              const params = new URLSearchParams(window.location.search);
+              params.set("step", "matches");
+              navigate(`/matches?${params.toString()}`);
+            }}
           />
         ) : previewUrl ? (
           <InstantMatchPreview url={previewUrl} />
