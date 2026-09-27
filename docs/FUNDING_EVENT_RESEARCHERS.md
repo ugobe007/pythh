@@ -49,4 +49,18 @@ npm run test:funding-research
 ```
 
 The resolution loop runs a dry-or-apply research step on Hit@5 waves
-(every 5 waves) after audited ingest.
+(every 5 waves) after audited ingest, then folds the briefing into
+`investors.signals.match_model` (`npm run funding:match-model`).
+
+## Match loop
+
+`npm run funding:match-loop` is research → analyze → update:
+
+1. `funding:attention` — why the check was written
+2. `funding:research` — amount, round, problem, team
+3. `funding:match-model` — writes `signals.match_model` (stage, sector, amount, priorities)
+
+Preview reads that model on the next shortlist (`applyResearchRank`). This does
+not change `GOD_SCORE_CONFIG`. Investors with no researched rounds are left
+where they were. A fund whose recent checks match the startup’s sector, stage,
+and raise priority moves up.
