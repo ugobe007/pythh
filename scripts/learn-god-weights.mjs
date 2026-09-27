@@ -97,7 +97,7 @@ function writeLiveWeights(weights, report) {
     .replace(/product: [\d.]+,/, `product: ${fmt(weights.product)},`)
     .replace(/vision: [\d.]+,/, `vision: ${fmt(weights.vision)},`);
   nextPub = nextPub.replace(
-    /Team \d+, traction \d+, market \d+, product \d+, vision \d+ — signal-informed live shares that sum to 100\./,
+    /Team \d+, traction \d+, market \d+, product \d+, vision \d+ — (?:signal-informed live|learned from funded rounds,) shares that sum to 100\./,
     `Team ${pts.team}, traction ${pts.traction}, market ${pts.market}, product ${pts.product}, vision ${pts.vision} — learned from funded rounds, shares that sum to 100.`,
   );
   nextPub = nextPub.replace(

@@ -40,7 +40,10 @@ const side = spawnSync('npm', ['run', sidebar[0], '--', ...sidebar[1]], {
   stdio: 'inherit',
   env: process.env,
 });
-if (side.status !== 0) console.error('sidebar learner did not change weights this pass');
+if (side.status !== 0) {
+  failed += 1;
+  console.error(`sidebar learner failed: ${sidebar[0]} (${side.status})`);
+}
 
 if (failed) {
   console.error(`match loop finished with ${failed} failed step(s)`);
