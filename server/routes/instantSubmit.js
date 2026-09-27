@@ -287,17 +287,6 @@ function matchCacheSet(startupId, matches, matchCount, extra = {}) {
   matchResultsCache.set(startupId, { matches, matchCount, loadedAt: Date.now(), ...extra });
 }
 
-async function retainedCampaignWrite(startupId, extracted, stage) {
-  const { data } = await supabase
-    .from('startup_uploads')
-    .select('extracted_data')
-    .eq('id', startupId)
-    .maybeSingle();
-  const extracted_data = retainCampaignExtracted(data?.extracted_data, extracted);
-  const campaignStage = stageNumber(extracted_data.funding_stage);
-  return { extracted_data, stage: campaignStage == null ? stage : campaignStage };
-}
-
 function matchCacheInvalidate(startupId) {
   matchResultsCache.delete(startupId);
 }
@@ -1067,7 +1056,19 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
 
     const scores = calculateGODScore(enrichedRow);
     const completenessResult = calculateCompleteness(enrichedRow);
-    const keptCampaign = await retainedCampaignWrite(startupId, enrichedRow.extracted_data, enrichedRow.stage);
+
+    // Fetch current campaign fields immediately before update to minimize race window
+    const { data: currentRow } = await supabase
+      .from('startup_uploads')
+      .select('extracted_data')
+      .eq('id', startupId)
+      .maybeSingle();
+    const extracted_data = retainCampaignExtracted(currentRow?.extracted_data, enrichedRow.extracted_data);
+    const campaignStage = stageNumber(extracted_data.funding_stage);
+    const keptCampaign = {
+      extracted_data,
+      stage: campaignStage == null ? enrichedRow.stage : campaignStage
+    };
 
     await supabase
       .from('startup_uploads')
@@ -1792,11 +1793,19 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // Calculate data completeness after enrichment
     completenessResult = calculateCompleteness(enrichedRow);
     console.log(`  🔄 [BG] Data completeness: ${completenessResult.percentage}%`);
-    const keptCampaign = await retainedCampaignWrite(startupId, enrichedRow.extracted_data, enrichedRow.stage);
+
+    // Fetch current campaign fields immediately before update to minimize race window
+    const { data: currentRow } = await supabase
+      .from('startup_uploads')
+      .select('extracted_data')
+      .eq('id', startupId)
+      .maybeSingle();
+    const extracted_data = retainCampaignExtracted(currentRow?.extracted_data, enrichedRow.extracted_data);
+    const campaignStage = stageNumber(extracted_data.funding_stage);
     enrichedRow = {
       ...enrichedRow,
-      extracted_data: keptCampaign.extracted_data,
-      stage: keptCampaign.stage,
+      extracted_data,
+      stage: campaignStage == null ? enrichedRow.stage : campaignStage,
     };
 
     // ── Update startup row with enriched data ──
