@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import type { RecentMatch } from "@/components/RecentMatchesFeed";
-import { BORDER, CARD, DIM, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_SUBTLE, TEXT } from "@/lib/designTokens";
+import { BORDER, CARD, DIM, G, GOLD, MUTED, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_SUBTLE, TEXT } from "@/lib/designTokens";
 
 export const LIVEWIRE_PAGE_SIZE = 6;
 
@@ -142,9 +142,9 @@ export function LivewireMatchPanel({
       <p className="m-0 p-0 inline">
         <span
           className="font-display font-semibold"
-          style={{ color: TEXT, fontSize: "1.5rem", letterSpacing: "-0.03em" }}
+          style={{ color: G, fontSize: "1.5rem", letterSpacing: "-0.03em" }}
         >
-          Live Matches
+          {`---> Live Matches`}
         </span>
         <span className="text-[13px] font-medium" style={{ color: DIM }}>
           {" "}· {livewireHeaderStatus(loading, visible.length, page, pageCount)}
