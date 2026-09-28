@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { urlsFromDuckDuckGoHtml, normalizeOfficialUrl } from '../lib/urlSearchService.mjs';
+import {
+  urlsFromDuckDuckGoHtml,
+  urlsFromGoogleWebHtml,
+  urlsFromMojeekHtml,
+  normalizeOfficialUrl,
+} from '../lib/urlSearchService.mjs';
 import { isPaidAiUnavailable } from '../scripts/lib/paidAiFallback.mjs';
 
 test('URL search service keeps official hosts and drops publishers', () => {
@@ -11,6 +16,23 @@ test('URL search service keeps official hosts and drops publishers', () => {
   ].join(' ');
   assert.deepEqual(urlsFromDuckDuckGoHtml(html), ['https://example.com']);
   assert.equal(normalizeOfficialUrl('https://www.crunchbase.com/organization/x'), null);
+});
+
+test('Google Web udm=14 results keep the target and drop the redirect host', () => {
+  const html = [
+    '<a href="/url?q=https://sequoiacap.com/&amp;sa=U">',
+    '<a href="/url?q=https://www.google.com/search%3Fq%3Dsequoia">',
+    '<a href="/url?q=https://techcrunch.com/story">',
+  ].join('');
+  assert.deepEqual(urlsFromGoogleWebHtml(html), ['https://sequoiacap.com']);
+});
+
+test('Mojeek results drop the engine itself', () => {
+  const html = [
+    '<a href="https://www.mojeek.com/about/">About</a>',
+    '<a href="https://sequoiacap.com/">Sequoia</a>',
+  ].join('');
+  assert.deepEqual(urlsFromMojeekHtml(html), ['https://sequoiacap.com']);
 });
 
 test('paid AI credit errors are the signal to use inference and URL search', () => {
