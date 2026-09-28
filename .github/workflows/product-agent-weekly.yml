@@ -22,8 +22,10 @@ jobs:
       - name: Product agent loop
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run product:agent -- --max-turns=30 --max-budget-usd=3
 
       - uses: actions/upload-artifact@v5

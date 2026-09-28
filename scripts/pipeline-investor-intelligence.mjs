@@ -134,7 +134,7 @@ async function main() {
     const gemini = hasGeminiSearch();
     const urlBatch = parseInt(process.env.URL_DISCOVERY_BATCH || (gemini ? '200' : '100'), 10);
     const urlLimit = LIMIT > 0 ? String(Math.min(LIMIT, urlBatch)) : String(urlBatch);
-    console.log(`\n── Stage 1b: Investor URL discovery (${gemini ? 'Gemini Google Search' : 'Custom Search'}) ──`);
+    console.log(`\n── Stage 1b: Investor URL discovery (URL search service${gemini ? ', Gemini last' : ''}) ──`);
     await run(process.execPath, [
       path.join(root, 'discover-investor-urls.mjs'),
       '--apply',
