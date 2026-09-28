@@ -95,7 +95,7 @@ async function main() {
   const saPath = (process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
   const gemini = hasGeminiSearch();
   console.log('\n🔎 Investor URL discovery');
-  console.log('   backends: URL search service (Google Web udm=14, DuckDuckGo No-AI, Mojeek)');
+  console.log('   backends: URL search service (Google Web ?udm=14, DuckDuckGo No-AI, Mojeek)');
   if (gemini || cse) {
     console.log(`   paid last resort: ${[cse && 'Custom Search API', gemini && 'Gemini'].filter(Boolean).join(' + ')}`);
   }

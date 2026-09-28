@@ -5,6 +5,7 @@ import {
   urlsFromGoogleWebHtml,
   urlsFromMojeekHtml,
   normalizeOfficialUrl,
+  googleWebSearchUrl,
 } from '../lib/urlSearchService.mjs';
 import { isPaidAiUnavailable } from '../scripts/lib/paidAiFallback.mjs';
 
@@ -18,7 +19,13 @@ test('URL search service keeps official hosts and drops publishers', () => {
   assert.equal(normalizeOfficialUrl('https://www.crunchbase.com/organization/x'), null);
 });
 
-test('Google Web udm=14 results keep the target and drop the redirect host', () => {
+test('Google Web search starts with ?udm=14', () => {
+  const url = googleWebSearchUrl('sequoia%20capital');
+  assert.match(url, /^https:\/\/www\.google\.com\/search\?udm=14&q=/);
+  assert.equal(url.includes('&udm=14'), false);
+});
+
+test('Google Web ?udm=14 results keep the target and drop the redirect host', () => {
   const html = [
     '<a href="/url?q=https://sequoiacap.com/&amp;sa=U">',
     '<a href="/url?q=https://www.google.com/search%3Fq%3Dsequoia">',

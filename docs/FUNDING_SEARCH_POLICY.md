@@ -79,7 +79,7 @@ Anthropic, OpenAI, and Gemini are not required for the hunt. A credit, quota,
 or auth error is not a stop. Continue on the **inference engine** (Google News
 RSS + extractors, `--provider=inference`). Missing startup or firm websites are
 recovered by the **URL search service** (`lib/urlSearchService.mjs`) — Google Web
-(`udm=14`, no AI overview), then DuckDuckGo No-AI, then Mojeek. The same lookup
+(`?udm=14`, no AI overview), then DuckDuckGo No-AI, then Mojeek. The same lookup
 is what `outcomes:recover-urls` and investor URL discovery use.
 Gemini runs only after that service finds nothing.
 
