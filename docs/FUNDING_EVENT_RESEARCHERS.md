@@ -54,7 +54,7 @@ The resolution loop runs a dry-or-apply research step on Hit@5 waves
 
 ## Match loop
 
-`npm run funding:match-loop` is research → analyze → update:
+`npm run funding:match-loop` is research → analyze → update. Platform Daily Batch runs it at 12:30 UTC with `--apply --no-sidebar`, so the match model updates in the database and the GOD weight sidebar stays a manual step:
 
 1. `funding:attention` — why the check was written
 2. `funding:research` — amount, round, problem, team

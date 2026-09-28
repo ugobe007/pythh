@@ -53,7 +53,7 @@ const sb = createClient(
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
-function run(cmd, args, { shell = false } = {}) {
+function run(cmd, args, { shell = false, allowFail = false } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: repo,
@@ -61,7 +61,15 @@ function run(cmd, args, { shell = false } = {}) {
       env: process.env,
       shell,
     });
-    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} ${args.join(' ')} exit ${code}`))));
+    child.on('close', (code) => {
+      if (code === 0) return resolve();
+      const message = `${cmd} ${args.join(' ')} exit ${code}`;
+      if (allowFail) {
+        console.error(`⚠️ continuing after: ${message}`);
+        return resolve();
+      }
+      return reject(new Error(message));
+    });
   });
 }
 
@@ -134,7 +142,7 @@ async function main() {
       '--delay=1500',
       ...offsetFlag(),
       ...cohortFlag(),
-    ]);
+    ], { allowFail: true });
   }
 
   if (!skip('--skip-enrich')) {

@@ -8,6 +8,27 @@ import { chromium } from 'playwright';
 const DEFAULT_BASE = (process.env.BASE || 'https://pythh.ai').replace(/\/$/, '');
 const DEFAULT_TEST_URL = process.env.SMOKE_URL || 'stripe.com';
 
+async function flushUnlockStarted(base, probeRunId, startupId, steps) {
+  if (!probeRunId) return;
+  const { res } = await fetchJson(base, '/api/analytics/flush', {
+    method: 'POST',
+    body: JSON.stringify({
+      rows: [
+        {
+          operation: 'wizard_unlock_flow_started',
+          status: 'tracked',
+          output: {
+            startup_id: startupId,
+            source: 'wizard_unlock_probe',
+            probe_run_id: probeRunId,
+          },
+        },
+      ],
+    }),
+  });
+  steps.push({ step: 'wizard_unlock_flow_started_flush', ok: res.ok, status: res.status });
+}
+
 async function fetchJson(base, route, opts = {}) {
   const url = `${base}${route.startsWith('/') ? route : `/${route}`}`;
   const res = await fetch(url, {
@@ -108,6 +129,7 @@ export async function runWizardUnlockProbe(opts = {}) {
         ok: true,
         url: page.url(),
       });
+      await flushUnlockStarted(base, probeRunId, startupId, steps);
       return { ok: true, base, startupId, steps, destination: 'one_step_signup_gate' };
     }
 
@@ -119,6 +141,7 @@ export async function runWizardUnlockProbe(opts = {}) {
         ok: true,
         url: page.url(),
       });
+      await flushUnlockStarted(base, probeRunId, startupId, steps);
       return { ok: true, base, startupId, steps, destination: 'improve_matches_panel' };
     }
 
@@ -179,26 +202,7 @@ export async function runWizardUnlockProbe(opts = {}) {
       };
     }
 
-    // Mirror client event for heartbeat verification (UI also fires on click when deployed)
-    if (probeRunId) {
-      const { res } = await fetchJson(base, '/api/analytics/flush', {
-        method: 'POST',
-        body: JSON.stringify({
-          rows: [
-            {
-              operation: 'wizard_unlock_flow_started',
-              status: 'tracked',
-              output: {
-                startup_id: startupId,
-                source: 'wizard_unlock_probe',
-                probe_run_id: probeRunId,
-              },
-            },
-          ],
-        }),
-      });
-      steps.push({ step: 'wizard_unlock_flow_started_flush', ok: res.ok, status: res.status });
-    }
+    await flushUnlockStarted(base, probeRunId, startupId, steps);
 
     return { ok: true, base, startupId, steps, card_title: cardTitle };
   } catch (err) {
