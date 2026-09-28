@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 
 const PAID_UNAVAILABLE =
-  /credit balance is too low|credits? (are )?depleted|insufficient.?credits?|quota|RESOURCE_EXHAUSTED|Claude Code returned an error result/i;
+  /credit balance is too low|credits? (are )?depleted|insufficient.?credits?|quota.?(exceeded|limit)|RESOURCE_EXHAUSTED/i;
 
 export function isPaidAiUnavailable(err) {
   const msg = String(err?.message || err || '');
