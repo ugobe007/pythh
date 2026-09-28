@@ -16,6 +16,7 @@ import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
 import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
 import { buildOrchestratorSystemPrompt } from './lib/orchestratorPersona.mjs';
+import { isPaidAiUnavailable, runFreeSearchFallback } from './lib/paidAiFallback.mjs';
 
 dotenv.config();
 
@@ -153,6 +154,9 @@ async function runAgent() {
 
   await persistRun(report, outFile);
   await syncFindings();
+  if (isPaidAiUnavailable(report.result)) {
+    throw new Error(String(report.result || 'Credit balance is too low'));
+  }
   return report;
 }
 
@@ -203,6 +207,9 @@ async function main() {
 }
 
 main().catch((e) => {
+  if (isPaidAiUnavailable(e)) {
+    process.exit(runFreeSearchFallback(repoRoot));
+  }
   console.error('Fatal:', e.message || e);
   process.exit(1);
 });

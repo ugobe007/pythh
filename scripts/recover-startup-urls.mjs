@@ -18,6 +18,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createRequire } from 'node:module';
 import pg from 'pg';
 import { namesLikelySameStartup, shouldParkWebsiteTaken } from './lib/startupUrlIdentity.mjs';
+import { searchOfficialUrls } from '../lib/urlSearchService.mjs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -98,33 +99,8 @@ async function probeDomain(host) {
 }
 
 async function duckDuckGoCandidates(name) {
-  const q = encodeURIComponent(`"${name}" official website startup OR company -site:linkedin.com -site:crunchbase.com`);
-  try {
-    const res = await fetch(`https://html.duckduckgo.com/html/?q=${q}`, {
-      signal: AbortSignal.timeout(12000),
-      headers: {
-        'user-agent': 'Mozilla/5.0 PythhUrlRecovery/1.0',
-        accept: 'text/html',
-      },
-    });
-    if (!res.ok) return [];
-    const html = await res.text();
-    const hrefs = [...html.matchAll(/uddg=([^&"]+)/g)].map((m) => {
-      try {
-        return decodeURIComponent(m[1]);
-      } catch {
-        return null;
-      }
-    });
-    const out = [];
-    for (const href of hrefs) {
-      const norm = normalizeWebsite(href);
-      if (norm) out.push(norm);
-    }
-    return [...new Set(out)].slice(0, 8);
-  } catch {
-    return [];
-  }
+  const found = await searchOfficialUrls(name);
+  return found.map((href) => normalizeWebsite(href)).filter(Boolean);
 }
 
 function candidateHosts(name) {

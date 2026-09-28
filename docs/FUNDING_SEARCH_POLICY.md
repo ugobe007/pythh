@@ -73,6 +73,18 @@ Skip paid automatically when inference/ontology writes events, pairs, or ledger
 rows. Junk names are parked before any paid call (`--skip-junk-names` is default
 on cascade).
 
+## When paid search cannot run
+
+Anthropic, OpenAI, and Gemini are not required for the hunt. A credit, quota,
+or auth error is not a stop. Continue on the **inference engine** (Google News
+RSS + extractors, `--provider=inference`). Missing startup or firm websites are
+recovered by the **URL search service** (`lib/urlSearchService.mjs`, DuckDuckGo
+HTML) — the same lookup `outcomes:recover-urls` and investor URL discovery use.
+Gemini runs only after that service finds nothing.
+
+Research, growth, and product agent loops follow the same rule: a credit-balance
+result runs inference search and URL recovery instead of failing the job.
+
 ## Do not
 
 - Reorder cascade to paid-first to “get more hits.”

@@ -95,14 +95,11 @@ async function main() {
   const saPath = (process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
   const gemini = hasGeminiSearch();
   console.log('\n🔎 Investor URL discovery');
-  if (!gemini && !cse) {
-    console.error('❌ No search backend configured:');
-    console.error('   GEMINI_API_KEY — recommended (Google Search grounding, whole web)');
-    console.error('   OR GOOGLE_CUSTOM_SEARCH_CX + service account/API key (site-restricted engines only since Jan 2026)');
-    process.exit(1);
+  console.log('   backends: URL search service (DuckDuckGo)');
+  if (gemini || cse) {
+    console.log(`   paid last resort: ${[cse && 'Custom Search API', gemini && 'Gemini'].filter(Boolean).join(' + ')}`);
   }
-  console.log(`   backends: ${[gemini && 'Gemini Google Search (primary)', cse && 'Custom Search API'].filter(Boolean).join(' + ')}`);
-  if (gemini) console.log('   gemini: whole-web search via GEMINI_API_KEY');
+  if (gemini) console.log('   gemini: only after the URL search service finds nothing');
   if (cse) console.log(`   cse cx: ${cse.cx.slice(0, 16)}...`);
   console.log(`   mode: ${DRY_RUN ? 'dry-run' : 'APPLY'} · limit ${LIMIT || 'ALL'} · delay ${DELAY_MS}ms`);
   if (!gemini && cse) console.log('   free tier: 100 queries/day — use --limit=100 for daily batch\n');
