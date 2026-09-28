@@ -16,6 +16,7 @@ on:
     - cron: '45 8 * * *'   # portfolio-exits (book verified M&A/IPO exits, target-only, honest entries)
     - cron: '15 7 * * *'   # newsletter-prebuild (after sage-review; Daily Signal page reads this)
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
+    - cron: '30 12 * * *'  # funding-match-loop (attention → research → match model; no GOD rewrite)
   workflow_dispatch:
     inputs:
       job:
@@ -37,6 +38,7 @@ on:
           - portfolio-score-validate
           - newsletter-prebuild
           - daily-brief
+          - funding-match-loop
 
 concurrency:
   group: platform-daily-${{ github.event.schedule || github.event.inputs.job }}
@@ -180,6 +182,15 @@ jobs:
     with:
       run: node scripts/prebuild-newsletter.mjs
       timeout_minutes: 15
+      node_version: '22'
+
+  funding-match-loop:
+    if: github.event.schedule == '30 12 * * *' || github.event.inputs.job == 'funding-match-loop'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/funding-match-loop.mjs --apply --no-sidebar
+      timeout_minutes: 25
       node_version: '22'
 
   daily-brief:
