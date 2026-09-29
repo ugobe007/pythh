@@ -68,7 +68,7 @@ function inspectMatchesUrl(startupUrl, fallbackUrl) {
   return `${APP_BASE}/matches?url=${encodeURIComponent(normalized)}`;
 }
 
-/** Same mix as the preview page, so the email names the shortlist the founder sees. */
+/** Same ranking pipeline as the preview page, so the email names the shortlist the founder sees. */
 async function loadEmailShortlist(startup) {
   const { data: matchRows, error } = await supabase
     .from('startup_investor_matches')
@@ -78,14 +78,52 @@ async function loadEmailShortlist(startup) {
       why_you_match,
       created_at,
       investors (
-        id, name, firm, title, type, is_individual, capital_type, sectors, stage
+        id, name, firm, title, type, is_individual, capital_type, sectors, stage, investment_thesis, signals, linkedin_url, check_size_min, check_size_max, investor_tier, twitter_url, photo_url, email, email_best_guess, email_candidates, email_status, email_has_mx, notable_investments, portfolio_companies, total_investments, last_investment_date
       )
     `)
     .eq('startup_id', startup.id)
-    .order('match_score', { ascending: false })
-    .limit(80);
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .limit(120);
   if (error || !matchRows?.length) return [];
-  return buildPreviewMatchList(matchRows, resolvePreviewMixOptions(startup, null, 8)).slice(0, 8);
+  
+  const eligibleRows = matchRows.filter((row) => {
+    const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+    return inv && (inv.id || row.investor_id);
+  });
+  
+  const fitSectors = sectorsForMatching(startup);
+  const startupForFit = { ...startup, sectors: fitSectors.length ? fitSectors : startup.sectors };
+  for (const row of eligibleRows) {
+    const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+    row.fit_rank = distinctiveFitScore(startupForFit, inv);
+  }
+  
+  let pool = eligibleRows;
+  const strongStored = eligibleRows.filter((row) => (Number(row.fit_rank) || 0) >= 48).length;
+  const campaignBrief = campaignBriefFromStartup(startup);
+  const hasCampaign = campaignIsActionable(campaignBrief);
+  
+  if (eligibleRows.length > 0 && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))) {
+    const suggested = await buildSuggestedInvestorMatches(startup, { maxSectors: 3 });
+    const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
+    pool = blended.rows;
+  }
+  
+  if (campaignBrief.priorities.length) {
+    const priorityRows = await buildPriorityInvestorMatches(startup, campaignBrief.priorities);
+    const seen = new Set(pool.map((row) => String(row.investor_id)));
+    for (const row of priorityRows) {
+      const id = String(row.investor_id || '');
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      pool.push(row);
+    }
+  }
+  
+  applyCampaignRank(startup, pool);
+  applyResearchRank(startup, pool);
+  
+  return buildPreviewMatchList(pool, resolvePreviewMixOptions(startup, null, 8)).slice(0, 8);
 }
 
 async function sendPreviewShortlistEmail({

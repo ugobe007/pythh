@@ -442,7 +442,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                       Emailed the match brief to {emailedTo}.
                     </p>
                     <p className="text-xs" style={{ color: MUTED }}>
-                      From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{companyLabel} — 5 investor matches from Pythh”.
+                      From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject starts with “{companyLabel} — 5 matches”.
                     </p>
                     <button
                       type="button"
