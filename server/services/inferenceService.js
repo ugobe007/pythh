@@ -333,20 +333,9 @@ function isGoogleNewsPaused() {
 }
 
 async function articlesFromGoogleNewsTab(query, maxArticles) {
-  const { googleNewsSearchUrl, articlesFromGoogleNewsHtml } = await import('../../lib/urlSearchService.mjs');
-  const res = await fetch(googleNewsSearchUrl(encodeURIComponent(query)), {
-    redirect: 'follow',
-    signal: AbortSignal.timeout(8000),
-    headers: {
-      'user-agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      accept: 'text/html,application/xhtml+xml',
-      'accept-language': 'en-US,en;q=0.9',
-    },
-  });
-  if (!res.ok) return [];
-  const html = await res.text();
-  if (/sorry\/|unusual traffic|enablejs|JavaScript is required/i.test(html)) return [];
+  const { googleNewsSearchUrl, articlesFromGoogleNewsHtml, fetchSearchHtml } = await import('../../lib/urlSearchService.mjs');
+  const html = await fetchSearchHtml(googleNewsSearchUrl(encodeURIComponent(query)));
+  if (!html) return [];
   return articlesFromGoogleNewsHtml(html).slice(0, maxArticles).map((item) => ({
     title: item.title,
     content: item.title,
