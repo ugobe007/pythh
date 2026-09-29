@@ -34,7 +34,7 @@ const TOOLS = [
   {
     id: 'positioning',
     title: 'Positioning',
-    promise: 'Your one-line story, plus sourced examples of how other startups led.',
+    promise: 'How to say what this company is. Same-size references only, when we have one.',
   },
   {
     id: 'advisors',
@@ -143,6 +143,15 @@ export default function FounderFreeTools(props: Props) {
                   {tool.id === 'positioning' && (
                     <div className="mt-3 space-y-3">
                       <p className="text-sm leading-relaxed" style={{ color: TEXT }}>{positioning.thesis}</p>
+                      <ul className="space-y-3">
+                        {positioning.bullets.map((bullet) => (
+                          <li key={bullet.title}>
+                            <p className="text-sm font-semibold" style={{ color: TEXT }}>{bullet.title}</p>
+                            <p className="text-xs mt-1 leading-relaxed" style={{ color: MUTED }}>{bullet.body}</p>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-[11px] leading-relaxed" style={{ color: DIM }}>{positioning.comparisonNote}</p>
                       {positioning.examples.map((example) => (
                         <div key={example.name}>
                           <p className="text-sm font-semibold" style={{ color: TEXT }}>{example.name}</p>
