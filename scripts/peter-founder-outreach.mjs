@@ -22,7 +22,7 @@ import { createClient } from '@supabase/supabase-js';
 import { resolveFounderContact } from '../lib/resolveFounderContact.mjs';
 import { hasHunterIo } from '../lib/hunterIo.mjs';
 import { hasZeroBounce } from '../lib/zeroBounce.mjs';
-import { getOutreachFromAddress } from '../lib/outreachFrom.js';
+import { getOutreachFromHeader } from '../lib/outreachFrom.js';
 import { loadOutreachBlockedStartups, isOutreachBlocked } from '../lib/portfolioOutreachGate.mjs';
 
 config();
@@ -80,7 +80,7 @@ const RESEND_KEY = process.env.RESEND_API_KEY;
 const EMAIL_SECRET = process.env.EMAIL_SECRET;
 const FROM = TEST_TO
   ? (process.env.OUTREACH_TEST_FROM || 'onboarding@resend.dev')
-  : getOutreachFromAddress();
+  : getOutreachFromHeader();
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_KEY');

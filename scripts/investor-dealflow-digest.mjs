@@ -37,7 +37,8 @@ const DRY_RUN = hasFlag('--dry-run');
 const SKIP_RECENT = !hasFlag('--force');
 
 const SITE_BASE = (process.env.SITE_URL || 'https://pythh.ai').replace(/\/$/, '');
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Peter at Pythh <pythia@pythh.ai>';
+const { getOutreachFromHeader } = require('../lib/outreachFrom.js');
+const EMAIL_FROM = getOutreachFromHeader();
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
 const sb = createClient(
