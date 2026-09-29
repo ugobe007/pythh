@@ -81,7 +81,10 @@ RSS + extractors, `--provider=inference`). Missing startup or firm websites are
 recovered by the **URL search service** (`lib/urlSearchService.mjs`) — Google Web
 (`?udm=14`, no AI overview), then DuckDuckGo No-AI, then Mojeek. The same lookup
 is what `outcomes:recover-urls` and investor URL discovery use.
-Gemini runs only after that service finds nothing.
+DuckDuckGo No-AI is a form POST to `https://noai.duckduckgo.com/html/`. When that
+page is challenged, Google News RSS source URLs fill in. A result is kept only
+when the hostname lines up with the firm or person name (or the firm's initials,
+such as `bvp.com`). Gemini stays off unless the run passes `--allow-paid`.
 
 Research, growth, and product agent loops follow the same rule: a credit-balance
 result runs inference search and URL recovery instead of failing the job.
