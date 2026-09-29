@@ -438,19 +438,33 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   };
 
   try {
-    try {
-      const tabArticles = await articlesFromGoogleNewsTab(query, maxArticles);
-      let tabFiltered = filterArticlesByName(tabArticles, startupName);
-      if (tabFiltered.length === 0 && useNormalized) {
-        tabFiltered = filterArticlesByName(tabArticles, searchToken);
-      }
-      articles.push(...tabFiltered);
-    } catch {
-      // News tab challenged or empty. RSS below still runs.
+    // Run News tab and RSS in parallel to avoid starving RSS when tab is slow
+    const [tabResult, feedResult] = await Promise.allSettled([
+      (async () => {
+        const tabArticles = await articlesFromGoogleNewsTab(query, maxArticles);
+        let tabFiltered = filterArticlesByName(tabArticles, startupName);
+        if (tabFiltered.length === 0 && useNormalized) {
+          tabFiltered = filterArticlesByName(tabArticles, searchToken);
+        }
+        // Track whether we got real matches or fallback (all articles)
+        const gotRealMatches = tabFiltered.length > 0 && tabFiltered.length < tabArticles.length;
+        return { filtered: tabFiltered, gotRealMatches };
+      })(),
+      fetchFeed(),
+    ]);
+
+    // Process News tab results
+    let tabGotRealMatches = false;
+    if (tabResult.status === 'fulfilled') {
+      articles.push(...tabResult.value.filtered);
+      tabGotRealMatches = tabResult.value.gotRealMatches;
     }
 
-    if (articles.length < 3) {
-    const feed = await fetchFeed();
+    // Use RSS if: (1) tab failed, (2) tab had <3 real matches, or (3) tab returned fallback articles
+    const shouldUseRss = tabResult.status === 'rejected' || !tabGotRealMatches || articles.length < 3;
+    
+    if (shouldUseRss && feedResult.status === 'fulfilled') {
+    const feed = feedResult.value;
     gnRecordGoogleNewsSuccess();
     const rawItems = feed.items.slice(0, maxArticles);
     const rawCount = rawItems.length;
