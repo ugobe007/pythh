@@ -23,7 +23,7 @@ test('URL search service keeps official hosts and drops publishers', () => {
 
 test('Google Web search starts with ?udm=14', () => {
   const url = googleWebSearchUrl('sequoia%20capital');
-  assert.match(url, /^https:\/\/www\.google\.com\/search\?udm=14&q=/);
+  assert.match(url, /^https:\/\/google\.com\/search\?udm=14&q=/);
   assert.equal(url.includes('&udm=14'), false);
 });
 
