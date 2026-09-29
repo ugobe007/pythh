@@ -277,13 +277,15 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           </p>
           <div className="space-y-4">
             {investorQuotes.map((quote) => (
-              <p key={`${quote.kind_label}-${quote.firm}`} className="text-[15px] leading-relaxed" style={{ color: TEXT }}>
-                <span className="block font-mono text-[11px] font-semibold tracking-[0.08em] uppercase mb-1 whitespace-nowrap" style={{ color: MUTED }}>
+              <div key={`${quote.kind_label}-${quote.firm}`} className="text-[15px] leading-relaxed" style={{ color: TEXT }}>
+                <div className="font-mono text-[11px] font-semibold tracking-[0.08em] uppercase mb-1" style={{ color: MUTED }}>
                   {quote.kind_label}
-                </span>
-                &ldquo;{quote.quote}&rdquo;
-                <span style={{ color: MUTED }}> — {quote.speaker && quote.speaker !== quote.firm ? `${quote.speaker}, ${quote.firm}` : quote.firm}</span>
-              </p>
+                </div>
+                <p>
+                  &ldquo;{quote.quote}&rdquo;
+                  <span style={{ color: MUTED }}> — {quote.speaker && quote.speaker !== quote.firm ? `${quote.speaker}, ${quote.firm}` : quote.firm}</span>
+                </p>
+              </div>
             ))}
           </div>
         </div>
