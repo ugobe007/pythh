@@ -89,6 +89,7 @@ function isCleanInvestorNameForFeed(name, firm) {
   if (/^([A-Z][a-z]+\s+){2,}[A-Z][a-z]+\s+\([A-Za-z]+\)\s*$/.test(n)) return false;
   if (/^teamview/i.test(n)) return false;
   if (/\bview\s*all\b/i.test(n)) return false;
+  if (/\bPersonal\s*$/i.test(n) || /\bPersonal\s*$/i.test(f)) return false;
   return true;
 }
 

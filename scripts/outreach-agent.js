@@ -113,7 +113,7 @@ if (!RESEND_KEY && !DRY_RUN && !DRAFT_ONLY) {
 if (!DRY_RUN && !DRAFT_ONLY && !TEST_TO && isSandboxFromAddress(FROM_ADDRESS)) {
   console.error("\n[outreach-agent] ✗ Sender is Resend sandbox (onboarding@resend.dev).");
   console.error("  Real recipients will 403. Fix one of:");
-  console.error("  • Add OUTREACH_USE_PYTHH_DOMAIN=true to .env  →  pythia@pythh.ai");
+  console.error("  • Set PYTHH_FROM_DNS_OK=1 after pythh.ai mail DNS passes, or send from hello@orbital-ai.io");
   console.error("  • Or preview with --test-to ugobe07@gmail.com\n");
   process.exit(1);
 }
