@@ -675,11 +675,22 @@ async function generateNewsletter({ bust = false, date = null } = {}) {
       : null,
   };
   const editorial = await generateEditorial(editorialCtx);
+  let investorQuotes = [];
+  try {
+    const { loadInvestorQuotes } = require('../lib/investorQuotes');
+    investorQuotes = await loadInvestorQuotes(supabase, { limit: 12 });
+  } catch (err) {
+    console.warn('[newsletter] investor quotes failed:', err.message);
+  }
+  const quoteRotation = investorQuotes.filter((quote, index, all) => (
+    all.findIndex((item) => item.kind === quote.kind) === index
+  )).slice(0, 3);
 
   const result = {
     date:             date || new Date().toISOString().split('T')[0],
     generated_at:     new Date().toISOString(),
     editorial,                                 // { text, source }
+    investorQuotes:   quoteRotation,
     hottestStartups:  hottestStartups || [],
     signalsThatMatter: signalsThatMatter || null,
     topMatches:       topMatches || [],

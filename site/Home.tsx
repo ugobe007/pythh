@@ -14,6 +14,7 @@ import NewsletterJoinForm, { PREVIEW_MATCHES_CTA } from "@/components/Newsletter
 import { HomeLiveTape } from "@/components/HomeLiveNetwork";
 import HomeFeaturedMatch from "@/components/HomeFeaturedMatch";
 import HomeProofStrip from "@/components/HomeProofStrip";
+import InvestorQuoteLine from "@/components/InvestorQuoteLine";
 import MarketMovementShowcase from "@/components/MarketMovementShowcase";
 import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
@@ -479,6 +480,7 @@ function HeroSection({
         >
           {heroSubline}
         </p>
+        <InvestorQuoteLine />
         <NewsletterJoinForm
           id="hero-cta"
           source="home_hero"

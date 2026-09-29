@@ -6889,6 +6889,9 @@ app.use('/api/intro', introConciergeRouter);
 app.use('/api/growth', growthRouter);
 app.use('/api', scanRouter);
 
+const investorQuotesRouter = require('./routes/investorQuotes');
+app.use('/api', investorQuotesRouter);
+
 // Match Run API routes (V1 - Supabase RPC-native orchestration)
 const matchRunRoutes = require('./routes/matchRun');
 app.use('/api/match', matchRunRoutes);
