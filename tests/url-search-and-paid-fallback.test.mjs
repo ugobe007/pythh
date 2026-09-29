@@ -7,6 +7,8 @@ import {
   urlsFromNewsRss,
   normalizeOfficialUrl,
   googleWebSearchUrl,
+  googleNewsSearchUrl,
+  articlesFromGoogleNewsHtml,
 } from '../lib/urlSearchService.mjs';
 import { isPaidAiUnavailable } from '../scripts/lib/paidAiFallback.mjs';
 
@@ -25,6 +27,19 @@ test('Google Web search starts with ?udm=14', () => {
   const url = googleWebSearchUrl('sequoia%20capital');
   assert.match(url, /^https:\/\/google\.com\/search\?udm=14&q=/);
   assert.equal(url.includes('&udm=14'), false);
+});
+
+test('Google News tab starts with ?udm=12 and keeps publisher links', () => {
+  const url = googleNewsSearchUrl('acme%20raises');
+  assert.match(url, /^https:\/\/google\.com\/search\?udm=12&q=/);
+  assert.equal(url.includes('&udm=12'), false);
+  const html = [
+    '<a href="/url?q=https://techcrunch.com/2026/09/01/acme-raises&amp;sa=U">Acme raises $10M</a>',
+    '<a href="/url?q=https://www.google.com/search%3Fq%3Dacme">More results</a>',
+  ].join('');
+  assert.deepEqual(articlesFromGoogleNewsHtml(html), [
+    { title: 'Acme raises $10M', link: 'https://techcrunch.com/2026/09/01/acme-raises' },
+  ]);
 });
 
 test('Google Web ?udm=14 results keep the target and drop the redirect host', () => {
