@@ -61,16 +61,46 @@ test('deck assessment returns five recommendations and names the weakest score',
   assert.doesNotMatch(JSON.stringify(recs), /will fund you/);
 });
 
-test('positioning uses sourced startups and skips funds', () => {
+test('positioning writes how to say it and drops later-stage comps', () => {
   const result = buildPositioning(
-    { startupName: 'OrbitalAi', tagline: 'Cloud control for robots', sectors: ['Robotics', 'AI/ML'] },
-    examples,
+    {
+      startupName: 'OrbitalAi',
+      tagline: 'Cloud control for robots',
+      sectors: ['Robotics', 'AI/ML'],
+      stage: 'pre-seed',
+      scoreComponents: { traction: 22 },
+    },
+    [
+      ...examples,
+      {
+        kind: 'funding_round',
+        name: 'Smallbot',
+        sector: 'Robotics',
+        headline: 'Raised a $4M seed for warehouse robots',
+        caveat: null,
+        sourceName: 'Company note',
+        sourceUrl: 'https://smallbot.example',
+      },
+      {
+        kind: 'acquisition',
+        name: 'Cursor',
+        sector: 'AI coding',
+        headline: 'SpaceX closed a $60B acquisition',
+        caveat: null,
+        sourceName: 'Cursor',
+        sourceUrl: 'https://cursor.com',
+      },
+    ],
   );
   assert.match(result.thesis, /Cloud control for robots/);
-  assert.deepEqual(result.examples.map((item) => item.name), ['Higgsfield', 'Parallax']);
-  assert.equal(result.examples[0].fit, 'adjacent');
-  assert.match(result.examples[0].why, /Not a claim that you compete/);
-  assert.equal(result.examples.find((item) => item.name === 'ARK Venture'), undefined);
+  assert.ok(result.bullets.length >= 4);
+  assert.match(result.bullets.map((item) => item.body).join(' '), /Cloud control for robots/);
+  assert.match(result.bullets.map((item) => item.body).join(' '), /Traction on this profile is 22\/100/);
+  assert.deepEqual(result.examples.map((item) => item.name), ['Smallbot']);
+  assert.equal(result.examples[0].fit, 'same');
+  assert.equal(result.examples.find((item) => item.name === 'Higgsfield'), undefined);
+  assert.equal(result.examples.find((item) => item.name === 'Parallax'), undefined);
+  assert.equal(result.examples.find((item) => item.name === 'Cursor'), undefined);
 });
 
 test('saved account collects the three free tools', () => {
