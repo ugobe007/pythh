@@ -54,6 +54,25 @@ describe('shapeMatchForApi', () => {
     assert.doesNotMatch(JSON.stringify(out), /secret@acme\.vc|guess@acme\.vc/);
   });
 
+  it('derives a 7-day expiry from created_at without storing a new clock', () => {
+    const out = shapeMatchForApi({
+      created_at: '2026-09-22T12:00:00.000Z',
+      match_score: 70,
+      why_you_match: 'fit',
+      investor: { id: '1', name: 'Ada', firm: 'Ada Fund', type: 'VC' },
+    });
+    assert.equal(out.matched_at, '2026-09-22T12:00:00.000Z');
+    assert.equal(out.expires_at, '2026-09-29T12:00:00.000Z');
+    assert.equal(typeof out.match_stale, 'boolean');
+  });
+
+  it('leaves expiry empty when the match has no created_at', () => {
+    const out = shapeMatchForApi(row('Sarah Chen', 'Eclipse Ventures', 80, 'fit'));
+    assert.equal(out.matched_at, null);
+    assert.equal(out.expires_at, null);
+    assert.equal(out.match_stale, false);
+  });
+
   it('coerces investor firm and name to strings', () => {
     const out = shapeMatchForApi({
       match_score: 72,

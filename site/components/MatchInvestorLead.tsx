@@ -6,6 +6,7 @@ import { parseExplainBullets } from '@/components/MatchExplainBlock';
 import InlineMeta from '@/components/design/InlineMeta';
 import { sendLeadEmail, unlockMatchLead } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, TEXT, BORDER, CARD } from '@/lib/designTokens';
+import { matchExpiryLine } from '@/lib/matchFreshness';
 
 export type LeadDeal = {
   company?: string;
@@ -27,6 +28,9 @@ export type LeadMatch = {
     behavior?: number | null;
   };
   investor_class?: 'angel' | 'vc';
+  expires_at?: string | null;
+  match_days_left?: number | null;
+  match_stale?: boolean;
   investor?: {
     id?: string;
     name?: string;
@@ -136,6 +140,7 @@ export default function MatchInvestorLead({
   const lastYear = lastDealYear(inv?.last_investment_date);
   const components = match.fitness_components || {};
   const contactable = inv?.contactable !== false;
+  const expiry = matchExpiryLine(match);
 
   const handleUnlock = async () => {
     if (!investorId) return;
@@ -223,6 +228,7 @@ export default function MatchInvestorLead({
             ...(stage ? [{ text: stage, color: MUTED }] : []),
             ...(check ? [{ text: check, color: MUTED }] : []),
             ...(dealCount != null && dealCount > 0 ? [{ text: `${dealCount.toLocaleString()} deals`, color: DIM }] : []),
+            ...(expiry ? [{ text: expiry, color: match.match_stale ? AMBER : MUTED }] : []),
           ]}
         />
       </button>
