@@ -36,24 +36,21 @@ export default function InvestorQuoteLine() {
     return () => window.clearInterval(timer);
   }, [quotes.length]);
 
-  const investing = quotes.filter((quote) => quote.kind === "investing_in" || quote.kind_label === "Investing in");
-  const insights = quotes.filter((quote) => quote.kind === "invested_in" || quote.kind_label === "Investor insights");
-  const visible = [investing[index % Math.max(investing.length, 1)], insights[index % Math.max(insights.length, 1)]].filter(Boolean);
-  if (!visible.length) return null;
+  const quote = quotes[index];
+  if (!quote) return null;
+  const credit = quote.speaker && quote.speaker !== quote.firm
+    ? `${quote.speaker}, ${quote.firm}`
+    : quote.firm;
 
   return (
-    <div className="mt-6 mb-2 max-w-[58ch] space-y-4" data-testid="investor-quote-line" aria-live="polite">
-      {visible.map((quote) => (
-        <div key={quote.kind || quote.kind_label}>
-          <div className="font-mono text-[11px] font-semibold tracking-[0.08em] uppercase mb-1" style={{ color: PURPLE_ACCENT }}>
-            {quote.kind_label}
-          </div>
-          <p className="text-[15px] leading-relaxed">
-            <span style={{ color: TEXT }}>&ldquo;{quote.quote}&rdquo;</span>
-            <span style={{ color: MUTED }}> — {quote.speaker && quote.speaker !== quote.firm ? `${quote.speaker}, ${quote.firm}` : quote.firm}</span>
-          </p>
-        </div>
-      ))}
+    <div className="mt-6 mb-2 max-w-[58ch]" data-testid="investor-quote-line" aria-live="polite">
+      <div className="font-mono text-[11px] font-semibold tracking-[0.08em] uppercase mb-1" style={{ color: PURPLE_ACCENT }}>
+        {quote.kind_label}
+      </div>
+      <p className="text-[15px] leading-relaxed">
+        <span style={{ color: TEXT }}>&ldquo;{quote.quote}&rdquo;</span>
+        {credit ? <span style={{ color: MUTED }}> — {credit}</span> : null}
+      </p>
     </div>
   );
 }
