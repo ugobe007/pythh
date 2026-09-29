@@ -278,7 +278,7 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           <div className="space-y-4">
             {investorQuotes.map((quote) => (
               <p key={`${quote.kind_label}-${quote.firm}`} className="text-[15px] leading-relaxed" style={{ color: TEXT }}>
-                <span className="font-mono text-[11px] font-semibold tracking-[0.12em] uppercase mr-2" style={{ color: MUTED }}>
+                <span className="block font-mono text-[11px] font-semibold tracking-[0.08em] uppercase mb-1 whitespace-nowrap" style={{ color: MUTED }}>
                   {quote.kind_label}
                 </span>
                 &ldquo;{quote.quote}&rdquo;

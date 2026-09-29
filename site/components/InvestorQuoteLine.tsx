@@ -44,7 +44,7 @@ export default function InvestorQuoteLine() {
       data-testid="investor-quote-line"
       aria-live="polite"
     >
-      <span className="font-mono text-[11px] font-semibold tracking-[0.14em] uppercase mr-2" style={{ color: PURPLE_ACCENT }}>
+      <span className="block font-mono text-[11px] font-semibold tracking-[0.08em] uppercase mb-1 whitespace-nowrap" style={{ color: PURPLE_ACCENT }}>
         {quote.kind_label}
       </span>
       <span style={{ color: TEXT }}>&ldquo;{quote.quote}&rdquo;</span>
