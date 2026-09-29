@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Discover investor firm homepages via Gemini Google Search (primary) or Custom Search.
+ * Discover investor firm homepages via the URL search service. Gemini stays off unless --allow-paid.
  * Writes discovered URLs to investors.url for enrichment downstream.
  *
  * Prerequisites:
@@ -96,10 +96,10 @@ async function main() {
   const gemini = hasGeminiSearch();
   console.log('\n🔎 Investor URL discovery');
   console.log('   backends: URL search service (Google Web ?udm=14, DuckDuckGo No-AI, Mojeek)');
-  if (gemini || cse) {
+  const allowPaid = argv.includes('--allow-paid');
+  if (allowPaid && (gemini || cse)) {
     console.log(`   paid last resort: ${[cse && 'Custom Search API', gemini && 'Gemini'].filter(Boolean).join(' + ')}`);
   }
-  if (gemini) console.log('   gemini: only after the URL search service finds nothing');
   if (cse) console.log(`   cse cx: ${cse.cx.slice(0, 16)}...`);
   console.log(`   mode: ${DRY_RUN ? 'dry-run' : 'APPLY'} · limit ${LIMIT || 'ALL'} · delay ${DELAY_MS}ms`);
   if (!gemini && cse) console.log('   free tier: 100 queries/day — use --limit=100 for daily batch\n');
@@ -131,7 +131,7 @@ async function main() {
     try {
       let result = { url: null, source: 'none', score: 0 };
       for (const tryName of labelsToTry(inv)) {
-        result = await discoverInvestorUrl(tryName, { skipSearch: false });
+        result = await discoverInvestorUrl(tryName, { skipSearch: false, allowPaid });
         if (result.url) break;
       }
       if (result.url) {
