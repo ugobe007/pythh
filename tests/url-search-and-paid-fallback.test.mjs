@@ -9,6 +9,8 @@ import {
   googleWebSearchUrl,
   googleNewsSearchUrl,
   articlesFromGoogleNewsHtml,
+  isBlockedSearchPage,
+  preferOfficialHost,
 } from '../lib/urlSearchService.mjs';
 import { isPaidAiUnavailable } from '../scripts/lib/paidAiFallback.mjs';
 
@@ -40,6 +42,16 @@ test('Google News tab starts with ?udm=12 and keeps publisher links', () => {
   assert.deepEqual(articlesFromGoogleNewsHtml(html), [
     { title: 'Acme raises $10M', link: 'https://techcrunch.com/2026/09/01/acme-raises' },
   ]);
+});
+
+test('bot-wall pages are not treated as search results', () => {
+  assert.equal(isBlockedSearchPage(429, ''), true);
+  assert.equal(isBlockedSearchPage(200, '<title>https://www.google.com/sorry/index</title>'), true);
+  assert.equal(isBlockedSearchPage(200, '<a href="/url?q=https://sequoiacap.com/">Sequoia</a>'), false);
+  assert.deepEqual(
+    preferOfficialHost(['https://sequoiacp.com', 'https://sequoiacap.com'], 'Sequoia Capital'),
+    ['https://sequoiacap.com', 'https://sequoiacp.com'],
+  );
 });
 
 test('Google Web ?udm=14 results keep the target and drop the redirect host', () => {

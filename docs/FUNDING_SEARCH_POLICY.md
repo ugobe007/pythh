@@ -79,7 +79,8 @@ Anthropic, OpenAI, and Gemini are not required for the hunt. A credit, quota,
 or auth error is not a stop. Continue on the **inference engine** (Google News
 RSS + extractors, `--provider=inference`). Missing startup or firm websites are
 recovered by the **URL search service** (`lib/urlSearchService.mjs`). The agent uses Node
-`fetch`, not a SERP API. Google Web is `https://google.com/search?udm=14&q=`
+`fetch`, then local Chrome when Google returns a bot wall. The HTML is parsed in
+code (`lib/urlSearchService.mjs`, `lib/inference-extractor.js`). Google Web is `https://google.com/search?udm=14&q=`
 (classic 10 blue links). Google News is `https://google.com/search?udm=12&q=`
 (raw News tab). DuckDuckGo No-AI and Mojeek follow for homepages. The same lookup
 is what `outcomes:recover-urls` and investor URL discovery use.
@@ -96,6 +97,7 @@ result runs inference search and URL recovery instead of failing the job.
 - Reorder cascade to paid-first to “get more hits.”
 - Route search through Serper, SerpApi, Tavily, or Brave. Those are keyed APIs.
 - Append `-AI` to queries. That drops startups and articles that are about AI.
+- Send raw HTML or screenshots to an LLM to parse each page. Layout parsing stays in code.
 - Use `--provider=gemini` unless prepaid credits are restored.
 - `--requeue-priority-empty` on a fresh complete-zero batch (7-day hold).
 - Treat scraper M&A/listing headlines as equity Hit@5 (`classifyFundingEvidence`).
