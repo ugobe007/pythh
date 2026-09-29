@@ -28,6 +28,7 @@ import { SCOUT_PLAN, ORACLE_PLAN } from '@/lib/pricingPlans';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import FounderFreeTools from '@/components/FounderFreeTools';
 import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER, godScoreColor, signalScoreColor } from '@/lib/designTokens';
+import { matchExpiryLine, shortlistExpiryNote } from '@/lib/matchFreshness';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -59,6 +60,8 @@ type SavedMatch = {
   match_score?: number;
   why_you_match?: string | null;
   investor_class?: string | null;
+  expires_at?: string | null;
+  match_stale?: boolean;
   investor?: { name?: string | null; firm?: string | null } | null;
 };
 
@@ -310,7 +313,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           }}
         >
           {saved
-            ? `Saved${firstName ? `, ${firstName}` : ''}. Review them here. Positioning is next, and it is free. The pitch deck comes after that. We email the five names from the same Daily Brief sender (hello@orbital-ai.io) — send again below if that inbox is empty.`
+            ? `Saved${firstName ? `, ${firstName}` : ''}. Review them here. Positioning is next, and it is free. The pitch deck comes after that. We email the five matches, deck assessment, positioning, and advisors. Matches expire 7 days after they are made.`
             : `Account created${firstName ? `, ${firstName}` : ''}${
                 hasPinnedStartup
                   ? ` — ${companyLabel} is saved. Review the shortlist below.`
@@ -423,7 +426,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
             </div>
             <p className="text-sm mb-4" style={{ color: MUTED }}>
               {savedMatches.length
-                ? 'These are the investors this raise is built around. Keeping them here is free.'
+                ? (shortlistExpiryNote(savedMatches) || 'These are the investors this raise is built around. Alignment holds for 7 days.')
                 : previewLoaded
                   ? 'No matches on this shortlist yet.'
                   : 'Loading your matches…'}
@@ -436,7 +439,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 {emailStatus === 'sent' && emailedTo ? (
                   <div className="space-y-2">
                     <p className="text-sm font-medium" style={{ color: TEXT }}>
-                      Emailed these 5 matches to {emailedTo}.
+                      Emailed the match brief to {emailedTo}.
                     </p>
                     <p className="text-xs" style={{ color: MUTED }}>
                       From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{companyLabel} — 5 investor matches from Pythh”.
@@ -505,7 +508,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                 )}
                 {emailStatus !== 'sent' && (
                   <p className="text-[11px] mt-2" style={{ color: DIM }}>
-                    We email the five names from the same Daily Brief sender (hello@orbital-ai.io). Use Send again if that inbox is empty.
+                    The email includes the five matches, deck assessment, positioning, and advisors, plus a link to this profile. Matches expire 7 days after they are made. Sent from hello@orbital-ai.io.
                   </p>
                 )}
               </div>
@@ -517,6 +520,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                   const firm = match.investor?.firm && match.investor.firm !== name ? match.investor.firm : null;
                   const score = typeof match.match_score === 'number' ? Math.round(match.match_score) : null;
                   const why = truncateWhy(match.why_you_match);
+                  const expiry = matchExpiryLine(match);
                   return (
                     <li key={`${name}-${index}`} className="px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
@@ -525,6 +529,11 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                             {index + 1}. {name}
                           </p>
                           {firm && <p className="text-[11px]" style={{ color: DIM }}>{firm}</p>}
+                          {expiry && (
+                            <p className="text-[11px] mt-0.5" style={{ color: match.match_stale ? AMBER : MUTED }}>
+                              {expiry}
+                            </p>
+                          )}
                           {why && <p className="text-xs mt-1 leading-relaxed" style={{ color: MUTED }}>{why}</p>}
                         </div>
                         {score != null && (

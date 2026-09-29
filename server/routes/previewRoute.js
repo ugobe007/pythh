@@ -44,6 +44,7 @@ const {
 const { distinctiveFitScore, sectorsForMatching, hasSpecificSector, blendStoredWithSectorSuggestions } = require('../../lib/distinctiveInvestorFit');
 const { applyResearchRank } = require('../../lib/matchModelFromResearch');
 const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
+const { buildFounderShortlistBrief } = require('../../lib/founderShortlistBrief');
 
 /** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
 const MATCHES_EMAIL_FROM = resolveTransactionalFrom(process.env.MATCHES_EMAIL_FROM);
@@ -67,6 +68,26 @@ function inspectMatchesUrl(startupUrl, fallbackUrl) {
   return `${APP_BASE}/matches?url=${encodeURIComponent(normalized)}`;
 }
 
+/** Same mix as the preview page, so the email names the shortlist the founder sees. */
+async function loadEmailShortlist(startup) {
+  const { data: matchRows, error } = await supabase
+    .from('startup_investor_matches')
+    .select(`
+      investor_id,
+      match_score,
+      why_you_match,
+      created_at,
+      investors (
+        id, name, firm, title, type, is_individual, capital_type, sectors, stage
+      )
+    `)
+    .eq('startup_id', startup.id)
+    .order('match_score', { ascending: false })
+    .limit(80);
+  if (error || !matchRows?.length) return [];
+  return buildPreviewMatchList(matchRows, resolvePreviewMixOptions(startup, null, 8)).slice(0, 8);
+}
+
 async function sendPreviewShortlistEmail({
   to,
   startupName,
@@ -76,6 +97,7 @@ async function sendPreviewShortlistEmail({
   matchCount,
   oracleGap,
   startupId,
+  brief,
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { success: false, error: 'RESEND_API_KEY not configured' };
@@ -94,6 +116,7 @@ async function sendPreviewShortlistEmail({
     })
     .join('\n');
   const listUrl = inspectUrl || previewUrl;
+  const profileUrl = `${APP_BASE}/account`;
 
   const gap = oracleGap || null;
   const godLine =
@@ -105,14 +128,16 @@ async function sendPreviewShortlistEmail({
         }`
       : '';
 
-  const subject = listed.length
-    ? `${startupName} — ${listed.length} investor matches from Pythh`
-    : `${startupName} — investor matches from Pythh`;
-  const text = [
+  const subject = brief?.subject
+    || (listed.length
+      ? `${startupName} — ${listed.length} investor matches from Pythh`
+      : `${startupName} — investor matches from Pythh`);
+  const text = brief?.text || [
     `Hi —`,
     ``,
     `Here are your top ${listed.length} Pythh investor matches for ${startupName}.`,
     lines ? `\n${lines}\n` : '',
+    `Open your profile: ${profileUrl}`,
     `Open these matches: ${listUrl}`,
     matchCount && matchCount > listed.length
       ? `${matchCount.toLocaleString()} ranked matches are on your account.`
@@ -143,11 +168,11 @@ async function sendPreviewShortlistEmail({
     })
     .join('');
 
-  const html = `
+  const html = brief?.html || `
     <div style="font-family: Helvetica Neue, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
       <p>Your top ${listed.length} investor matches for <strong>${String(startupName).replace(/</g, '&lt;')}</strong>:</p>
       ${rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>` : ''}
-      <p style="margin-top:20px;"><a href="${listUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my ${listed.length} match${listed.length === 1 ? '' : 'es'}</a></p>
+      <p style="margin-top:20px;"><a href="${profileUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Open my profile</a></p>
       ${matchCount && matchCount > listed.length ? `<p style="color:#666;font-size:13px;">${matchCount.toLocaleString()} ranked matches are on your account.</p>` : ''}
       ${gapHtml}
       <p style="color:#888;font-size:12px;margin-top:24px;">Sent from hello@orbital-ai.io until pythh.ai mail authentication is fixed.</p>
@@ -297,29 +322,38 @@ router.post('/email-shortlist', async (req, res) => {
     let resolvedStartupName = startupName;
     let resolvedTopInvestors = Array.isArray(topInvestors) ? topInvestors : [];
     let resolvedMatchCount = Number(matchCount) || 0;
+    let emailMatches = [];
+    let emailStartup = null;
 
     try {
       const { data: startupRow } = await supabase
         .from('startup_uploads')
         .select(
-          'id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
+          'id, name, tagline, description, pitch, extracted_data, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
         )
         .eq('id', startupId)
         .maybeSingle();
       if (startupRow) {
         if (!resolvedStartupName) resolvedStartupName = startupRow.name;
-        
-        // Load top matches if not provided (signup paths only pass email + startupId).
-        if (resolvedTopInvestors.length === 0) {
+
+        const shaped = await loadEmailShortlist(startupRow);
+        emailStartup = startupRow;
+        emailMatches = shaped;
+        if (shaped.length) {
+          resolvedTopInvestors = shaped.slice(0, 5).map((match) => ({
+            name: match.investor?.name || match.investor?.firm || '',
+            firm: match.investor?.firm || null,
+          }));
+        } else if (resolvedTopInvestors.length === 0) {
           const { data: matches } = await supabase
             .from('startup_investor_matches')
             .select('match_score, investors!inner(id, name, firm)')
             .eq('startup_id', startupId)
             .order('match_score', { ascending: false })
             .limit(5);
-          
+
           if (matches?.length) {
-            resolvedTopInvestors = matches.map(m => ({
+            resolvedTopInvestors = matches.map((m) => ({
               name: m.investors?.name || '',
               firm: m.investors?.firm || null,
             }));
@@ -341,6 +375,31 @@ router.post('/email-shortlist', async (req, res) => {
       console.warn('[preview/email-shortlist] oracle gap:', gapErr.message);
     }
 
+    let brief = null;
+    if (emailStartup) {
+      try {
+        brief = buildFounderShortlistBrief({
+          startupName: resolvedStartupName || emailStartup.name || 'your startup',
+          tagline: emailStartup.tagline,
+          description: effectiveStartupDescription(emailStartup),
+          sectors: emailStartup.sectors,
+          stage: emailStartup.stage,
+          scoreComponents: {
+            team: emailStartup.team_score,
+            traction: emailStartup.traction_score,
+            market: emailStartup.market_score,
+            product: emailStartup.product_score,
+            vision: emailStartup.vision_score,
+          },
+          matches: emailMatches,
+          profileUrl: `${APP_BASE}/account`,
+          matchesUrl: inspectUrl,
+        });
+      } catch (briefErr) {
+        console.warn('[preview/email-shortlist] brief:', briefErr.message);
+      }
+    }
+
     const sendResult = await sendPreviewShortlistEmail({
       to: normalizedEmail,
       startupName: resolvedStartupName || 'your startup',
@@ -350,6 +409,7 @@ router.post('/email-shortlist', async (req, res) => {
       matchCount: resolvedMatchCount,
       oracleGap,
       startupId,
+      brief,
     });
 
     const row = {
@@ -619,6 +679,7 @@ router.get('/:startupId', async (req, res) => {
         investor_id,
         match_score,
         why_you_match,
+        created_at,
         investors (
           id,
           name,

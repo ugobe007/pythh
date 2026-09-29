@@ -50,6 +50,7 @@ import { campaignSubmitBody, readCampaignBrief } from '@/lib/campaignBrief';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
+import { shortlistExpiryNote } from '@/lib/matchFreshness';
 
 const PREVIEW_LIMIT = 5;
 
@@ -70,6 +71,9 @@ type PreviewMatch = {
     behavior?: number | null;
   };
   investor_class?: 'angel' | 'vc';
+  expires_at?: string | null;
+  match_days_left?: number | null;
+  match_stale?: boolean;
   funding_lifecycle_fit?: {
     eligible?: boolean;
     level?: 'exact' | 'compatible' | 'inferred' | 'unknown';
@@ -586,6 +590,7 @@ export default function InstantMatchPreview({ url }: Props) {
 
   const matches = preview.matches || [];
   const visible = matches.slice(0, PREVIEW_LIMIT);
+  const expiryNote = shortlistExpiryNote(visible);
   const total = preview.total_matches ?? matches.length;
   const startupName = preview.startup?.name || 'Your startup';
   const godScore =
@@ -620,8 +625,13 @@ export default function InstantMatchPreview({ url }: Props) {
           Investors for {startupName}
         </h1>
         <p className="text-sm leading-relaxed mb-3 max-w-[68ch]" style={{ color: MUTED }}>
-          We read the public site and ranked who fits this raise. The matches are the point of this page, and they are free.
+          We read the public site and ranked who fits this raise. The matches are the point of this page, and they are free. Alignment holds for 7 days, then the list goes stale.
         </p>
+        {expiryNote && (
+          <p className="text-sm leading-relaxed mb-3 max-w-[68ch]" style={{ color: visible.some((match) => match.match_stale) ? AMBER : TEXT }}>
+            {expiryNote}
+          </p>
+        )}
         <InlineMeta
           items={[
             { text: `${total.toLocaleString()} in network`, color: MUTED },
@@ -700,7 +710,7 @@ export default function InstantMatchPreview({ url }: Props) {
               Emailed these 5 matches to {emailedTo}.
             </p>
             <p className="text-xs" style={{ color: MUTED }}>
-              From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject “{startupName} — 5 investor matches from Pythh”.
+              From Pythh Daily Brief &lt;hello@orbital-ai.io&gt; — search Gmail for orbital-ai.io. Subject starts with “{startupName} — 5 matches”.
             </p>
             <button
               type="button"
