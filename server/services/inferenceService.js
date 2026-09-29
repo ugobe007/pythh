@@ -332,6 +332,30 @@ function isGoogleNewsPaused() {
   return Date.now() < gnPausedUntil;
 }
 
+async function articlesFromGoogleNewsTab(query, maxArticles) {
+  const { googleNewsSearchUrl, articlesFromGoogleNewsHtml } = await import('../../lib/urlSearchService.mjs');
+  const res = await fetch(googleNewsSearchUrl(encodeURIComponent(query)), {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(8000),
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      accept: 'text/html,application/xhtml+xml',
+      'accept-language': 'en-US,en;q=0.9',
+    },
+  });
+  if (!res.ok) return [];
+  const html = await res.text();
+  if (/sorry\/|unusual traffic|enablejs|JavaScript is required/i.test(html)) return [];
+  return articlesFromGoogleNewsHtml(html).slice(0, maxArticles).map((item) => ({
+    title: item.title,
+    content: item.title,
+    link: item.link,
+    pubDate: new Date().toISOString(),
+    source: 'Google News',
+  }));
+}
+
 // Load the full news source registry (Tier 1 + Tier 2 = standard enrichment)
 const { getStandardSources } = require('./dataSources/newsSources');
 const EXTENDED_SOURCES_LIST = getStandardSources();
@@ -414,6 +438,18 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   };
 
   try {
+    try {
+      const tabArticles = await articlesFromGoogleNewsTab(query, maxArticles);
+      let tabFiltered = filterArticlesByName(tabArticles, startupName);
+      if (tabFiltered.length === 0 && useNormalized) {
+        tabFiltered = filterArticlesByName(tabArticles, searchToken);
+      }
+      articles.push(...tabFiltered);
+    } catch {
+      // News tab challenged or empty. RSS below still runs.
+    }
+
+    if (articles.length < 3) {
     const feed = await fetchFeed();
     gnRecordGoogleNewsSuccess();
     const rawItems = feed.items.slice(0, maxArticles);
@@ -459,6 +495,7 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
           // Skip failed fallback
         }
       }
+    }
     }
 
     if (lite && DEBUG_INFERENCE) {
