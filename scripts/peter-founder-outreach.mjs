@@ -28,6 +28,7 @@ import { loadOutreachBlockedStartups, isOutreachBlocked } from '../lib/portfolio
 config();
 
 const require = createRequire(import.meta.url);
+const { quotesFromInvestor } = require('../lib/investorQuotes.js');
 const { TOP_MATCH_COUNT, uniqueTopMatches, unsubscribeUrl } = require('../lib/founderTopMatchesAgent.js');
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const {
@@ -272,6 +273,28 @@ function buildEmail(startup, matches, contact) {
   return { subject, html, text, startupName, unsubscribe };
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function quoteForMatches(matches) {
+  for (const match of matches) {
+    const [quote] = quotesFromInvestor({
+      id: match.investor_id || match.id || 'match',
+      name: match.name,
+      firm: match.firm || match.name,
+      investment_thesis: match.investment_thesis,
+      notable_investments: match.notable_investments,
+    });
+    if (quote) return quote;
+  }
+  return null;
+}
+
 function buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubscribe }) {
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
@@ -279,6 +302,10 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubs
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : '';
   const activateUrl = founderCtaPrimaryUrl(encodedUrl, utm);
   const opening = `${greeting} My name is Peter with Pythh. We automate your capital raise by matching you with investors that align with your thesis, team, and timing. On that note, I found ${matches.length} investor matches for ${startupName}. <a href="${activateUrl}" style="color:#6ee7b7;font-weight:600;">Check them out</a>. We use math, not magic.`;
+  const investorQuote = quoteForMatches(matches);
+  const quoteHtml = investorQuote
+    ? `<p style="color:#94a3b8;font-size:14px;line-height:1.6;font-style:italic;margin-top:0;">${escapeHtml(investorQuote.kind_label)}: &ldquo;${escapeHtml(investorQuote.quote)}&rdquo; — ${escapeHtml(investorQuote.firm)}</p>`
+    : '';
 
   const rows = matches.map((m, i) => {
     const score = m.match_score ?? 0;
@@ -314,6 +341,7 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubs
   <p style="color:#94a3b8;font-size:13px;font-style:italic;">${founderAlignmentTagline()}</p>
   <h1 style="color:#f1f5f9;font-size:22px;">${headline}.</h1>
   <p style="color:#64748b;font-size:14px;line-height:1.65;">${opening}</p>
+  ${quoteHtml}
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:12px 16px;margin:20px 0;">
     <span style="font-size:11px;color:#475569;">${founderScoreLabel(godScore)}</span>
     <span style="color:${color};font-weight:700;font-size:20px;font-family:monospace;margin-left:8px;">${godScore}</span>
@@ -336,11 +364,15 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubs
 function buildStartupText({ startup, matches, greeting, startupName, utm, unsubscribe }) {
   const activateUrl = founderCtaPrimaryUrl(startup.website ? encodeURIComponent(startup.website) : '', utm);
   const opening = `${greeting} My name is Peter with Pythh. We automate your capital raise by matching you with investors that align with your thesis, team, and timing. On that note, I found ${matches.length} investor matches for ${startupName}. Check them out: ${activateUrl}. We use math, not magic.`;
+  const investorQuote = quoteForMatches(matches);
+  const quoteLine = investorQuote
+    ? `\n\n${investorQuote.kind_label}: "${investorQuote.quote}" — ${investorQuote.firm}`
+    : '';
   const rows = matches.map((m, i) => {
     const reason = m.match_reason ? m.match_reason.split('.')[0] : defaultMatchReason();
     return `  ${i + 1}. ${m.name} (${m.firm}) — match ${m.match_score}\n     ${reason}`;
   }).join('\n');
-  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\nClaim your matches and automate investor outreach: ${activateUrl}\n\nDaily Signal: https://pythh.ai/newsletter\n\n${founderEmailSignoff()}${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
+  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}${quoteLine}\n\n${rows}\n\nClaim your matches and automate investor outreach: ${activateUrl}\n\nDaily Signal: https://pythh.ai/newsletter\n\n${founderEmailSignoff()}${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
 }
 
 async function main() {

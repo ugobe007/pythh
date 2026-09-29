@@ -104,6 +104,7 @@ interface BriefData {
   compiling_today?: boolean;
   served_from?: string;
   editorial?: { text: string; source: string } | string;
+  investorQuotes?: { firm: string; speaker?: string; kind_label: string; quote: string }[];
   trendReport?: TrendReport | null;
   hottestStartups?: HottestStartup[];
   signalsThatMatter?: SignalsThatMatter | null;
@@ -227,6 +228,7 @@ function DailySignalEdition({ date }: { date?: string | null }) {
 
   const editorialText =
     typeof data.editorial === "string" ? data.editorial : data.editorial?.text;
+  const investorQuotes = data.investorQuotes ?? [];
   const trends = data.trendReport ?? null;
   const hottest = data.hottestStartups ?? [];
   const signals = data.signalsThatMatter ?? null;
@@ -262,6 +264,28 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           <p className="text-base sm:text-lg leading-relaxed" style={{ color: TEXT }}>
             {editorialText}
           </p>
+        </div>
+      )}
+
+      {investorQuotes.length > 0 && (
+        <div
+          className="rounded-xl p-5 sm:p-6"
+          style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
+        >
+          <p className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase mb-3" style={{ color: PURPLE_ACCENT }}>
+            Investors, in their own words
+          </p>
+          <div className="space-y-4">
+            {investorQuotes.map((quote) => (
+              <p key={`${quote.kind_label}-${quote.firm}`} className="text-[15px] leading-relaxed" style={{ color: TEXT }}>
+                <span className="font-mono text-[11px] font-semibold tracking-[0.12em] uppercase mr-2" style={{ color: MUTED }}>
+                  {quote.kind_label}
+                </span>
+                &ldquo;{quote.quote}&rdquo;
+                <span style={{ color: MUTED }}> — {quote.speaker && quote.speaker !== quote.firm ? `${quote.speaker}, ${quote.firm}` : quote.firm}</span>
+              </p>
+            ))}
+          </div>
         </div>
       )}
 
