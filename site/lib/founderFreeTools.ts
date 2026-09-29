@@ -207,7 +207,9 @@ function positioningBullets(input: {
     ? `Open with “${tagline}.” That is the sentence a partner should repeat.`
     : description
       ? `Open with one sentence from the public story: “${firstSentence(description)}”`
-      : `Write one sentence for ${name}: the ${sector} buyer, and the job you do for them.`;
+      : sector === 'your'
+        ? `Write one sentence for ${name}: the buyer you serve, and the job you do for them.`
+        : `Write one sentence for ${name}: the ${sector} buyer, and the job you do for them.`;
 
   return [
     { title: 'Lead with one sentence', body: opener },
