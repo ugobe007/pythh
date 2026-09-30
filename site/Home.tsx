@@ -1545,6 +1545,7 @@ function Footer() {
       { label: "Portfolio", href: "/portfolio" },
     ]},
     { title: "Resources", links: [
+      { label: "Funding record", href: "/record" },
       { label: "Methodology", href: "/methodology" },
       { label: "About", href: "/about" },
       { label: "Support", href: "/support" },

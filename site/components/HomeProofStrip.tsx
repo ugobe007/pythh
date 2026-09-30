@@ -97,6 +97,10 @@ export default function HomeProofStrip({
     <p className="text-[13px] mt-2.5 leading-relaxed" style={{ color: MUTED }}>
       A raise counts when the press confirms it after we ranked the match.
       {" "}
+      <a href="/record" className="underline underline-offset-2" style={{ color: MUTED }}>
+        Funding record
+      </a>
+      {" · "}
       <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
         Methodology
       </a>
