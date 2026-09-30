@@ -31,6 +31,7 @@ const PRODUCT_GROUPS: { heading: string; links: { label: string; href: string; n
       { label: "Daily Signal", href: "/newsletter" },
       { label: "Signal Art", href: "/art" },
       { label: "About", href: "/about" },
+      { label: "Funding record", href: "/record" },
     ],
   },
 ];
