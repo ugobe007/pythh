@@ -1546,6 +1546,7 @@ function Footer() {
     ]},
     { title: "Resources", links: [
       { label: "Funding record", href: "/record" },
+      { label: "Fresh rounds", href: "/rounds" },
       { label: "Methodology", href: "/methodology" },
       { label: "About", href: "/about" },
       { label: "Support", href: "/support" },
