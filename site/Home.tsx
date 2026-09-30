@@ -630,15 +630,23 @@ function VerifiedOutcomesSection({
         <h2 className="font-display font-bold mb-3" style={{ color: TEXT, fontSize: "clamp(1.75rem, 3vw, 2.25rem)", letterSpacing: "-0.03em" }}>
           Startups that later raised from a ranked match
         </h2>
-        <p className="text-[17px] leading-relaxed max-w-[58ch] mb-4" style={{ color: MUTED }}>
-          {hasTop5
-            ? `${pairHits} of ${pairStartups} startups (${pairRate}%) later raised from an investor we ranked in the top five.`
-            : "When a ranked startup later raises, we count whether the funder was already in our top five."}
+        <p className="text-[17px] leading-relaxed max-w-[58ch] mb-5" style={{ color: MUTED }}>
           {hasTop50
-            ? ` ${pairHitsTop50} of ${pairStartups} (${pairRateTop50}%) later raised from an investor we ranked in the top fifty.`
+            ? `${pairHitsTop50} of ${pairStartups} startups (${pairRateTop50}%) later raised from an investor we ranked in the top fifty.`
+            : "When a ranked startup later raises, we count whether the funder was already on the list."}
+          {hasTop5
+            ? ` ${pairHits} of ${pairStartups} (${pairRate}%) later raised from an investor we ranked in the top five.`
             : ""}
         </p>
-        <a href="/methodology" className="text-[15px] underline underline-offset-2" style={{ color: PURPLE_ACCENT }}>
+        <a
+          href="/record"
+          className="inline-flex items-center gap-2 font-display font-bold text-[16px] px-5 rounded-md"
+          style={{ backgroundColor: G, color: "oklch(0.13 0.02 162)", minHeight: 48 }}
+        >
+          See the funding record
+          <span aria-hidden="true">→</span>
+        </a>
+        <a href="/methodology" className="block mt-3 text-[14px] underline underline-offset-2" style={{ color: MUTED }}>
           Read the methodology
         </a>
       </div>

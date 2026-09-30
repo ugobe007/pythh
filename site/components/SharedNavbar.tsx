@@ -5,6 +5,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
 import StartupCTA from "@/components/design/StartupCTA";
+import { G } from "@/lib/designTokens";
 
 const PRODUCT_GROUPS: { heading: string; links: { label: string; href: string; note?: string }[] }[] = [
   {
@@ -31,7 +32,6 @@ const PRODUCT_GROUPS: { heading: string; links: { label: string; href: string; n
       { label: "Daily Signal", href: "/newsletter" },
       { label: "Signal Art", href: "/art" },
       { label: "About", href: "/about" },
-      { label: "Funding record", href: "/record" },
       { label: "Fresh rounds", href: "/rounds" },
     ],
   },
@@ -173,6 +173,19 @@ export default function SharedNavbar({
               Daily Signal
             </a>
             <a
+              href="/record"
+              className="text-sm font-bold px-3 rounded-md transition-colors"
+              style={{
+                color: "oklch(0.13 0.02 162)",
+                backgroundColor: G,
+                minHeight: 36,
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              Funding record
+            </a>
+            <a
               href="/pricing"
               className="text-sm font-medium transition-colors"
               style={{ color: linkColor(activePath === "/pricing") }}
@@ -252,6 +265,14 @@ export default function SharedNavbar({
             }}
           >
             <div className="flex flex-col gap-5">
+              <a
+                href="/record"
+                onClick={() => setMenuOpen(false)}
+                className="text-sm font-bold px-3 rounded-md inline-flex items-center"
+                style={{ color: "oklch(0.13 0.02 162)", backgroundColor: G, minHeight: 40, width: "fit-content" }}
+              >
+                Funding record
+              </a>
               <a
                 href="/newsletter"
                 onClick={() => setMenuOpen(false)}

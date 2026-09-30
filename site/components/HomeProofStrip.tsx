@@ -1,5 +1,18 @@
 import { MUTED, TEXT, G, DIM, BORDER, CARD, PURPLE_ACCENT, PURPLE_BORDER, PURPLE_WASH } from "@/lib/designTokens";
 
+function RecordCta({ className = "" }: { className?: string }) {
+  return (
+    <a
+      href="/record"
+      className={`inline-flex items-center gap-2 font-display font-bold text-[16px] px-5 rounded-md ${className}`}
+      style={{ backgroundColor: G, color: "oklch(0.13 0.02 162)", minHeight: 48 }}
+    >
+      See the funding record
+      <span aria-hidden="true">→</span>
+    </a>
+  );
+}
+
 function topFiveCopy(hits?: number, startups?: number) {
   return `${hits} of ${startups} startups later raised from an investor we ranked in the top five.`;
 }
@@ -94,45 +107,53 @@ export default function HomeProofStrip({
   if (!hasPrimary && !startupsFunded && !investors && variant !== "panel") return null;
 
   const methodology = (
-    <p className="text-[13px] mt-2.5 leading-relaxed" style={{ color: MUTED }}>
-      A raise counts when the press confirms it after we ranked the match.
-      {" "}
-      <a href="/record" className="underline underline-offset-2" style={{ color: MUTED }}>
-        Funding record
-      </a>
-      {" · "}
-      <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
-        Methodology
-      </a>
-    </p>
+    <div className="mt-5">
+      <RecordCta />
+      <p className="text-[13px] mt-3 leading-relaxed" style={{ color: MUTED }}>
+        A raise counts when the press confirms it after we ranked the match.
+        {" "}
+        <a href="/methodology" className="underline underline-offset-2" style={{ color: MUTED }}>
+          Methodology
+        </a>
+      </p>
+    </div>
   );
 
   const rates = (
     <>
-      {hasPrimary ? (
+      {hasTop50 ? (
+        <FundingRate
+          rate={rate50 as number}
+          label="top 50"
+          copy={topFiftyCopy(pairHitsTop50, pairStartups)}
+          size="lg"
+        />
+      ) : null}
+      {hasPrimary && hasTop50 ? (
+        <div className="mt-4">
+          <FundingRate
+            rate={rate as number}
+            label="top 5"
+            copy={topFiveCopy(pairHits, pairStartups)}
+            size="sm"
+          />
+        </div>
+      ) : null}
+      {hasPrimary && !hasTop50 ? (
         <FundingRate
           rate={rate as number}
           label="top 5"
           copy={topFiveCopy(pairHits, pairStartups)}
           size="lg"
         />
-      ) : (
+      ) : null}
+      {!hasPrimary ? (
         <p
           className="font-display font-bold tabular-nums leading-none mb-4"
           style={{ color: G, fontSize: "clamp(2.15rem, 4.2vw, 3rem)" }}
         >
           —
         </p>
-      )}
-      {hasTop50 ? (
-        <div className="mt-4">
-          <FundingRate
-            rate={rate50 as number}
-            label="top 50"
-            copy={topFiftyCopy(pairHitsTop50, pairStartups)}
-            size="sm"
-          />
-        </div>
       ) : null}
       {!hasPrimary ? (
         <p className="text-[16px] leading-relaxed" style={{ color: TEXT }}>
