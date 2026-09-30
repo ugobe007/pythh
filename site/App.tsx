@@ -20,6 +20,7 @@ import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import Methodology from "./pages/Methodology";
 import FundingRecord from "./pages/FundingRecord";
+import FreshRounds from "./pages/FreshRounds";
 import Art from "./pages/Art";
 import Newsletter from "./pages/Newsletter";
 import SignalTrends from "./pages/SignalTrends";
@@ -113,6 +114,7 @@ function Router() {
       <Route path={"/platform"} component={Platform} />
       <Route path={"/methodology"} component={Methodology} />
       <Route path={"/record"} component={FundingRecord} />
+      <Route path={"/rounds"} component={FreshRounds} />
       <Route path={"/newsletter/:date"} component={Newsletter} />
       <Route path={"/newsletter"} component={Newsletter} />
       <Route path={"/art"} component={Art} />

@@ -32,6 +32,7 @@ const PRODUCT_GROUPS: { heading: string; links: { label: string; href: string; n
       { label: "Signal Art", href: "/art" },
       { label: "About", href: "/about" },
       { label: "Funding record", href: "/record" },
+      { label: "Fresh rounds", href: "/rounds" },
     ],
   },
 ];

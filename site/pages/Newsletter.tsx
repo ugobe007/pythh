@@ -435,6 +435,9 @@ function DailySignalEdition({ date }: { date?: string | null }) {
                 );
               })}
             </div>
+            <a href="/rounds" className="inline-block text-[13px] mt-3 underline underline-offset-2" style={{ color: MUTED }}>
+              Fresh rounds sheet
+            </a>
           </Panel>
         )}
       </div>
