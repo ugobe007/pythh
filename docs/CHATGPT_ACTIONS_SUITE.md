@@ -235,11 +235,13 @@ Captures founders, angels, and scouts looking for fresh funding announcements, s
 3. In the **Configure** tab:
    - Fill in the **Name**, **Description**, **Instructions**, and **Conversation Starters** from the corresponding wedge above.
 4. Scroll to **Actions** and click **Create new action**.
-5. In the **Schema** input box, select **Import from URL** and enter:
-   ```
-   https://pythh.ai/api/actions/openapi.json
-   ```
-   *(Or copy-paste the schema directly from `https://pythh.ai/api/actions/openapi.json`).*
+5. In the **Schema** input box, select **Import from URL** and enter the dedicated schema for that wedge:
+   - Active VC Matcher: `https://pythh.ai/api/actions/openapi/vc-matches.json`
+   - Startup GOD Score™: `https://pythh.ai/api/actions/openapi/god-score.json`
+   - VC Syndicate Mapper: `https://pythh.ai/api/actions/openapi/syndicates.json`
+   - VC Thesis Verifier: `https://pythh.ai/api/actions/openapi/vc-thesis.json`
+   - Daily Signal Radar: `https://pythh.ai/api/actions/openapi/daily-signal.json`
+   *(Note: The combined schema `https://pythh.ai/api/actions/openapi.json` should only be used for a single all-in-one Pythh GPT).*
 6. Set **Authentication** to `None` (these discovery endpoints are designed to be public and frictionless).
 7. Set **Privacy Policy** to:
    ```
