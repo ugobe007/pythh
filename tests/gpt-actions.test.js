@@ -7,7 +7,7 @@ const { calculateGodScoreBreakdownFromStartup } = require('../server/scoring/hot
 
 test('OpenAPI spec contains all 5 ChatGPT wedge action routes', () => {
   const spec = getOpenApiSpec();
-  assert.equal(spec.openapi, '3.1.0');
+  assert.equal(spec.openapi, '3.0.3');
   assert.ok(spec.info.title.includes('Pythh'));
   
   const paths = Object.keys(spec.paths);

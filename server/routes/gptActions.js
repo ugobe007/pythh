@@ -199,7 +199,7 @@ function getOpenApiSpec(wedgeKey = null) {
   }
 
   return {
-    openapi: '3.1.0',
+    openapi: '3.0.3',
     info: {
       title: 'Pythh Venture Intelligence & Investor Matching API',
       description: 'Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.',

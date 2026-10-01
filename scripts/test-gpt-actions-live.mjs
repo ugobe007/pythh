@@ -71,7 +71,7 @@ async function runLiveDiagnostics() {
   console.log('================================================================\n');
 
   // 0. Test OpenAPI Schemas
-  console.log('📄 [0] Verifying OpenAPI 3.1 Schemas:');
+  console.log('📄 [0] Verifying OpenAPI 3.0.3 Schemas:');
   const unified = getOpenApiSpec();
   console.log(`   ✓ Unified schema paths: ${Object.keys(unified.paths).join(', ')}`);
   
