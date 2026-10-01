@@ -28,7 +28,7 @@ function getOpenApiSpec(wedgeKey = null) {
       get: {
         operationId: 'findActiveVcMatches',
         summary: 'Find active VC investors and angels writing checks by sector, stage, or startup URL',
-        description: 'Search currently active VCs and angel investors writing checks. Use when user asks "find investors for my startup", "who are the best-fit VCs?", "find AI investors", "who is leading seed rounds", or provides their startup website URL. Returns verified active investors, check sizes, match scores, and Pythh 42.2% predictive funding evidence.',
+        description: 'Search currently active VCs and angel investors writing checks. Use when user asks "find investors for my startup", "who are the best-fit VCs?", "find AI investors", "who is leading seed rounds", or provides their startup website URL. Returns verified active investors, check sizes, match scores, and Pythh reports a 42.2% top-50 funding prediction placement record.',
         parameters: [
           {
             name: 'sector',
@@ -202,7 +202,7 @@ function getOpenApiSpec(wedgeKey = null) {
     openapi: '3.1.0',
     info: {
       title: 'Pythh Venture Intelligence & Investor Matching API',
-      description: 'Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42.2% predictive match accuracy on confirmed subsequent rounds.',
+      description: 'Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.',
       version: '0.2.1',
     },
     servers: [
@@ -374,7 +374,7 @@ router.get('/vc-matches', async (req, res) => {
     res.json({
       success: true,
       total_candidates_analyzed: 4500,
-      predicted_funding_accuracy: '42.2% top-50 placement (19/45) and 26.7% top-five placement (12/45) on confirmed raises',
+      predicted_funding_accuracy: 'Pythh reports a 42.2% top-50 funding prediction placement record (19/45) and 26.7% top-five placement (12/45) on confirmed raises',
       funding_prediction_record: {
         as_of: 'September 30, 2026',
         methodology: 'Conditional ranking benchmark on startups with confirmed subsequent rounds and verified investors',

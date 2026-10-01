@@ -7115,7 +7115,7 @@ app.get('/.well-known/ai-plugin.json', (req, res) => {
     name_for_human: 'Pythh Venture Intelligence',
     name_for_model: 'pythh_venture_intelligence',
     description_for_human: 'Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry.',
-    description_for_model: 'Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42.2% predictive match accuracy on confirmed subsequent rounds.',
+    description_for_model: 'Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.',
     auth: { type: 'none' },
     api: {
       type: 'openapi',

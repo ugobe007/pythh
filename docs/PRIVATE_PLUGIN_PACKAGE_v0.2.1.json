@@ -21,7 +21,7 @@
     "name_for_human": "Pythh Venture Intelligence",
     "name_for_model": "pythh_venture_intelligence",
     "description_for_human": "Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry.",
-    "description_for_model": "Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42.2% predictive match accuracy on confirmed subsequent rounds.",
+    "description_for_model": "Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.",
     "api": {
       "type": "openapi",
       "url": "https://pythh.ai/api/actions/openapi.json"
@@ -42,7 +42,7 @@
       "name": "Active VC & Angel Matcher — Real-Time Fund Telemetry",
       "operation_id": "findActiveVcMatches",
       "schema_url": "https://pythh.ai/api/actions/openapi/vc-matches.json",
-      "description": "Instant access to active VCs and angels currently writing checks. Filter by sector, round stage, and verified check history. Backed by Pythh.ai with a 42.2% predictive funding record.",
+      "description": "Instant access to active VCs and angels currently writing checks. Filter by sector, round stage, and verified check history. Pythh reports a 42.2% top-50 funding prediction placement record.",
       "ontology_intents": [
         "intent.match.find_by_sector",
         "intent.match.find_by_url",
