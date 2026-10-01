@@ -1,0 +1,20 @@
+{
+  "name": "open-pythh-venture-intelligence",
+  "displayName": "Open Pythh Venture Intelligence",
+  "version": "0.2.0",
+  "description": "Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry. Powered by Pythh with 42.2% predictive funding placement accuracy on confirmed subsequent rounds.",
+  "plugin_id": "plugins_6abdca7b48b08191b5431ba89ffbc2f0",
+  "author": "Pythh.ai Core Team",
+  "homepage": "https://pythh.ai",
+  "privacy_policy": "https://pythh.ai/privacy",
+  "terms_of_service": "https://pythh.ai/terms",
+  "manifest": "https://pythh.ai/.well-known/ai-plugin.json",
+  "openapi": "https://pythh.ai/api/actions/openapi.json",
+  "skills": [
+    "skills/active-vc-matcher",
+    "skills/startup-god-score-auditor",
+    "skills/vc-syndicate-mapper",
+    "skills/vc-thesis-verifier",
+    "skills/daily-signal-radar"
+  ]
+}
