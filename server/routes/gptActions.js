@@ -28,7 +28,7 @@ function getOpenApiSpec(wedgeKey = null) {
       get: {
         operationId: 'findActiveVcMatches',
         summary: 'Find active VC investors and angels writing checks by sector, stage, or startup URL',
-        description: 'Search currently active VCs and angel investors writing checks. Use when user asks "find investors for my startup", "who are the best-fit VCs?", "find AI investors", "who is leading seed rounds", or provides their startup website URL. Returns verified active investors, check sizes, match scores, and Pythh reports a 42.2% top-50 funding prediction placement record.',
+        description: 'Search active VCs and angel investors writing checks by sector, stage, or startup URL. Returns verified active investors, check sizes, match scores, and Pythh reports a 42.2% top-50 funding prediction placement record.',
         parameters: [
           {
             name: 'sector',
@@ -64,7 +64,32 @@ function getOpenApiSpec(wedgeKey = null) {
             description: 'Ranked list of verified active VC investors with check size and match rationale',
             content: {
               'application/json': {
-                schema: { type: 'object' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    total_candidates_analyzed: { type: 'integer' },
+                    predicted_funding_accuracy: { type: 'string' },
+                    matches: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          name: { type: 'string' },
+                          firm: { type: 'string' },
+                          score: { type: 'number' },
+                          stage: { type: 'string' },
+                          check_size: { type: 'string' },
+                          sectors: { type: 'array', items: { type: 'string' } },
+                          rationale: { type: 'string' },
+                        },
+                      },
+                    },
+                    conversion_hook: { type: 'string' },
+                    pythh_url: { type: 'string' },
+                  },
+                },
               },
             },
           },
@@ -75,7 +100,7 @@ function getOpenApiSpec(wedgeKey = null) {
       post: {
         operationId: 'auditStartupGodScore',
         summary: 'Audit startup pitch, traction metrics, and calculate institutional GOD Score™',
-        description: 'Calculates the 23-criteria institutional GOD Score (Team, Traction, Market, Product, Vision) and benchmarks valuation readiness. Use when user asks "am I ready to raise", "audit my startup", "rate my pitch", "what valuation can I get", or shares ARR/MRR traction numbers.',
+        description: 'Calculates the 23-criteria institutional GOD Score (Team, Traction, Market, Product, Vision) and benchmarks valuation readiness for startups seeking venture capital.',
         requestBody: {
           required: true,
           content: {
@@ -102,7 +127,30 @@ function getOpenApiSpec(wedgeKey = null) {
             description: 'GOD score breakdown, readiness diagnosis, and valuation range',
             content: {
               'application/json': {
-                schema: { type: 'object' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    startup_name: { type: 'string' },
+                    god_score: { type: 'number' },
+                    fleet_percentile: { type: 'string' },
+                    readiness_verdict: { type: 'string' },
+                    valuation_benchmark: { type: 'string' },
+                    pillar_breakdown: {
+                      type: 'object',
+                      properties: {
+                        team: { type: 'object', properties: { score: { type: 'number' }, max: { type: 'number' }, status: { type: 'string' } } },
+                        traction: { type: 'object', properties: { score: { type: 'number' }, max: { type: 'number' }, status: { type: 'string' } } },
+                        market: { type: 'object', properties: { score: { type: 'number' }, max: { type: 'number' }, status: { type: 'string' } } },
+                        product: { type: 'object', properties: { score: { type: 'number' }, max: { type: 'number' }, status: { type: 'string' } } },
+                        vision: { type: 'object', properties: { score: { type: 'number' }, max: { type: 'number' }, status: { type: 'string' } } },
+                      },
+                    },
+                    oracle_portfolio_status: { type: 'string' },
+                    priority_recommendations: { type: 'array', items: { type: 'string' } },
+                    conversion_hook: { type: 'string' },
+                  },
+                },
               },
             },
           },
@@ -113,7 +161,7 @@ function getOpenApiSpec(wedgeKey = null) {
       get: {
         operationId: 'mapVcSyndicates',
         summary: 'Map verified co-investor syndicates and follow-on partners for a VC firm',
-        description: 'Discover who co-invests with or follows a given venture capital firm. Use when user asks "who co-invests with Founders Fund", "map Sequoia syndicate", "who follows a16z lead rounds", or "how to fill out a round syndicate". Shows lead vs. follow patterns and verified co-investment networks.',
+        description: 'Discover who co-invests with or follows a given venture capital firm. Shows lead vs. follow patterns and verified co-investment networks.',
         parameters: [
           {
             name: 'firm_name',
@@ -128,7 +176,18 @@ function getOpenApiSpec(wedgeKey = null) {
             description: 'Syndicate co-investors, lead/follow behavior, and recent joint deals',
             content: {
               'application/json': {
-                schema: { type: 'object' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    firm_name: { type: 'string' },
+                    network_tier: { type: 'string' },
+                    lead_behavior: { type: 'string' },
+                    frequent_co_investors: { type: 'array', items: { type: 'string' } },
+                    conversion_hook: { type: 'string' },
+                    pythh_url: { type: 'string' },
+                  },
+                },
               },
             },
           },
@@ -139,7 +198,7 @@ function getOpenApiSpec(wedgeKey = null) {
       get: {
         operationId: 'verifyVcThesis',
         summary: 'Verify a VC firm or partner thesis, active check size, and recent rounds',
-        description: 'Factual verification of a VC firm or partner to prevent AI hallucination. Use when user asks "is Sequoia actively investing", "what check size does First Round write", "verify Bessemer thesis", or "does Elad Gil invest in Seed". Returns verified target stages, check sizes, and observed investment triggers.',
+        description: 'Factual verification of a VC firm or partner thesis, active check size, and recent rounds to prevent AI hallucination. Returns verified target stages and investment triggers.',
         parameters: [
           {
             name: 'name',
@@ -154,7 +213,22 @@ function getOpenApiSpec(wedgeKey = null) {
             description: 'Verified VC partner/firm thesis, check sizes, and active status',
             content: {
               'application/json': {
-                schema: { type: 'object' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    investor_name: { type: 'string' },
+                    firm: { type: 'string' },
+                    active_status: { type: 'string' },
+                    fund_size: { type: 'string' },
+                    stages: { type: 'array', items: { type: 'string' } },
+                    typical_check_size: { type: 'string' },
+                    core_sectors: { type: 'array', items: { type: 'string' } },
+                    observed_triggers: { type: 'array', items: { type: 'string' } },
+                    conversion_hook: { type: 'string' },
+                    pythh_url: { type: 'string' },
+                  },
+                },
               },
             },
           },
@@ -165,7 +239,7 @@ function getOpenApiSpec(wedgeKey = null) {
       get: {
         operationId: 'getDailySignalRadar',
         summary: 'Get the Daily Signal venture capital radar, trending sectors, and newly funded rounds',
-        description: 'Retrieve freshly announced venture rounds, macro capital concentration, and high-velocity sectors. Use when user asks "what rounds were funded today", "latest venture capital news", "top trending sectors in VC", or "where is capital flowing right now".',
+        description: 'Retrieve freshly announced venture rounds, macro capital concentration, and high-velocity sectors from today\'s Daily Signal edition.',
         parameters: [
           {
             name: 'sector',
@@ -180,7 +254,31 @@ function getOpenApiSpec(wedgeKey = null) {
             description: 'Daily venture radar edition with newly funded companies and trends',
             content: {
               'application/json': {
-                schema: { type: 'object' },
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    edition: { type: 'string' },
+                    date: { type: 'string' },
+                    market_velocity: { type: 'string' },
+                    trending_sectors: { type: 'array', items: { type: 'string' } },
+                    recent_funding_rounds: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          company: { type: 'string' },
+                          amount: { type: 'string' },
+                          round: { type: 'string' },
+                          lead_investor: { type: 'string' },
+                          sector: { type: 'string' },
+                        },
+                      },
+                    },
+                    conversion_hook: { type: 'string' },
+                    pythh_url: { type: 'string' },
+                  },
+                },
               },
             },
           },
@@ -199,7 +297,7 @@ function getOpenApiSpec(wedgeKey = null) {
   }
 
   return {
-    openapi: '3.0.3',
+    openapi: '3.1.0',
     info: {
       title: 'Pythh Venture Intelligence & Investor Matching API',
       description: 'Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.',
