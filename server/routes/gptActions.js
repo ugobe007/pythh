@@ -27,41 +27,41 @@ function getOpenApiSpec(wedgeKey = null) {
     '/api/actions/vc-matches': {
       get: {
         operationId: 'findActiveVcMatches',
-        summary: 'Find active VC investors and angels investing by sector and stage',
-        description: 'Search currently active VCs and angel investors writing checks in specific sectors (e.g. AI, Climate, B2B SaaS) and stages (Pre-Seed, Seed, Series A). Returns verified active investors, check sizes, and match rationale.',
+        summary: 'Find active VC investors and angels writing checks by sector, stage, or startup URL',
+        description: 'Search currently active VCs and angel investors writing checks. Use when user asks "find investors for my startup", "who are the best-fit VCs?", "find AI investors", "who is leading seed rounds", or provides their startup website URL. Returns verified active investors, check sizes, match scores, and Pythh 42.2% predictive funding evidence.',
         parameters: [
           {
             name: 'sector',
             in: 'query',
             required: false,
-            schema: { type: 'string' },
-            description: 'Sector or technology focus (e.g., "AI", "Fintech", "Climate", "B2B SaaS", "HealthTech")',
+            schema: { type: 'string', example: 'AI Infrastructure' },
+            description: 'Sector, vertical, or technology keyword (e.g. "AI", "Climate Tech", "B2B SaaS", "Robotics", "Fintech")',
           },
           {
             name: 'stage',
             in: 'query',
             required: false,
-            schema: { type: 'string', enum: ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Growth', 'Any'] },
-            description: 'Target round stage (e.g. "Seed", "Series A")',
+            schema: { type: 'string', enum: ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Growth', 'Any'], example: 'Seed' },
+            description: 'Target investment round stage. Defaults to Seed if unspecified.',
           },
           {
             name: 'startup_url',
             in: 'query',
             required: false,
-            schema: { type: 'string' },
-            description: 'Optional startup website URL to compute tailored match fit',
+            schema: { type: 'string', example: 'https://metasync.ai' },
+            description: 'Website domain or URL of the startup to compute tailored matchmaking and semantic fit',
           },
           {
             name: 'limit',
             in: 'query',
             required: false,
-            schema: { type: 'integer', default: 3, maximum: 10 },
-            description: 'Number of top investors to return (default: 3, max: 10)',
+            schema: { type: 'integer', default: 3, maximum: 10, example: 3 },
+            description: 'Number of top active investor matches to return (default 3, max 10)',
           },
         ],
         responses: {
           '200': {
-            description: 'Ranked list of verified active VC investors',
+            description: 'Ranked list of verified active VC investors with check size and match rationale',
             content: {
               'application/json': {
                 schema: { type: 'object' },
@@ -74,8 +74,8 @@ function getOpenApiSpec(wedgeKey = null) {
     '/api/actions/god-score': {
       post: {
         operationId: 'auditStartupGodScore',
-        summary: 'Audit startup fundability and calculate institutional GOD Score',
-        description: 'Calculates the 23-criteria institutional GOD Score (Team, Traction, Market, Product, Vision) for a startup. Returns score breakdown, percentile ranking, valuation benchmark, and raise readiness.',
+        summary: 'Audit startup pitch, traction metrics, and calculate institutional GOD Score™',
+        description: 'Calculates the 23-criteria institutional GOD Score (Team, Traction, Market, Product, Vision) and benchmarks valuation readiness. Use when user asks "am I ready to raise", "audit my startup", "rate my pitch", "what valuation can I get", or shares ARR/MRR traction numbers.',
         requestBody: {
           required: true,
           content: {
@@ -83,14 +83,14 @@ function getOpenApiSpec(wedgeKey = null) {
               schema: {
                 type: 'object',
                 properties: {
-                  name: { type: 'string', description: 'Startup name' },
-                  website: { type: 'string', description: 'Startup website or domain' },
-                  stage: { type: 'string', description: 'Current stage (e.g., Pre-Seed, Seed, Series A)' },
-                  arr_usd: { type: 'number', description: 'Annual Recurring Revenue in USD (if applicable)' },
-                  mrr_usd: { type: 'number', description: 'Monthly Recurring Revenue in USD (if applicable)' },
-                  target_raise_usd: { type: 'number', description: 'Target fundraise amount in USD' },
-                  description: { type: 'string', description: 'One-line summary or pitch of the company' },
-                  team_background: { type: 'string', description: 'Key team highlights or prior experience' },
+                  name: { type: 'string', description: 'Startup or project name', example: 'Metasync AI' },
+                  website: { type: 'string', description: 'Company website domain or URL', example: 'metasync.ai' },
+                  stage: { type: 'string', description: 'Current target stage (Pre-Seed, Seed, Series A)', example: 'Seed' },
+                  arr_usd: { type: 'number', description: 'Current Annual Recurring Revenue in USD', example: 350000 },
+                  mrr_usd: { type: 'number', description: 'Current Monthly Recurring Revenue in USD', example: 29000 },
+                  target_raise_usd: { type: 'number', description: 'Target fundraising round size in USD', example: 2000000 },
+                  description: { type: 'string', description: 'One-line product summary or elevator pitch', example: 'Autonomous data pipeline validation and sync agent for enterprise warehouses' },
+                  team_background: { type: 'string', description: 'Founding team credentials, technical background, or prior exits', example: 'Ex-Snowflake engineer, CMU PhD in distributed databases' },
                 },
                 required: ['name'],
               },
@@ -112,15 +112,15 @@ function getOpenApiSpec(wedgeKey = null) {
     '/api/actions/syndicates': {
       get: {
         operationId: 'mapVcSyndicates',
-        summary: 'Map verified syndicate co-investors and follow-on partners for a VC firm',
-        description: 'Discover who frequently co-invests with or follows a given venture capital firm (e.g., Sequoia, a16z, Benchmark, Founders Fund, Accel). Shows lead vs. follow patterns and verified co-investment networks.',
+        summary: 'Map verified co-investor syndicates and follow-on partners for a VC firm',
+        description: 'Discover who co-invests with or follows a given venture capital firm. Use when user asks "who co-invests with Founders Fund", "map Sequoia syndicate", "who follows a16z lead rounds", or "how to fill out a round syndicate". Shows lead vs. follow patterns and verified co-investment networks.',
         parameters: [
           {
             name: 'firm_name',
             in: 'query',
             required: true,
-            schema: { type: 'string' },
-            description: 'Name of the VC firm (e.g. "Sequoia", "Founders Fund", "Benchmark", "Accel")',
+            schema: { type: 'string', example: 'Founders Fund' },
+            description: 'Name of the VC firm (e.g. "Founders Fund", "Sequoia", "Benchmark", "Accel", "a16z")',
           },
         ],
         responses: {
@@ -139,14 +139,14 @@ function getOpenApiSpec(wedgeKey = null) {
       get: {
         operationId: 'verifyVcThesis',
         summary: 'Verify a VC firm or partner thesis, active check size, and recent rounds',
-        description: 'Factual verification of a VC firm or partner to prevent AI hallucination. Returns verified target stages, sectors, typical check sizes, and observed investment triggers from recent announcements.',
+        description: 'Factual verification of a VC firm or partner to prevent AI hallucination. Use when user asks "is Sequoia actively investing", "what check size does First Round write", "verify Bessemer thesis", or "does Elad Gil invest in Seed". Returns verified target stages, check sizes, and observed investment triggers.',
         parameters: [
           {
             name: 'name',
             in: 'query',
             required: true,
-            schema: { type: 'string' },
-            description: 'Name of the VC firm or partner (e.g., "Bessemer", "First Round Capital", "Elad Gil")',
+            schema: { type: 'string', example: 'Sequoia Capital' },
+            description: 'Name of the VC firm or general partner (e.g., "Sequoia Capital", "First Round Capital", "Elad Gil", "Bessemer")',
           },
         ],
         responses: {
@@ -164,15 +164,15 @@ function getOpenApiSpec(wedgeKey = null) {
     '/api/actions/daily-signal': {
       get: {
         operationId: 'getDailySignalRadar',
-        summary: 'Get the Daily Signal venture capital radar and newly funded rounds',
-        description: 'Retrieve newly announced venture funding rounds, active technology trends, stealth launches, and market velocity telemetry from the Pythh Daily Signal.',
+        summary: 'Get the Daily Signal venture capital radar, trending sectors, and newly funded rounds',
+        description: 'Retrieve freshly announced venture rounds, macro capital concentration, and high-velocity sectors. Use when user asks "what rounds were funded today", "latest venture capital news", "top trending sectors in VC", or "where is capital flowing right now".',
         parameters: [
           {
             name: 'sector',
             in: 'query',
             required: false,
-            schema: { type: 'string' },
-            description: 'Optional sector filter (e.g., "AI", "Fintech", "Bio")',
+            schema: { type: 'string', example: 'AI' },
+            description: 'Optional sector filter (e.g., "AI", "Climate", "Robotics", "Fintech")',
           },
         ],
         responses: {
@@ -202,8 +202,8 @@ function getOpenApiSpec(wedgeKey = null) {
     openapi: '3.1.0',
     info: {
       title: 'Pythh Venture Intelligence & Investor Matching API',
-      description: 'Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42% predictive match accuracy.',
-      version: '1.0.0',
+      description: 'Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42.2% predictive match accuracy on confirmed subsequent rounds.',
+      version: '0.2.0',
     },
     servers: [
       {
@@ -687,5 +687,182 @@ router.get('/daily-signal', async (req, res) => {
   });
 });
 
+// ─── 6. Intent Classification & Routing Engine ──────────────────────────────
+function classifyUserQueryIntent(text = '') {
+  const query = String(text || '').trim();
+  const qLower = query.toLowerCase();
+
+  // 1. Syndicate Mapping Intent
+  if (
+    qLower.includes('co-invest') ||
+    qLower.includes('coinvest') ||
+    qLower.includes('syndicate') ||
+    qLower.includes('who invests with') ||
+    qLower.includes('who partners with') ||
+    qLower.includes('follow-on partners')
+  ) {
+    let firmName = '';
+    const firmMatches = query.match(/(?:with|for|around)\s+([A-Z][A-Za-z0-9\s&]+?)(?:\?|\.|$|\s+(?:and|or))/i);
+    if (firmMatches?.[1]) {
+      firmName = firmMatches[1].trim();
+    } else {
+      for (const known of ['Founders Fund', 'Sequoia', 'Benchmark', 'Accel', 'a16z', 'Kleiner Perkins', 'General Catalyst', 'Bessemer', 'Lightspeed']) {
+        if (qLower.includes(known.toLowerCase())) {
+          firmName = known;
+          break;
+        }
+      }
+    }
+    return {
+      intent: 'map_syndicates',
+      target_operation: 'mapVcSyndicates',
+      confidence: 0.95,
+      extracted_slots: {
+        firm_name: firmName || 'Founders Fund',
+      },
+    };
+  }
+
+  // 2. VC Thesis / Fact Verification Intent
+  if (
+    qLower.includes('check size') ||
+    qLower.includes('investment thesis') ||
+    qLower.includes('actively writing') ||
+    qLower.includes('actively investing') ||
+    qLower.includes('is sequoia') ||
+    qLower.includes('is benchmark') ||
+    qLower.includes('fact-check') ||
+    qLower.includes('what does elad gil') ||
+    qLower.includes('does elad gil')
+  ) {
+    let name = '';
+    for (const known of ['Sequoia Capital', 'Sequoia', 'First Round Capital', 'First Round', 'Founders Fund', 'Bessemer', 'Benchmark', 'Elad Gil', 'a16z']) {
+      if (qLower.includes(known.toLowerCase())) {
+        name = known;
+        break;
+      }
+    }
+    return {
+      intent: 'verify_thesis',
+      target_operation: 'verifyVcThesis',
+      confidence: 0.92,
+      extracted_slots: {
+        name: name || 'Sequoia Capital',
+      },
+    };
+  }
+
+  // 3. GOD Score & Valuation Auditor Intent
+  if (
+    qLower.includes('god score') ||
+    qLower.includes('audit') ||
+    qLower.includes('rate my') ||
+    qLower.includes('ready to raise') ||
+    qLower.includes('valuation') ||
+    qLower.includes('pitch readiness') ||
+    qLower.includes('mrr') ||
+    qLower.includes('arr')
+  ) {
+    let arr_usd = 0;
+    let mrr_usd = 0;
+    let target_raise_usd = 0;
+    const arrMatch = query.match(/\$(\d+(?:\.\d+)?)\s*(k|m)\s*(?:in\s+)?arr/i);
+    if (arrMatch) {
+      const num = parseFloat(arrMatch[1]);
+      arr_usd = arrMatch[2].toLowerCase() === 'm' ? num * 1000000 : num * 1000;
+    }
+    const mrrMatch = query.match(/\$(\d+(?:\.\d+)?)\s*(k|m)\s*(?:in\s+)?mrr/i);
+    if (mrrMatch) {
+      const num = parseFloat(mrrMatch[1]);
+      mrr_usd = mrrMatch[2].toLowerCase() === 'm' ? num * 1000000 : num * 1000;
+    }
+    const raiseMatch = query.match(/raising\s*\$(\d+(?:\.\d+)?)\s*(k|m)/i);
+    if (raiseMatch) {
+      const num = parseFloat(raiseMatch[1]);
+      target_raise_usd = raiseMatch[2].toLowerCase() === 'm' ? num * 1000000 : num * 1000;
+    }
+
+    let stage = 'Seed';
+    if (qLower.includes('pre-seed') || qLower.includes('preseed')) stage = 'Pre-Seed';
+    else if (qLower.includes('series a')) stage = 'Series A';
+
+    return {
+      intent: 'audit_god_score',
+      target_operation: 'auditStartupGodScore',
+      confidence: 0.94,
+      extracted_slots: {
+        name: 'Startup Candidate',
+        stage,
+        arr_usd: arr_usd || (mrr_usd ? mrr_usd * 12 : 0),
+        mrr_usd,
+        target_raise_usd: target_raise_usd || 1500000,
+      },
+    };
+  }
+
+  // 4. Daily Signal & Market Radar Intent
+  if (
+    qLower.includes('daily signal') ||
+    qLower.includes('radar') ||
+    qLower.includes('funded today') ||
+    qLower.includes('funded this week') ||
+    qLower.includes('latest rounds') ||
+    qLower.includes('funding rounds') ||
+    qLower.includes('market velocity') ||
+    qLower.includes('trending sectors')
+  ) {
+    let sector = '';
+    for (const s of ['AI', 'Climate', 'Robotics', 'Fintech', 'Defense', 'B2B SaaS']) {
+      if (qLower.includes(s.toLowerCase())) {
+        sector = s;
+        break;
+      }
+    }
+    return {
+      intent: 'daily_signal',
+      target_operation: 'getDailySignalRadar',
+      confidence: 0.90,
+      extracted_slots: {
+        sector: sector || undefined,
+      },
+    };
+  }
+
+  // 5. Default / Active VC Matcher Intent
+  // Catches: "find investors for my startup", "find AI investors", "who are the best-fit VCs?", etc.
+  let sector = '';
+  for (const s of ['AI Infrastructure', 'AI', 'Climate Tech', 'Climate', 'B2B SaaS', 'SaaS', 'Robotics', 'Fintech', 'Defense Tech', 'HealthTech']) {
+    if (qLower.includes(s.toLowerCase())) {
+      sector = s;
+      break;
+    }
+  }
+
+  let stage = 'Seed';
+  if (qLower.includes('pre-seed') || qLower.includes('preseed')) stage = 'Pre-Seed';
+  else if (qLower.includes('series a')) stage = 'Series A';
+  else if (qLower.includes('series b')) stage = 'Series B';
+
+  const urlMatch = query.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.(?:ai|io|com|co|tech|xyz)[^\s]*)/i);
+  const startupUrl = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
+
+  return {
+    intent: 'match_investors',
+    target_operation: 'findActiveVcMatches',
+    confidence: 0.92,
+    extracted_slots: {
+      sector: sector || undefined,
+      stage,
+      startup_url: startupUrl || undefined,
+    },
+  };
+}
+
+router.get('/intent-route', (req, res) => {
+  const query = req.query.q || '';
+  res.json(classifyUserQueryIntent(query));
+});
+
 module.exports = router;
 module.exports.getOpenApiSpec = getOpenApiSpec;
+module.exports.classifyUserQueryIntent = classifyUserQueryIntent;

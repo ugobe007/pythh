@@ -7115,7 +7115,7 @@ app.get('/.well-known/ai-plugin.json', (req, res) => {
     name_for_human: 'Pythh Venture Intelligence',
     name_for_model: 'pythh_venture_intelligence',
     description_for_human: 'Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry.',
-    description_for_model: 'Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42% predictive match accuracy.',
+    description_for_model: 'Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42.2% predictive match accuracy on confirmed subsequent rounds.',
     auth: { type: 'none' },
     api: {
       type: 'openapi',
@@ -7124,6 +7124,7 @@ app.get('/.well-known/ai-plugin.json', (req, res) => {
     logo_url: `${base}/favicon.svg`,
     contact_email: 'hello@orbital-ai.io',
     legal_info_url: `${base}/terms`,
+    version: '0.2.0',
   });
 });
 

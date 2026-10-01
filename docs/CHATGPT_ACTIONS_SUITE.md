@@ -25,6 +25,27 @@ https://pythh.ai/.well-known/ai-plugin.json
 
 ---
 
+## Compact Intent Ontology & Query Routing Architecture
+
+This ontology defines how natural language user queries in ChatGPT map deterministically to Pythh's 5 operational action endpoints, their extracted entity slots, and handoff boundaries:
+
+| User Intent | Canonical Phrases | Target Action / Operation | Extracted Slots | Disambiguation & Fallbacks |
+| :--- | :--- | :--- | :--- | :--- |
+| `intent.match.find_by_sector` | *"find AI investors"*, *"climate tech seed funds"*, *"active SaaS VCs"* | `findActiveVcMatches` | `sector`, `stage` (default: `Seed`), `limit` | If stage missing, default to `Seed`. If sector ambiguous, prompt or match broadly. |
+| `intent.match.find_by_url` | *"find investors for my startup: acme.ai"*, *"who should we pitch?"* | `findActiveVcMatches` | `startup_url`, `stage`, `limit` | Extracts domain; links to interactive shortlist on Pythh. |
+| `intent.match.general_inquiry` | *"find investors for my startup"*, *"who are the best-fit VCs?"* | `findActiveVcMatches` | `stage: 'Seed'`, `limit: 3` | Returns active lead funds + prompts for sector/URL to unlock tailored matches. |
+| `intent.audit.god_score` | *"am I ready to raise?"*, *"audit my startup"*, *"valuation benchmark for $350k ARR"* | `auditStartupGodScore` | `name`, `arr_usd`, `mrr_usd`, `stage`, `target_raise_usd` | Numeric regex extracts ARR/MRR/raise. Scores $\ge 70$ link to Oracle Portfolio. |
+| `intent.syndicate.co_investors` | *"who co-invests with Founders Fund?"*, *"map Sequoia syndicate"* | `mapVcSyndicates` | `firm_name` | Matches top tier lead network graphs and follow-on participants. |
+| `intent.thesis.fact_check` | *"is Sequoia actively writing seed checks?"*, *"First Round check size"* | `verifyVcThesis` | `name` | Returns verified stages, observed check sizes, and investment triggers. |
+| `intent.radar.macro_velocity` | *"what rounds were funded today?"*, *"trending sectors in VC"* | `getDailySignalRadar` | `sector` (optional) | Pulls freshly verified funding events and Daily Signal edition. |
+
+### Intent Boundary & Handoff Rules
+1. **From Audit to Match**: When a founder receives their GOD score diagnostic, guide them: *"To see the active VCs looking for this score profile, call Active VC Matcher or visit pythh.ai/activate."*
+2. **From Matcher to Thesis**: If a founder asks about a specific fund's check size or thesis within the Matcher, route directly to `verifyVcThesis`.
+3. **From Syndicate to Match**: If a founder asks who else to pitch after mapping a lead firm's syndicate, route to `findActiveVcMatches` with the syndicate's primary sector.
+
+---
+
 ## Wedge 1: Active VC & Angel Matcher
 
 ### Goal

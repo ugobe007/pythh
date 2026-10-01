@@ -63,3 +63,49 @@ test('Syndicate networks identify tier-1 lead firms correctly', () => {
   assert.equal(isWellKnownFirm({ firm: 'Andreessen Horowitz' }), true);
   assert.equal(isWellKnownFirm({ firm: 'Random Undisclosed Fund XYZ' }), false);
 });
+
+test('Intent routing engine correctly maps canonical founder and investor queries', () => {
+  const { classifyUserQueryIntent } = require('../server/routes/gptActions');
+
+  // Phrase 1: "find investors for my startup"
+  const r1 = classifyUserQueryIntent('find investors for my startup');
+  assert.equal(r1.intent, 'match_investors');
+  assert.equal(r1.target_operation, 'findActiveVcMatches');
+  assert.equal(r1.extracted_slots.stage, 'Seed');
+
+  // Phrase 2: "find AI investors"
+  const r2 = classifyUserQueryIntent('find AI investors');
+  assert.equal(r2.intent, 'match_investors');
+  assert.equal(r2.target_operation, 'findActiveVcMatches');
+  assert.equal(r2.extracted_slots.sector, 'AI');
+
+  // Phrase 3: "who are the best-fit VCs?"
+  const r3 = classifyUserQueryIntent('who are the best-fit VCs?');
+  assert.equal(r3.intent, 'match_investors');
+  assert.equal(r3.target_operation, 'findActiveVcMatches');
+
+  // Phrase 4: "who co-invests with Founders Fund?"
+  const r4 = classifyUserQueryIntent('who co-invests with Founders Fund?');
+  assert.equal(r4.intent, 'map_syndicates');
+  assert.equal(r4.target_operation, 'mapVcSyndicates');
+  assert.equal(r4.extracted_slots.firm_name, 'Founders Fund');
+
+  // Phrase 5: "is Sequoia Capital actively writing seed checks?"
+  const r5 = classifyUserQueryIntent('is Sequoia Capital actively writing seed checks?');
+  assert.equal(r5.intent, 'verify_thesis');
+  assert.equal(r5.target_operation, 'verifyVcThesis');
+  assert.equal(r5.extracted_slots.name, 'Sequoia Capital');
+
+  // Phrase 6: "audit my startup pitch: B2B SaaS with $350k in ARR raising $2M seed"
+  const r6 = classifyUserQueryIntent('audit my startup pitch: B2B SaaS with $350k in ARR raising $2M seed');
+  assert.equal(r6.intent, 'audit_god_score');
+  assert.equal(r6.target_operation, 'auditStartupGodScore');
+  assert.equal(r6.extracted_slots.arr_usd, 350000);
+  assert.equal(r6.extracted_slots.target_raise_usd, 2000000);
+  assert.equal(r6.extracted_slots.stage, 'Seed');
+
+  // Phrase 7: "what are the latest venture funding rounds today?"
+  const r7 = classifyUserQueryIntent('what are the latest venture funding rounds today?');
+  assert.equal(r7.intent, 'daily_signal');
+  assert.equal(r7.target_operation, 'getDailySignalRadar');
+});
