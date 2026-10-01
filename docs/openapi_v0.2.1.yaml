@@ -1,0 +1,353 @@
+openapi: 3.1.0
+info:
+  title: Pythh Venture Intelligence & Investor Matching API
+  description: Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.
+  version: 0.2.1
+servers:
+  - url: "https://pythh.ai"
+    description: Production Pythh API Server
+paths:
+  /api/actions/vc-matches:
+    get:
+      operationId: findActiveVcMatches
+      summary: Find active VC investors and angels writing checks by sector, stage, or startup URL
+      description: Search active VCs and angel investors writing checks by sector, stage, or startup URL. Returns verified active investors, check sizes, match scores, and Pythh reports a 42.2% top-50 funding prediction placement record.
+      parameters:
+        - name: sector
+          in: query
+          required: false
+          schema:
+            type: string
+            example: AI Infrastructure
+          description: "Sector, vertical, or technology keyword (e.g. "AI", "Climate Tech", "B2B SaaS", "Robotics", "Fintech")"
+        - name: stage
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - Pre-Seed
+              - Seed
+              - Series A
+              - Series B
+              - Growth
+              - Any
+            example: Seed
+          description: Target investment round stage. Defaults to Seed if unspecified.
+        - name: startup_url
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "https://metasync.ai"
+          description: Website domain or URL of the startup to compute tailored matchmaking and semantic fit
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 3
+            maximum: 10
+            example: 3
+          description: Number of top active investor matches to return (default 3, max 10)
+      responses:
+        200:
+          description: Ranked list of verified active VC investors with check size and match rationale
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  total_candidates_analyzed:
+                    type: integer
+                  predicted_funding_accuracy:
+                    type: string
+                  matches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        firm:
+                          type: string
+                        score:
+                          type: number
+                        stage:
+                          type: string
+                        check_size:
+                          type: string
+                        sectors:
+                          type: array
+                          items:
+                            type: string
+                        rationale:
+                          type: string
+                  conversion_hook:
+                    type: string
+                  pythh_url:
+                    type: string
+  /api/actions/god-score:
+    post:
+      operationId: auditStartupGodScore
+      summary: Audit startup pitch, traction metrics, and calculate institutional GOD Score™
+      description: Calculates the 23-criteria institutional GOD Score (Team, Traction, Market, Product, Vision) and benchmarks valuation readiness for startups seeking venture capital.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Startup or project name
+                  example: Metasync AI
+                website:
+                  type: string
+                  description: Company website domain or URL
+                  example: metasync.ai
+                stage:
+                  type: string
+                  description: Current target stage (Pre-Seed, Seed, Series A)
+                  example: Seed
+                arr_usd:
+                  type: number
+                  description: Current Annual Recurring Revenue in USD
+                  example: 350000
+                mrr_usd:
+                  type: number
+                  description: Current Monthly Recurring Revenue in USD
+                  example: 29000
+                target_raise_usd:
+                  type: number
+                  description: Target fundraising round size in USD
+                  example: 2000000
+                description:
+                  type: string
+                  description: One-line product summary or elevator pitch
+                  example: Autonomous data pipeline validation and sync agent for enterprise warehouses
+                team_background:
+                  type: string
+                  description: Founding team credentials, technical background, or prior exits
+                  example: Ex-Snowflake engineer, CMU PhD in distributed databases
+              required:
+                - name
+      responses:
+        200:
+          description: GOD score breakdown, readiness diagnosis, and valuation range
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  startup_name:
+                    type: string
+                  god_score:
+                    type: number
+                  fleet_percentile:
+                    type: string
+                  readiness_verdict:
+                    type: string
+                  valuation_benchmark:
+                    type: string
+                  pillar_breakdown:
+                    type: object
+                    properties:
+                      team:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                          max:
+                            type: number
+                          status:
+                            type: string
+                      traction:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                          max:
+                            type: number
+                          status:
+                            type: string
+                      market:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                          max:
+                            type: number
+                          status:
+                            type: string
+                      product:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                          max:
+                            type: number
+                          status:
+                            type: string
+                      vision:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                          max:
+                            type: number
+                          status:
+                            type: string
+                  oracle_portfolio_status:
+                    type: string
+                  priority_recommendations:
+                    type: array
+                    items:
+                      type: string
+                  conversion_hook:
+                    type: string
+  /api/actions/syndicates:
+    get:
+      operationId: mapVcSyndicates
+      summary: Map verified co-investor syndicates and follow-on partners for a VC firm
+      description: Discover who co-invests with or follows a given venture capital firm. Shows lead vs. follow patterns and verified co-investment networks.
+      parameters:
+        - name: firm_name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: Founders Fund
+          description: "Name of the VC firm (e.g. "Founders Fund", "Sequoia", "Benchmark", "Accel", "a16z")"
+      responses:
+        200:
+          description: Syndicate co-investors, lead/follow behavior, and recent joint deals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  firm_name:
+                    type: string
+                  network_tier:
+                    type: string
+                  lead_behavior:
+                    type: string
+                  frequent_co_investors:
+                    type: array
+                    items:
+                      type: string
+                  conversion_hook:
+                    type: string
+                  pythh_url:
+                    type: string
+  /api/actions/vc-thesis:
+    get:
+      operationId: verifyVcThesis
+      summary: Verify a VC firm or partner thesis, active check size, and recent rounds
+      description: Factual verification of a VC firm or partner thesis, active check size, and recent rounds to prevent AI hallucination. Returns verified target stages and investment triggers.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: Sequoia Capital
+          description: "Name of the VC firm or general partner (e.g., "Sequoia Capital", "First Round Capital", "Elad Gil", "Bessemer")"
+      responses:
+        200:
+          description: Verified VC partner/firm thesis, check sizes, and active status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  investor_name:
+                    type: string
+                  firm:
+                    type: string
+                  active_status:
+                    type: string
+                  fund_size:
+                    type: string
+                  stages:
+                    type: array
+                    items:
+                      type: string
+                  typical_check_size:
+                    type: string
+                  core_sectors:
+                    type: array
+                    items:
+                      type: string
+                  observed_triggers:
+                    type: array
+                    items:
+                      type: string
+                  conversion_hook:
+                    type: string
+                  pythh_url:
+                    type: string
+  /api/actions/daily-signal:
+    get:
+      operationId: getDailySignalRadar
+      summary: Get the Daily Signal venture capital radar, trending sectors, and newly funded rounds
+      description: Retrieve freshly announced venture rounds, macro capital concentration, and high-velocity sectors from today's Daily Signal edition.
+      parameters:
+        - name: sector
+          in: query
+          required: false
+          schema:
+            type: string
+            example: AI
+          description: "Optional sector filter (e.g., "AI", "Climate", "Robotics", "Fintech")"
+      responses:
+        200:
+          description: Daily venture radar edition with newly funded companies and trends
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  edition:
+                    type: string
+                  date:
+                    type: string
+                  market_velocity:
+                    type: string
+                  trending_sectors:
+                    type: array
+                    items:
+                      type: string
+                  recent_funding_rounds:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        company:
+                          type: string
+                        amount:
+                          type: string
+                        round:
+                          type: string
+                        lead_investor:
+                          type: string
+                        sector:
+                          type: string
+                  conversion_hook:
+                    type: string
+                  pythh_url:
+                    type: string

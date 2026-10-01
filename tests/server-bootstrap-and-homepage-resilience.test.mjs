@@ -20,7 +20,7 @@ test('cold-start-heavy dependencies are loaded only by the routes that use them'
 test('full app smoke suite owns server startup and waits for real readiness', () => {
   const smoke = read('../scripts/test-full-app-smoke.mjs');
   const pkg = JSON.parse(read('../package.json'));
-  assert.equal(pkg.scripts.test, 'node scripts/test-full-app-smoke.mjs');
+  assert.match(pkg.scripts.test, /node (?:scripts\/run-node\.mjs )?scripts\/test-full-app-smoke\.mjs/);
   assert.match(smoke, /spawn\(process\.execPath, \['server\/index\.js'\]/);
   assert.match(smoke, /waitFor\('\/ping'/);
   assert.match(smoke, /waitFor\('\/api\/instant\/health'/);

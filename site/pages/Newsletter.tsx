@@ -9,6 +9,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import SignalArtTeaser from "@/components/SignalArtTeaser";
 import NewsletterJoinForm, { NEWSLETTER_JOIN_CTA } from "@/components/NewsletterJoinForm";
 import { formatAmount, isPublicFundingMove } from "@/components/HomeLiveNetwork";
 import {
@@ -600,6 +601,7 @@ function SiteFooter() {
       links: [
         { label: "Matches", href: "/matches" },
         { label: "Daily Signal", href: "/newsletter" },
+        { label: "Signal Art", href: "/art" },
         { label: "Pricing", href: "/pricing" },
         { label: "Portfolio", href: "/portfolio" },
       ],
@@ -686,6 +688,8 @@ export default function Newsletter() {
           <DailySignalEdition date={editionDate} />
         </div>
       </section>
+
+      <SignalArtTeaser />
 
       <section className="py-14 border-t" style={{ borderColor: BORDER, backgroundColor: PURPLE_WASH }}>
         <div className="container max-w-[720px] mx-auto px-6">

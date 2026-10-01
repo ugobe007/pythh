@@ -53,7 +53,7 @@ test('homepage hero leads with one explained match and URL-first CTA', () => {
   assert.match(home, /<HomeProofStrip/);
   assert.doesNotMatch(home, /Investor Intelligence · Live/);
   assert.doesNotMatch(home, /<LiveMatchHighlight/);
-  assert.doesNotMatch(home, /<SignalArtTeaser/);
+  assert.match(home, /<SignalArtTeaser/);
   assert.doesNotMatch(home, /<AgentIntroSection/);
   assert.match(home, /<HomeLiveTape/);
 });

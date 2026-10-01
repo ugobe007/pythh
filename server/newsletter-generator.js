@@ -126,7 +126,7 @@ async function fetchInvestorOfWeek(supabase, weekAgo, upperBound = null) {
 async function fetchFundingRounds(supabase, weekAgo, upperBound = null) {
   let query = supabase
     .from('discovered_startups')
-    .select('name, funding_amount, funding_stage, investors_mentioned, article_url, article_date, rss_source')
+    .select('name, article_title, funding_amount, funding_stage, investors_mentioned, article_url, article_date, rss_source')
     .gte('created_at', weekAgo)
     .not('funding_amount', 'is', null);
   
@@ -134,21 +134,48 @@ async function fetchFundingRounds(supabase, weekAgo, upperBound = null) {
   
   const { data } = await query
     .order('created_at', { ascending: false })
-    .limit(10);
+    .limit(40);
 
   if (!data?.length) return [];
 
-  return data
-    .filter(r => r.funding_amount && r.name)
-    .map(r => ({
-      company:   r.name,
+  const JUNK_NAME_RE = /^(?:word art|sophie davies|goodspeed studio|wireframer|qz\.com|financialcontent|needham|lawsuit|class action|settlement|complaint|sec filing|credit facility|grant|loan|bankruptcy|shoppeblack|citybiz|pr newswire|reuters|wsj|tech\.eu|dealroom|california consulting)/i;
+  const JUNK_TITLE_RE = /class action|lawsuit|bankruptcy loan|credit facility|grant funding|alleges|investigation|hearing/i;
+  const FUNDING_TITLE_RE = /\b(?:raises|secures|closes|bags|lands|nabs|seed|series|funding round)\b/i;
+
+  const seen = new Set();
+  const results = [];
+
+  for (const r of data) {
+    if (!r.funding_amount || !r.name) continue;
+    if (JUNK_TITLE_RE.test(r.article_title || '')) continue;
+    if (r.article_title && !FUNDING_TITLE_RE.test(r.article_title)) continue;
+
+    let company = r.name;
+    const titleMatch = (r.article_title || '').match(/(?:^|(?:startup|company|firm)\s+)([A-Z][\w.&'-]+(?:\s+[A-Z][\w.&'-]+)?)\s+(?:raises|secures|closes|bags|lands|nabs|gets)\b/i);
+    if (titleMatch && titleMatch[1]) {
+      company = titleMatch[1];
+    } else {
+      company = company.replace(/^(?:startup|backer|company|newswire|wsj|citybiz)\s+/i, '').replace(/\s+(?:has|today)$/i, '').trim();
+    }
+
+    if (JUNK_NAME_RE.test(company) || company.length < 2) continue;
+    const key = company.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    results.push({
+      company,
       amount:    r.funding_amount,
       stage:     r.funding_stage || null,
       investors: r.investors_mentioned || [],
       url:       r.article_url || null,
       source:    r.rss_source || 'RSS',
       date:      r.article_date || null,
-    }));
+    });
+    if (results.length >= 10) break;
+  }
+
+  return results;
 }
 
 async function fetchGODScoreMovers(supabase, weekAgo, upperBound = null) {
@@ -196,7 +223,7 @@ async function fetchGODScoreMovers(supabase, weekAgo, upperBound = null) {
     .filter(m => m.name);
 }
 
-// Hottest startups WITH "why they score" — leaderboard joined to signal scores.
+// Hottest startups WITH "why they score" — top GOD startups joined to live signal momentum.
 async function fetchHottestStartups(supabase, upperBound = null) {
   let query = supabase
     .from('startup_uploads')
@@ -204,13 +231,14 @@ async function fetchHottestStartups(supabase, upperBound = null) {
       'id, name, tagline, website, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, is_competitive, has_followon, is_repeat_founder'
     )
     .eq('status', 'approved')
+    .gte('total_god_score', 80)
     .not('total_god_score', 'is', null);
   
   if (upperBound) query = query.lte('created_at', upperBound);
   
   const { data: top } = await query
     .order('total_god_score', { ascending: false })
-    .limit(6);
+    .limit(30);
 
   if (!top?.length) return [];
 
@@ -223,30 +251,41 @@ async function fetchHottestStartups(supabase, upperBound = null) {
 
   const sigMap = Object.fromEntries((signals || []).map((s) => [s.startup_id, s]));
 
-  return top.map((s) => {
-    const sig = sigMap[s.id] || null;
-    return {
-      id: s.id,
-      name: s.name,
-      tagline: s.tagline || null,
-      website: s.website || null,
-      sectors: s.sectors || [],
-      total_god_score: s.total_god_score,
-      pillars: PILLAR_META.map((p) => ({ label: p.label, value: Number(s[p.key]) || 0 })),
-      signals_total: sig ? Number(sig.signals_total) || 0 : null,
-      why: buildWhy(s, sig),
-      repeat_founder: Boolean(s.is_repeat_founder),
-      signals: sig
-        ? {
-            news_momentum: Number(sig.news_momentum) || 0,
-            investor_receptivity: Number(sig.investor_receptivity) || 0,
-            capital_convergence: Number(sig.capital_convergence) || 0,
-            execution_velocity: Number(sig.execution_velocity) || 0,
-            founder_language_shift: Number(sig.founder_language_shift) || 0,
-          }
-        : null,
-    };
-  });
+  // Rank by composite: total_god_score + live signals_total * 2
+  const ranked = top
+    .map((s) => {
+      const sig = sigMap[s.id] || null;
+      const sigVal = sig ? Number(sig.signals_total) || 0 : 0;
+      return {
+        startup: s,
+        signal: sig,
+        composite: (Number(s.total_god_score) || 0) + sigVal * 2,
+      };
+    })
+    .sort((a, b) => b.composite - a.composite)
+    .slice(0, 6);
+
+  return ranked.map(({ startup: s, signal: sig }) => ({
+    id: s.id,
+    name: s.name,
+    tagline: s.tagline || null,
+    website: s.website || null,
+    sectors: s.sectors || [],
+    total_god_score: s.total_god_score,
+    pillars: PILLAR_META.map((p) => ({ label: p.label, value: Number(s[p.key]) || 0 })),
+    signals_total: sig ? Number(sig.signals_total) || 0 : null,
+    why: buildWhy(s, sig),
+    repeat_founder: Boolean(s.is_repeat_founder),
+    signals: sig
+      ? {
+          news_momentum: Number(sig.news_momentum) || 0,
+          investor_receptivity: Number(sig.investor_receptivity) || 0,
+          capital_convergence: Number(sig.capital_convergence) || 0,
+          execution_velocity: Number(sig.execution_velocity) || 0,
+          founder_language_shift: Number(sig.founder_language_shift) || 0,
+        }
+      : null,
+  }));
 }
 
 // Platform-wide signal momentum — which dimensions are spiking right now.

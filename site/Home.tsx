@@ -1549,6 +1549,7 @@ function Footer() {
     { title: "Product", links: [
       { label: "Matches", href: "/matches" },
       { label: "Daily Signal", href: "/newsletter" },
+      { label: "Signal Art", href: "/art" },
       { label: "Pricing", href: "/pricing" },
       { label: "Portfolio", href: "/portfolio" },
     ]},
@@ -1670,6 +1671,7 @@ export default function Home() {
           <HomeLiveTape />
         </div>
       </section>
+      <SignalArtTeaser />
       <NewsletterSection />
       <Footer />
     </div>
