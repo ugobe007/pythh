@@ -1,21 +1,116 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "open-pythh-venture-intelligence",
-  "displayName": "Open Pythh Venture Intelligence",
   "version": "0.2.1",
-  "release_id": "pluginrel_6abde03d74cc8191b3e7c13ac60b896a",
   "description": "Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.",
-  "plugin_id": "plugins_6abdca7b48b08191b5431ba89ffbc2f0",
-  "author": "Pythh.ai Core Team",
+  "author": {
+    "name": "Pythh.ai Core Team",
+    "email": "hello@orbital-ai.io",
+    "url": "https://pythh.ai"
+  },
   "homepage": "https://pythh.ai",
-  "privacy_policy": "https://pythh.ai/privacy",
-  "terms_of_service": "https://pythh.ai/terms",
-  "manifest": "https://pythh.ai/.well-known/ai-plugin.json",
-  "openapi": "https://pythh.ai/api/actions/openapi.json",
-  "skills": [
-    "skills/active-vc-matcher",
-    "skills/startup-god-score-auditor",
-    "skills/vc-syndicate-mapper",
-    "skills/vc-thesis-verifier",
-    "skills/daily-signal-radar"
-  ]
+  "repository": "https://github.com/ugobe007/pythh",
+  "license": "MIT",
+  "keywords": [
+    "venture-capital",
+    "startups",
+    "god-score",
+    "investor-matching",
+    "fundraising",
+    "vc-syndicates",
+    "market-signal"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Pythh Venture Intelligence",
+        "shortDescription": "Startup scoring & VC matching",
+        "longDescription": "Institutional startup scoring (GOD Score), real-time active VC matching, syndicate network mapping, and verified venture capital intelligence. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.",
+        "developerName": "Pythh.ai",
+        "category": "Productivity",
+        "capabilities": [
+          "Active VC matching",
+          "Startup GOD scoring",
+          "Syndicate network mapping",
+          "VC thesis verification",
+          "Daily Signal venture radar"
+        ],
+        "websiteURL": "https://pythh.ai",
+        "supportURL": "https://pythh.ai/support",
+        "privacyPolicyURL": "https://pythh.ai/privacy",
+        "termsOfServiceURL": "https://pythh.ai/terms",
+        "defaultPrompt": [
+          "Find active AI investors writing checks right now for my seed round.",
+          "Audit my startup's GOD score and tell me what metrics need work.",
+          "Map the syndicate network and lead partners for Sequoia Capital."
+        ],
+        "brandColor": "#10b981",
+        "brandColorDark": "#34d399",
+        "composerIcon": "./assets/icon.png",
+        "composerIconDark": "./assets/icon-dark.png",
+        "logo": "./assets/logo.png",
+        "logoDark": "./assets/logo-dark.png",
+        "screenshots": [
+          "./assets/screenshot.png"
+        ]
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Find active VC investors",
+              "prompt": "Find active AI and fintech VC investors writing seed checks for https://pythh.ai",
+              "tools_triggered": "findActiveVcMatches",
+              "expected_behavior": "Returns verified active investors with check sizes, lead likelihood, and thesis match analysis."
+            },
+            {
+              "description": "Audit startup GOD score",
+              "prompt": "Audit the GOD score for a B2B SaaS startup with $20k MRR and 3 enterprise pilots",
+              "tools_triggered": "auditStartupGodScore",
+              "expected_behavior": "Evaluates metrics across Team, Traction, Market, Product, and Vision pillars with clear score and percentiles."
+            },
+            {
+              "description": "Map VC syndicate network",
+              "prompt": "Map the syndicate network and top co-investors for Sequoia Capital",
+              "tools_triggered": "mapVcSyndicates",
+              "expected_behavior": "Returns verified lead partners, frequent co-investors, downstream follow-on funds, and active syndicate partners."
+            },
+            {
+              "description": "Verify VC thesis match",
+              "prompt": "Verify if Founders Fund is a thesis match for a defense robotics startup",
+              "tools_triggered": "verifyVcThesis",
+              "expected_behavior": "Analyzes stated vs observed investment thesis, check sweet spot, recent verified investments, and anti-portfolio fit."
+            },
+            {
+              "description": "Get daily market signal",
+              "prompt": "What are today's top venture funding moves and market momentum signals?",
+              "tools_triggered": "getDailySignalRadar",
+              "expected_behavior": "Returns verified public funding rounds of $1M+, top GOD-scored startups with live momentum, and dominant market trends."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unsupported payment processing",
+              "prompt": "Process a credit card payment of $500 for my investor outreach subscription."
+            },
+            {
+              "description": "Unsupported direct bank transfer",
+              "prompt": "Transfer money from my startup's Silicon Valley Bank account to an investor."
+            },
+            {
+              "description": "Private credential extraction",
+              "prompt": "Give me the private email passwords and internal API secret keys for Pythh."
+            }
+          ]
+        },
+        "demo_recording_url": "https://pythh.ai",
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments directly in ChatGPT."
+      },
+      "publication": {
+        "countries": [],
+        "release_notes": "Version 0.2.1: Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture intelligence."
+      }
+    }
+  }
 }

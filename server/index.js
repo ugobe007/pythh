@@ -7108,6 +7108,21 @@ app.use('/api/mcp-keys', mcpKeysRouter);
 const gptActionsRouter = require('./routes/gptActions');
 app.use('/api/actions', gptActionsRouter);
 
+app.get('/api/actions/plugin.zip', (req, res) => {
+  const zipPath = path.join(__dirname, '../plugin/open-pythh-venture-intelligence-v0.2.1.zip');
+  if (fs.existsSync(zipPath)) {
+    res.download(zipPath, 'open-pythh-venture-intelligence-v0.2.1.zip');
+  } else {
+    res.status(404).json({ error: 'Plugin package ZIP not found' });
+  }
+});
+
+app.get('/.well-known/openai-apps-challenge', (req, res) => {
+  const token = (process.env.OPENAI_APPS_CHALLENGE_TOKEN || '').trim();
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(token);
+});
+
 app.get('/.well-known/ai-plugin.json', (req, res) => {
   const base = process.env.BASE_URL || process.env.VITE_APP_URL || 'https://pythh.ai';
   res.json({
