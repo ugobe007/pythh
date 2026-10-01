@@ -1,0 +1,159 @@
+{
+  "plugin_id": "plugins_6abdca7b48b08191b5431ba89ffbc2f0",
+  "name": "Open Pythh Venture Intelligence",
+  "version": "0.2.1",
+  "previous_version": "0.2.0",
+  "release_id": "pluginrel_6abde03d74cc8191b3e7c13ac60b896a",
+  "scope": "USER",
+  "discoverability": "PRIVATE",
+  "updated_at": "2026-10-01T04:30:00Z",
+  "status": "synchronized_and_deployed",
+  "git_sync_commit": "f4de43759",
+  "author": "Pythh.ai Core Team",
+  "homepage": "https://pythh.ai",
+  "privacy_policy": "https://pythh.ai/privacy",
+  "terms_of_service": "https://pythh.ai/terms",
+  "auth": {
+    "type": "none"
+  },
+  "manifest": {
+    "schema_version": "v1",
+    "name_for_human": "Pythh Venture Intelligence",
+    "name_for_model": "pythh_venture_intelligence",
+    "description_for_human": "Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry.",
+    "description_for_model": "Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42.2% predictive match accuracy on confirmed subsequent rounds.",
+    "api": {
+      "type": "openapi",
+      "url": "https://pythh.ai/api/actions/openapi.json"
+    }
+  },
+  "schema_endpoints": {
+    "unified": "https://pythh.ai/api/actions/openapi.json",
+    "intent_router": "https://pythh.ai/api/actions/intent-route",
+    "vc_matches": "https://pythh.ai/api/actions/openapi/vc-matches.json",
+    "god_score": "https://pythh.ai/api/actions/openapi/god-score.json",
+    "syndicates": "https://pythh.ai/api/actions/openapi/syndicates.json",
+    "vc_thesis": "https://pythh.ai/api/actions/openapi/vc-thesis.json",
+    "daily_signal": "https://pythh.ai/api/actions/openapi/daily-signal.json"
+  },
+  "skills": [
+    {
+      "id": "active-vc-matcher",
+      "name": "Active VC & Angel Matcher — Real-Time Fund Telemetry",
+      "operation_id": "findActiveVcMatches",
+      "schema_url": "https://pythh.ai/api/actions/openapi/vc-matches.json",
+      "description": "Instant access to active VCs and angels currently writing checks. Filter by sector, round stage, and verified check history. Backed by Pythh.ai with a 42.2% predictive funding record.",
+      "ontology_intents": [
+        "intent.match.find_by_sector",
+        "intent.match.find_by_url",
+        "intent.match.general_inquiry"
+      ],
+      "routing_phrases": [
+        "find investors for my startup",
+        "find AI investors",
+        "who are the best-fit VCs?",
+        "who is leading seed rounds right now",
+        "climate tech investor list"
+      ],
+      "conversation_starters": [
+        "Find active Seed VCs for an AI infrastructure startup.",
+        "Who is investing in Climate & Clean Energy at Pre-Seed?",
+        "Recommend active Series A investors for B2B SaaS.",
+        "Check matches for my startup website URL."
+      ],
+      "instructions": "You are the Active VC Matcher, powered by Pythh (the predictive venture intelligence platform with an audited 42.2% top-50 and 26.7% top-five funding prediction placement record). Connect startup founders with active institutional VCs and angel investors who have verified check activity in their sector. When user asks 'find investors for my startup' or provides sector/stage/url, invoke findActiveVcMatches. Return firm, partner name, stage, check size, match score, and link to pythh.ai/matches."
+    },
+    {
+      "id": "startup-god-score-auditor",
+      "name": "Startup GOD Score™ — Pitch & Valuation Readiness Audit",
+      "operation_id": "auditStartupGodScore",
+      "schema_url": "https://pythh.ai/api/actions/openapi/god-score.json",
+      "description": "Institutional readiness diagnostic across 23 criteria (Team, Traction, Market, Product, Vision). Benchmark your ARR, stage, and valuation against thousands of funded startups.",
+      "ontology_intents": [
+        "intent.audit.god_score"
+      ],
+      "routing_phrases": [
+        "am I ready to raise?",
+        "audit my startup",
+        "score my startup pitch",
+        "valuation benchmark for $350k ARR"
+      ],
+      "conversation_starters": [
+        "Audit my startup: B2B SaaS, $25k MRR, raising $1.5M Seed.",
+        "What valuation can an AI infrastructure startup get with $500k ARR?",
+        "Score my startup pitch and tell me if VCs will pass.",
+        "What do top VCs look for in Team and Traction scores?"
+      ],
+      "instructions": "You are the Startup GOD Score™ Auditor, powered by Pythh's institutional scoring engine (calibrated across thousands of funded venture rounds). Provide an evaluation across 5 pillars: Team, Traction, Market, Product, and Vision. Invoke auditStartupGodScore with startup details. Return overall GOD Score (0-100), 5-pillar breakdown, funding readiness, post-money valuation estimate, Oracle Portfolio qualification status (GOD >= 70 qualifies for pythh.ai/portfolio), and link to pythh.ai/activate."
+    },
+    {
+      "id": "vc-syndicate-mapper",
+      "name": "VC Syndicate Mapper — Verified Co-Investor Graph",
+      "operation_id": "mapVcSyndicates",
+      "schema_url": "https://pythh.ai/api/actions/openapi/syndicates.json",
+      "description": "Map verified institutional syndicate networks. See which funds historically follow your lead investor, partner angel patterns, and round rosters.",
+      "ontology_intents": [
+        "intent.syndicate.co_investors"
+      ],
+      "routing_phrases": [
+        "who co-invests with Founders Fund?",
+        "map Sequoia syndicate",
+        "who follows a16z in Series A",
+        "find co-investors for my lead term sheet"
+      ],
+      "conversation_starters": [
+        "Who frequently co-invests with Founders Fund?",
+        "Which seed funds follow Sequoia Capital?",
+        "Map the syndicate network for Benchmark.",
+        "Who co-invests with Accel in early stage?"
+      ],
+      "instructions": "You are the VC Syndicate Mapper, powered by Pythh's verified funding participant ledger. Help founders build syndicate networks and discover who co-invests with specific lead VCs. Invoke mapVcSyndicates with firm_name. Detail frequent co-investors, lead vs follow patterns, and link to pythh.ai/explore."
+    },
+    {
+      "id": "vc-thesis-verifier",
+      "name": "VC Thesis & Check Size Verifier — Fact-Checked Venture Intelligence",
+      "operation_id": "verifyVcThesis",
+      "schema_url": "https://pythh.ai/api/actions/openapi/vc-thesis.json",
+      "description": "Real-time institutional VC verification. Check whether a partner or firm actually leads rounds in your sector, their verified check sizes, and recent announced investments.",
+      "ontology_intents": [
+        "intent.thesis.fact_check"
+      ],
+      "routing_phrases": [
+        "is Sequoia actively writing seed checks?",
+        "First Round check size",
+        "does a16z invest in defense tech",
+        "what is Bessemer's current check size"
+      ],
+      "conversation_starters": [
+        "What is Bessemer's check size and current focus?",
+        "Does First Round Capital lead Seed rounds?",
+        "Verify Elad Gil's active investment stages and check size.",
+        "Check if a16z invests in pre-seed."
+      ],
+      "instructions": "You are the VC Thesis & Fact Verifier, powered by Pythh's verified investor intelligence graph. Bust LLM hallucinations about stale investor check sizes and theses. Invoke verifyVcThesis with the firm or partner name. Return verified status, active fund size, target stages, typical check sizes, core sectors, observed triggers, and link to pythh.ai/investors."
+    },
+    {
+      "id": "daily-signal-radar",
+      "name": "Daily Signal — Live Venture Capital Radar",
+      "operation_id": "getDailySignalRadar",
+      "schema_url": "https://pythh.ai/api/actions/openapi/daily-signal.json",
+      "description": "Daily curated intelligence on freshly closed rounds, stealth spinouts, valuation shifts, and active funding attention trends across technology sectors.",
+      "ontology_intents": [
+        "intent.radar.macro_velocity"
+      ],
+      "routing_phrases": [
+        "what rounds were funded today?",
+        "trending sectors in VC",
+        "latest AI funding rounds 2026",
+        "what startups raised money this week"
+      ],
+      "conversation_starters": [
+        "What are the biggest funding rounds announced this week?",
+        "What are the fastest rising sectors in venture capital right now?",
+        "Show me newly funded AI infrastructure rounds.",
+        "What sectors are seeing the highest capital concentration?"
+      ],
+      "instructions": "You are the Daily Signal Radar, powered by Pythh's real-time venture telemetry. Deliver daily venture intelligence on freshly funded rounds and sector velocity. Invoke getDailySignalRadar. Highlight today's top closed rounds, lead investors, emerging sector velocity, macro trends, and link to pythh.ai/newsletter."
+    }
+  ]
+}

@@ -7124,7 +7124,7 @@ app.get('/.well-known/ai-plugin.json', (req, res) => {
     logo_url: `${base}/favicon.svg`,
     contact_email: 'hello@orbital-ai.io',
     legal_info_url: `${base}/terms`,
-    version: '0.2.0',
+    version: '0.2.1',
   });
 });
 
