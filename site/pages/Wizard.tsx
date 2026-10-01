@@ -121,7 +121,7 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
 }
 
 export default function Wizard() {
-  const [, params] = useRoute("/wizard/:startupId");
+  const [, params] = useRoute<{ startupId: string }>("/wizard/:startupId");
   const startupId = params?.startupId;
   const [, navigate] = useLocation();
 

@@ -57,7 +57,7 @@ const trpcClient = trpc.createClient({
           credentials: "include",
         });
       },
-    }),
+    } as any),
   ],
 });
 

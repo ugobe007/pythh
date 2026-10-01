@@ -20,7 +20,13 @@ export const users = pgTable("pythh_users", {
 });
 
 export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
+export type InsertUser = typeof users.$inferInsert & {
+  name?: string | null;
+  email?: string | null;
+  loginMethod?: string | null;
+  role?: string;
+  lastSignedIn?: Date;
+};
 
 export const subscriptions = pgTable("pythh_subscriptions", {
   id: serial("id").primaryKey(),
@@ -42,7 +48,12 @@ export const subscriptions = pgTable("pythh_subscriptions", {
 });
 
 export type Subscription = typeof subscriptions.$inferSelect;
-export type InsertSubscription = typeof subscriptions.$inferInsert;
+export type InsertSubscription = typeof subscriptions.$inferInsert & {
+  plan?: string;
+  status?: string;
+  currentPeriodEnd?: number | null;
+  cancelAtPeriodEnd?: number;
+};
 
 export const investors = pgTable("pythh_investors", {
   id: serial("id").primaryKey(),
@@ -89,7 +100,10 @@ export const pipelineFeedback = pgTable("pythh_pipeline_feedback", {
 });
 
 export type PipelineFeedback = typeof pipelineFeedback.$inferSelect;
-export type InsertPipelineFeedback = typeof pipelineFeedback.$inferInsert;
+export type InsertPipelineFeedback = typeof pipelineFeedback.$inferInsert & {
+  reason?: string | null;
+  comment?: string | null;
+};
 
 export const pitchDecks = pgTable("pythh_pitch_decks", {
   id: serial("id").primaryKey(),

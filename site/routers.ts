@@ -1409,7 +1409,7 @@ export const appRouter = router({
         classTotals[row.primary_signal] = Number(row.cnt) || 0;
       }
 
-      const voiceRow = voiceAgg[0] ?? {};
+      const voiceRow = (voiceAgg[0] ?? {}) as Record<string, any>;
       return {
         summary: summary[0] ?? null,
         topStartups,

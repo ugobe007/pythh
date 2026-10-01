@@ -34,9 +34,9 @@ import MeetingScheduler from "@/components/MeetingScheduler";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Slide {
-  id: string;
-  title: string;
-  content: string;
+  id?: string;
+  title?: string;
+  content?: string;
   notes?: string;
 }
 
@@ -555,6 +555,7 @@ function EmailPitchStep({
   onReplyToChange,
 }: {
   runId: string;
+  startupId?: string;
   emails: EmailDraft[];
   onApprove: (id: number) => void;
   onSend: (id: number) => void;
@@ -811,6 +812,7 @@ export default function ActivatePythiaModal({
   open,
   onClose,
   runId,
+  startupId,
   startupUrl,
   startupSummary,
   investors,
@@ -916,7 +918,7 @@ export default function ActivatePythiaModal({
     setIsSaving(true);
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await updateDeck.mutateAsync({ deckId, slides: newSlides });
+        await updateDeck.mutateAsync({ deckId, slides: newSlides as any });
       } finally {
         setIsSaving(false);
       }
@@ -926,7 +928,7 @@ export default function ActivatePythiaModal({
   // ── Step 2: Approve deck → generate emails ──
   const handleApproveDeck = async () => {
     if (deckId) {
-      await updateDeck.mutateAsync({ deckId, slides, status: "approved" });
+      await updateDeck.mutateAsync({ deckId, slides: slides as any, status: "approved" });
     }
     // Generate email pitches for all investors
     try {

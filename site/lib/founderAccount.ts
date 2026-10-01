@@ -10,6 +10,7 @@ import { trpcVanilla } from '@/lib/trpcVanilla';
 export type FounderWelcomeEmailSource =
   | 'founder_signup_page'
   | 'founder_signup_gate'
+  | 'founder_signup_gate_oauth'
   | 'activate_gate_skip_scan'
   | 'activate_scan_complete';
 

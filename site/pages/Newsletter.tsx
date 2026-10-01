@@ -660,10 +660,11 @@ function SiteFooter() {
 }
 
 export default function Newsletter() {
-  const [isDated, datedParams] = useRoute("/newsletter/:date");
+  const [isDated, datedParams] = useRoute<{ date: string }>("/newsletter/:date");
+  const rawDate = datedParams?.date;
   const editionDate =
-    isDated && datedParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(datedParams.date)
-      ? datedParams.date
+    isDated && rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+      ? rawDate
       : null;
 
   return (

@@ -204,6 +204,8 @@ function investorStageLabel(stage: ApiInvestor["stage"] | undefined): string {
 interface ApiStartup {
   id?: string;
   name: string;
+  website?: string;
+  url?: string;
   sectors?: string[];
   stage?: string;
   total_god_score?: number;
@@ -328,7 +330,7 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
     const nameParts = (inv.name || "investor").split(" ");
     const firstName = nameParts[0].toLowerCase().replace(/[^a-z]/g, "");
     const lastName = (nameParts[1] || "").toLowerCase().replace(/[^a-z]/g, "");
-    const emailProfile = inferInvestorEmails(inv.name, inv.firm);
+    const emailProfile = inferInvestorEmails(inv.name || "", inv.firm || "");
     const primaryEmail = inv.email || inv.email_best_guess || emailProfile.primaryEmail;
     const pitch = buildPitchEmail(startup, inv, m);
 
@@ -2657,7 +2659,7 @@ export default function Activate() {
         const data = await fetchInstantResults(existingStartupId);
         if (data?.startup_id) {
           setApiResult({
-            startup: (data.startup as ApiResult["startup"]) ?? null,
+            startup: (data.startup as unknown as ApiResult["startup"]) ?? null,
             matches: Array.isArray(data.matches) ? (data.matches as ApiResult["matches"]) : [],
             startup_id: data.startup_id,
             match_count: typeof data.match_count === "number" ? data.match_count : undefined,

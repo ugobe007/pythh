@@ -22,7 +22,7 @@ function trpcMessage(err: unknown): string {
 }
 
 async function finishOAuth(
-  syncSession: (input: { access_token: string }) => Promise<{ user: { id: number } }>,
+  syncSession: (input: { access_token: string }) => Promise<any>,
   utils: ReturnType<typeof trpc.useUtils>,
 ): Promise<void> {
   const result = await completeSupabaseOAuthIfNeeded((input) => syncSession(input));
@@ -35,7 +35,7 @@ async function finishOAuth(
   }
 
   if (result.user) {
-    utils.auth.me.setData(result.user);
+    utils.auth.me.setData(undefined, result.user);
     clearOAuthHandoff();
     return;
   }

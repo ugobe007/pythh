@@ -295,18 +295,18 @@ export async function upsertSubscription(sub: InsertSubscription): Promise<void>
   }
   await db
     .insert(subscriptions)
-    .values(sub)
+    .values(sub as any)
     .onConflictDoUpdate({
       target: subscriptions.stripeSubscriptionId,
       set: {
-        status: sub.status,
-        plan: sub.plan,
+        status: (sub as any).status,
+        plan: (sub as any).plan,
         billingCycle: sub.billingCycle,
-        currentPeriodEnd: sub.currentPeriodEnd,
+        currentPeriodEnd: (sub as any).currentPeriodEnd,
         stripeCustomerId: sub.stripeCustomerId,
-        cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? 0,
+        cancelAtPeriodEnd: (sub as any).cancelAtPeriodEnd ?? 0,
         updatedAt: new Date(),
-      },
+      } as any,
     });
 }
 
@@ -436,27 +436,27 @@ export async function loadCanonicalOutreachInvestors(startupId: string): Promise
   if (!sb || !startupId) return [];
   try {
     const selected = await loadCanonicalOutreachMatches(sb, startupId, { limit: IN_APP_MATCH_COUNT });
-    return selected
-      .map(({ row, investor }) => {
-        const investorId = String(row.investor_id || investor.id || "").trim();
-        const name = String(investor.name || "").trim();
-        const firm = String(investor.firm || name).trim();
-        if (!investorId || !name) return null;
-        const email = investor.email || investor.email_best_guess || undefined;
-        return {
-          investorId,
-          name,
-          firm,
-          sector: Array.isArray(investor.sectors) ? String(investor.sectors[0] || "tech") : "tech",
-          matchReason: typeof row.why_you_match === "string"
-            ? row.why_you_match
-            : Array.isArray(row.why_you_match)
-              ? row.why_you_match.filter(Boolean).join(". ")
-              : undefined,
-          email: email && email.includes("@") ? email : undefined,
-        };
-      })
-      .filter((row): row is CanonicalOutreachInvestor => Boolean(row));
+    const results: CanonicalOutreachInvestor[] = [];
+    for (const { row, investor } of selected) {
+      const investorId = String(row.investor_id || investor.id || "").trim();
+      const name = String(investor.name || "").trim();
+      const firm = String(investor.firm || name).trim();
+      if (!investorId || !name) continue;
+      const email = investor.email || investor.email_best_guess || undefined;
+      results.push({
+        investorId,
+        name,
+        firm,
+        sector: Array.isArray(investor.sectors) ? String(investor.sectors[0] || "tech") : "tech",
+        matchReason: typeof row.why_you_match === "string"
+          ? row.why_you_match
+          : Array.isArray(row.why_you_match)
+            ? row.why_you_match.filter(Boolean).join(". ")
+            : undefined,
+        email: email && email.includes("@") ? email : undefined,
+      });
+    }
+    return results;
   } catch (error) {
     console.error("[canonical-outreach] failed to load recorded matches", error);
     return [];
@@ -540,10 +540,10 @@ export async function upsertPipelineFeedback(opts: {
   if (existing.length > 0) {
     await db
       .update(pipelineFeedback)
-      .set({ rating, reason: reason ?? null, comment: comment ?? null })
+      .set({ rating, reason: reason ?? null, comment: comment ?? null } as any)
       .where(and(eq(pipelineFeedback.userId, userId), eq(pipelineFeedback.runId, runId)));
   } else {
-    await db.insert(pipelineFeedback).values({ userId, runId, rating, reason: reason ?? null, comment: comment ?? null });
+    await db.insert(pipelineFeedback).values({ userId, runId, rating, reason: reason ?? null, comment: comment ?? null } as any);
   }
 }
 
@@ -596,7 +596,7 @@ export async function createPitchDeck(opts: {
       fileKey: fileKey ?? null,
       slidesJson: JSON.stringify(slides),
       status,
-    })
+    } as any)
     .returning({ id: pitchDecks.id });
   if (!inserted?.id) return undefined;
   const rows = await db.select().from(pitchDecks).where(eq(pitchDecks.id, inserted.id)).limit(1);
@@ -696,7 +696,7 @@ export async function createOutreachEmail(opts: {
       subject,
       body,
       status: "draft",
-    })
+    } as any)
     .returning({ id: outreachEmails.id });
   if (!inserted?.id) return undefined;
   const rows = await db.select().from(outreachEmails).where(eq(outreachEmails.id, inserted.id)).limit(1);
@@ -766,7 +766,7 @@ export async function createPipelineRun(opts: {
     summary,
     matchedInvestorsJson: JSON.stringify(matches),
     status,
-  });
+  } as any);
 }
 
 export async function getPipelineRunByRunId(userId: number, runId: string) {
@@ -895,12 +895,12 @@ export async function upsertFounderProfile(userId: number, patch: FounderProfile
     if (existing[0]) {
       await db
         .update(founderProfiles)
-        .set({ ...(patch as Record<string, unknown>), updatedAt: new Date() })
+        .set({ ...(patch as Record<string, unknown>), updatedAt: new Date() } as any)
         .where(eq(founderProfiles.userId, userId));
     } else {
       await db
         .insert(founderProfiles)
-        .values({ userId, ...(patch as Record<string, unknown>), updatedAt: new Date() });
+        .values({ userId, ...(patch as Record<string, unknown>), updatedAt: new Date() } as any);
     }
   } catch (error) {
     console.warn(
@@ -938,7 +938,7 @@ export async function createMeetingProposal(opts: {
       investorFirm,
       proposedTimesJson: JSON.stringify(proposedTimes),
       status: "proposed",
-    })
+    } as any)
     .returning({ id: meetings.id });
   if (inserted?.id == null) return undefined;
   const rows = await db.select().from(meetings).where(eq(meetings.id, inserted.id)).limit(1);
@@ -1035,7 +1035,7 @@ export async function recordFundraisingOutcome(opts: {
       meetingId: opts.meetingId ?? null,
       occurredAt: opts.occurredAt ?? new Date(),
       metadata: opts.metadata ?? {},
-    })
+    } as any)
     .onConflictDoNothing({ target: fundraisingOutcomes.idempotencyKey })
     .returning({ id: fundraisingOutcomes.id });
   return inserted ? { id: inserted.id, duplicate: false } : { duplicate: true };
@@ -1083,12 +1083,12 @@ export async function reviewFundraisingEvidence(opts: { outcomeId: number; revie
   return db.transaction(async (tx) => {
     const [outcome] = await tx.select().from(fundraisingOutcomes).where(eq(fundraisingOutcomes.id, opts.outcomeId)).limit(1);
     if (!outcome || !["diligence_started", "term_sheet_received", "capital_committed"].includes(outcome.eventType)) return undefined;
-    const [review] = await tx.insert(fundraisingEvidenceReviews).values({ outcomeId: outcome.id, reviewerUserId: opts.reviewerUserId, decision: opts.decision, reviewNote: opts.reviewNote ?? null }).onConflictDoNothing({ target: fundraisingEvidenceReviews.outcomeId }).returning({ id: fundraisingEvidenceReviews.id });
+    const [review] = await tx.insert(fundraisingEvidenceReviews).values({ outcomeId: outcome.id, reviewerUserId: opts.reviewerUserId, decision: opts.decision, reviewNote: opts.reviewNote ?? null } as any).onConflictDoNothing({ target: fundraisingEvidenceReviews.outcomeId }).returning({ id: fundraisingEvidenceReviews.id });
     if (!review) return { duplicate: true, decision: (outcome.metadata?.verification_status as string | undefined) ?? "reviewed" };
     await tx.update(fundraisingOutcomes).set({
       verified: opts.decision === "verified" ? 1 : 0,
       metadata: { ...outcome.metadata, verification_status: opts.decision, review_note: opts.reviewNote ?? null, reviewer_user_id: opts.reviewerUserId },
-    }).where(eq(fundraisingOutcomes.id, outcome.id));
+    } as any).where(eq(fundraisingOutcomes.id, outcome.id));
     return { duplicate: false, decision: opts.decision };
   });
 }

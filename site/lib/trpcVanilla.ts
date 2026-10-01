@@ -17,6 +17,6 @@ export const trpcVanilla = createTRPCProxyClient<AppRouter>({
           credentials: 'include',
         });
       },
-    }),
+    } as any),
   ],
 });

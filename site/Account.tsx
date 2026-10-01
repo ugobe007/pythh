@@ -836,7 +836,8 @@ export default function Account() {
                 {/* Price display */}
                 <div className="text-right flex-shrink-0">
                   {(() => {
-                    const pricing = planPriceLabel(subscription.plan, subscription.billingCycle);
+                    const cycle: "monthly" | "annual" = subscription.billingCycle === "annual" ? "annual" : "monthly";
+                    const pricing = planPriceLabel(subscription.plan, cycle);
                     return (
                       <>
                         <p className="font-display font-bold text-2xl" style={{ color: "oklch(0.97 0.005 264)" }}>
@@ -884,7 +885,7 @@ export default function Account() {
               <InfoCard
                 icon={<RefreshCcw size={18} />}
                 label="MEMBER SINCE"
-                value={formatDate(subscription.createdAt?.getTime())}
+                value={formatDate(subscription.createdAt ? new Date(subscription.createdAt).getTime() : undefined)}
               />
             </div>
 

@@ -19,5 +19,5 @@
     "types": ["vite/client"]
   },
   "include": ["site/**/*"],
-  "exclude": ["node_modules", "server", "src", "site/**/*.test.ts", "site/**/*.test.tsx"]
+  "exclude": ["node_modules", "server", "src", "site/**/*.test.ts", "site/**/*.test.tsx", "site/vitest.config.ts"]
 }

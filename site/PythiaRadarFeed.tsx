@@ -42,7 +42,7 @@ const SIGNAL_LABELS = [
 /** Map real DB investors → Lead cards.
  * `investorScore` from the main investors table is already on a 0–100 scale.
  */
-function mapInvestorsToLeads(investors: { name: string; firm: string; investorScore: number; recentActivity?: string | null }[]): Lead[] {
+function mapInvestorsToLeads(investors: { name?: string; firm?: string; investorScore?: number; recentActivity?: string | null }[]): Lead[] {
   return investors.map((inv, i) => {
     const score = Math.max(50, Math.min(99, inv.investorScore || 70));
     const type: Lead["type"] = score >= 85 ? "hot" : score >= 75 ? "bullish" : "meeting";
@@ -51,7 +51,7 @@ function mapInvestorsToLeads(investors: { name: string; firm: string; investorSc
       : SIGNAL_LABELS[i % SIGNAL_LABELS.length];
     const ageMinutes = 2 + i * 3;
     const age = ageMinutes < 60 ? `${ageMinutes}m` : `${Math.round(ageMinutes / 60)}h`;
-    return { id: i + 1, name: inv.name, firm: inv.firm, role: "Partner", score, signal, type, age };
+    return { id: i + 1, name: inv.name || "Investor", firm: inv.firm || "Venture Capital", role: "Partner", score, signal, type, age };
   });
 }
 

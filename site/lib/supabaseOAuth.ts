@@ -209,7 +209,7 @@ export async function bootstrapOAuthFromHash(): Promise<{ ok: boolean; error?: s
 
   const early = window.__PYTHH_OAUTH_HASH_SYNC__;
   if (early) {
-    const result = await early.catch(() => ({ ok: false as const }));
+    const result = await early.catch(() => ({ ok: false as const, error: undefined }));
     if (result.ok) return { ok: true };
     if (result.error) return { ok: false, error: result.error };
   }

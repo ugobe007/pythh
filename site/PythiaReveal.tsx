@@ -48,7 +48,7 @@ const FALLBACK_SIGNALS: Signal[] = [
 ];
 
 /** `investorScore` from the main investors table is already 0–100. */
-function buildSignals(investors: { name: string; firm: string; investorScore: number; recentActivity?: string | null }[]): Signal[] {
+function buildSignals(investors: { name?: string; firm?: string; investorScore?: number; recentActivity?: string | null }[]): Signal[] {
   return investors.slice(0, 6).map((inv, i) => {
     const score = Math.max(50, Math.min(99, inv.investorScore || 70));
     const type: Signal["type"] = score >= 85 ? "bullish" : score >= 70 ? "neutral" : "meeting";
@@ -56,7 +56,7 @@ function buildSignals(investors: { name: string; firm: string; investorScore: nu
     const detail = inv.recentActivity || `Signal strength ${score} — thesis and stage alignment detected for your market`;
     const ageMinutes = 2 + i * 4;
     const time = ageMinutes < 60 ? `${ageMinutes}m ago` : `${Math.round(ageMinutes / 60)}h ago`;
-    return { investor: inv.name, firm: inv.firm, action, detail, score, time, type };
+    return { investor: inv.name || "Investor", firm: inv.firm || "Venture Capital", action, detail, score, time, type };
   });
 }
 

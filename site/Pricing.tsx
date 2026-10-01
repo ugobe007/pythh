@@ -389,7 +389,7 @@ export default function Pricing() {
           <FilterTabs
             label="Bill"
             value={billing}
-            onChange={setBilling}
+            onChange={(v) => setBilling(v as BillingCycle)}
             options={[
               { id: "monthly", label: "Monthly" },
               { id: "annual", label: "Annual · save 17%" },

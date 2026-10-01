@@ -111,7 +111,7 @@ export async function handleCheckoutSessionCompleted(
   const firstItem = stripeSub.items.data[0];
   const interval = firstItem?.price?.recurring?.interval;
   const billingCycle = billingCycleFromInterval(interval);
-  const cpe = stripeSub.current_period_end;
+  const cpe = (stripeSub as any).current_period_end;
   const currentPeriodEnd = cpe ? cpe * 1000 : undefined;
 
   const planFromMeta =
@@ -174,7 +174,7 @@ export async function handleSubscriptionUpdated(
   const firstItem = stripeSub.items.data[0];
   const interval = firstItem?.price?.recurring?.interval;
   const billingCycle = billingCycleFromInterval(interval);
-  const cpe = stripeSub.current_period_end;
+  const cpe = (stripeSub as any).current_period_end;
   const currentPeriodEnd = cpe ? cpe * 1000 : undefined;
 
   await upsertSubscription({

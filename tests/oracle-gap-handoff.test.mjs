@@ -21,7 +21,7 @@ test('new users see matches before signup and stay on matches after', async () =
   assert.doesNotMatch(preview, /Start investor outreach/);
   assert.doesNotMatch(preview, /Prepare outreach for my top/);
   assert.match(preview, /apiUrl\('\/api\/instant\/submit'\)/);
-  assert.match(preview, /apiUrl\(`\/api\/preview\/\$\{startupId\}/);
+  assert.match(preview, /apiUrl\(`\/api\/preview\/\$\{(?:id|startupId)\}/);
 
   const home = await read('site/Home.tsx');
   assert.match(home, /NewsletterJoinForm/);

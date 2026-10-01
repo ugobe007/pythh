@@ -39,7 +39,7 @@ const requireUser = t.middleware(({ ctx, next }) => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
-function isAdminUser(user: AuthedUser | null | undefined): user is AuthedUser {
+function isAdminUser(user: AuthedUser | null | undefined): boolean {
   if (!user) return false;
   if (user.role === "admin") return true;
   const email = user.email?.trim().toLowerCase();
@@ -47,7 +47,7 @@ function isAdminUser(user: AuthedUser | null | undefined): user is AuthedUser {
 }
 
 const requireAdmin = t.middleware(({ ctx, next }) => {
-  if (!isAdminUser(ctx.user)) {
+  if (!ctx.user || !isAdminUser(ctx.user)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Admin only." });
   }
   return next({ ctx: { ...ctx, user: ctx.user } });

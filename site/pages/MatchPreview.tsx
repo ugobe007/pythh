@@ -56,7 +56,7 @@ function scoreColor(score: number): string {
 }
 
 export default function MatchPreview() {
-  const [, params] = useRoute('/matches/preview/:startupId');
+  const [, params] = useRoute<{ startupId: string }>('/matches/preview/:startupId');
   const [, navigate] = useLocation();
   const startupId = params?.startupId;
   const [data, setData] = useState<PreviewData | null>(null);

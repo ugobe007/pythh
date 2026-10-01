@@ -139,7 +139,7 @@ function LockedRow({ rank }: { rank: number }) {
 export default function Rankings() {
   const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
-  const [, investorRouteParams] = useRoute("/investors/:investorId");
+  const [, investorRouteParams] = useRoute<{ investorId: string }>("/investors/:investorId");
 
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("All");

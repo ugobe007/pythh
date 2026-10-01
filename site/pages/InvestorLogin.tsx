@@ -139,7 +139,7 @@ export default function InvestorLogin() {
 
               <p className="text-center text-xs text-zinc-600 mt-6">
                 New here?{' '}
-                <Link href="/signup/investor"><a className="text-zinc-400 hover:text-white">Create investor account</a></Link>
+                <Link href="/signup/investor" className="text-zinc-400 hover:text-white">Create investor account</Link>
               </p>
             </>
           )}

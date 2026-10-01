@@ -66,32 +66,48 @@ async function handleClicked(event, client) {
 }
 
 async function handleBounced(event, client) {
-  const msgId      = event.data?.email_id || event.data?.message_id;
-  const bouncedTo  = event.data?.to?.[0];
-  if (!msgId) return;
+  const msgId      = event.data?.email_id || event.data?.id || event.data?.message_id;
+  const bouncedTo  = Array.isArray(event.data?.to) ? event.data.to[0] : event.data?.to;
+  if (!msgId && !bouncedTo) return;
 
   const bouncedAt = new Date(event.created_at || Date.now()).toISOString();
+  const bounceType = event.data?.bounce?.type || event.data?.bounce_type || 'unknown';
+  const bounceMsg  = event.data?.bounce?.message || event.data?.bounce_message || '';
+  const notes      = `Bounced: ${bounceType} — ${bounceMsg}`.slice(0, 200);
 
-  await client
-    .from('investor_outreach')
-    .update({
-      status:     'bounced',
-      bounced_at: bouncedAt,
-      notes:      `Bounced: ${event.data?.bounce_type || 'unknown'} — ${event.data?.bounce_message || ''}`.slice(0, 200),
-    })
-    .eq('resend_message_id', msgId);
+  if (msgId) {
+    await client
+      .from('investor_outreach')
+      .update({
+        status:     'bounced',
+        bounced_at: bouncedAt,
+        notes,
+      })
+      .eq('resend_message_id', msgId);
 
-  await client
-    .from('pythh_prospecting_log')
-    .update({ bounced_at: bouncedAt, status: 'bounced' })
-    .eq('resend_message_id', msgId);
+    await client
+      .from('pythh_prospecting_log')
+      .update({ bounced_at: bouncedAt, status: 'bounced' })
+      .eq('resend_message_id', msgId);
 
-  // Downgrade investor email_status to 'bounced' so future inference skips it
+    await client
+      .from('pythh_outreach_emails')
+      .update({ status: 'bounced' })
+      .eq('resend_message_id', msgId);
+  }
+
+  // Downgrade investor email_status to 'bounced' and record suppression so future outreach skips it
   if (bouncedTo) {
+    const normalized = String(bouncedTo).trim().toLowerCase();
     await client
       .from('investors')
       .update({ email_status: 'bounced' })
-      .eq('email_best_guess', bouncedTo);
+      .or(`email_best_guess.eq.${normalized},email.eq.${normalized}`);
+
+    await client.from('email_unsubscribes').upsert({
+      email: normalized,
+      reason: `resend_bounce:${bounceType}`,
+    }, { onConflict: 'email', ignoreDuplicates: true });
   }
 
   console.log('[webhook] bounced:', msgId, bouncedTo);
@@ -262,4 +278,7 @@ router.post('/calendar/webhook', express.json(), async (req, res) => {
 module.exports = router;
 module.exports.inboundReplyReference = inboundReplyReference;
 module.exports.handleReceived = handleReceived;
+module.exports.handleBounced = handleBounced;
+module.exports.handleOpened = handleOpened;
+module.exports.handleComplained = handleComplained;
 module.exports.secureEqual = secureEqual;

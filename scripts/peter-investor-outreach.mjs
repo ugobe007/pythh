@@ -72,7 +72,7 @@ async function suppressed(email) {
   const normalized = String(email).trim().toLowerCase();
   const [{ data: global }, { data: prior }] = await Promise.all([
     db.from('email_unsubscribes').select('email').eq('email', normalized).maybeSingle(),
-    db.from('pythh_prospecting_log').select('id').eq('email', normalized).not('unsubscribed_at', 'is', null).limit(1),
+    db.from('pythh_prospecting_log').select('id').eq('email', normalized).or('not.unsubscribed_at.is.null,not.bounced_at.is.null,status.eq.bounced').limit(1),
   ]);
   return Boolean(global || prior?.length);
 }

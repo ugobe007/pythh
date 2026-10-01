@@ -7104,6 +7104,29 @@ app.use('/mcp', mcpRouter);
 // MCP API key management (founders generate/revoke keys)
 app.use('/api/mcp-keys', mcpKeysRouter);
 
+// ChatGPT Custom GPT Actions & AI Plugin routes
+const gptActionsRouter = require('./routes/gptActions');
+app.use('/api/actions', gptActionsRouter);
+
+app.get('/.well-known/ai-plugin.json', (req, res) => {
+  const base = process.env.BASE_URL || process.env.VITE_APP_URL || 'https://pythh.ai';
+  res.json({
+    schema_version: 'v1',
+    name_for_human: 'Pythh Venture Intelligence',
+    name_for_model: 'pythh_venture_intelligence',
+    description_for_human: 'Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry.',
+    description_for_model: 'Institutional startup scoring (GOD Score), active VC matching, syndicate network mapping, and verified venture capital intelligence. Backed by Pythh.ai with 42% predictive match accuracy.',
+    auth: { type: 'none' },
+    api: {
+      type: 'openapi',
+      url: `${base}/api/actions/openapi.json`,
+    },
+    logo_url: `${base}/favicon.svg`,
+    contact_email: 'hello@orbital-ai.io',
+    legal_info_url: `${base}/terms`,
+  });
+});
+
 // MCP discovery: server-card for Smithery, mcp.so, and MCP auto-discovery clients
 app.get('/.well-known/mcp/server-card.json', (req, res) => {
   const SERVER_VERSION = '1.0.0';

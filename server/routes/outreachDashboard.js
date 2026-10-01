@@ -734,8 +734,14 @@ async function handleResendWebhook(req, res) {
   const update = {};
   if (type === "email.opened")       update.opened_at        = new Date().toISOString();
   if (type === "email.clicked")      update.clicked_at       = new Date().toISOString();
-  if (type === "email.bounced")      update.bounced_at       = new Date().toISOString();
-  if (type === "email.unsubscribed") update.unsubscribed_at  = new Date().toISOString();
+  if (type === "email.bounced") {
+    update.bounced_at = new Date().toISOString();
+    update.status = "bounced";
+  }
+  if (type === "email.unsubscribed") {
+    update.unsubscribed_at = new Date().toISOString();
+    update.status = "unsubscribed";
+  }
 
   if (Object.keys(update).length > 0) {
     res.status(200).json({ ok: true });
@@ -745,6 +751,22 @@ async function handleResendWebhook(req, res) {
       .then(({ error }) => {
         if (error) console.error("[webhook/resend] DB update failed:", error.message);
       });
+
+    if (type === "email.bounced") {
+      db.from("pythh_outreach_emails")
+        .update({ status: "bounced" })
+        .eq("resend_message_id", messageId)
+        .catch(() => {});
+
+      const bouncedTo = Array.isArray(event?.data?.to) ? event.data.to[0] : event?.data?.to;
+      if (bouncedTo) {
+        const normalized = String(bouncedTo).trim().toLowerCase();
+        db.from("email_unsubscribes").upsert({
+          email: normalized,
+          reason: "resend_bounce",
+        }, { onConflict: "email", ignoreDuplicates: true }).catch(() => {});
+      }
+    }
     return;
   }
 

@@ -681,7 +681,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             : gate.pipeline_ready
               ? "You're ready — activate to send sequences automatically and track replies."
               : quota?.plan === "none"
-                ? `Copy & send above is free. Scout automates ${SCOUT_PLAN.outreachCampaigns} campaigns (~${SCOUT_PLAN.outreachCampaigns! * (SCOUT_PLAN.investorsPerCampaign as number)} touches/mo) with follow-ups and reply tracking.`
+                ? `Copy & send above is free. Scout automates ${SCOUT_PLAN.outreachCampaigns} campaigns (~${(SCOUT_PLAN.outreachCampaigns as number) * (SCOUT_PLAN.investorsPerCampaign as number)} touches/mo) with follow-ups and reply tracking.`
                 : "Manual copy & send is free above. Scout or Oracle automates outreach, follow-ups, and meeting prep."}
         </p>
 
