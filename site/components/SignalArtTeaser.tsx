@@ -32,9 +32,30 @@ interface ArtTeaser {
   is_today?: boolean;
 }
 
-async function fetchArtTeaser(): Promise<ArtTeaser | null> {
-  const headers = { Accept: "application/json" };
+interface SignalArtTeaserProps {
+  plain?: boolean;
+  date?: string | null;
+  className?: string;
+}
 
+async function fetchArtTeaser(date?: string | null): Promise<ArtTeaser | null> {
+  const headers = { Accept: "application/json" };
+  const endpoint = date ? `/api/art/${date}` : "/api/art/teaser";
+
+  try {
+    const res = await fetch(apiUrl(endpoint), {
+      headers,
+      signal: fetchTimeoutSignal(12_000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as ArtTeaser;
+      if (data?.edition_date && data?.title) return data;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  // Always fall back to /api/art/teaser to get today's rich teaser if date endpoint lacked full copy
   try {
     const res = await fetch(apiUrl("/api/art/teaser"), {
       headers,
@@ -81,7 +102,7 @@ async function fetchArtTeaser(): Promise<ArtTeaser | null> {
   }
 }
 
-export default function SignalArtTeaser() {
+export default function SignalArtTeaser({ plain = false, date = null, className = "" }: SignalArtTeaserProps = {}) {
   const [teaser, setTeaser] = useState<ArtTeaser | null>(null);
   const [loading, setLoading] = useState(true);
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -89,7 +110,7 @@ export default function SignalArtTeaser() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchArtTeaser().then((d) => {
+    void fetchArtTeaser(date).then((d) => {
       if (!cancelled) {
         if (d?.edition_date) setTeaser(d);
         setLoading(false);
@@ -98,7 +119,7 @@ export default function SignalArtTeaser() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [date]);
 
   if (!loading && !teaser) return null;
 
@@ -131,102 +152,110 @@ export default function SignalArtTeaser() {
           : null;
   const staticThumb = `/art/${display.edition_date}-thumb.jpg?v=${cacheBust}`;
 
-  return (
-    <section className="border-y" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
-      <div className="container max-w-[1180px] mx-auto px-6 py-8">
-        <Link
-          href="/art"
-          className="group flex flex-col sm:flex-row items-stretch sm:items-center gap-5 rounded-2xl p-4 sm:p-5 transition-colors"
-          style={{
-            border: `1px solid ${BORDER}`,
-            backgroundColor: CARD,
-            boxShadow: `0 0 40px ${G_SUBTLE}`,
-          }}
-        >
+  const card = (
+    <Link
+      href="/art"
+      className="group flex flex-col sm:flex-row items-stretch sm:items-center gap-5 rounded-2xl p-4 sm:p-5 transition-colors"
+      style={{
+        border: `1px solid ${BORDER}`,
+        backgroundColor: CARD,
+        boxShadow: `0 0 40px ${G_SUBTLE}`,
+      }}
+    >
+      <div
+        className="relative flex-shrink-0 w-full sm:w-[140px] md:w-[160px] aspect-square sm:aspect-auto sm:h-[140px] md:h-[160px] rounded-xl overflow-hidden mx-auto sm:mx-0"
+        style={{
+          border: `1px solid ${G_BORDER}`,
+          backgroundColor: "#050508",
+        }}
+      >
+        {loading && !imageSrc ? (
           <div
-            className="relative flex-shrink-0 w-full sm:w-[140px] md:w-[160px] aspect-square sm:aspect-auto sm:h-[140px] md:h-[160px] rounded-xl overflow-hidden mx-auto sm:mx-0"
-            style={{
-              border: `1px solid ${G_BORDER}`,
-              backgroundColor: "#050508",
+            className="w-full h-full animate-pulse"
+            style={{ background: `linear-gradient(135deg, #050508 0%, ${G_SUBTLE} 50%, #050508 100%)` }}
+          />
+        ) : imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={display.title || "Today's Signal Art"}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            loading="lazy"
+            decoding="async"
+            onError={() => {
+              if (thumbSrc && !thumbFailed) setThumbFailed(true);
+              else setRasterFailed(true);
             }}
+          />
+        ) : (
+          <img
+            src={staticThumb}
+            alt={display.title || "Today's Signal Art"}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
+        {!imageSrc && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ color: DIM }}
           >
-            {loading && !imageSrc ? (
-              <div
-                className="w-full h-full animate-pulse"
-                style={{ background: `linear-gradient(135deg, #050508 0%, ${G_SUBTLE} 50%, #050508 100%)` }}
-              />
-            ) : imageSrc ? (
-              <img
-                src={imageSrc}
-                alt={display.title || "Today's Signal Art"}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                loading="lazy"
-                decoding="async"
-                onError={() => {
-                  if (thumbSrc && !thumbFailed) setThumbFailed(true);
-                  else setRasterFailed(true);
-                }}
-              />
-            ) : (
-              <img
-                src={staticThumb}
-                alt={display.title || "Today's Signal Art"}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                loading="lazy"
-                decoding="async"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            )}
-            {!imageSrc && (
-              <div
-                className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                style={{ color: DIM }}
-              >
-                <Sparkles size={28} style={{ color: G, opacity: 0.5 }} />
-              </div>
-            )}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              style={{
-                background: "linear-gradient(135deg, transparent 40%, oklch(0.696 0.17 162.48 / 0.12) 100%)",
-              }}
-            />
+            <Sparkles size={28} style={{ color: G, opacity: 0.5 }} />
           </div>
+        )}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          style={{
+            background: "linear-gradient(135deg, transparent 40%, oklch(0.696 0.17 162.48 / 0.12) 100%)",
+          }}
+        />
+      </div>
 
-          <div className="flex-1 min-w-0 text-center sm:text-left">
-            <p
-              className="inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold uppercase tracking-widest mb-2"
-              style={{ color: G }}
-            >
-              <Sparkles size={11} />
-              Signal Art
-              {display.stale && (
-                <span className="normal-case tracking-normal font-normal" style={{ color: DIM }}>
-                  · latest edition
-                </span>
-              )}
-            </p>
-            <h2 className="font-display font-bold text-lg md:text-xl text-white mb-1 truncate">
-              {display.title || "Today's oracle composition"}
-            </h2>
-            <p className="text-sm mb-3 line-clamp-2" style={{ color: MUTED }}>
-              {display.subtitle
-                ? `PYTHH saw ${display.subtitle.toLowerCase()} — flowing sci-fi signals between today and tomorrow.`
-                : "PYTHH sees between today and tomorrow — one living composition per day from live market signals."}
-            </p>
-            <p className="inline-flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider transition-colors" style={{ color: GOLD }}>
-              {display.stale ? "View composition" : "View today's composition"}
-              <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-            </p>
-            {display.layout_mode && (
-              <p className="text-[10px] font-mono mt-2 uppercase tracking-widest" style={{ color: DIM }}>
-                {display.layout_mode} layout · {display.edition_date}
-              </p>
-            )}
-          </div>
-        </Link>
+      <div className="flex-1 min-w-0 text-center sm:text-left">
+        <p
+          className="inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold uppercase tracking-widest mb-2"
+          style={{ color: G }}
+        >
+          <Sparkles size={11} />
+          Signal Art
+          {display.stale && (
+            <span className="normal-case tracking-normal font-normal" style={{ color: DIM }}>
+              · latest edition
+            </span>
+          )}
+        </p>
+        <h2 className="font-display font-bold text-lg md:text-xl text-white mb-1 truncate">
+          {display.title || "Today's oracle composition"}
+        </h2>
+        <p className="text-sm mb-3 line-clamp-2" style={{ color: MUTED }}>
+          {display.subtitle
+            ? `PYTHH saw ${display.subtitle.toLowerCase()} — flowing sci-fi signals between today and tomorrow.`
+            : "PYTHH sees between today and tomorrow — one living composition per day from live market signals."}
+        </p>
+        <p className="inline-flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider transition-colors" style={{ color: GOLD }}>
+          {display.stale ? "View composition" : "View today's composition"}
+          <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+        </p>
+        {display.layout_mode && (
+          <p className="text-[10px] font-mono mt-2 uppercase tracking-widest" style={{ color: DIM }}>
+            {display.layout_mode} layout · {display.edition_date}
+          </p>
+        )}
+      </div>
+    </Link>
+  );
+
+  if (plain) {
+    return <div className={className}>{card}</div>;
+  }
+
+  return (
+    <section className={`border-y ${className}`.trim()} style={{ borderColor: BORDER, backgroundColor: PAGE }}>
+      <div className="container max-w-[1180px] mx-auto px-6 py-8">
+        {card}
       </div>
     </section>
   );

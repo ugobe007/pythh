@@ -203,26 +203,52 @@ function DailySignalEdition({ date }: { date?: string | null }) {
 
   if (loading) {
     return (
-      <div
-        className="rounded-xl p-6 flex items-center justify-center min-h-[160px]"
-        style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
-      >
-        <span className="text-sm animate-pulse" style={{ color: DIM }}>
-          Loading today&rsquo;s signal&hellip;
-        </span>
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase mb-1" style={{ color: PURPLE_ACCENT }}>
+              Today&rsquo;s edition
+            </p>
+            <h1 className="font-display font-bold text-2xl sm:text-3xl" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
+              Daily Signal
+            </h1>
+          </div>
+        </div>
+        <SignalArtTeaser plain date={date} />
+        <div
+          className="rounded-xl p-6 flex items-center justify-center min-h-[160px]"
+          style={{ backgroundColor: CARD, border: `1px solid ${PURPLE_BORDER}` }}
+        >
+          <span className="text-sm animate-pulse" style={{ color: DIM }}>
+            Loading today&rsquo;s signal&hellip;
+          </span>
+        </div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div
-        className="rounded-xl p-6 text-center"
-        style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-      >
-        <p className="text-sm" style={{ color: DIM }}>
-          Today&rsquo;s edition is still compiling. Check back in a moment.
-        </p>
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-mono font-semibold tracking-[0.16em] uppercase mb-1" style={{ color: PURPLE_ACCENT }}>
+              Today&rsquo;s edition
+            </p>
+            <h1 className="font-display font-bold text-2xl sm:text-3xl" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
+              Daily Signal
+            </h1>
+          </div>
+        </div>
+        <SignalArtTeaser plain date={date} />
+        <div
+          className="rounded-xl p-6 text-center"
+          style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
+        >
+          <p className="text-sm" style={{ color: DIM }}>
+            Today&rsquo;s edition is still compiling. Check back in a moment.
+          </p>
+        </div>
       </div>
     );
   }
@@ -253,6 +279,8 @@ function DailySignalEdition({ date }: { date?: string | null }) {
           {data.date ?? "TODAY"} · {data.compiling_today ? "UPDATING" : "LIVE"}
         </span>
       </div>
+
+      <SignalArtTeaser plain date={data.date} />
 
       {editorialText && (
         <div
