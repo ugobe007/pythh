@@ -74,3 +74,14 @@ test('handleBounced updates outreach tables and records email suppression', asyn
   assert.equal(upserts.some(u => u.table === 'email_unsubscribes' && u.data.email === 'bounced@example.com'), true);
 });
 
+test('isBlockedOutreachEmail suppresses role prefixes like facilities, energy, and voperations', () => {
+  const { isBlockedOutreachEmail } = require('../lib/investorEmailInfer.js');
+  assert.equal(isBlockedOutreachEmail('energy@loves.com'), true);
+  assert.equal(isBlockedOutreachEmail('facilities@pilotflyingj.com'), true);
+  assert.equal(isBlockedOutreachEmail('facilities@haascnc.com'), true);
+  assert.equal(isBlockedOutreachEmail('voperations@allegiantstadium.com'), true);
+  assert.equal(isBlockedOutreachEmail('billing@company.com'), true);
+  assert.equal(isBlockedOutreachEmail('founder@innovate.ai'), false);
+  assert.equal(isBlockedOutreachEmail('marc@a16z.com'), false);
+});
+
