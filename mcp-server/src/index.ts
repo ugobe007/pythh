@@ -59,6 +59,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// OpenAI plugin directory domain check. Set OPENAI_APPS_CHALLENGE_TOKEN to the
+// token shown in the submission portal (fly secrets set ... --app pythh-connect-mcp).
+app.get("/.well-known/openai-apps-challenge", (_req: Request, res: Response) => {
+  const token = (process.env.OPENAI_APPS_CHALLENGE_TOKEN || "").trim();
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send(token);
+});
+
 // ─── Health check ─────────────────────────────────────────────────────────────
 
 app.get("/", (_req: Request, res: Response) => {

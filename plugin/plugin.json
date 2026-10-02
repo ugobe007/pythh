@@ -1,10 +1,10 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "pythh-venture-intelligence",
-  "version": "0.2.1",
+  "name": "open-pythh-venture-intelligence",
+  "version": "0.2.2",
   "description": "Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture telemetry. Pythh reports a 42.2% top-50 funding prediction placement record on confirmed subsequent rounds.",
   "author": {
-    "name": "Pythh.ai Core Team",
+    "name": "Pythh.ai",
     "email": "hello@orbital-ai.io",
     "url": "https://pythh.ai"
   },
@@ -49,10 +49,7 @@
         "composerIcon": "./assets/icon.png",
         "composerIconDark": "./assets/icon-dark.png",
         "logo": "./assets/logo.png",
-        "logoDark": "./assets/logo-dark.png",
-        "screenshots": [
-          "./assets/screenshot.png"
-        ]
+        "logoDark": "./assets/logo-dark.png"
       },
       "review": {
         "test_cases": {
@@ -109,7 +106,7 @@
       },
       "publication": {
         "countries": [],
-        "release_notes": "Version 0.2.1: Institutional startup GOD scoring, active VC matching, syndicate network mapping, and Daily Signal venture intelligence."
+        "release_notes": "Version 0.2.2: Skills-only ChatGPT package for GOD scoring, active VC matching, syndicate mapping, and Daily Signal. Connect the remote MCP server separately at https://mcp.pythh.ai/mcp."
       }
     }
   }
