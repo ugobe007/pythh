@@ -7109,9 +7109,9 @@ const gptActionsRouter = require('./routes/gptActions');
 app.use('/api/actions', gptActionsRouter);
 
 app.get('/api/actions/plugin.zip', (req, res) => {
-  const zipPath = path.join(__dirname, '../plugin/open-pythh-venture-intelligence-v0.2.1.zip');
+  const zipPath = path.join(__dirname, '../plugin/open-pythh-venture-intelligence-v0.2.2.zip');
   if (fs.existsSync(zipPath)) {
-    res.download(zipPath, 'open-pythh-venture-intelligence-v0.2.1.zip');
+    res.download(zipPath, 'open-pythh-venture-intelligence-v0.2.2.zip');
   } else {
     res.status(404).json({ error: 'Plugin package ZIP not found' });
   }

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const zipPath = path.join(__dirname, '../plugin/open-pythh-venture-intelligence-v0.2.1.zip');
+const zipPath = path.join(__dirname, '../plugin/open-pythh-venture-intelligence-v0.2.2.zip');
 
 function listZip(filePath) {
   const data = fs.readFileSync(filePath);
@@ -39,11 +39,17 @@ test('ChatGPT skills zip omits MCP config and screenshots', () => {
 
   const root = JSON.parse(fs.readFileSync(path.join(__dirname, '../plugin/plugin.json'), 'utf8'));
   const iface = root.extensions['com.openai'].interface;
+  assert.equal(root.name, 'open-pythh-venture-intelligence');
+  assert.equal(root.version, '0.2.2');
+  assert.equal(iface.displayName, 'Pythh Venture Intelligence');
   assert.equal(root.author.name, iface.developerName);
   assert.equal(iface.screenshots, undefined);
   assert.equal(root.mcpServers, undefined);
 
   const codex = JSON.parse(fs.readFileSync(path.join(__dirname, '../plugin/.codex-plugin/plugin.json'), 'utf8'));
+  assert.equal(codex.name, 'open-pythh-venture-intelligence');
+  assert.equal(codex.version, '0.2.2');
+  assert.equal(codex.interface.displayName, 'Pythh Venture Intelligence');
   assert.equal(codex.mcpServers, undefined);
   assert.equal(codex.interface.screenshots, undefined);
   assert.equal(codex.author.name, codex.interface.developerName);
