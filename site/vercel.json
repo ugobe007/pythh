@@ -8,6 +8,10 @@
       "destination": "https://hot-honey.fly.dev/api/:path*"
     },
     {
+      "source": "/.well-known/openai-apps-challenge",
+      "destination": "https://mcp.pythh.ai/.well-known/openai-apps-challenge"
+    },
+    {
       "source": "/((?!assets/|images/|favicon|apple-touch-icon|og-image|icon-512|site\\.webmanifest|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }

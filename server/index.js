@@ -164,7 +164,7 @@ if (fs.existsSync(distPath)) {
       return '<!DOCTYPE html><html><body>App shell missing</body></html>';
     }
   }
-  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$).*/, (req, res) => {
+  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$)(?!\/\.well-known\/).*/, (req, res) => {
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       Pragma: 'no-cache',

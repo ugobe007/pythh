@@ -107,7 +107,7 @@ router.post('/generate', express.json(), async (req, res) => {
           config: {
             mcpServers: {
               pythh: {
-                url:     'https://pythh.ai/mcp',
+                url:     'https://mcp.pythh.ai/mcp',
                 headers: { Authorization: `Bearer ${key}` },
               },
             },
@@ -117,13 +117,13 @@ router.post('/generate', express.json(), async (req, res) => {
           description: 'Add to .cursor/mcp.json in your project or ~/.cursor/mcp.json globally',
           config: {
             pythh: {
-              url:     'https://pythh.ai/mcp',
+              url:     'https://mcp.pythh.ai/mcp',
               headers: { Authorization: `Bearer ${key}` },
             },
           },
         },
         http: {
-          description: 'For custom agents — include in the Authorization header of every POST to https://pythh.ai/mcp',
+          description: 'For custom agents — include in the Authorization header of every POST to https://mcp.pythh.ai/mcp',
           header: `Authorization: Bearer ${key}`,
         },
       },
