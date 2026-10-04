@@ -681,7 +681,7 @@ export default function InstantMatchPreview({ url }: Props) {
         })}
       </ul>
 
-      {planBrief.priorities.length && planBrief.stage != null && planBrief.hasRevenue != null && planBrief.hasProduct != null ? (
+      {planBrief.priorities.length ? (
         <CampaignPlan
           names={visible.map((match) => match.investor?.firm || match.investor?.name || '')}
           brief={planBrief}

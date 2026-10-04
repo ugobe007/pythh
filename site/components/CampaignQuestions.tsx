@@ -234,9 +234,9 @@ export function CampaignPlan({
         Raise from {names.filter(Boolean).slice(0, 5).join(', ') || 'the five investors above'}.
       </p>
       <p className="text-sm mb-4" style={{ color: MUTED }}>
-        {brief.hasRevenue ? 'The company has revenue.' : 'The company does not have revenue yet.'}
-        {' '}
-        {brief.hasProduct ? 'There is a working product.' : 'There is not a working product yet.'}
+        {brief.hasRevenue === true ? 'The company has revenue.' : brief.hasRevenue === false ? 'The company does not have revenue yet.' : ''}
+        {brief.hasRevenue != null && brief.hasProduct != null ? ' ' : ''}
+        {brief.hasProduct === true ? 'There is a working product.' : brief.hasProduct === false ? 'There is not a working product yet.' : ''}
         {proceeds.length ? ` This round is to ${proceeds.map((item) => item.label.toLowerCase()).join(', ')}.` : ''}
       </p>
       <FreeDeckFocus items={deckFocus} />
