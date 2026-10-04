@@ -50,6 +50,7 @@ const {
 const { applyResearchRank } = require('../../lib/matchModelFromResearch');
 const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
 const { buildFounderShortlistBrief } = require('../../lib/founderShortlistBrief');
+const { previewHost, hostOf, buildPeers, MIN_AMOUNT_USD, MAX_AMOUNT_USD } = require('../../lib/previewPeers');
 
 /** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
 const MATCHES_EMAIL_FROM = resolveTransactionalFrom(process.env.MATCHES_EMAIL_FROM);
@@ -655,6 +656,78 @@ router.get('/:startupId/investor/:investorId', async (req, res) => {
   } catch (err) {
     console.error('[preview] investor match error:', err);
     return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/preview/peers?url= — similar funded startups while the shortlist scores.
+// Registered before /:startupId so "peers" is not parsed as an id.
+router.get('/peers', async (req, res) => {
+  try {
+    const host = previewHost(req.query.url);
+    if (!host) return res.json({ peers: [], pending: false });
+
+    const likeHost = host.replace(/[%_]/g, '');
+    const { data: rows, error: lookupError } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, sectors, total_god_score, status, entity_gate')
+      .ilike('website', `%${likeHost}%`)
+      .limit(12);
+    if (lookupError) throw lookupError;
+
+    const matches = (rows || [])
+      .filter((row) => hostOf(row.website) === host && String(row.status || '').toLowerCase() !== 'rejected')
+      .sort((a, b) => (Number(b.total_god_score) || 0) - (Number(a.total_god_score) || 0));
+    const startup = matches[0];
+    const sectors = (Array.isArray(startup?.sectors) ? startup.sectors : [])
+      .map((sector) => String(sector || '').trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (!startup || !sectors.length) {
+      return res.json({ peers: [], pending: true });
+    }
+
+    const { data: candidates, error: peerError } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, sectors, total_god_score, status, entity_gate')
+      .overlaps('sectors', sectors)
+      .neq('id', startup.id)
+      .gt('total_god_score', 0)
+      .order('total_god_score', { ascending: false })
+      .limit(40);
+    if (peerError) throw peerError;
+
+    const ids = (candidates || []).map((row) => row.id).filter(Boolean);
+    if (!ids.length) return res.json({ peers: [], pending: false });
+
+    const { data: events, error: eventError } = await supabase
+      .from('funding_evidence_events')
+      .select('id, startup_id, amount_usd, announced_at, occurred_at, round_type, verification_status')
+      .in('startup_id', ids)
+      .in('verification_status', ['verified', 'corroborated'])
+      .gte('amount_usd', MIN_AMOUNT_USD)
+      .lte('amount_usd', MAX_AMOUNT_USD)
+      .order('announced_at', { ascending: false })
+      .limit(80);
+    if (eventError) throw eventError;
+
+    const eventIds = (events || []).map((event) => event.id).filter(Boolean);
+    let participants = [];
+    if (eventIds.length) {
+      const { data: parts, error: partError } = await supabase
+        .from('funding_evidence_participants')
+        .select('funding_event_id, investor_name_raw, participant_role')
+        .in('funding_event_id', eventIds);
+      if (partError) throw partError;
+      participants = parts || [];
+    }
+
+    return res.json({
+      peers: buildPeers({ self: startup, candidates, events, participants, limit: 4 }),
+      pending: false,
+    });
+  } catch (err) {
+    console.error('[preview/peers]', err?.message || err);
+    return res.json({ peers: [], pending: true });
   }
 });
 
