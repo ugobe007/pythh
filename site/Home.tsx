@@ -491,7 +491,7 @@ function HeroSection({
           emphasis
           onJoined={({ url, email }) => {
             const normalized = normalizeStartupPreviewUrl(url);
-            const path = `${persistJoinPreview(url, email)}&step=qualify`;
+            const path = persistJoinPreview(url, email);
             trackUrlSubmitted(normalized, "home_hero", founderExperiment);
             trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
             navigate(path);
@@ -527,23 +527,23 @@ const HOW_IT_WORKS_STEPS = [
   {
     num: "01",
     title: "You paste a URL",
-    give: "A public startup website. That starts the campaign.",
+    give: "A public startup website.",
     does: "Pythh reads the company from the site.",
-    get: "The brief for the questions that come next.",
+    get: "Five investors ranked for this company.",
   },
   {
     num: "02",
-    title: "You answer three questions",
-    give: "The round, whether there is revenue, and whether there is a working product.",
-    does: "Those answers decide who is eligible.",
-    get: "Five investors for this company.",
+    title: "You see who fits",
+    give: "Nothing else. The shortlist is the preview.",
+    does: "Pythh ranks by sector, stage, thesis, and the signals they care about.",
+    get: "Why each investor fits, before you create an account.",
   },
   {
     num: "03",
-    title: "You say what the round is for",
-    give: "Revenue, hiring, customers, or the next version.",
-    does: "Pythh matches again and writes the raise plan.",
-    get: "Who to raise from, what the money is for, and a campaign worth saving.",
+    title: "You save the matches",
+    give: "A free account, only if you want the list kept.",
+    does: "Pythh stores the shortlist on your account.",
+    get: "The same five matches, ready when you come back.",
   },
 ] as const;
 
@@ -1270,7 +1270,7 @@ function NewsletterSection() {
             revealMatches
             className="mx-auto"
             onJoined={({ url, email }) => {
-              navigate(`${persistJoinPreview(url, email)}&step=qualify`);
+              navigate(persistJoinPreview(url, email));
             }}
           />
           <p className="text-[14px] mt-4" style={{ color: MUTED }}>No spam. Unsubscribe anytime.</p>

@@ -19,7 +19,6 @@ import { trpc } from "@/lib/trpc";
 import SharedNavbar from "@/components/SharedNavbar";
 import InstantMatchPreview from "@/components/InstantMatchPreview";
 import CampaignQuestions from "@/components/CampaignQuestions";
-import { briefReadyForMatch, readCampaignBrief } from "@/lib/campaignBrief";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import { fetchGrowthAssignment } from "@/lib/growthExperiment";
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
@@ -186,6 +185,15 @@ function readMatchesSearchState() {
   };
 }
 
+/** Default /matches?url= renders the shortlist. Questions only when step=qualify is explicit. */
+export function showsCampaignQuestions(state: {
+  previewUrl: string | null;
+  improveRequested: boolean;
+  qualifyRequested: boolean;
+}): boolean {
+  return Boolean(state.previewUrl) && state.qualifyRequested && !state.improveRequested;
+}
+
 function MatchesUrlEntry({
   onSubmit,
   error,
@@ -281,10 +289,6 @@ export default function Matches() {
   const [urlEntryError, setUrlEntryError] = useState(
     () => readMatchesSearchState().missingUrlParam,
   );
-  const [qualifiedUrl, setQualifiedUrl] = useState<string | null>(() => {
-    const initial = readMatchesSearchState().previewUrl;
-    return initial && briefReadyForMatch(readCampaignBrief(initial)) ? initial : null;
-  });
   const [improveRequested, setImproveRequested] = useState(
     () => readMatchesSearchState().improveRequested,
   );
@@ -296,11 +300,6 @@ export default function Matches() {
     const state = readMatchesSearchState();
     setHighlightId(state.highlightId);
     setPreviewUrl(state.previewUrl);
-    setQualifiedUrl(
-      state.previewUrl && briefReadyForMatch(readCampaignBrief(state.previewUrl))
-        ? state.previewUrl
-        : null,
-    );
     setImproveRequested(state.improveRequested);
     setQualifyRequested(state.qualifyRequested);
     setMissingUrlParam(state.missingUrlParam);
@@ -418,15 +417,15 @@ export default function Matches() {
 
       <main className="container pt-24 pb-20 max-w-7xl px-4 sm:px-6">
 
-        {previewUrl && !improveRequested && (qualifyRequested || qualifiedUrl !== previewUrl) ? (
+        {previewUrl && showsCampaignQuestions({ previewUrl, improveRequested, qualifyRequested }) ? (
           <CampaignQuestions
             url={previewUrl}
             onQualified={() => {
-              setQualifiedUrl(previewUrl);
               setQualifyRequested(false);
               const params = new URLSearchParams(window.location.search);
-              params.set("step", "matches");
-              navigate(`/matches?${params.toString()}`);
+              params.delete("step");
+              const qs = params.toString();
+              navigate(qs ? `/matches?${qs}` : "/matches");
             }}
           />
         ) : previewUrl ? (

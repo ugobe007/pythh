@@ -12,6 +12,8 @@ test('homepage join opens the first five matches on /matches?url=', () => {
   assert.match(helper, /\/matches\?url=/);
   assert.match(home, /persistJoinPreview/);
   assert.match(home, /revealMatches/);
+  assert.doesNotMatch(home, /step=qualify/);
+  assert.match(home, /navigate\(path\)/);
   assert.match(preview, /PREVIEW_LIMIT = 5/);
   assert.match(preview, /\/api\/instant\/submit/);
   assert.match(preview, /Next — save these matches/);
