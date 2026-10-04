@@ -102,8 +102,15 @@ test('homepage and find-investors submit only open /matches?url=', () => {
   assert.doesNotMatch(helper, /\/signup\/founder/);
   assert.match(home, /persistJoinPreview\(url, email\)/);
   assert.match(home, /revealMatches/);
+  assert.doesNotMatch(home, /step=qualify/);
   assert.doesNotMatch(home, /signup\/founder\?intent=matches/);
   assert.match(find, /navigate\(`\/matches\?url=\$\{encodeURIComponent\(normalized\)\}`\)/);
+
+  const matches = read('site/pages/Matches.tsx');
+  assert.match(matches, /export function showsCampaignQuestions/);
+  assert.match(matches, /state\.qualifyRequested && !state\.improveRequested/);
+  assert.match(matches, /<InstantMatchPreview url=\{previewUrl\} \/>/);
+  assert.doesNotMatch(matches, /qualifiedUrl !== previewUrl/);
 });
 
 test('Save my matches stays on founder signup — never the newsletter', () => {
