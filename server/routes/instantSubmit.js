@@ -75,6 +75,7 @@ const {
   fetchPatentEvidence,
 } = require('../../lib/proprietaryTechAssessment');
 const { applyStageInvestorFitAdjustment } = require('../../lib/stageInvestorFit');
+const { evaluateFundingLifecycleFit } = require('../../lib/fundingLifecycleFit');
 const { applyInvestorRecencyAdjustment } = require('../../lib/matchInvestorRecency');
 const { shapeMatchListForApi } = require('../../lib/canonicalMatchApi');
 const intel = require('../services/submitUrlIntelligence');
@@ -487,7 +488,27 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
   candidates.sort(
     (a, b) => distinctiveFitScore(startupForFit, b) - distinctiveFitScore(startupForFit, a),
   );
-  return candidates.slice(0, cap);
+
+  // Distinctive sector rank fills the cap with seed specialists and drops later-stage
+  // funds before calculateMatchScore ever sees them. Reserve stage-exact investors
+  // from the loaded table so the engine can score them.
+  const stageReserve = [];
+  if (investorCache.data) {
+    for (const inv of investorCache.data) {
+      if (!inv?.id || seen.has(inv.id)) continue;
+      const score = Number(inv.investor_score);
+      if (!Number.isFinite(score) || score < minScore) continue;
+      if (evaluateFundingLifecycleFit(startupForFit, inv).level !== 'exact') continue;
+      stageReserve.push(inv);
+    }
+    stageReserve.sort(
+      (a, b) => distinctiveFitScore(startupForFit, b) - distinctiveFitScore(startupForFit, a),
+    );
+  }
+  const reserved = stageReserve.slice(0, 40);
+  const reservedIds = new Set(reserved.map((inv) => inv.id));
+  const head = candidates.filter((inv) => !reservedIds.has(inv.id)).slice(0, Math.max(0, cap - reserved.length));
+  return [...reserved, ...head];
 }
 
 function matchFeatureSnapshotFor(engine, phase, startupPayload, investor, extra) {
@@ -1147,7 +1168,7 @@ const SYNC_RESPONSE_TOP_N = 5;
 const SYNC_MATCH_CANDIDATE_CAP = 220;
 
 const MATCH_API_SELECT = `
-  id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at,
+  id, investor_id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at, algorithm_version,
   investors:investor_id (
     id, name, firm, url, sectors, stage,
     total_investments, active_fund_size, investment_thesis
@@ -1218,10 +1239,46 @@ function buildInstantMatchRow(startupId, placeholderStartup, investor, fitResult
   };
 }
 
-async function generateSyncTopMatchesForHttpResponse(
+/** Same startup scored twice in one page load (submit, then preview) shares one engine run. */
+const ENGINE_COALESCE_MS = 8000;
+const engineCoalesce = new Map();
+
+function engineCoalesceKey(startupId, placeholderStartup, responseTopN) {
+  const sectors = Array.isArray(placeholderStartup?.sectors) ? placeholderStartup.sectors.join('|') : '';
+  return [
+    startupId,
+    responseTopN,
+    sectors,
+    placeholderStartup?.stage ?? '',
+    placeholderStartup?.total_god_score ?? '',
+  ].join('::');
+}
+
+async function generateSyncTopMatchesForHttpResponse(supabase, args) {
+  const responseTopN = Number(args?.topN) > 0 ? Number(args.topN) : SYNC_RESPONSE_TOP_N;
+  const key = engineCoalesceKey(args?.startupId, args?.placeholderStartup, responseTopN);
+  const hit = engineCoalesce.get(key);
+  if (hit?.out && Date.now() - hit.at < ENGINE_COALESCE_MS) return hit.out;
+  if (hit?.promise) return hit.promise;
+  const promise = runSyncTopMatches(supabase, { ...args, topN: responseTopN })
+    .then((out) => {
+      if (out?.matches?.length) engineCoalesce.set(key, { at: Date.now(), out });
+      else engineCoalesce.delete(key);
+      return out;
+    })
+    .catch((error) => {
+      engineCoalesce.delete(key);
+      return { matches: [], match_count: 0, error: error?.message || String(error) };
+    });
+  engineCoalesce.set(key, { promise });
+  return promise;
+}
+
+async function runSyncTopMatches(
   supabase,
-  { startupId, placeholderStartup, signalTotal, maxMs }
+  { startupId, placeholderStartup, signalTotal, maxMs, topN }
 ) {
+  const responseTopN = Number(topN) > 0 ? Number(topN) : SYNC_RESPONSE_TOP_N;
   const wall = Date.now() + (maxMs || 4500);
   const out = { matches: [], match_count: 0, error: null };
   try {
@@ -1259,14 +1316,18 @@ async function generateSyncTopMatchesForHttpResponse(
       row.fit_rank = distinctiveFitScore(placeholderStartup, row.inv);
     }
     withScores.sort((a, b) => b.fit_rank - a.fit_rank);
+    const stageEligible = withScores.filter(
+      ({ inv }) => evaluateFundingLifecycleFit(placeholderStartup, inv).eligible !== false,
+    );
+    const rankedScores = stageEligible.length >= 5 ? stageEligible : withScores;
     const investorById = new Map(candidates.map((inv) => [String(inv.id), inv]));
     const syncForceIds = buildDisplayedTopFiveForceIds(candidates, placeholderStartup, {
-      scoredRows: withScores,
+      scoredRows: rankedScores,
       getId: (row) => row.inv?.id,
       getScore: (row) => Number(row.fit_rank || 0),
       maxLedgerSlots: 0,
     });
-    let top = selectTopMatchesByFirm(withScores, investorById, SYNC_RESPONSE_TOP_N, {
+    let top = selectTopMatchesByFirm(rankedScores, investorById, responseTopN, {
       getInvestorId: (row) => row.inv?.id,
       forceInvestorIds: syncForceIds,
     });
@@ -1285,7 +1346,7 @@ async function generateSyncTopMatchesForHttpResponse(
         row.fit_rank = distinctiveFitScore(placeholderStartup, row.inv);
       }
       allScored.sort((a, b) => b.fit_rank - a.fit_rank);
-      top = selectTopMatchesByFirm(allScored, investorById, SYNC_RESPONSE_TOP_N, {
+      top = selectTopMatchesByFirm(allScored, investorById, responseTopN, {
         getInvestorId: (row) => row.inv?.id,
       });
       if (top.length === 0) return out;
@@ -1316,7 +1377,18 @@ async function generateSyncTopMatchesForHttpResponse(
       return out;
     }
     const byInv = new Map((joined || []).map((j) => [j.investor_id, j]));
-    out.matches = ids.map((iid) => byInv.get(iid)).filter(Boolean);
+    const fitById = new Map(top.map(({ inv, fit_rank, result }) => [
+      String(inv.id),
+      Number.isFinite(Number(fit_rank)) ? Number(fit_rank) : Number(result?.score) || 0,
+    ]));
+    out.matches = ids.map((iid) => {
+      const row = byInv.get(iid);
+      if (!row) return null;
+      row.investor_id = row.investor_id || iid;
+      row.fit_rank = fitById.get(String(iid)) ?? (Number(row.match_score) || 0);
+      row.scored_by = 'matching_engine';
+      return row;
+    }).filter(Boolean);
     out.match_count = out.matches.length;
     return out;
   } catch (e) {
@@ -2485,120 +2557,48 @@ router.post('/submit', async (req, res) => {
       }
       
       if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate && !sectorRegenRequired) {
-        // Previously this returned the stored high-score list and never reranked.
-        // Resubmits of Stripe, a robotics company, and an insurer were all served that old list.
-        const cached = matchCacheGet(startupId);
-        if (cached?.distinctive && cached.matches?.length) {
+        // Score the current investor table. Stored startup_investor_matches rows
+        // are the last write, not the answer for this request.
+        const ph = uploadRowToPlaceholderStartup(startupId, startup);
+        const sm = await generateSyncTopMatchesForHttpResponse(supabase, {
+          startupId,
+          placeholderStartup: ph,
+          signalTotal: signalTotalFromGod(ph.total_god_score),
+          maxMs: 8000,
+          topN: 80,
+        });
+        if (sm.matches?.length) {
           const processingTime = Date.now() - startTime;
-          console.log(`  ⚡ Distinctive cache hit for ${startupId} — ${cached.matchCount} matches in ${processingTime}ms`);
-          _intelMatches = cached.matchCount;
+          console.log(`  ⚡ Engine scored ${sm.matches.length} matches for ${startup?.name} in ${processingTime}ms`);
+          _intelMatches = sm.matches.length;
           trackInstantSubmitFunnel(req, {
             startupId,
             url: inputRaw,
-            matchCount: cached.matchCount,
+            matchCount: sm.matches.length,
             startup,
           });
           return res.json({
             startup_id: startupId,
             startup,
-            matches: cached.matches,
-            match_count: cached.matchCount,
+            matches: sm.matches,
+            match_count: sm.matches.length,
             is_new: false,
-            cached: true,
-            cache_source: 'distinctive',
+            cached: false,
+            cache_source: 'matching_engine',
             processing_time_ms: processingTime,
           });
         }
-
-        // Rescore after the response. Doing it inline loads the full investor
-        // table and holds the request until the 14s timeout, which makes the
-        // page retry for about 60 seconds.
-        const refreshStartupId = startupId;
-        const refreshStartup = startup;
-        setTimeout(() => {
-          const ph = uploadRowToPlaceholderStartup(refreshStartupId, refreshStartup);
-          const sigT = signalTotalFromGod(ph.total_god_score);
-          generateSyncTopMatchesForHttpResponse(supabase, {
-            startupId: refreshStartupId,
-            placeholderStartup: ph,
-            signalTotal: sigT,
-            maxMs: 8000,
-          }).then((sm) => {
-            if (sm.matches?.length) {
-              matchCacheSet(refreshStartupId, sm.matches, sm.match_count || sm.matches.length, { distinctive: true });
-              console.log(`  ⚡ Background distinctive refresh ${sm.matches.length} for ${refreshStartup?.name}`);
-            }
-          }).catch((e) => {
-            console.warn('[INSTANT] distinctive refresh failed:', e?.message);
-          });
-        }, 0);
-
-        const { data: existingMatches } = await supabase
-          .from('startup_investor_matches')
-          .select(`
-            id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at,
-            investors:investor_id (
-              id, name, firm, url, sectors, stage,
-              total_investments, active_fund_size, investment_thesis,
-              email, email_best_guess, email_candidates, email_status, email_has_mx
-            )
-          `)
-          .eq('startup_id', startupId)
-          .eq('status', 'suggested')
-          .order('match_score', { ascending: false })
-          .limit(50);
-        
-        // Detect stale matches (old scorer = no fit_analysis)
-        const staleCount = (existingMatches || []).filter(m => !m.fit_analysis).length;
-        const isStale = staleCount > (existingMatches || []).length * 0.5;
-        if (isStale) {
-          console.log(`  🔄 Stale matches detected (${staleCount}/${existingMatches?.length} without fit_analysis) — triggering background regen`);
-          const { data: runId } = await supabase.rpc('try_start_match_gen', {
-            p_startup_id: startupId,
-            p_cooldown_minutes: 5,
-          });
-          if (runId) {
-            // Defer so HTTP response flushes first
-            setTimeout(() => startBackgroundPipeline({
-              startupId, domain, inputRaw, genSource: 'stale_regen', runId, startTime
-            }), 50);
-          }
-        }
-        
-        const processingTime = Date.now() - startTime;
-        console.log(`  ⚡ Returned ${existingMatchCount} cached matches in ${processingTime}ms${isStale ? ' (regen queued)' : ''}`);
-        
-        // Store in memory cache (skip if stale — background will refresh)
-        if (!isStale && existingMatches?.length) {
-          matchCacheSet(startupId, existingMatches, existingMatchCount);
-        } else if (isStale) {
-          matchCacheInvalidate(startupId); // force fresh load after regen
-        }
-
-        void supabase.from('match_gen_logs').insert({
-          startup_id: startupId, event: 'skipped',
-          source: 'rpc', reason: 'existing_matches',
-          existing_match_count: existingMatchCount,
-          duration_ms: processingTime,
-        }).then(() => {}).catch(() => {});
-        
-        _intelMatches = existingMatchCount || 0;
-        trackInstantSubmitFunnel(req, {
-          startupId,
-          url: inputRaw,
-          matchCount: existingMatchCount || 0,
-          startup,
-        });
+        console.warn(`[INSTANT] matching engine returned no rows (${sm.error || 'empty'}) for ${startupId}`);
         return res.json({
           startup_id: startupId,
           startup,
-          matches: existingMatches || [],
+          matches: [],
           match_count: existingMatchCount,
           is_new: false,
-          cached: true,
-          cache_source: 'db',
-          regen_queued: isStale,
-          processing_time_ms: processingTime
+          cached: false,
+          cache_source: 'matching_engine',
+          engine_error: sm.error || 'empty',
+          processing_time_ms: Date.now() - startTime,
         });
       }
       
@@ -3343,3 +3343,5 @@ router.post('/claim-session', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.scoreStartupMatches = generateSyncTopMatchesForHttpResponse;
+module.exports.uploadRowToPlaceholderStartup = uploadRowToPlaceholderStartup;
