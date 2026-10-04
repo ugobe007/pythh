@@ -42,6 +42,7 @@ import {
   recordImproveCompletion,
 } from '@/lib/improveMatchesQuota';
 import { founderSignupPath } from '@/lib/safeUrl';
+import MatchWait from '@/components/MatchWait';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
@@ -563,13 +564,7 @@ export default function InstantMatchPreview({ url }: Props) {
   };
 
   if (loading) {
-    return (
-      <div className="py-12 flex flex-col items-center gap-3 text-center">
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: G }} />
-        <p className="text-sm font-medium" style={{ color: TEXT }}>Building your raise campaign…</p>
-        <p className="text-xs" style={{ color: DIM }}>Usually a few seconds</p>
-      </div>
-    );
+    return <MatchWait url={url} />;
   }
 
   if (error || !preview) {
