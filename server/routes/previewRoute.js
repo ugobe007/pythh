@@ -42,6 +42,11 @@ const {
   resolveTransactionalReplyTo,
 } = require('../lib/transactionalEmailFrom');
 const { distinctiveFitScore, sectorsForMatching, hasSpecificSector, blendStoredWithSectorSuggestions } = require('../../lib/distinctiveInvestorFit');
+const { signalTotalFromGod } = require('../../lib/signalScoreGodBlend');
+const {
+  scoreStartupMatches,
+  uploadRowToPlaceholderStartup,
+} = require('./instantSubmit');
 const { applyResearchRank } = require('../../lib/matchModelFromResearch');
 const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
 const { buildFounderShortlistBrief } = require('../../lib/founderShortlistBrief');
@@ -561,6 +566,33 @@ async function buildPriorityInvestorMatches(startup, priorities) {
     }));
 }
 
+/**
+ * Load current investors and score them with calculateMatchScore.
+ * Stored startup_investor_matches rows are only a fallback if the engine returns nothing.
+ */
+async function scorePreviewWithEngine(startup) {
+  if (typeof scoreStartupMatches !== 'function' || typeof uploadRowToPlaceholderStartup !== 'function') {
+    return [];
+  }
+  const placeholder = uploadRowToPlaceholderStartup(startup.id, startup);
+  const scored = await scoreStartupMatches(supabase, {
+    startupId: startup.id,
+    placeholderStartup: placeholder,
+    signalTotal: signalTotalFromGod(placeholder.total_god_score),
+    maxMs: 8000,
+    topN: 80,
+  });
+  return (scored?.matches || []).map((row) => {
+    const joined = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+    return {
+      ...row,
+      investor_id: row.investor_id || joined?.id || null,
+      fit_rank: Number.isFinite(Number(row.fit_rank)) ? Number(row.fit_rank) : Number(row.match_score) || 0,
+      scored_by: 'matching_engine',
+    };
+  }).filter((row) => row.investor_id);
+}
+
 /** Narrative for UI when top-level columns are empty but inference JSON has text */
 function effectiveStartupDescription(row) {
   const ex = row.extracted_data && typeof row.extracted_data === 'object' ? row.extracted_data : {};
@@ -734,25 +766,28 @@ router.get('/:startupId', async (req, res) => {
       ? Math.round(100 - ((higherCount / approvedTotal) * 100))
       : 50;
 
+    const engineRows = await scorePreviewWithEngine(rankedStartup);
     const eligibleRows = (matchRows || []).filter((row) => {
       const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
       return inv && (inv.id || row.investor_id);
     });
     const fitSectors = sectorsForMatching(rankedStartup);
     const startupForFit = { ...rankedStartup, sectors: fitSectors.length ? fitSectors : rankedStartup.sectors };
-    for (const row of eligibleRows) {
-      const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
-      row.fit_rank = distinctiveFitScore(startupForFit, inv);
+    if (!engineRows.length) {
+      for (const row of eligibleRows) {
+        const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+        row.fit_rank = distinctiveFitScore(startupForFit, inv);
+      }
     }
 
-    let pool = eligibleRows;
+    let pool = engineRows.length ? engineRows : eligibleRows;
     let shortlistBlended = false;
     const strongStored = eligibleRows.filter((row) => (Number(row.fit_rank) || 0) >= 48).length;
     const campaignBrief = campaignBriefFromStartup(rankedStartup);
     const hasCampaign = campaignIsActionable(campaignBrief);
-    // A saved campaign, or a shortlist that is still generalist, must pull sector investors
-    // into the five. Otherwise the previous stored names stay on top.
-    if (eligibleRows.length > 0 && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))) {
+    // Stored rows are the fallback. A saved campaign still needs sector investors
+    // only when the matching engine did not score this request.
+    if (!engineRows.length && eligibleRows.length > 0 && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))) {
       const suggested = await buildSuggestedInvestorMatches(rankedStartup, { maxSectors: 3 });
       const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
       pool = blended.rows;
@@ -843,6 +878,7 @@ router.get('/:startupId', async (req, res) => {
       oracle_gap: oracleGap,
       suggested_investor_fallback: suggestedInvestorFallback,
       shortlist_blended: shortlistBlended,
+      match_source: engineRows.length ? 'matching_engine' : 'stored',
       deck_focus: buildFreeDeckFocus({
         ...rankedStartup,
         score_components: {
