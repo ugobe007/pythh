@@ -495,7 +495,7 @@ function getCandidateInvestors(startupSectors, maxCandidates, startup = null) {
   const stageReserve = [];
   if (investorCache.data) {
     for (const inv of investorCache.data) {
-      if (!inv?.id || seen.has(inv.id)) continue;
+      if (!inv?.id) continue;
       const score = Number(inv.investor_score);
       if (!Number.isFinite(score) || score < minScore) continue;
       if (evaluateFundingLifecycleFit(startupForFit, inv).level !== 'exact') continue;
@@ -1170,7 +1170,10 @@ const SYNC_MATCH_CANDIDATE_CAP = 220;
 const MATCH_API_SELECT = `
   id, investor_id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at, algorithm_version,
   investors:investor_id (
-    id, name, firm, url, sectors, stage,
+    id, name, firm, url, sectors, stage, type, is_individual, capital_type,
+    check_size_min, check_size_max, investor_tier,
+    twitter_url, linkedin_url, photo_url,
+    email, email_best_guess, email_status,
     total_investments, active_fund_size, investment_thesis
   )
 `;
@@ -2593,7 +2596,7 @@ router.post('/submit', async (req, res) => {
           startup_id: startupId,
           startup,
           matches: [],
-          match_count: existingMatchCount,
+          match_count: 0,
           is_new: false,
           cached: false,
           cache_source: 'matching_engine',
