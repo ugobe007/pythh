@@ -43,6 +43,7 @@ import {
 } from '@/lib/improveMatchesQuota';
 import { founderSignupPath } from '@/lib/safeUrl';
 import MatchWait from '@/components/MatchWait';
+import SimilarRaiseStrip from '@/components/SimilarRaiseStrip';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
@@ -50,7 +51,7 @@ import { CampaignPlan, CampaignPriorities } from '@/components/CampaignQuestions
 import { campaignSubmitBody, readCampaignBrief } from '@/lib/campaignBrief';
 import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
-import { G, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
+import { G, G_BORDER, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
 import { shortlistExpiryNote } from '@/lib/matchFreshness';
 
 const PREVIEW_LIMIT = 5;
@@ -615,22 +616,42 @@ export default function InstantMatchPreview({ url }: Props) {
 
   return (
     <div className="mb-12 max-w-3xl mx-auto">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold mb-1" style={{ color: TEXT }}>
-          Investors for {startupName}
-        </h1>
-        <p className="text-sm leading-relaxed mb-3 max-w-[68ch]" style={{ color: MUTED }}>
+      <div className="mb-6">
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: G }}>
+              Your shortlist
+            </p>
+            <h1 className="font-display text-3xl font-bold leading-[1.05] sm:text-4xl" style={{ color: TEXT }}>
+              Investors for {startupName}
+            </h1>
+          </div>
+          {godScore != null && (
+            <div
+              className="shrink-0 rounded-xl px-3 py-2 text-right"
+              style={{
+                background: 'oklch(0.16 0.04 162)',
+                border: `1px solid ${G_BORDER}`,
+                boxShadow: '0 0 28px oklch(0.696 0.17 162.48 / 0.18)',
+              }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: G }}>GOD</p>
+              <p className="text-3xl font-bold leading-none tabular-nums" style={{ color: TEXT }}>{godScore}</p>
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-sm leading-relaxed max-w-[68ch]" style={{ color: MUTED }}>
           We read the public site and ranked who fits this raise. The matches are the point of this page, and they are free. Alignment holds for 7 days, then the list goes stale.
         </p>
         {expiryNote && (
-          <p className="text-sm leading-relaxed mb-3 max-w-[68ch]" style={{ color: visible.some((match) => match.match_stale) ? AMBER : TEXT }}>
+          <p className="text-sm leading-relaxed mt-3 max-w-[68ch]" style={{ color: visible.some((match) => match.match_stale) ? AMBER : TEXT }}>
             {expiryNote}
           </p>
         )}
+        <div className="mt-3">
         <InlineMeta
           items={[
             { text: `${total.toLocaleString()} in network`, color: MUTED },
-            ...(godScore != null ? [{ text: `GOD ${godScore}`, color: G }] : []),
             ...(preview.shortlist_mix?.vc_count != null && preview.shortlist_mix?.angel_count != null
               ? [{ text: `${preview.shortlist_mix.vc_count} VCs · ${preview.shortlist_mix.angel_count} angels`, color: MUTED }]
               : []),
@@ -639,6 +660,7 @@ export default function InstantMatchPreview({ url }: Props) {
               : [{ text: 'Round not confirmed', color: AMBER }]),
           ]}
         />
+        </div>
         {refreshed && (
           <p className="mt-2 text-xs" style={{ color: G }}>Shortlist reranked with your latest data.</p>
         )}
@@ -653,7 +675,9 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       )}
 
-      <ul className="mb-8 divide-y" style={{ borderColor: 'oklch(0.2 0.01 264)' }}>
+      <SimilarRaiseStrip url={url} />
+
+      <ul className="mb-8 space-y-2.5">
         {visible.map((m, i) => {
           const investorId = m.investor_id || m.investor?.id || '';
           return (

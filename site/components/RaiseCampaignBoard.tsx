@@ -16,6 +16,7 @@ function StepRow({
   body,
   paid,
   open,
+  here,
 }: {
   index: string;
   label: string;
@@ -25,23 +26,42 @@ function StepRow({
   body?: string;
   paid: boolean;
   open?: boolean;
+  here?: boolean;
 }) {
+  const accent = here ? G : open ? 'oklch(0.72 0.16 305)' : 'transparent';
   return (
     <li
-      className="px-4 py-3"
-      style={{ backgroundColor: open ? 'oklch(0.14 0.02 162)' : CARD }}
+      className="px-4 py-3.5"
+      style={{
+        background: here
+          ? 'linear-gradient(90deg, oklch(0.17 0.04 162), oklch(0.13 0.012 264))'
+          : open
+            ? 'linear-gradient(90deg, oklch(0.17 0.04 305), oklch(0.12 0.012 264))'
+            : CARD,
+        boxShadow: `inset 3px 0 0 ${accent}`,
+        opacity: paid && !open ? 0.78 : 1,
+      }}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-sm font-semibold" style={{ color: TEXT }}>
-          <span className="font-mono text-[11px] mr-2" style={{ color: paid ? GOLD : G }}>{index}</span>
+          <span
+            className="mr-2 inline-grid h-5 w-5 place-items-center rounded text-[11px] font-bold"
+            style={{
+              background: here ? G : open ? 'oklch(0.72 0.16 305)' : 'oklch(0.2 0.01 264)',
+              color: here || open ? 'oklch(0.12 0.02 162)' : MUTED,
+              fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+            }}
+          >
+            {index}
+          </span>
           {label}
           <span className="font-normal" style={{ color: MUTED }}> — {timing}</span>
         </p>
-        <span className="text-[10px] font-semibold tracking-wide uppercase" style={{ color: paid ? GOLD : G }}>
-          {status}
+        <span className="text-[10px] font-semibold tracking-wide uppercase" style={{ color: paid ? GOLD : here ? G : open ? 'oklch(0.78 0.14 305)' : G }}>
+          {here ? 'Now' : status}
         </span>
       </div>
-      <p className="text-xs mt-1 leading-relaxed" style={{ color: open ? TEXT : MUTED }}>{title}</p>
+      <p className={`mt-1.5 leading-relaxed ${open ? 'text-sm' : 'text-xs'}`} style={{ color: open || here ? TEXT : MUTED }}>{title}</p>
       {open && body && (
         <p className="text-sm mt-2 leading-relaxed" style={{ color: MUTED }}>{body}</p>
       )}
@@ -65,7 +85,7 @@ export default function RaiseCampaignBoard({ saved = false, matchCount, ...input
       <p className="text-[11px] font-semibold tracking-[0.18em] uppercase mb-2" style={{ color: G }}>
         {saved ? 'Where this raise stands' : 'The path'}
       </p>
-      <h2 id="raise-path-heading" className="text-xl font-bold mb-2" style={{ color: TEXT }}>
+      <h2 id="raise-path-heading" className="font-display text-2xl sm:text-3xl font-bold mb-2 leading-tight" style={{ color: TEXT }}>
         {saved ? `${campaign.startupName} is saved` : 'Positioning is next. The pitch deck is not.'}
       </h2>
       <p className="text-sm leading-relaxed mb-4 max-w-[68ch]" style={{ color: MUTED }}>
@@ -81,6 +101,7 @@ export default function RaiseCampaignBoard({ saved = false, matchCount, ...input
           status="Free"
           title={saved ? `${countLabel} saved to this account.` : 'The ranked investors above. That list is the point of this page.'}
           paid={false}
+          here={!saved}
           open={saved}
         />
         {campaign.stages.map((stage, index) => (
