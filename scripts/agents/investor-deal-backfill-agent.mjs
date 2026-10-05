@@ -64,12 +64,13 @@ async function recentCardInvestorIds() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const ids = [];
   const seen = new Set();
-  for (let from = 0; from < 6000; from += 1000) {
+  for (let from = 0; from < 12000; from += 1000) {
     const { data, error } = await db
       .from('startup_investor_matches')
       .select('investor_id, created_at')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(from, from + 999);
     if (error) throw new Error(`match scan: ${error.message}`);
     if (!data?.length) break;
@@ -228,6 +229,7 @@ async function main() {
     missing_deals: empty.length,
     batch: batch.length,
     ledger_writes: 0,
+    firm_site_writes: 0,
     news_writes: 0,
     written_names: [],
     samples: [],
@@ -289,7 +291,8 @@ async function main() {
         if (delay) await sleep(delay);
         continue;
       }
-      summary.news_writes += 1;
+      if (source === 'firm_site') summary.firm_site_writes += 1;
+      else summary.news_writes += 1;
       if (summary.samples.length < 12) {
         summary.samples.push({
           name: investor.name,
