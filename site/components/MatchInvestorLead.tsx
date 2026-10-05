@@ -322,7 +322,7 @@ export default function MatchInvestorLead({
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {[
-                { label: 'Fit', value: `Fit ${fitness}/100`, color: G },
+                { label: 'Fit', value: `${fitness}/100`, color: G },
                 ...(score(components.alignment) != null ? [{ label: 'Alignment', value: `${score(components.alignment)}/100`, color: TEXT }] : []),
                 ...(score(components.lifecycle) != null ? [{ label: 'Stage', value: `${score(components.lifecycle)}/100`, color: TEXT }] : []),
                 ...(check ? [{ label: 'Check', value: check, color: TEXT }] : []),
