@@ -3,7 +3,8 @@
  * Investor deal backfill — evidence onto profiles so investor cards can show deals.
  *
  * 1. Verified or corroborated funding-ledger rows already linked to the investor.
- * 2. News only when the ledger has nothing: one reviewed source, or two independent
+ * 2. The firm's own site, when portfolio logos are labeled with a company name.
+ * 3. News only when those two are empty: one reviewed source, or two independent
  *    publishers, and the firm is an explicit participant in the headline.
  *
  * Dry-run unless --apply. Does not call a paid model.
@@ -20,6 +21,7 @@ const require = createRequire(import.meta.url);
 const {
   dealsFromLedger,
   dealsFromEvidenceArticles,
+  dealsFromFirmSite,
   profilePatch,
   hasStoredDeals,
 } = require('../../lib/investorDealBackfill.js');
@@ -38,6 +40,24 @@ const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchFirmHtml(rawUrl) {
+  let target;
+  try { target = new URL(rawUrl); } catch { return null; }
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') return null;
+  try {
+    const res = await fetch(target, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(12000),
+      headers: { 'user-agent': 'Mozilla/5.0', accept: 'text/html' },
+    });
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 500_000);
+    return { html, finalUrl: res.url || target.toString() };
+  } catch {
+    return null;
+  }
 }
 
 async function recentCardInvestorIds() {
@@ -91,7 +111,7 @@ async function loadInvestors(ids) {
     const slice = ids.slice(i, i + 100);
     const { data, error } = await db
       .from('investors')
-      .select('id, name, firm, type, investor_type, notable_investments, portfolio_companies, last_investment_date, entity_gate, status, investor_score')
+      .select('id, name, firm, url, type, investor_type, notable_investments, portfolio_companies, last_investment_date, entity_gate, status, investor_score')
       .in('id', slice);
     if (error) throw new Error(`investor load: ${error.message}`);
     rows.push(...(data || []));
@@ -252,8 +272,18 @@ async function main() {
   if (!skipSearch) {
     for (const investor of newsQueue) {
       searched += 1;
-      const articles = await searchInvestorNews(investor.name, investor.firm);
-      const incoming = dealsFromEvidenceArticles(articles, investor);
+      let incoming = [];
+      let source = 'news';
+      const site = investor.url ? await fetchFirmHtml(investor.url) : null;
+      if (site) {
+        incoming = dealsFromFirmSite(site.html, site.finalUrl, investor);
+        if (incoming.length) source = 'firm_site';
+      }
+      if (!incoming.length) {
+        const articles = await searchInvestorNews(investor.name, investor.firm);
+        incoming = dealsFromEvidenceArticles(articles, investor);
+        source = 'news';
+      }
       const patch = profilePatch(investor, incoming);
       if (!patch) {
         if (delay) await sleep(delay);
@@ -264,7 +294,7 @@ async function main() {
         summary.samples.push({
           name: investor.name,
           firm: investor.firm,
-          source: 'news',
+          source,
           deals: patch.notable_investments.map((deal) => deal.company),
         });
       }

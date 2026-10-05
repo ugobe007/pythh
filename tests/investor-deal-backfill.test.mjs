@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const {
   dealsFromLedger,
   dealsFromEvidenceArticles,
+  dealsFromFirmSite,
   mergeDeals,
   profilePatch,
 } = require('../lib/investorDealBackfill.js');
@@ -81,6 +82,20 @@ test('news deals require a reviewed participant headline', () => {
   assert.equal(deals[0].source_url, 'https://www.reuters.com/nova');
 });
 
+test('firm site portfolio keeps labeled logos and drops untitled art', () => {
+  const html = `
+    <a href="https://www.betterleave.com"><img src="https://cdn.example/Betterleave.png"></a>
+    <a href="https://chordcommerce.com/"><img src="https://cdn.example/Untitled+(3.7+x+3+in).png"></a>
+    <a href="https://twitter.com/ChingonaVC"><img src="https://cdn.example/Twitter.png"></a>
+    <a href="https://www.chingona.ventures/about"><img src="https://cdn.example/About.png"></a>
+    <a href="https://example.com/logo"><img src="https://cdn.example/ChingonaLogo+BlackMedium.png"></a>
+  `;
+  const deals = dealsFromFirmSite(html, 'https://www.chingona.ventures/', { name: 'Chingona Ventures', firm: 'Chingona Ventures' });
+  assert.deepEqual(deals.map((deal) => deal.company), ['Betterleave']);
+  assert.equal(deals[0].source, 'firm_site');
+  assert.equal(deals[0].amount, null);
+});
+
 test('profile patch merges new evidence and does not wipe an existing date', () => {
   const investor = {
     notable_investments: ['Amazon'],
@@ -108,6 +123,7 @@ test('backfill agent reads the ledger before news and does not call a paid model
   assert.match(agent, /dealsFromLedger/);
   assert.match(agent, /funding_evidence_participants/);
   assert.match(agent, /created_at/);
+  assert.match(agent, /dealsFromFirmSite/);
   assert.match(agent, /searchInvestorNews/);
   assert.match(agent, /--apply/);
   assert.doesNotMatch(agent, /openai|anthropic|gemini/i);
