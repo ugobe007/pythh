@@ -49,7 +49,6 @@ import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLea
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import { CampaignPlan, CampaignPriorities } from '@/components/CampaignQuestions';
 import { campaignSubmitBody, readCampaignBrief } from '@/lib/campaignBrief';
-import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_BORDER, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
 import { shortlistExpiryNote } from '@/lib/matchFreshness';
@@ -628,15 +627,21 @@ export default function InstantMatchPreview({ url }: Props) {
           </div>
           {godScore != null && (
             <div
-              className="shrink-0 rounded-xl px-3 py-2 text-right"
+              className="grid h-[84px] w-[84px] shrink-0 place-items-center rounded-full"
               style={{
-                background: 'oklch(0.16 0.04 162)',
-                border: `1px solid ${G_BORDER}`,
-                boxShadow: '0 0 28px oklch(0.696 0.17 162.48 / 0.18)',
+                background: `conic-gradient(${G} ${Math.max(6, Math.min(100, godScore))}%, oklch(0.24 0.01 264) 0)`,
+                boxShadow: '0 0 32px oklch(0.696 0.17 162.48 / 0.28)',
               }}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: G }}>GOD</p>
-              <p className="text-3xl font-bold leading-none tabular-nums" style={{ color: TEXT }}>{godScore}</p>
+              <div
+                className="grid h-[68px] w-[68px] place-items-center rounded-full text-center"
+                style={{ background: 'oklch(0.1 0.02 162)' }}
+              >
+                <span>
+                  <span className="block text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: G }}>GOD</span>
+                  <span className="block text-2xl font-bold leading-none tabular-nums" style={{ color: TEXT }}>{godScore}</span>
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -648,18 +653,18 @@ export default function InstantMatchPreview({ url }: Props) {
             {expiryNote}
           </p>
         )}
-        <div className="mt-3">
-        <InlineMeta
-          items={[
-            { text: `${total.toLocaleString()} in network`, color: MUTED },
-            ...(preview.shortlist_mix?.vc_count != null && preview.shortlist_mix?.angel_count != null
-              ? [{ text: `${preview.shortlist_mix.vc_count} VCs · ${preview.shortlist_mix.angel_count} angels`, color: MUTED }]
-              : []),
-            ...(fundingStage
-              ? [{ text: `${fundingStage} round`, color: G }]
-              : [{ text: 'Round not confirmed', color: AMBER }]),
-          ]}
-        />
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ color: TEXT, background: 'oklch(0.16 0.012 264)', border: '1px solid oklch(0.3 0.015 264)' }}>
+            {total.toLocaleString()} in network
+          </span>
+          {preview.shortlist_mix?.vc_count != null && preview.shortlist_mix?.angel_count != null && (
+            <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ color: TEXT, background: 'oklch(0.16 0.012 264)', border: '1px solid oklch(0.3 0.015 264)' }}>
+              {preview.shortlist_mix.vc_count} VCs · {preview.shortlist_mix.angel_count} angels
+            </span>
+          )}
+          <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: fundingStage ? G : AMBER, background: fundingStage ? 'oklch(0.696 0.17 162.48 / 0.12)' : 'oklch(0.78 0.14 65 / 0.12)', border: `1px solid ${fundingStage ? G_BORDER : 'oklch(0.78 0.14 65 / 0.4)'}` }}>
+            {fundingStage ? `${fundingStage} round` : 'Round not confirmed'}
+          </span>
         </div>
         {refreshed && (
           <p className="mt-2 text-xs" style={{ color: G }}>Shortlist reranked with your latest data.</p>
@@ -677,7 +682,10 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <SimilarRaiseStrip url={url} />
 
-      <ul className="mb-8 space-y-2.5">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
+        The five
+      </p>
+      <ul className="mb-8 space-y-3">
         {visible.map((m, i) => {
           const investorId = m.investor_id || m.investor?.id || '';
           return (

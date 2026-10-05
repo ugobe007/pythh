@@ -28,27 +28,35 @@ function StepRow({
   open?: boolean;
   here?: boolean;
 }) {
-  const accent = here ? G : open ? 'oklch(0.72 0.16 305)' : 'transparent';
+  const hot = here || open;
   return (
     <li
-      className="px-4 py-3.5"
+      className={`rounded-2xl ${hot ? 'px-5 py-5' : 'px-4 py-3.5'}`}
       style={{
         background: here
-          ? 'linear-gradient(90deg, oklch(0.17 0.04 162), oklch(0.13 0.012 264))'
+          ? 'linear-gradient(120deg, oklch(0.26 0.07 162), oklch(0.13 0.02 264) 70%)'
           : open
-            ? 'linear-gradient(90deg, oklch(0.17 0.04 305), oklch(0.12 0.012 264))'
+            ? 'linear-gradient(120deg, oklch(0.24 0.07 305), oklch(0.13 0.02 280) 68%)'
             : CARD,
-        boxShadow: `inset 3px 0 0 ${accent}`,
-        opacity: paid && !open ? 0.78 : 1,
+        border: here
+          ? `1px solid ${G}`
+          : open
+            ? '1px solid oklch(0.62 0.14 305 / 0.75)'
+            : `1px solid ${BORDER}`,
+        boxShadow: here
+          ? '0 0 36px oklch(0.696 0.17 162.48 / 0.22)'
+          : open
+            ? '0 0 28px oklch(0.62 0.14 305 / 0.16)'
+            : undefined,
       }}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="text-sm font-semibold" style={{ color: TEXT }}>
+      <div className="flex items-center justify-between gap-3">
+        <p className={`font-semibold ${hot ? 'text-lg' : 'text-sm'}`} style={{ color: TEXT }}>
           <span
-            className="mr-2 inline-grid h-5 w-5 place-items-center rounded text-[11px] font-bold"
+            className={`mr-2.5 inline-grid place-items-center rounded-lg font-bold ${hot ? 'h-8 w-8 text-sm' : 'h-6 w-6 text-[11px]'}`}
             style={{
-              background: here ? G : open ? 'oklch(0.72 0.16 305)' : 'oklch(0.2 0.01 264)',
-              color: here || open ? 'oklch(0.12 0.02 162)' : MUTED,
+              background: here ? G : open ? 'oklch(0.72 0.16 305)' : paid ? 'oklch(0.28 0.06 70)' : 'oklch(0.22 0.012 264)',
+              color: here || open ? 'oklch(0.12 0.02 162)' : paid ? GOLD : MUTED,
               fontFamily: 'JetBrains Mono, ui-monospace, monospace',
             }}
           >
@@ -57,13 +65,19 @@ function StepRow({
           {label}
           <span className="font-normal" style={{ color: MUTED }}> — {timing}</span>
         </p>
-        <span className="text-[10px] font-semibold tracking-wide uppercase" style={{ color: paid ? GOLD : here ? G : open ? 'oklch(0.78 0.14 305)' : G }}>
+        <span
+          className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
+          style={{
+            color: here ? 'oklch(0.12 0.02 162)' : paid ? GOLD : open ? 'oklch(0.12 0.03 305)' : G,
+            background: here ? G : paid ? 'oklch(0.769 0.188 70.08 / 0.14)' : open ? 'oklch(0.78 0.14 305)' : 'oklch(0.696 0.17 162.48 / 0.12)',
+          }}
+        >
           {here ? 'Now' : status}
         </span>
       </div>
-      <p className={`mt-1.5 leading-relaxed ${open ? 'text-sm' : 'text-xs'}`} style={{ color: open || here ? TEXT : MUTED }}>{title}</p>
+      <p className={`mt-2 leading-relaxed ${hot ? 'text-base' : 'text-xs'}`} style={{ color: hot ? TEXT : MUTED }}>{title}</p>
       {open && body && (
-        <p className="text-sm mt-2 leading-relaxed" style={{ color: MUTED }}>{body}</p>
+        <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>{body}</p>
       )}
     </li>
   );
@@ -93,7 +107,7 @@ export default function RaiseCampaignBoard({ saved = false, matchCount, ...input
           ? `Done, and free: we read ${campaign.startupName} and saved ${countLabel}. Next, still free: positioning — who should fund this round. The pitch deck comes after that. The deck outline, sending notes, and term-sheet help need Scout or Oracle.`
           : 'The investors on this page are free. Positioning — who to lead with, and why — is the next step, and it is free. The pitch deck comes after positioning. You pay when you want the deck outline, the notes sent, or help on a term sheet.'}
       </p>
-      <ol className="rounded-xl border overflow-hidden divide-y" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+      <ol className="space-y-2.5">
         <StepRow
           index="1"
           label="Matches"
