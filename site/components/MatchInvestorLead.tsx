@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Lock, Mail, Loader2, Send } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Lock, Mail, Loader2, Send } from 'lucide-react';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { parseExplainBullets } from '@/components/MatchExplainBlock';
@@ -12,6 +12,11 @@ export type LeadDeal = {
   year?: number | null;
   round?: string | null;
   amount?: number | null;
+};
+
+export type LeadPartner = {
+  name: string;
+  title?: string | null;
 };
 
 export type LeadMatch = {
@@ -42,6 +47,8 @@ export type LeadMatch = {
     total_investments?: number | null;
     last_investment_date?: string | null;
     recent_deals?: LeadDeal[];
+    website?: string | null;
+    partners?: LeadPartner[];
   };
 };
 
@@ -102,6 +109,38 @@ function lastDealYear(value?: string | null): string | null {
   return match ? match[0] : null;
 }
 
+function websiteHost(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+}
+
+function labelList(value?: string | string[] | null, limit = 4): string[] {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const text = String(item || '').trim().replace(/[_-]+/g, ' ');
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text.length <= 3 ? text.toUpperCase() : text.replace(/\b[a-z]/g, (char) => char.toUpperCase()));
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function investmentWhen(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return lastDealYear(value);
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
 type Props = {
   match: LeadMatch;
   rank: number;
@@ -155,6 +194,12 @@ export default function MatchInvestorLead({
   const expiry = matchExpiryLine(match);
   const whyLine = (bullets[0] || why || '').trim();
   const latestDeal = deals[0] || '';
+  const website = inv?.website || null;
+  const siteHost = websiteHost(website);
+  const partners = (inv?.partners || []).filter((partner) => partner?.name).slice(0, 6);
+  const areas = labelList(inv?.sectors, 6);
+  const whenStages = labelList(inv?.stage, 4);
+  const lastInvestment = investmentWhen(inv?.last_investment_date);
 
   const handleUnlock = async () => {
     if (!investorId) return;
@@ -255,6 +300,7 @@ export default function MatchInvestorLead({
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {match.investor_class ? <Pill text={match.investor_class === 'angel' ? 'Angel' : 'VC'} tone="fit" /> : null}
+              {areas.slice(0, 2).map((area) => <Pill key={area} text={area} tone="plain" />)}
               {stage ? <Pill text={stage} tone="plain" /> : null}
               {check ? <Pill text={check} tone="plain" /> : null}
               {dealCount != null && dealCount > 0 ? <Pill text={`${dealCount.toLocaleString()} deals`} tone="plain" /> : null}
@@ -301,6 +347,21 @@ export default function MatchInvestorLead({
         </span>
       </button>
 
+      {siteHost && website ? (
+        <div className="px-4 pb-4">
+          <a
+            href={website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold"
+            style={{ color: G }}
+          >
+            {siteHost}
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      ) : null}
+
       {open && (
         <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: BORDER }}>
           {(bullets.length || why) && (
@@ -313,6 +374,44 @@ export default function MatchInvestorLead({
                   <li key={line} className="rounded-lg px-3 py-2 text-sm leading-relaxed" style={{ color: TEXT, background: 'oklch(0.12 0.012 264)' }}>{line}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {partners.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: MUTED }}>
+                Partners
+              </p>
+              <ul className="space-y-1.5">
+                {partners.map((partner) => (
+                  <li key={partner.name} className="rounded-lg px-3 py-2 text-sm" style={{ color: TEXT, background: 'oklch(0.12 0.012 264)' }}>
+                    {partner.name}{partner.title ? ` · ${partner.title}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {(areas.length > 0 || whenStages.length > 0 || lastInvestment) && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: MUTED }}>
+                Invests in
+              </p>
+              {areas.length > 0 ? (
+                <p className="text-sm" style={{ color: TEXT }}>{areas.join(' · ')}</p>
+              ) : null}
+              {whenStages.length > 0 ? (
+                <p className="mt-1 text-sm" style={{ color: TEXT }}>
+                  <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: DIM }}>When</span>
+                  {whenStages.join(', ')}
+                </p>
+              ) : null}
+              {lastInvestment ? (
+                <p className="mt-1 text-sm" style={{ color: TEXT }}>
+                  <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: DIM }}>Last investment</span>
+                  {lastInvestment}
+                </p>
+              ) : null}
             </div>
           )}
 
