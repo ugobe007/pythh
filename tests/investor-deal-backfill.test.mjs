@@ -99,7 +99,9 @@ test('firm site portfolio keeps labeled logos and drops untitled art', () => {
   `;
   assert.deepEqual(dealsFromFirmSite(noisy, 'https://firm.example/').map((deal) => deal.company), ['Thaena']);
   const titled = `<a href="https://www.applyboard.com"><img src="https://cdn.example/ApplyBoard+-+Home.png"></a>
-    <a href="https://example.com/h"><img src="https://cdn.example/Header.png"></a>`;
+    <a href="https://example.com/h"><img src="https://cdn.example/Header.png"></a>
+    <a href="https://sifted.eu"><img src="https://cdn.example/siftedAI.png"></a>
+    <a href="https://linkedin.com/x"><img src="https://cdn.example/REFASHIOND+Linkedin.png"></a>`;
   assert.deepEqual(dealsFromFirmSite(titled, 'https://firm.example/').map((deal) => deal.company), ['ApplyBoard']);
   assert.equal(deals[0].source, 'firm_site');
   assert.equal(deals[0].amount, null);
