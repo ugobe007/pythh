@@ -22,13 +22,14 @@ import {
   listSectors,
   readStartupDescription,
   readStartupTeam,
-  truncateWhy,
 } from '@/lib/founderAccountProfile';
-import { SCOUT_PLAN, ORACLE_PLAN } from '@/lib/pricingPlans';
+import { SCOUT_PLAN, ORACLE_PLAN, hasPaidRaiseAccess } from '@/lib/pricingPlans';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import FounderFreeTools from '@/components/FounderFreeTools';
+import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLead';
+import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, GOLD, MUTED, TEXT, DIM, BORDER, CARD, AMBER, godScoreColor, signalScoreColor } from '@/lib/designTokens';
-import { matchExpiryLine, shortlistExpiryNote } from '@/lib/matchFreshness';
+import { shortlistExpiryNote } from '@/lib/matchFreshness';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -56,18 +57,9 @@ type PreviewStartup = {
   extracted_data?: Record<string, unknown> | null;
 };
 
-type SavedMatch = {
-  match_score?: number;
-  why_you_match?: string | null;
-  investor_class?: string | null;
-  expires_at?: string | null;
-  match_stale?: boolean;
-  investor?: { name?: string | null; firm?: string | null } | null;
-};
-
 type PreviewPayload = {
   startup?: PreviewStartup | null;
-  matches?: SavedMatch[];
+  matches?: LeadMatch[];
   total_matches?: number;
   shortlist_mix?: {
     vc_count?: number | null;
@@ -104,6 +96,20 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
     enabled: isAuthenticated,
     retry: false,
   });
+  const { data: subscription } = trpc.stripe.getSubscription.useQuery(undefined, {
+    enabled: Boolean(isAuthenticated),
+    retry: false,
+  });
+  const { data: scoutAccess } = trpc.scoutCoupons.status.useQuery(undefined, {
+    enabled: Boolean(isAuthenticated),
+    retry: false,
+  });
+  const isPaid = hasPaidRaiseAccess({
+    plan: subscription?.plan,
+    status: subscription?.status,
+    role: user?.role,
+  }) || Boolean(scoutAccess?.active);
+  const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -150,6 +156,20 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
       cancelled = true;
     };
   }, [localPinned.id, profile?.startupId]);
+
+  useEffect(() => {
+    const id = pinned.id;
+    if (!id || !isAuthenticated || !isPaid) return;
+    let cancelled = false;
+    fetchLeadUnlocks(id)
+      .then((ids) => {
+        if (!cancelled) setUnlockedIds(ids);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pinned.id, isAuthenticated, isPaid]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -514,36 +534,28 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
               </div>
             )}
             {savedMatches.length > 0 && (
-              <ol className="divide-y rounded-xl border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+              <ul className="space-y-3">
                 {savedMatches.map((match, index) => {
-                  const name = match.investor?.name || match.investor?.firm || `Match ${index + 1}`;
-                  const firm = match.investor?.firm && match.investor.firm !== name ? match.investor.firm : null;
-                  const score = typeof match.match_score === 'number' ? Math.round(match.match_score) : null;
-                  const why = truncateWhy(match.why_you_match);
-                  const expiry = matchExpiryLine(match);
+                  const investorId = match.investor_id || match.investor?.id || '';
                   return (
-                    <li key={`${name}-${index}`} className="px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium" style={{ color: TEXT }}>
-                            {index + 1}. {name}
-                          </p>
-                          {firm && <p className="text-[11px]" style={{ color: DIM }}>{firm}</p>}
-                          {expiry && (
-                            <p className="text-[11px] mt-0.5" style={{ color: match.match_stale ? AMBER : MUTED }}>
-                              {expiry}
-                            </p>
-                          )}
-                          {why && <p className="text-xs mt-1 leading-relaxed" style={{ color: MUTED }}>{why}</p>}
-                        </div>
-                        {score != null && (
-                          <span className="text-xs font-mono shrink-0" style={{ color: G }}>{score}</span>
-                        )}
-                      </div>
-                    </li>
+                    <MatchInvestorLead
+                      key={investorId || index}
+                      match={match}
+                      rank={index}
+                      startupId={pinned.id || ''}
+                      startupName={companyLabel}
+                      defaultOpen={false}
+                      isAuthenticated={Boolean(isAuthenticated)}
+                      isPaid={isPaid}
+                      unlocked={Boolean(investorId && unlockedIds.includes(investorId))}
+                      replyTo={user?.email}
+                      onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+                      onNeedSignup={() => navigate('/signup/founder')}
+                      onNeedPlan={() => navigate('/pricing')}
+                    />
                   );
                 })}
-              </ol>
+              </ul>
             )}
           </section>
 

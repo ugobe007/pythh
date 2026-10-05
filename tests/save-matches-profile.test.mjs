@@ -71,6 +71,8 @@ test('save signup lands on the account profile, not the newsletter', () => {
   assert.match(signup, /sendSavedMatchesEmail/);
   assert.match(hub, /The email includes the five matches.*Sent from hello@orbital-ai\.io/);
   assert.match(hub, /Your saved matches — \{companyLabel\}/);
+  assert.match(hub, /MatchInvestorLead/);
+  assert.match(hub, /defaultOpen=\{false\}/);
   assert.match(hub, /source=account_saved/);
   assert.match(hub, /Email my 5 matches/);
   assert.match(hub, /sendSavedMatchesEmail/);
