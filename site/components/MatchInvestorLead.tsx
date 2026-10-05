@@ -123,7 +123,7 @@ function labelList(value?: string | string[] | null, limit = 4): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const item of raw) {
-    const text = String(item || '').trim().replace(/[_-]+/g, ' ');
+    const text = String(item || '').trim().replace(/_+/g, ' ');
     if (!text) continue;
     const key = text.toLowerCase();
     if (seen.has(key)) continue;
