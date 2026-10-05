@@ -45,11 +45,24 @@ test('card facts keep partners, sectors, timing, deals, and the firm site', () =
         firm: 'Elsewhere Capital',
         title: 'Partner',
       },
+      {
+        id: 'firm-label',
+        name: 'Kleiner Perkins (KP)',
+        firm: 'Kleiner Perkins',
+        title: 'Partner',
+      },
+      {
+        id: 'named',
+        name: 'John Doerr (Kleiner Perkins)',
+        firm: 'Kleiner Perkins',
+        title: 'Partner',
+      },
     ],
   );
 
   assert.equal(facts.website, 'https://kleinerperkins.com/');
-  assert.deepEqual(facts.partners.map((partner) => partner.name), ['Leigh Marie Braswell', 'Bucky Moore']);
+  assert.deepEqual(facts.partners.map((partner) => partner.name), ['John Doerr', 'Leigh Marie Braswell', 'Bucky Moore']);
+  assert.equal(facts.partners.some((partner) => /Kleiner Perkins/.test(partner.name)), false);
   assert.equal(facts.partners[0].title, 'Partner');
   assert.deepEqual(facts.sectors, ['AI/ML']);
   assert.deepEqual(facts.stage, ['Pre-Seed', 'Seed', 'Series A']);
