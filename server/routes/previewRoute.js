@@ -51,6 +51,7 @@ const { applyResearchRank } = require('../../lib/matchModelFromResearch');
 const { expandRelatedSectors, normalizeSectors } = require('../lib/sectorTaxonomy');
 const { buildFounderShortlistBrief } = require('../../lib/founderShortlistBrief');
 const { previewHost, hostOf, buildPeers, MIN_AMOUNT_USD, MAX_AMOUNT_USD } = require('../../lib/previewPeers');
+const { cardFactsFromRows, applyCardFacts } = require('../../lib/investorCardFacts');
 
 /** Deliverable From — pythh.ai SPF/send records currently fail Gmail. */
 const MATCHES_EMAIL_FROM = resolveTransactionalFrom(process.env.MATCHES_EMAIL_FROM);
@@ -72,6 +73,51 @@ function inspectMatchesUrl(startupUrl, fallbackUrl) {
   if (!raw) return fallbackUrl;
   const normalized = raw.startsWith('http') ? raw : `https://${raw}`;
   return `${APP_BASE}/matches?url=${encodeURIComponent(normalized)}`;
+}
+
+const CARD_FACT_COLUMNS = 'id, name, firm, title, url, website, blog_url, partners, notable_investments, portfolio_companies, sectors, stage, focus_areas, last_investment_date, is_individual, entity_gate, status';
+
+/** Firm website, partners, sectors, and example deals for the cards on this shortlist. */
+async function attachInvestorCardFacts(matches) {
+  const list = Array.isArray(matches) ? matches : [];
+  const ids = [...new Set(list.map((match) => match.investor_id || match.investor?.id).filter(Boolean))];
+  if (!ids.length) return list;
+  try {
+    const { data: selves, error } = await supabase
+      .from('investors')
+      .select(CARD_FACT_COLUMNS)
+      .in('id', ids);
+    if (error) {
+      console.warn('[preview] card facts:', error.message || error);
+      return list;
+    }
+    const firms = [...new Set(list.map((match) => String(match.investor?.firm || '').trim()).filter(Boolean))];
+    let mates = [];
+    if (firms.length) {
+      const [{ data: people, error: mateError }, { data: firmsRows, error: firmError }] = await Promise.all([
+        supabase.from('investors').select(CARD_FACT_COLUMNS).in('firm', firms).eq('entity_gate', 'qualified').limit(120),
+        supabase.from('investors').select(CARD_FACT_COLUMNS).in('name', firms).eq('entity_gate', 'qualified').limit(40),
+      ]);
+      if (mateError) console.warn('[preview] card partners:', mateError.message || mateError);
+      if (firmError) console.warn('[preview] card firms:', firmError.message || firmError);
+      const seen = new Set();
+      mates = [...(firmsRows || []), ...(people || [])].filter((row) => {
+        const id = String(row?.id || '');
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    }
+    const byId = new Map((selves || []).map((row) => [String(row.id), row]));
+    return list.map((match) => {
+      const id = String(match.investor_id || match.investor?.id || '');
+      const self = byId.get(id) || match.investor || {};
+      return applyCardFacts(match, cardFactsFromRows(self, mates));
+    });
+  } catch (err) {
+    console.warn('[preview] card facts failed:', err?.message || err);
+    return list;
+  }
 }
 
 /** Same mix as the preview page, so the email names the shortlist the founder sees. */
@@ -891,6 +937,7 @@ router.get('/:startupId', async (req, res) => {
       matches = buildPreviewMatchList(suggested, { ...mixOptions, total: 5 });
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
+    matches = await attachInvestorCardFacts(matches);
 
     const descriptionForUi = effectiveStartupDescription(startup);
 
