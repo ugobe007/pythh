@@ -28,11 +28,12 @@ function Choice({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left px-4 py-3 rounded-lg text-sm font-semibold"
+      className="w-full rounded-xl px-4 py-4 text-left text-base font-semibold"
       style={{
-        color: selected ? 'oklch(0.13 0.01 264)' : TEXT,
-        backgroundColor: selected ? G : 'transparent',
-        border: `1px solid ${selected ? G : 'oklch(0.28 0.01 264)'}`,
+        color: selected ? 'oklch(0.12 0.02 162)' : TEXT,
+        background: selected ? G : 'oklch(0.16 0.016 264)',
+        border: `1px solid ${selected ? G : 'oklch(0.34 0.02 162)'}`,
+        boxShadow: selected ? '0 0 24px oklch(0.696 0.17 162.48 / 0.28)' : undefined,
       }}
     >
       {label}
@@ -167,8 +168,8 @@ export function CampaignPriorities({
   };
 
   return (
-    <section className="mb-8 max-w-xl">
-      <p className="text-[13px] font-medium mb-2" style={{ color: G }}>
+    <section className="mb-8 max-w-xl rounded-2xl px-5 py-5" style={{ background: 'oklch(0.13 0.014 264)', border: '1px solid oklch(0.3 0.015 264)' }}>
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
         {step === 'revenue' ? '1' : step === 'hire' ? '2' : '3'} of 3 · after the five
       </p>
       {step === 'revenue' && (

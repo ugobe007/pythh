@@ -49,7 +49,6 @@ import MatchInvestorLead, { type LeadMatch } from '@/components/MatchInvestorLea
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import { CampaignPlan, CampaignPriorities } from '@/components/CampaignQuestions';
 import { campaignSubmitBody, readCampaignBrief } from '@/lib/campaignBrief';
-import InlineMeta from '@/components/design/InlineMeta';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
 import { G, G_BORDER, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
 import { shortlistExpiryNote } from '@/lib/matchFreshness';
@@ -111,7 +110,7 @@ type PreviewPayload = {
 };
 
 const NEXT_STEP_CTA_CLASS =
-  'inline-flex items-center justify-center gap-2 w-full px-7 rounded-lg text-[15px] font-semibold';
+  'inline-flex items-center justify-center gap-2 w-full px-7 rounded-xl text-[15px] font-semibold';
 const NEXT_STEP_CTA_STYLE = {
   backgroundColor: G,
   border: `1px solid ${G}`,
@@ -628,15 +627,21 @@ export default function InstantMatchPreview({ url }: Props) {
           </div>
           {godScore != null && (
             <div
-              className="shrink-0 rounded-xl px-3 py-2 text-right"
+              className="grid h-[84px] w-[84px] shrink-0 place-items-center rounded-full"
               style={{
-                background: 'oklch(0.16 0.04 162)',
-                border: `1px solid ${G_BORDER}`,
-                boxShadow: '0 0 28px oklch(0.696 0.17 162.48 / 0.18)',
+                background: `conic-gradient(${G} ${Math.max(6, Math.min(100, godScore))}%, oklch(0.24 0.01 264) 0)`,
+                boxShadow: '0 0 32px oklch(0.696 0.17 162.48 / 0.28)',
               }}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: G }}>GOD</p>
-              <p className="text-3xl font-bold leading-none tabular-nums" style={{ color: TEXT }}>{godScore}</p>
+              <div
+                className="grid h-[68px] w-[68px] place-items-center rounded-full text-center"
+                style={{ background: 'oklch(0.1 0.02 162)' }}
+              >
+                <span>
+                  <span className="block text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: G }}>GOD</span>
+                  <span className="block text-2xl font-bold leading-none tabular-nums" style={{ color: TEXT }}>{godScore}</span>
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -648,18 +653,18 @@ export default function InstantMatchPreview({ url }: Props) {
             {expiryNote}
           </p>
         )}
-        <div className="mt-3">
-        <InlineMeta
-          items={[
-            { text: `${total.toLocaleString()} in network`, color: MUTED },
-            ...(preview.shortlist_mix?.vc_count != null && preview.shortlist_mix?.angel_count != null
-              ? [{ text: `${preview.shortlist_mix.vc_count} VCs · ${preview.shortlist_mix.angel_count} angels`, color: MUTED }]
-              : []),
-            ...(fundingStage
-              ? [{ text: `${fundingStage} round`, color: G }]
-              : [{ text: 'Round not confirmed', color: AMBER }]),
-          ]}
-        />
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ color: TEXT, background: 'oklch(0.16 0.012 264)', border: '1px solid oklch(0.3 0.015 264)' }}>
+            {total.toLocaleString()} in network
+          </span>
+          {preview.shortlist_mix?.vc_count != null && preview.shortlist_mix?.angel_count != null && (
+            <span className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ color: TEXT, background: 'oklch(0.16 0.012 264)', border: '1px solid oklch(0.3 0.015 264)' }}>
+              {preview.shortlist_mix.vc_count} VCs · {preview.shortlist_mix.angel_count} angels
+            </span>
+          )}
+          <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: fundingStage ? G : AMBER, background: fundingStage ? 'oklch(0.696 0.17 162.48 / 0.12)' : 'oklch(0.78 0.14 65 / 0.12)', border: `1px solid ${fundingStage ? G_BORDER : 'oklch(0.78 0.14 65 / 0.4)'}` }}>
+            {fundingStage ? `${fundingStage} round` : 'Round not confirmed'}
+          </span>
         </div>
         {refreshed && (
           <p className="mt-2 text-xs" style={{ color: G }}>Shortlist reranked with your latest data.</p>
@@ -677,7 +682,10 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <SimilarRaiseStrip url={url} />
 
-      <ul className="mb-8 space-y-2.5">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
+        The five
+      </p>
+      <ul className="mb-8 space-y-3">
         {visible.map((m, i) => {
           const investorId = m.investor_id || m.investor?.id || '';
           return (
@@ -719,10 +727,22 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <RaiseCampaignBoard {...campaignInput} matchCount={visible.length} saved={alreadySaved} />
 
-      <div
-        className="mb-5 rounded-xl p-4"
-        style={{ backgroundColor: 'oklch(0.14 0.01 264)', border: '1px solid oklch(0.696 0.17 162.48 / 0.28)' }}
+      <section
+        className="mb-6 rounded-2xl px-5 py-5"
+        style={{
+          background: 'linear-gradient(120deg, oklch(0.18 0.04 162), oklch(0.12 0.014 264) 70%)',
+          border: `1px solid ${G_BORDER}`,
+        }}
       >
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
+          Keep the five
+        </p>
+        <h2 className="font-display text-2xl font-bold leading-tight" style={{ color: TEXT }}>
+          Email these matches
+        </h2>
+        <p className="mt-1 mb-4 text-sm leading-relaxed" style={{ color: MUTED }}>
+          Optional, and free. We send the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
+        </p>
         {emailStatus === 'sent' && emailedTo ? (
           <div className="space-y-2">
             <p className="text-sm" style={{ color: G }}>
@@ -774,7 +794,7 @@ export default function InstantMatchPreview({ url }: Props) {
               }}
               placeholder="founder@startup.com"
               aria-label="Email these 5 matches"
-              className="flex-1 px-3 py-2.5 rounded-lg text-sm outline-none"
+              className="flex-1 px-3 py-3 rounded-xl text-sm outline-none"
               style={{
                 backgroundColor: 'oklch(0.11 0.01 264)',
                 border: '1px solid oklch(0.25 0.01 264)',
@@ -784,7 +804,7 @@ export default function InstantMatchPreview({ url }: Props) {
             <button
               type="submit"
               disabled={emailStatus === 'sending'}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shrink-0"
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shrink-0"
               style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)', opacity: emailStatus === 'sending' ? 0.7 : 1 }}
             >
               {emailStatus === 'sending' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -795,18 +815,19 @@ export default function InstantMatchPreview({ url }: Props) {
         {emailError && (
           <p className="text-xs mt-2" style={{ color: AMBER }}>{emailError}</p>
         )}
-        {emailStatus !== 'sent' && (
-          <p className="text-[11px] mt-2" style={{ color: DIM }}>
-            Optional, and free. We email the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
-          </p>
-        )}
-      </div>
+      </section>
 
-      <div
-        className="mt-2 pt-5"
-        style={{ borderTop: '1px solid oklch(0.2 0.01 264)' }}
+      <section
+        className="rounded-2xl px-5 py-6"
+        style={{
+          background: 'oklch(0.14 0.016 264)',
+          border: '1px solid oklch(0.32 0.016 264)',
+        }}
       >
-        <p className="text-sm mb-4" style={{ color: TEXT }}>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: PURPLE_ACCENT }}>
+          What happens next
+        </p>
+        <p className="mb-5 text-base leading-relaxed" style={{ color: TEXT }}>
           {nextCopy}
         </p>
         {authLoading ? (
@@ -858,8 +879,10 @@ export default function InstantMatchPreview({ url }: Props) {
               <button
                 type="button"
                 onClick={openImproveOrSignup}
-                className="mt-3 w-full text-sm font-semibold"
-                style={{ color: PURPLE_ACCENT }}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl text-sm font-semibold"
+                style={IMPROVE_CTA_STYLE}
+                onMouseEnter={(e) => paintImproveCta(e.currentTarget, true)}
+                onMouseLeave={(e) => paintImproveCta(e.currentTarget, false)}
               >
                 Improve my matches
               </button>
@@ -876,7 +899,7 @@ export default function InstantMatchPreview({ url }: Props) {
             ? 'Your account shows what is done, what is next, and what is free. Investor notes go out only after you approve them.'
             : 'Saving is free. Positioning is next, and it is free. The pitch deck, sending notes, and the term sheet are paid. Investor notes go out only after you approve them.'}
         </p>
-      </div>
+      </section>
 
       {improveMatchesOpen && preview.startup?.id && (
         <ImproveMatchesPanel
