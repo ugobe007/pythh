@@ -40,20 +40,47 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function cardInvestorIds() {
-  const { data, error } = await db
-    .from('startup_investor_matches')
-    .select('investor_id, match_score')
-    .order('match_score', { ascending: false })
-    .limit(1000);
-  if (error) throw new Error(`match scan: ${error.message}`);
+async function recentCardInvestorIds() {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const ids = [];
   const seen = new Set();
-  for (const row of data || []) {
-    const id = row.investor_id;
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
+  for (let from = 0; from < 6000; from += 1000) {
+    const { data, error } = await db
+      .from('startup_investor_matches')
+      .select('investor_id, created_at')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .range(from, from + 999);
+    if (error) throw new Error(`match scan: ${error.message}`);
+    if (!data?.length) break;
+    for (const row of data) {
+      if (!row.investor_id || seen.has(row.investor_id)) continue;
+      seen.add(row.investor_id);
+      ids.push(row.investor_id);
+    }
+    if (data.length < 1000) break;
+  }
+  return ids;
+}
+
+async function linkedInvestorIds() {
+  const ids = [];
+  const seen = new Set();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from('funding_evidence_participants')
+      .select('id, investor_id')
+      .not('investor_id', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, from + 999);
+    if (error) throw new Error(`participant scan: ${error.message}`);
+    if (!data?.length) break;
+    for (const row of data) {
+      if (!row.investor_id || seen.has(row.investor_id)) continue;
+      seen.add(row.investor_id);
+      ids.push(row.investor_id);
+    }
+    if (data.length < 1000) break;
   }
   return ids;
 }
@@ -140,8 +167,17 @@ async function writePatch(investor, patch) {
 }
 
 async function main() {
-  const matchIds = await cardInvestorIds();
-  const loaded = await loadInvestors(matchIds);
+  const recentIds = await recentCardInvestorIds();
+  const recentRank = new Map(recentIds.map((id, index) => [id, index]));
+  const linkedIds = await linkedInvestorIds();
+  const universe = [...recentIds];
+  const seen = new Set(recentIds);
+  for (const id of linkedIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    universe.push(id);
+  }
+  const loaded = await loadInvestors(universe);
   const empty = loaded.filter((row) => (
     String(row.entity_gate || '') === 'qualified'
     && String(row.status || '') === 'active'
@@ -149,12 +185,16 @@ async function main() {
   ));
   const participants = await loadParticipants(empty.map((row) => row.id));
   const withLedger = new Set(participants.map((row) => String(row.investor_id)));
-  empty.sort((a, b) => {
-    const aLedger = withLedger.has(String(a.id)) ? 1 : 0;
-    const bLedger = withLedger.has(String(b.id)) ? 1 : 0;
-    return bLedger - aLedger || (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0);
-  });
-  const batch = empty.slice(0, limit);
+  const ledgerQueue = empty
+    .filter((row) => withLedger.has(String(row.id)))
+    .sort((a, b) => {
+      const aRecent = recentRank.has(a.id) ? recentRank.get(a.id) : 100000;
+      const bRecent = recentRank.has(b.id) ? recentRank.get(b.id) : 100000;
+      if (aRecent !== bRecent) return aRecent - bRecent;
+      return (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0);
+    })
+    .slice(0, limit);
+  const batch = ledgerQueue;
   const batchIds = new Set(batch.map((row) => String(row.id)));
   const batchParticipants = participants.filter((row) => batchIds.has(String(row.investor_id)));
   const eventsById = await loadEvents([...new Set(batchParticipants.map((row) => row.funding_event_id).filter(Boolean))]);
@@ -162,16 +202,18 @@ async function main() {
 
   const summary = {
     mode: apply ? 'apply' : 'dry-run',
+    recent_card_investors: recentIds.length,
+    ledger_linked_investors: linkedIds.length,
     card_investors_scanned: loaded.length,
     missing_deals: empty.length,
     batch: batch.length,
     ledger_writes: 0,
     news_writes: 0,
-    unchanged: 0,
+    written_names: [],
     samples: [],
   };
 
-  const stillEmpty = [];
+  const filled = new Set();
   for (const investor of batch) {
     const incoming = dealsFromLedger({
       investorId: investor.id,
@@ -180,12 +222,10 @@ async function main() {
       startupsById,
     });
     const patch = profilePatch(investor, incoming);
-    if (!patch) {
-      stillEmpty.push(investor);
-      summary.unchanged += 1;
-      continue;
-    }
+    if (!patch) continue;
+    filled.add(investor.id);
     summary.ledger_writes += 1;
+    if (summary.written_names.length < 40) summary.written_names.push(investor.name);
     if (summary.samples.length < 8) {
       summary.samples.push({
         name: investor.name,
@@ -204,10 +244,13 @@ async function main() {
     }
   }
 
+  const newsQueue = empty
+    .filter((row) => recentRank.has(row.id) && !filled.has(row.id))
+    .sort((a, b) => recentRank.get(a.id) - recentRank.get(b.id))
+    .slice(0, skipSearch ? 0 : searchLimit);
   let searched = 0;
   if (!skipSearch) {
-    for (const investor of stillEmpty) {
-      if (searched >= searchLimit) break;
+    for (const investor of newsQueue) {
       searched += 1;
       const articles = await searchInvestorNews(investor.name, investor.firm);
       const incoming = dealsFromEvidenceArticles(articles, investor);
@@ -217,7 +260,6 @@ async function main() {
         continue;
       }
       summary.news_writes += 1;
-      summary.unchanged -= 1;
       if (summary.samples.length < 12) {
         summary.samples.push({
           name: investor.name,

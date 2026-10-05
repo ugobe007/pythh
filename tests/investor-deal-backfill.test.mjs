@@ -106,6 +106,8 @@ test('backfill agent reads the ledger before news and does not call a paid model
   const agent = readFileSync(new URL('../scripts/agents/investor-deal-backfill-agent.mjs', import.meta.url), 'utf8');
   const pkg = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
   assert.match(agent, /dealsFromLedger/);
+  assert.match(agent, /funding_evidence_participants/);
+  assert.match(agent, /created_at/);
   assert.match(agent, /searchInvestorNews/);
   assert.match(agent, /--apply/);
   assert.doesNotMatch(agent, /openai|anthropic|gemini/i);
