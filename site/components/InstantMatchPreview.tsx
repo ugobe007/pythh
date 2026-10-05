@@ -110,7 +110,7 @@ type PreviewPayload = {
 };
 
 const NEXT_STEP_CTA_CLASS =
-  'inline-flex items-center justify-center gap-2 w-full px-7 rounded-lg text-[15px] font-semibold';
+  'inline-flex items-center justify-center gap-2 w-full px-7 rounded-xl text-[15px] font-semibold';
 const NEXT_STEP_CTA_STYLE = {
   backgroundColor: G,
   border: `1px solid ${G}`,
@@ -727,10 +727,22 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <RaiseCampaignBoard {...campaignInput} matchCount={visible.length} saved={alreadySaved} />
 
-      <div
-        className="mb-5 rounded-xl p-4"
-        style={{ backgroundColor: 'oklch(0.14 0.01 264)', border: '1px solid oklch(0.696 0.17 162.48 / 0.28)' }}
+      <section
+        className="mb-6 rounded-2xl px-5 py-5"
+        style={{
+          background: 'linear-gradient(120deg, oklch(0.18 0.04 162), oklch(0.12 0.014 264) 70%)',
+          border: `1px solid ${G_BORDER}`,
+        }}
       >
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
+          Keep the five
+        </p>
+        <h2 className="font-display text-2xl font-bold leading-tight" style={{ color: TEXT }}>
+          Email these matches
+        </h2>
+        <p className="mt-1 mb-4 text-sm leading-relaxed" style={{ color: MUTED }}>
+          Optional, and free. We send the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
+        </p>
         {emailStatus === 'sent' && emailedTo ? (
           <div className="space-y-2">
             <p className="text-sm" style={{ color: G }}>
@@ -782,7 +794,7 @@ export default function InstantMatchPreview({ url }: Props) {
               }}
               placeholder="founder@startup.com"
               aria-label="Email these 5 matches"
-              className="flex-1 px-3 py-2.5 rounded-lg text-sm outline-none"
+              className="flex-1 px-3 py-3 rounded-xl text-sm outline-none"
               style={{
                 backgroundColor: 'oklch(0.11 0.01 264)',
                 border: '1px solid oklch(0.25 0.01 264)',
@@ -792,7 +804,7 @@ export default function InstantMatchPreview({ url }: Props) {
             <button
               type="submit"
               disabled={emailStatus === 'sending'}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shrink-0"
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold shrink-0"
               style={{ backgroundColor: G, color: 'oklch(0.13 0.01 264)', opacity: emailStatus === 'sending' ? 0.7 : 1 }}
             >
               {emailStatus === 'sending' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -803,18 +815,19 @@ export default function InstantMatchPreview({ url }: Props) {
         {emailError && (
           <p className="text-xs mt-2" style={{ color: AMBER }}>{emailError}</p>
         )}
-        {emailStatus !== 'sent' && (
-          <p className="text-[11px] mt-2" style={{ color: DIM }}>
-            Optional, and free. We email the five names from hello@orbital-ai.io and a link back to this shortlist. No account required.
-          </p>
-        )}
-      </div>
+      </section>
 
-      <div
-        className="mt-2 pt-5"
-        style={{ borderTop: '1px solid oklch(0.2 0.01 264)' }}
+      <section
+        className="rounded-2xl px-5 py-6"
+        style={{
+          background: 'oklch(0.14 0.016 264)',
+          border: '1px solid oklch(0.32 0.016 264)',
+        }}
       >
-        <p className="text-sm mb-4" style={{ color: TEXT }}>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: PURPLE_ACCENT }}>
+          What happens next
+        </p>
+        <p className="mb-5 text-base leading-relaxed" style={{ color: TEXT }}>
           {nextCopy}
         </p>
         {authLoading ? (
@@ -866,8 +879,10 @@ export default function InstantMatchPreview({ url }: Props) {
               <button
                 type="button"
                 onClick={openImproveOrSignup}
-                className="mt-3 w-full text-sm font-semibold"
-                style={{ color: PURPLE_ACCENT }}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl text-sm font-semibold"
+                style={IMPROVE_CTA_STYLE}
+                onMouseEnter={(e) => paintImproveCta(e.currentTarget, true)}
+                onMouseLeave={(e) => paintImproveCta(e.currentTarget, false)}
               >
                 Improve my matches
               </button>
@@ -884,7 +899,7 @@ export default function InstantMatchPreview({ url }: Props) {
             ? 'Your account shows what is done, what is next, and what is free. Investor notes go out only after you approve them.'
             : 'Saving is free. Positioning is next, and it is free. The pitch deck, sending notes, and the term sheet are paid. Investor notes go out only after you approve them.'}
         </p>
-      </div>
+      </section>
 
       {improveMatchesOpen && preview.startup?.id && (
         <ImproveMatchesPanel

@@ -3,9 +3,8 @@ import { ChevronDown, ChevronUp, Lock, Mail, Loader2, Send } from 'lucide-react'
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { parseExplainBullets } from '@/components/MatchExplainBlock';
-import InlineMeta from '@/components/design/InlineMeta';
 import { sendLeadEmail, unlockMatchLead } from '@/lib/matchLeadRelay';
-import { G, G_BORDER, G_HOVER, AMBER, DIM, MUTED, TEXT, BORDER, CARD } from '@/lib/designTokens';
+import { G, G_BORDER, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, TEXT, BORDER, CARD } from '@/lib/designTokens';
 import { matchExpiryLine } from '@/lib/matchFreshness';
 
 export type LeadDeal = {
@@ -154,6 +153,8 @@ export default function MatchInvestorLead({
   const components = match.fitness_components || {};
   const contactable = inv?.contactable !== false;
   const expiry = matchExpiryLine(match);
+  const whyLine = (bullets[0] || why || '').trim();
+  const latestDeal = deals[0] || '';
 
   const handleUnlock = async () => {
     if (!investorId) return;
@@ -237,7 +238,7 @@ export default function MatchInvestorLead({
         className="w-full px-4 py-4 text-left"
         aria-expanded={open}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <span
             className="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-xl font-bold tabular-nums"
             style={{
@@ -259,8 +260,21 @@ export default function MatchInvestorLead({
               {dealCount != null && dealCount > 0 ? <Pill text={`${dealCount.toLocaleString()} deals`} tone="plain" /> : null}
               {expiry ? <Pill text={expiry} tone={match.match_stale ? 'warn' : 'plain'} /> : null}
             </div>
+            {whyLine ? (
+              <p className="mt-2 line-clamp-2 text-sm leading-snug" style={{ color: MUTED }}>
+                {whyLine}
+              </p>
+            ) : null}
+            {latestDeal ? (
+              <p className="mt-2 truncate text-xs" style={{ color: TEXT }}>
+                <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: PURPLE_ACCENT }}>
+                  Backed
+                </span>
+                {latestDeal}
+              </p>
+            ) : null}
           </div>
-          <span className="inline-flex shrink-0 items-center gap-2">
+          <span className="inline-flex shrink-0 items-start gap-2">
             <span className="text-right">
               <span
                 className="block text-3xl font-bold leading-none tabular-nums"
@@ -288,44 +302,49 @@ export default function MatchInvestorLead({
       </button>
 
       {open && (
-        <div className="space-y-4 px-3.5 pb-4 pl-[3.75rem]">
+        <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: BORDER }}>
           {(bullets.length || why) && (
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: MUTED }}>
                 Why this investor
               </p>
-              <ul className="space-y-1 border-l pl-3" style={{ borderColor: BORDER }}>
+              <ul className="space-y-1.5">
                 {(bullets.length ? bullets : [why]).map((line) => (
-                  <li key={line} className="text-xs leading-relaxed" style={{ color: DIM }}>{line}</li>
+                  <li key={line} className="rounded-lg px-3 py-2 text-sm leading-relaxed" style={{ color: TEXT, background: 'oklch(0.12 0.012 264)' }}>{line}</li>
                 ))}
               </ul>
             </div>
           )}
 
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: MUTED }}>
               Numbers
             </p>
-            <InlineMeta
-              items={[
-                { text: `Fit ${fitness}/100`, color: G },
-                ...(score(components.alignment) != null ? [{ text: `Alignment ${score(components.alignment)}/100`, color: MUTED }] : []),
-                ...(score(components.lifecycle) != null ? [{ text: `Stage ${score(components.lifecycle)}/100`, color: MUTED }] : []),
-                ...(check ? [{ text: `Check ${check}`, color: MUTED }] : []),
-                ...(dealCount != null && dealCount > 0 ? [{ text: `${dealCount.toLocaleString()} recorded deals`, color: MUTED }] : []),
-                ...(lastYear ? [{ text: `Last deal ${lastYear}`, color: MUTED }] : []),
-              ]}
-            />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {[
+                { label: 'Fit', value: `Fit ${fitness}/100`, color: G },
+                ...(score(components.alignment) != null ? [{ label: 'Alignment', value: `${score(components.alignment)}/100`, color: TEXT }] : []),
+                ...(score(components.lifecycle) != null ? [{ label: 'Stage', value: `${score(components.lifecycle)}/100`, color: TEXT }] : []),
+                ...(check ? [{ label: 'Check', value: check, color: TEXT }] : []),
+                ...(dealCount != null && dealCount > 0 ? [{ label: 'Deals', value: dealCount.toLocaleString(), color: TEXT }] : []),
+                ...(lastYear ? [{ label: 'Last deal', value: lastYear, color: TEXT }] : []),
+              ].map((tile) => (
+                <div key={tile.label} className="rounded-xl px-3 py-2" style={{ background: 'oklch(0.12 0.012 264)', border: `1px solid ${BORDER}` }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: DIM }}>{tile.label}</p>
+                  <p className="mt-1 text-sm font-semibold" style={{ color: tile.color }}>{tile.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-2" style={{ color: MUTED }}>
               Recent deals
             </p>
             {deals.length ? (
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {deals.map((line) => (
-                  <li key={line} className="text-xs font-mono" style={{ color: TEXT }}>{line}</li>
+                  <li key={line} className="rounded-lg px-3 py-2 text-xs font-mono" style={{ color: TEXT, background: 'oklch(0.12 0.012 264)', border: `1px solid ${BORDER}` }}>{line}</li>
                 ))}
               </ul>
             ) : (
