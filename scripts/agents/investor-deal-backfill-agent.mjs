@@ -124,13 +124,17 @@ async function loadParticipants(ids) {
   const rows = [];
   for (let i = 0; i < ids.length; i += 40) {
     const slice = ids.slice(i, i + 40);
-    const { data, error } = await db
-      .from('funding_evidence_participants')
-      .select('investor_id, funding_event_id, participant_role')
-      .in('investor_id', slice)
-      .limit(1000);
-    if (error) throw new Error(`participants: ${error.message}`);
-    rows.push(...(data || []));
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await db
+        .from('funding_evidence_participants')
+        .select('investor_id, funding_event_id, participant_role')
+        .in('investor_id', slice)
+        .order('id', { ascending: true })
+        .range(offset, offset + 999);
+      if (error) throw new Error(`participants: ${error.message}`);
+      rows.push(...(data || []));
+      if (!data?.length || data.length < 1000) break;
+    }
   }
   return rows;
 }
@@ -199,11 +203,14 @@ async function main() {
     universe.push(id);
   }
   const loaded = await loadInvestors(universe);
-  const empty = loaded.filter((row) => (
-    String(row.entity_gate || '') === 'qualified'
-    && String(row.status || '') === 'active'
-    && !hasStoredDeals(row)
-  ));
+  const empty = loaded.filter((row) => {
+    const status = String(row.status || '').toLowerCase();
+    return (
+      String(row.entity_gate || '') === 'qualified'
+      && (status === '' || status === 'active')
+      && !hasStoredDeals(row)
+    );
+  });
   const participants = await loadParticipants(empty.map((row) => row.id));
   const withLedger = new Set(participants.map((row) => String(row.investor_id)));
   const ledgerQueue = empty
@@ -261,7 +268,10 @@ async function main() {
       const firm = await firmProfile(investor);
       if (firm) {
         const firmPatch = profilePatch(firm, incoming);
-        if (firmPatch) await writePatch(firm, firmPatch);
+        if (firmPatch) {
+          await writePatch(firm, firmPatch);
+          filled.add(firm.id);
+        }
       }
     }
   }
@@ -306,7 +316,10 @@ async function main() {
         const firm = await firmProfile(investor);
         if (firm) {
           const firmPatch = profilePatch(firm, incoming);
-          if (firmPatch) await writePatch(firm, firmPatch);
+          if (firmPatch) {
+            await writePatch(firm, firmPatch);
+            filled.add(firm.id);
+          }
         }
       }
       if (delay) await sleep(delay);
