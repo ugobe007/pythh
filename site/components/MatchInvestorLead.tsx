@@ -204,37 +204,69 @@ export default function MatchInvestorLead({
     }
   };
 
+  const lead = rank === 0;
+
   return (
-    <li className="py-3" style={{ borderColor: BORDER }}>
+    <li>
+      <div
+        className="overflow-hidden rounded-xl"
+        style={{
+          background: lead
+            ? 'linear-gradient(100deg, oklch(0.17 0.04 162) 0%, oklch(0.12 0.012 264) 55%)'
+            : CARD,
+          border: lead ? `1px solid ${G}` : `1px solid ${BORDER}`,
+          boxShadow: lead ? '0 0 28px oklch(0.696 0.17 162.48 / 0.16)' : undefined,
+        }}
+      >
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full text-left"
+        className="w-full px-3.5 py-3.5 text-left"
         aria-expanded={open}
       >
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-medium truncate min-w-0" style={{ color: TEXT }}>
-            <span className="font-mono text-xs mr-2" style={{ color: DIM }}>#{rank + 1}</span>
-            {label}
-          </p>
-          <span className="inline-flex items-center gap-2 shrink-0">
-            <span className="text-xs font-mono" style={{ color: G }}>{fitness}/100</span>
-            {open ? <ChevronUp className="w-3.5 h-3.5" style={{ color: DIM }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: DIM }} />}
+        <div className="flex items-center gap-3">
+          <span
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold tabular-nums"
+            style={{
+              background: lead ? G : 'oklch(0.2 0.012 264)',
+              color: lead ? 'oklch(0.12 0.02 162)' : TEXT,
+            }}
+          >
+            {rank + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold" style={{ color: TEXT }}>
+              {label}
+            </p>
+            <InlineMeta
+              items={[
+                ...(match.investor_class ? [{ text: match.investor_class === 'angel' ? 'Angel' : 'VC', color: MUTED }] : []),
+                ...(stage ? [{ text: stage, color: MUTED }] : []),
+                ...(check ? [{ text: check, color: MUTED }] : []),
+                ...(dealCount != null && dealCount > 0 ? [{ text: `${dealCount.toLocaleString()} deals`, color: DIM }] : []),
+                ...(expiry ? [{ text: expiry, color: match.match_stale ? AMBER : MUTED }] : []),
+              ]}
+            />
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-2">
+            <span className="text-right">
+              <span
+                className="block text-lg font-bold leading-none tabular-nums"
+                style={{ color: G, fontFamily: 'JetBrains Mono, ui-monospace, monospace' }}
+              >
+                {fitness}
+              </span>
+              <span className="mt-1 block h-1 w-14 overflow-hidden rounded-full" style={{ background: 'oklch(0.24 0.01 264)' }}>
+                <span className="block h-full rounded-full" style={{ width: `${Math.max(8, Math.min(100, fitness))}%`, background: G }} />
+              </span>
+            </span>
+            {open ? <ChevronUp className="w-4 h-4" style={{ color: DIM }} /> : <ChevronDown className="w-4 h-4" style={{ color: DIM }} />}
           </span>
         </div>
-        <InlineMeta
-          items={[
-            ...(match.investor_class ? [{ text: match.investor_class === 'angel' ? 'Angel' : 'VC', color: MUTED }] : []),
-            ...(stage ? [{ text: stage, color: MUTED }] : []),
-            ...(check ? [{ text: check, color: MUTED }] : []),
-            ...(dealCount != null && dealCount > 0 ? [{ text: `${dealCount.toLocaleString()} deals`, color: DIM }] : []),
-            ...(expiry ? [{ text: expiry, color: match.match_stale ? AMBER : MUTED }] : []),
-          ]}
-        />
       </button>
 
       {open && (
-        <div className="mt-3 pl-6 space-y-4">
+        <div className="space-y-4 px-3.5 pb-4 pl-[3.75rem]">
           {(bullets.length || why) && (
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>
@@ -360,6 +392,7 @@ export default function MatchInvestorLead({
           {error && <p className="text-xs" style={{ color: AMBER }}>{error}</p>}
         </div>
       )}
+      </div>
     </li>
   );
 }

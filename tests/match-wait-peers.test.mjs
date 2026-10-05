@@ -19,9 +19,12 @@ test('preview peers route is registered before the startup id route', () => {
 test('match preview wait uses the pulsing brain and peer panel', () => {
   const ui = read('site/components/InstantMatchPreview.tsx');
   const wait = read('site/components/MatchWait.tsx');
+  const raises = read('site/lib/similarRaises.ts');
   assert.match(ui, /if \(loading\) \{\s*return <MatchWait url=\{url\} \/>;/);
+  assert.match(ui, /SimilarRaiseStrip/);
   assert.match(wait, /\/images\/pythh-brain\.png/);
-  assert.match(wait, /\/api\/preview\/peers/);
+  assert.match(raises, /\/api\/preview\/peers/);
+  assert.match(wait, /similarRaisesPath/);
   assert.match(wait, /This usually takes about a minute/);
   assert.doesNotMatch(ui, /Usually a few seconds/);
 });

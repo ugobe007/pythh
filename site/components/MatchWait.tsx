@@ -6,6 +6,13 @@
 import { useEffect, useState } from 'react';
 import { apiUrl } from '@/lib/apiConfig';
 import { BORDER, CARD, DIM, G, MUTED, TEXT } from '@/lib/designTokens';
+import {
+  formatRaiseAmount,
+  formatRaiseRound,
+  formatRaiseWhen,
+  similarRaisesPath,
+  type SimilarRaise,
+} from '@/lib/similarRaises';
 
 const STATUS_LINES = [
   'Reading the site',
@@ -13,52 +20,9 @@ const STATUS_LINES = [
   'Building your shortlist',
 ];
 
-type PeerRaise = {
-  name: string;
-  sector: string | null;
-  funder: string;
-  amount_usd: number;
-  announced_at: string;
-  round_type: string | null;
-};
-
-function formatAmount(usd: number): string {
-  if (!Number.isFinite(usd) || usd <= 0) return '';
-  if (usd >= 1_000_000_000) {
-    const billions = usd / 1_000_000_000;
-    const label = billions >= 10 ? String(Math.round(billions)) : billions.toFixed(1).replace(/\.0$/, '');
-    return `$${label}B`;
-  }
-  if (usd >= 1_000_000) {
-    const millions = usd / 1_000_000;
-    const label = millions >= 10 ? String(Math.round(millions)) : millions.toFixed(1).replace(/\.0$/, '');
-    return `$${label}M`;
-  }
-  if (usd >= 1_000) return `$${Math.round(usd / 1_000)}K`;
-  return `$${Math.round(usd)}`;
-}
-
-function formatWhen(iso: string): string {
-  const date = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function formatRound(raw: string | null): string {
-  const text = String(raw || '').trim();
-  if (!text || text.toLowerCase() === 'unknown') return '';
-  const words = text.replace(/[_-]+/g, ' ').toLowerCase();
-  return words.replace(/\b[a-z]/g, (ch) => ch.toUpperCase()).replace(/\bSeed Stage\b/, 'Seed');
-}
-
 export default function MatchWait({ url }: { url: string }) {
   const [statusIndex, setStatusIndex] = useState(0);
-  const [peers, setPeers] = useState<PeerRaise[]>([]);
+  const [peers, setPeers] = useState<SimilarRaise[]>([]);
   const [peerIndex, setPeerIndex] = useState(0);
 
   useEffect(() => {
@@ -73,11 +37,11 @@ export default function MatchWait({ url }: { url: string }) {
 
     async function loadPeers() {
       try {
-        const res = await fetch(apiUrl(`/api/preview/peers?url=${encodeURIComponent(url)}`));
+        const res = await fetch(apiUrl(similarRaisesPath(url)));
         if (!res.ok) return;
         const json = await res.json().catch(() => ({}));
         if (cancelled || !Array.isArray(json.peers)) return;
-        setPeers(json.peers.filter((row: PeerRaise) => row?.name && row?.funder && row?.amount_usd));
+        setPeers(json.peers.filter((row: SimilarRaise) => row?.name && row?.funder && row?.amount_usd));
       } catch {
         /* panel stays empty; the brain keeps pulsing */
       }
@@ -104,9 +68,9 @@ export default function MatchWait({ url }: { url: string }) {
   }, [peers.length]);
 
   const peer = peers[peerIndex] || peers[0] || null;
-  const amount = peer ? formatAmount(peer.amount_usd) : '';
-  const when = peer ? formatWhen(peer.announced_at) : '';
-  const round = peer ? formatRound(peer.round_type) : '';
+  const amount = peer ? formatRaiseAmount(peer.amount_usd) : '';
+  const when = peer ? formatRaiseWhen(peer.announced_at) : '';
+  const round = peer ? formatRaiseRound(peer.round_type) : '';
   const fundedLine = [peer?.funder, round, when].filter(Boolean).join(' · ');
 
   return (
