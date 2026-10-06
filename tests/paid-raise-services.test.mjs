@@ -46,7 +46,9 @@ test('lead UI and relay require a paid plan for email', () => {
   const lead = readFileSync(new URL('../site/components/MatchInvestorLead.tsx', import.meta.url), 'utf8');
   const preview = readFileSync(new URL('../site/components/InstantMatchPreview.tsx', import.meta.url), 'utf8');
   const relay = readFileSync(new URL('../server/routes/matchLeadRelay.js', import.meta.url), 'utf8');
-  assert.match(lead, /Email, calls, and the deck outline are on Scout/);
+  assert.match(lead, /Draft this intro on Oracle/);
+  assert.match(lead, /source=match_lead_use_to_paid/);
+  assert.match(lead, /pricing_bridge_clicked/);
   assert.doesNotMatch(preview, /PaidRaisePanel/);
   assert.doesNotMatch(preview, /Start Scout/);
   assert.doesNotMatch(preview, /Matches are free\. Email, calls/);

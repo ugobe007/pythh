@@ -539,7 +539,13 @@ function buildAgentDailyReportHtml(data) {
   const m = data.metrics;
   const rates = m.conversion_rates;
   const rateLine = [
-    rates.preview_view_per_url != null ? `URL→preview ${rates.preview_view_per_url}%` : null,
+    rates.preview_startup_per_human_startup != null
+      ? `URL→preview ${rates.preview_startup_per_human_startup}% of startups`
+      : rates.preview_view_per_human_url != null
+        ? `URL→preview ${rates.preview_view_per_human_url}%`
+        : rates.preview_view_per_url != null
+          ? `URL→preview ${rates.preview_view_per_url}%`
+          : null,
     rates.signup_per_preview != null ? `preview→signup ${rates.signup_per_preview}%` : null,
     rates.investor_started_to_completed != null
       ? `investor start→done ${rates.investor_started_to_completed}%`

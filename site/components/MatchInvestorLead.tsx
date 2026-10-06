@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, Lock, Mail, Loader2, Send } from 'lucide-react';
+import { trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { parseExplainBullets } from '@/components/MatchExplainBlock';
@@ -181,6 +182,20 @@ export default function MatchInvestorLead({
   const inv = match.investor;
   const investorId = match.investor_id || inv?.id || '';
   const label = formatInvestorDisplayLabel(inv?.name, inv?.firm);
+
+  useEffect(() => {
+    if (!open || isPaid || !startupId) return;
+    void trackFunnelEventOnce(
+      `pricing_strip_viewed:${startupId}:${investorId || rank}`,
+      'pricing_strip_viewed',
+      {
+        source: 'match_lead_use_to_paid',
+        startup_id: startupId,
+        investor_id: investorId || null,
+      },
+    );
+  }, [open, isPaid, startupId, investorId, rank]);
+
   const fitness = score(match.fitness_score ?? match.match_score) ?? 0;
   const why = normalizeWhyYouMatch(match.why_you_match);
   const bullets = parseExplainBullets(match.why_you_match);
@@ -452,9 +467,30 @@ export default function MatchInvestorLead({
           </div>
 
           {!isPaid ? (
-            <p className="text-xs leading-relaxed" style={{ color: DIM }}>
-              Email, calls, and the deck outline are on Scout. Sending this intro comes after positioning, and nothing goes out until you approve it.
-            </p>
+            <div>
+              <a
+                href="/pricing?plan=oracle&source=match_lead_use_to_paid"
+                onClick={() => {
+                  void trackFunnelEvent('pricing_bridge_clicked', {
+                    source: 'match_lead_use_to_paid',
+                    startup_id: startupId,
+                    investor_id: investorId || null,
+                  });
+                }}
+                className="inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-semibold"
+                style={{
+                  backgroundColor: G,
+                  border: `1px solid ${G}`,
+                  color: 'oklch(0.1 0.02 162.48)',
+                  minHeight: 42,
+                }}
+              >
+                Draft this intro on Oracle
+              </a>
+              <p className="mt-2 text-xs leading-relaxed" style={{ color: DIM }}>
+                Nothing goes out until you approve it. Oracle drafts the note and the deck outline.
+              </p>
+            </div>
           ) : !unlocked ? (
             <div>
               <button

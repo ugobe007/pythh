@@ -25,6 +25,7 @@ const FUNNEL_OPERATIONS = [
   'preview_evidence_strip_viewed',
   'match_explain_viewed',
   'pricing_strip_viewed',
+  'pricing_bridge_clicked',
   'founder_activation_email_sent',
   'wizard_outreach_preview_viewed',
   /** Oracle-centric raise funnel (see docs/PYTHH_VISION.md) */
@@ -255,6 +256,61 @@ async function countHumanUrlSubmitted(supabase, since, { excludeProbes = true } 
   return countAiLogBySources(supabase, 'url_submitted', since, [...HUMAN_URL_SOURCES], { excludeProbes });
 }
 
+/** Domain key so https://stripe.com and stripe.com count as one startup. */
+function normalizeFunnelStartupUrl(raw) {
+  let s = String(raw || '').trim().toLowerCase();
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  s = s.split('/')[0].split('?')[0].split('#')[0];
+  return s;
+}
+
+function funnelStartupKey(output) {
+  if (!output || typeof output !== 'object') return null;
+  const url = normalizeFunnelStartupUrl(output.startup_url || output.url);
+  if (url) return url;
+  if (output.startup_id) return `id:${output.startup_id}`;
+  return null;
+}
+
+/**
+ * Of the startups that submitted a URL, how many also rendered a preview.
+ * Repeat submits of the same startup (probes, refreshes) do not dilute this.
+ */
+function humanPreviewReach(humanKeys, previewKeys) {
+  const human = [...new Set((humanKeys || []).filter(Boolean))];
+  const preview = new Set((previewKeys || []).filter(Boolean));
+  const reached = human.filter((key) => preview.has(key)).length;
+  return {
+    distinct_human_startups: human.length > 0 ? human.length : null,
+    distinct_preview_startups: reached,
+    preview_startup_per_human_startup: human.length
+      ? Math.round((reached / human.length) * 1000) / 10
+      : null,
+  };
+}
+
+async function listFunnelStartupKeys(supabase, operation, since, sources, { excludeProbes = true } = {}) {
+  if (!supabase || !operation || !sources?.length) return [];
+  const keys = [];
+  const pageSize = 1000;
+  for (let from = 0; from < 20000; from += pageSize) {
+    let query = supabase
+      .from('ai_logs')
+      .select('output')
+      .eq('operation', operation)
+      .gte('created_at', since)
+      .in('output->>source', sources)
+      .range(from, from + pageSize - 1);
+    if (excludeProbes) query = query.is('output->probe_run_id', null);
+    const { data, error } = await query;
+    if (error || !data) break;
+    for (const row of data) keys.push(funnelStartupKey(row.output));
+    if (data.length < pageSize) break;
+  }
+  return keys.filter(Boolean);
+}
+
 async function countUiInstantMatchesViewed(supabase, since, { excludeProbes = true } = {}) {
   const uiCount = await countAiLogBySources(
     supabase,
@@ -328,6 +384,11 @@ async function getFunnelCounts(supabase, { days = 7, excludeProbes = true } = {}
   const humanUrlSubmitted = await countHumanUrlSubmitted(supabase, since, { excludeProbes });
   const uiInstantMatchesViewed = await countUiInstantMatchesViewed(supabase, since, { excludeProbes });
   const previewApiServed = ai_logs.preview_api_served || 0;
+  const [humanStartupKeys, previewStartupKeys] = await Promise.all([
+    listFunnelStartupKeys(supabase, 'url_submitted', since, [...HUMAN_URL_SOURCES], { excludeProbes }),
+    listFunnelStartupKeys(supabase, 'instant_matches_viewed', since, UI_INSTANT_MATCHES_SOURCES, { excludeProbes }),
+  ]);
+  const startupReach = humanPreviewReach(humanStartupKeys, previewStartupKeys);
 
   const aiTotal = Object.values(ai_logs).reduce((s, n) => s + (typeof n === 'number' ? n : 0), 0);
   const growthTotal = Object.values(growth_events).reduce((s, n) => s + n, 0);
@@ -338,6 +399,8 @@ async function getFunnelCounts(supabase, { days = 7, excludeProbes = true } = {}
     instant_matches_viewed: uiInstantMatchesViewed,
     preview_api_served: previewApiServed,
     synthetic_url_submitted: Math.max(0, (ai_logs.url_submitted_ai_logs_only || 0) - humanUrlSubmitted),
+    distinct_human_startups: startupReach.distinct_human_startups,
+    distinct_preview_startups: startupReach.distinct_preview_startups,
   };
 
   return {
@@ -365,6 +428,7 @@ async function getFunnelCounts(supabase, { days = 7, excludeProbes = true } = {}
         humanUrlSubmitted > 0
           ? Math.round((uiInstantMatchesViewed / humanUrlSubmitted) * 1000) / 10
           : null,
+      preview_startup_per_human_startup: startupReach.preview_startup_per_human_startup,
     },
   };
 }
@@ -497,6 +561,9 @@ module.exports = {
   getFunnelCounts,
   countUiInstantMatchesViewed,
   countHumanUrlSubmitted,
+  normalizeFunnelStartupUrl,
+  funnelStartupKey,
+  humanPreviewReach,
   verifyProbeRun,
   latestHeartbeatReport,
 };

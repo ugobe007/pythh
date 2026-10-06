@@ -189,6 +189,7 @@ async function main() {
       preview_evidence_strip_viewed: f.preview_evidence_strip_viewed || 0,
       match_explain_viewed: f.match_explain_viewed || 0,
       pricing_strip_viewed: f.pricing_strip_viewed || 0,
+      pricing_bridge_clicked: f.pricing_bridge_clicked || 0,
       return_visit_7d: f.return_visit_7d || 0,
     },
     founder_demand: {
@@ -201,7 +202,9 @@ async function main() {
       instant_matches_viewed: previewViews,
       preview_api_served: hf.preview_api_served ?? 0,
       synthetic_url_submitted: hf.synthetic_url_submitted ?? Math.max(0, (f.url_submitted || 0) - humanUrlSubmitted),
-      note: 'Human-only funnel — excludes instant_submit/preview_api programmatic traffic. Use for conversion rates.',
+      distinct_human_startups: hf.distinct_human_startups ?? null,
+      distinct_preview_startups: hf.distinct_preview_startups ?? null,
+      note: 'Human-only funnel — excludes instant_submit/preview_api programmatic traffic. Startup rates ignore repeat submits of the same URL.',
     },
     preview_attribution: {
       legacy_instant_submit: legacyPreviewRequested,
@@ -220,6 +223,10 @@ async function main() {
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),
       preview_view_per_url: rate(previewViewsRaw, f.url_submitted || 0),
       preview_view_per_human_url: rate(previewViews, humanUrlSubmitted),
+      preview_startup_per_human_startup:
+        hf.distinct_human_startups > 0
+          ? rate(hf.distinct_preview_startups || 0, hf.distinct_human_startups)
+          : null,
       preview_view_per_page_view: rate(previewViews, humanPageViews),
       preview_view_per_ui_url: rate(previewViews, Math.max(humanPageViews, uiPreviewRequested || 0)),
       url_submitted_per_page_view: rate(humanUrlSubmitted, humanPageViews),
@@ -316,12 +323,23 @@ async function main() {
     );
     report.agent_priorities.push('awareness: instrument page_view on hero and acquisition landings');
   }
-  if (humanUrlSubmitted > 0 && previewViews < humanUrlSubmitted * 0.5) {
+  const distinctHuman = hf.distinct_human_startups;
+  const startupPreviewRate = report.rates.preview_startup_per_human_startup;
+  if (distinctHuman >= 5 && startupPreviewRate != null && startupPreviewRate < 50) {
     report.agent_focus.push(
       'Funnel leak: human URL submits not reaching UI preview — default hero to /matches?url= and verify InstantMatchPreview render',
     );
     report.agent_priorities.push('preview: hero + /find-investors must land on matches_preview path');
-  } else if ((f.url_submitted || 0) > 15 && previewViews < (f.url_submitted || 0) * 0.15) {
+  } else if (distinctHuman == null && humanUrlSubmitted > 0 && previewViews < humanUrlSubmitted * 0.5) {
+    report.agent_focus.push(
+      'Funnel leak: human URL submits not reaching UI preview — default hero to /matches?url= and verify InstantMatchPreview render',
+    );
+    report.agent_priorities.push('preview: hero + /find-investors must land on matches_preview path');
+  } else if (
+    distinctHuman == null
+    && (f.url_submitted || 0) > 15
+    && previewViews < (f.url_submitted || 0) * 0.15
+  ) {
     report.agent_focus.push(
       'Funnel leak: url_submitted >> instant_matches_viewed — route more traffic through /find-investors and matches_preview (now 90%)',
     );
@@ -387,7 +405,8 @@ async function main() {
     console.log(`   Signups: ${report.totals.signups_7d} (${report.totals.signups_per_day}/day)`);
     console.log(`   Human funnel: page_view=${humanPageViews} url_submitted=${humanUrlSubmitted} ui_preview=${previewViews}`);
     console.log(`   Visit → preview (human): ${report.rates.preview_view_per_page_view ?? '—'}%`);
-    console.log(`   URL → preview (human): ${report.rates.preview_view_per_human_url ?? '—'}%`);
+    console.log(`   URL → preview (startups): ${report.rates.preview_startup_per_human_startup ?? '—'}% (${hf.distinct_preview_startups ?? '—'}/${hf.distinct_human_startups ?? '—'})`);
+    console.log(`   URL → preview (human events): ${report.rates.preview_view_per_human_url ?? '—'}%`);
     console.log(`   URL → preview (raw/all): ${report.rates.preview_view_per_url ?? '—'}%`);
     console.log(`   Preview → signup rate: ${report.rates.signup_per_preview ?? '—'}%`);
     console.log(`   Oracle gap teaser → signup: ${report.experiments.founder_preview_oracle_gap_gate.teaser_to_signup_pct ?? '—'}%`);
