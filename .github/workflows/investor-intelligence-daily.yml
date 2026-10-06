@@ -64,3 +64,11 @@ jobs:
           DAY=$(date -u +%j)
           OFFSET=$(( (DAY * 500) % 4000 ))
           node scripts/pipeline-investor-intelligence.mjs --apply --limit=500 --offset=$OFFSET --skip-enrich
+
+      - name: Backfill investor card deals from evidence
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/agents/investor-deal-backfill-agent.mjs --apply --limit=120 --search-limit=10 --delay=800

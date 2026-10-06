@@ -155,6 +155,7 @@
     "outcomes:matched:summary": "node scripts/run-node.mjs scripts/report-matched-investments.mjs --summary",
     "outcomes:review": "node scripts/run-node.mjs scripts/review-match-validation-evidence.mjs",
     "outcomes:agent": "node scripts/run-node.mjs scripts/agents/match-outcome-agent.mjs",
+    "investors:deals:backfill": "node scripts/run-node.mjs scripts/agents/investor-deal-backfill-agent.mjs",
     "outcomes:resolution-loop": "node scripts/run-node.mjs scripts/agents/resolution-loop-agent.mjs",
     "outcomes:recover-urls": "node scripts/run-node.mjs scripts/recover-startup-urls.mjs",
     "outcomes:promote-ledger": "node scripts/run-node.mjs scripts/promote-ledger-funding-evidence.mjs",
