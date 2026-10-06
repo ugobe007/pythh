@@ -282,7 +282,7 @@ function humanPreviewReach(humanKeys, previewKeys) {
   const preview = new Set((previewKeys || []).filter(Boolean));
   const reached = human.filter((key) => preview.has(key)).length;
   return {
-    distinct_human_startups: human.length,
+    distinct_human_startups: human.length > 0 ? human.length : null,
     distinct_preview_startups: reached,
     preview_startup_per_human_startup: human.length
       ? Math.round((reached / human.length) * 1000) / 10
