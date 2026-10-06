@@ -1174,7 +1174,8 @@ const MATCH_API_SELECT = `
     check_size_min, check_size_max, investor_tier,
     twitter_url, linkedin_url, photo_url,
     email, email_best_guess, email_status,
-    total_investments, active_fund_size, investment_thesis
+    total_investments, active_fund_size, investment_thesis,
+    notable_investments, portfolio_companies, last_investment_date
   )
 `;
 
@@ -3182,6 +3183,7 @@ router.get('/results', async (req, res) => {
         investors:investor_id (
           id, name, firm, url, sectors, stage,
           total_investments, active_fund_size, investment_thesis,
+          notable_investments, portfolio_companies, last_investment_date,
           email, email_best_guess, email_candidates, email_status, email_has_mx
         )
       `)

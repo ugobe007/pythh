@@ -93,6 +93,15 @@ test('apply fills an empty card and does not invent a site', () => {
   assert.equal(next.investor.recent_deals[0].company, 'Smallbot');
 });
 
+test('match payloads load stored deals and do not select a missing website column', () => {
+  const preview = readFileSync(new URL('../server/routes/previewRoute.js', import.meta.url), 'utf8');
+  const instant = readFileSync(new URL('../server/routes/instantSubmit.js', import.meta.url), 'utf8');
+  const cardColumns = preview.match(/const CARD_FACT_COLUMNS = '([^']+)'/)?.[1] || '';
+  assert.equal(cardColumns.split(', ').includes('website'), false);
+  assert.match(cardColumns, /notable_investments/);
+  assert.match(instant, /notable_investments, portfolio_companies, last_investment_date/);
+});
+
 test('shaped matches expose the website and partners without email', () => {
   const out = shapeMatchForApi({
     match_score: 80,
