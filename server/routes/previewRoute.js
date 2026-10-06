@@ -75,7 +75,7 @@ function inspectMatchesUrl(startupUrl, fallbackUrl) {
   return `${APP_BASE}/matches?url=${encodeURIComponent(normalized)}`;
 }
 
-const CARD_FACT_COLUMNS = 'id, name, firm, title, url, website, blog_url, partners, notable_investments, portfolio_companies, sectors, stage, focus_areas, last_investment_date, is_individual, entity_gate, status';
+const CARD_FACT_COLUMNS = 'id, name, firm, title, url, blog_url, partners, notable_investments, portfolio_companies, sectors, stage, focus_areas, last_investment_date, is_individual, entity_gate, status';
 
 /** Firm website, partners, sectors, and example deals for the cards on this shortlist. */
 async function attachInvestorCardFacts(matches) {
