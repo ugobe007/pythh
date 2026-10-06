@@ -32,7 +32,9 @@ test('preview leads expand all five and unlock without showing addresses', () =>
   assert.doesNotMatch(preview, /i === 0 && why/);
   assert.match(lead, /Unlock email/);
   assert.doesNotMatch(lead, /Unlock to email through Pythh/);
-  assert.match(lead, /Email, calls, and the deck outline are on Scout/);
+  assert.match(lead, /Draft this intro on Oracle/);
+  assert.match(lead, /pricing_strip_viewed/);
+  assert.match(lead, /Nothing goes out until you approve it/);
   assert.match(lead, /Recent deals/);
   assert.match(lead, /Fit \$\{fitness\}\/100/);
   assert.doesNotMatch(lead, /likely to invest|% likely|probability/);

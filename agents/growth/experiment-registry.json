@@ -533,8 +533,8 @@
             "previous_fired": "nothing"
           },
           "copy": {
-            "primary": "Let PYTHIA write & send this intro →",
-            "value_line": "14-day free trial · we send from pythh.ai — their address stays private."
+            "primary": "Draft this intro on Oracle",
+            "value_line": "Nothing goes out until you approve it. Oracle drafts the note and the deck outline."
           },
           "guardrails": {
             "single_primary_per_surface": true,
@@ -548,7 +548,7 @@
         "primary": "pricing_bridge_clicked",
         "secondary": ["pricing_viewed", "checkout_started", "checkout_completed"]
       },
-      "promotion_note": "DRAFT 2026-09-15 — shipped in site/components/MatchInvestorLead.tsx (report-only allocation). Baseline 7d (human_funnel): match_viewed=363, match_explain_viewed=26, pricing_viewed=6, checkout_started=0, pricing_bridge_clicked=0 (event did not exist). Promote to running once pricing_bridge_clicked > 0 and pricing_viewed attributed to source=match_lead_use_to_paid climbs off the 6/7d floor. Owner review required before status=running."
+      "promotion_note": "Shipped 2026-10-06 on the open investor card (isPaid=false). Loop preview_oracle_strip: opening a card fires pricing_strip_viewed; the button fires pricing_bridge_clicked and routes to /pricing?plan=oracle&source=match_lead_use_to_paid, which fires pricing_viewed. Success (7d): pricing_strip_viewed > 0 and pricing_bridge_clicked > 0, then checkout_started / those clicks. Status stays draft until that click shows up. Owner review required before status=running."
     }
   ]
 }
