@@ -211,13 +211,6 @@ async function main() {
   const alreadyQuoted = await quotedInvestorIds(allGroups);
   const groups = allGroups
     .filter((group) => group.some((investor) => !alreadyQuoted.has(investor.id)))
-    .filter((group) => {
-      const reader = group.find((investor) => investor.url || investor.blog_url);
-      if (!reader) return true;
-      const start = reader.url || reader.blog_url;
-      const home = start.startsWith('http') ? start : `https://${start}`;
-      return sameFirmHost(home, reader);
-    })
     .slice(0, limit);
   const quotes = [];
   let fetched = 0;
@@ -254,7 +247,7 @@ async function main() {
   const seen = new Map();
   const unique = [];
   for (const quote of quotes) {
-    const key = `${quote.firm.toLowerCase()}:${quote.kind}:${quote.quote.toLowerCase()}`;
+    const key = `${quote.investor_id}:${quote.kind}:${quote.quote.toLowerCase()}`;
     const existing = seen.get(key);
     if (!existing || (!existing.source_url && quote.source_url)) {
       if (existing) {

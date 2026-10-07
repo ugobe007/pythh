@@ -88,6 +88,7 @@ async function main() {
   let heldAdvice = 0;
   for (let i = 0; i < unique.length; i += chunk) {
     let batch = unique.slice(i, i + chunk);
+    const heldThisChunk = batch.filter((row) => row.kind === 'founder_advice').length;
     let { error: upsertError } = await supabase
       .from('investor_quotes')
       .upsert(batch.map(({ investor_id, firm, speaker, kind, quote, source }) => ({
@@ -95,7 +96,7 @@ async function main() {
       })), { onConflict: 'investor_id,kind,quote', ignoreDuplicates: false });
     if (upsertError && /kind_check|founder_advice|check constraint/i.test(upsertError.message || '')) {
       const rest = batch.filter((row) => row.kind !== 'founder_advice');
-      heldAdvice += batch.length - rest.length;
+      heldAdvice += heldThisChunk;
       if (rest.length) {
         ({ error: upsertError } = await supabase
           .from('investor_quotes')
@@ -107,7 +108,7 @@ async function main() {
       }
     }
     if (upsertError) throw upsertError;
-    written += batch.length - heldAdvice;
+    written += batch.length - heldThisChunk;
   }
   console.log(`written ${written}${heldAdvice ? ` · held founder_advice ${heldAdvice} until the kind constraint exists` : ''}`);
 }
