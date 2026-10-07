@@ -83,8 +83,6 @@ async function main() {
     return true;
   });
 
-  await supabase.from('investor_quotes').update({ active: false }).not('id', 'is', null);
-
   const chunk = 100;
   let written = 0;
   for (let i = 0; i < unique.length; i += chunk) {
