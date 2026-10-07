@@ -60,9 +60,9 @@ async function fetchPage(url) {
     headers: { 'user-agent': 'pythh-quote-capture/1.0', accept: 'text/html' },
     signal: AbortSignal.timeout(12000),
   });
-  if (!res.ok) return '';
+  if (!res.ok) return { html: '', finalUrl: url };
   const html = await res.text();
-  return html.slice(0, 500_000);
+  return { html: html.slice(0, 500_000), finalUrl: res.url };
 }
 
 async function recentInvestors() {
@@ -173,31 +173,38 @@ async function main() {
   const investors = await recentInvestors();
   const quotes = [];
   for (const investor of investors) {
-    quotes.push(...spokenQuotesFromInvestor(investor));
     const start = investor.url || investor.blog_url;
     if (!start) continue;
     const home = start.startsWith('http') ? start : `https://${start}`;
     try {
-      const html = await fetchPage(home);
-      quotes.push(...quotesFromHtml(html, home, investor));
-      for (const page of pagesToRead(html, home, investor)) {
+      const { html, finalUrl } = await fetchPage(home);
+      quotes.push(...quotesFromHtml(html, finalUrl, investor));
+      for (const page of pagesToRead(html, finalUrl, investor)) {
         await sleep(delay);
-        const inner = await fetchPage(page);
-        quotes.push(...quotesFromHtml(inner, page, investor));
+        const { html: inner, finalUrl: innerFinalUrl } = await fetchPage(page);
+        quotes.push(...quotesFromHtml(inner, innerFinalUrl, investor));
       }
     } catch (err) {
       console.warn(`fetch ${home}: ${err.message || err}`);
     }
     await sleep(delay);
+    quotes.push(...spokenQuotesFromInvestor(investor));
   }
 
-  const seen = new Set();
-  const unique = quotes.filter((quote) => {
+  const seen = new Map();
+  const unique = [];
+  for (const quote of quotes) {
     const key = `${quote.firm.toLowerCase()}:${quote.kind}:${quote.quote.toLowerCase()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const existing = seen.get(key);
+    if (!existing || (!existing.source_url && quote.source_url)) {
+      if (existing) {
+        const idx = unique.indexOf(existing);
+        if (idx !== -1) unique.splice(idx, 1);
+      }
+      seen.set(key, quote);
+      unique.push(quote);
+    }
+  }
   const byKind = unique.reduce((acc, quote) => {
     acc[quote.kind] = (acc[quote.kind] || 0) + 1;
     return acc;

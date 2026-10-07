@@ -85,17 +85,31 @@ async function main() {
 
   const chunk = 100;
   let written = 0;
+  let heldAdvice = 0;
   for (let i = 0; i < unique.length; i += chunk) {
-    const batch = unique.slice(i, i + chunk);
-    const { error: upsertError } = await supabase
+    let batch = unique.slice(i, i + chunk);
+    let { error: upsertError } = await supabase
       .from('investor_quotes')
       .upsert(batch.map(({ investor_id, firm, speaker, kind, quote, source }) => ({
         investor_id, firm, speaker, kind, quote, source, active: true,
       })), { onConflict: 'investor_id,kind,quote', ignoreDuplicates: false });
+    if (upsertError && /kind_check|founder_advice|check constraint/i.test(upsertError.message || '')) {
+      const rest = batch.filter((row) => row.kind !== 'founder_advice');
+      heldAdvice += batch.length - rest.length;
+      if (rest.length) {
+        ({ error: upsertError } = await supabase
+          .from('investor_quotes')
+          .upsert(rest.map(({ investor_id, firm, speaker, kind, quote, source }) => ({
+            investor_id, firm, speaker, kind, quote, source, active: true,
+          })), { onConflict: 'investor_id,kind,quote', ignoreDuplicates: false }));
+      } else {
+        upsertError = null;
+      }
+    }
     if (upsertError) throw upsertError;
-    written += batch.length;
+    written += batch.length - heldAdvice;
   }
-  console.log(`written ${written}`);
+  console.log(`written ${written}${heldAdvice ? ` · held founder_advice ${heldAdvice} until the kind constraint exists` : ''}`);
 }
 
 main().catch((err) => {
