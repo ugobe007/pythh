@@ -15,7 +15,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const { quotesFromHtml, innerPageUrls, spokenQuotesFromInvestor } = require('../lib/vcQuoteCapture.js');
+const { quotesFromHtml, innerPageUrls, spokenQuotesFromInvestor, sameFirmHost } = require('../lib/vcQuoteCapture.js');
 const { isDisplayableQuote } = require('../lib/investorQuotes.js');
 
 const FALLBACK_PATHS = ['/about', '/manifesto', '/how-we-work', '/how-we-invest', '/thesis', '/what-we-look-for'];
@@ -65,24 +65,59 @@ async function fetchPage(url) {
   return { html: html.slice(0, 500_000), finalUrl: res.url };
 }
 
-async function recentInvestors() {
+function hostOf(investor) {
+  const raw = investor?.url || investor?.blog_url || '';
+  try {
+    return new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function quoteForInvestor(investor, quote) {
+  const firm = String(investor.firm || investor.name || quote.firm || '').replace(/\s+/g, ' ').trim();
+  const name = String(investor.name || '').trim();
+  const speaker = name && name.toLowerCase() !== firm.toLowerCase() && name.split(/\s+/).length <= 4 ? name : firm;
+  return { ...quote, investor_id: investor.id, firm, speaker };
+}
+
+async function investorGroups() {
   const { data, error } = await supabase
     .from('startup_investor_matches')
     .select('investor_id, investors(id, name, firm, url, blog_url, investment_thesis)')
     .order('created_at', { ascending: false })
-    .limit(Math.min(limit * 8, 400));
+    .limit(1000);
   if (error) throw error;
-  const seen = new Set();
-  const rows = [];
+  const groups = new Map();
   for (const row of data || []) {
     const investor = Array.isArray(row.investors) ? row.investors[0] : row.investors;
-    if (!investor?.id || seen.has(investor.id)) continue;
+    if (!investor?.id) continue;
     if (!investor.url && !investor.blog_url && !investor.investment_thesis) continue;
-    seen.add(investor.id);
-    rows.push(investor);
-    if (rows.length >= limit) break;
+    const key = hostOf(investor) || `id:${investor.id}`;
+    if (!groups.has(key)) {
+      if (groups.size >= 400) continue;
+      groups.set(key, []);
+    }
+    const list = groups.get(key);
+    if (!list || list.length >= 4 || list.some((item) => item.id === investor.id)) continue;
+    list.push(investor);
   }
-  return rows;
+  return [...groups.values()].filter((group) => group.length);
+}
+
+async function quotedInvestorIds(groups) {
+  const ids = groups.flat().map((investor) => investor.id);
+  const quoted = new Set();
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data, error } = await supabase
+      .from('investor_quotes')
+      .select('investor_id')
+      .eq('active', true)
+      .in('investor_id', ids.slice(i, i + 150));
+    if (error) throw error;
+    for (const row of data || []) quoted.add(row.investor_id);
+  }
+  return quoted;
 }
 
 function pagesToRead(html, home, investor) {
@@ -168,27 +203,52 @@ async function main() {
     } catch (err) {
       console.warn(`advice column ensure skipped: ${err.message || err}`);
     }
+    const retired = await retireUndisplayableQuotes();
+    console.log(`retired ${retired}`);
   }
 
-  const investors = await recentInvestors();
+  const allGroups = await investorGroups();
+  const alreadyQuoted = await quotedInvestorIds(allGroups);
+  const groups = allGroups
+    .filter((group) => group.some((investor) => !alreadyQuoted.has(investor.id)))
+    .filter((group) => {
+      const reader = group.find((investor) => investor.url || investor.blog_url);
+      if (!reader) return true;
+      const start = reader.url || reader.blog_url;
+      const home = start.startsWith('http') ? start : `https://${start}`;
+      return sameFirmHost(home, reader);
+    })
+    .slice(0, limit);
   const quotes = [];
-  for (const investor of investors) {
-    const start = investor.url || investor.blog_url;
-    if (!start) continue;
+  let fetched = 0;
+  for (const group of groups) {
+    for (const investor of group) quotes.push(...spokenQuotesFromInvestor(investor));
+    if (group.every((investor) => alreadyQuoted.has(investor.id))) continue;
+    const reader = group.find((investor) => investor.url || investor.blog_url);
+    if (!reader) continue;
+    const start = reader.url || reader.blog_url;
     const home = start.startsWith('http') ? start : `https://${start}`;
+    if (!sameFirmHost(home, reader)) continue;
+    fetched += 1;
     try {
       const { html, finalUrl } = await fetchPage(home);
-      quotes.push(...quotesFromHtml(html, finalUrl, investor));
-      for (const page of pagesToRead(html, finalUrl, investor)) {
-        await sleep(delay);
-        const { html: inner, finalUrl: innerFinalUrl } = await fetchPage(page);
-        quotes.push(...quotesFromHtml(inner, innerFinalUrl, investor));
+      let pageQuotes = quotesFromHtml(html, finalUrl, reader);
+      const needsNamed = !pageQuotes.some((quote) => quote.kind === 'invested_in' || quote.kind === 'founder_advice');
+      if (needsNamed) {
+        for (const page of pagesToRead(html, finalUrl, reader).slice(0, 2)) {
+          await sleep(delay);
+          const { html: inner, finalUrl: innerFinalUrl } = await fetchPage(page);
+          pageQuotes = pageQuotes.concat(quotesFromHtml(inner, innerFinalUrl, reader));
+        }
+      }
+      for (const investor of group) {
+        if (alreadyQuoted.has(investor.id)) continue;
+        for (const quote of pageQuotes) quotes.push(quoteForInvestor(investor, quote));
       }
     } catch (err) {
       console.warn(`fetch ${home}: ${err.message || err}`);
     }
     await sleep(delay);
-    quotes.push(...spokenQuotesFromInvestor(investor));
   }
 
   const seen = new Map();
@@ -209,15 +269,11 @@ async function main() {
     acc[quote.kind] = (acc[quote.kind] || 0) + 1;
     return acc;
   }, {});
-  console.log(`investors ${investors.length} · quotes ${unique.length} · ${JSON.stringify(byKind)} · ${apply ? 'APPLY' : 'dry-run'}`);
+  console.log(`firms ${groups.length} · fetched ${fetched} · quotes ${unique.length} · ${JSON.stringify(byKind)} · ${apply ? 'APPLY' : 'dry-run'}`);
   for (const quote of unique.slice(0, 40)) {
     console.log(`  [${quote.kind}] ${quote.firm}: ${quote.quote.slice(0, 180)}`);
   }
-  if (!apply) return;
-
-  const retired = await retireUndisplayableQuotes();
-  console.log(`retired ${retired}`);
-  if (!unique.length) return;
+  if (!apply || !unique.length) return;
   const { written, heldAdvice } = await upsertQuotes(unique);
   console.log(`written ${written}${heldAdvice ? ` · held founder_advice ${heldAdvice} until the kind constraint exists` : ''}`);
 }

@@ -18,6 +18,8 @@ test('classifies funding, a named investment, and founder advice', () => {
   assert.equal(classifySpokenLine("We led Stripe's seed round because the product was already in use."), 'invested_in');
   assert.equal(classifySpokenLine('Founders should talk to customers before they raise a round.'), 'founder_advice');
   assert.equal(classifySpokenLine('Sequoia focuses on investing in cutting-edge technology sectors.'), null);
+  assert.equal(classifySpokenLine('We invest in becomes a co-owner of the fund.'), null);
+  assert.equal(classifySpokenLine('We invested in first in 2015.'), null);
 });
 
 test('keeps spoken lines from the firm site and drops a founder testimonial', () => {
@@ -35,6 +37,38 @@ test('keeps spoken lines from the firm site and drops a founder testimonial', ()
   assert.equal(quotes.every((quote) => quote.source_url === 'https://firstround.com/how-we-work'), true);
 });
 
+test('decodes apostrophes and drops a sentence about LP capital', () => {
+  const html = `
+    <p>If we invest in an entrepreneur, we don&rsquo;t just spend time with her when she is a winner.</p>
+    <p>The vast majority of the capital we invest comes from university endowments, hospitals, and charities.</p>
+    <p>If we bring a corporate partner on board, we seek to help them innovate in a way that meets their business needs.</p>
+  `;
+  const quotes = quotesFromHtml(html, 'https://firstround.com/about', investor);
+  assert.equal(quotes.length, 1);
+  assert.match(quotes[0].quote, /don't/);
+  assert.equal(quotes.some((quote) => /endowments|corporate partner/i.test(quote.quote)), false);
+});
+
+test('pulls one spoken sentence out of a card listing', () => {
+  const html = `
+    <p>Chase Lochmiller CEO and Cofounder We backed Crusoe as they turned stranded energy into AI infrastructure. Brendan Foody CEO We believe in Mercor's vision.</p>
+    <p>James Detweiler The Physical World Our investment in Magentic Feyza Haskaraman Sundeep Peechu The Physical World Has No Data Stack Robots are about to become one of the largest data sources on Earth.</p>
+    <p>Olivier Pomel, Datadog RTP Global invested: Series A, 2012 We invest in the ambitious founders reshaping the world through technology.</p>
+  `;
+  const quotes = quotesFromHtml(html, 'https://firstround.com/perspectives', investor);
+  const lines = quotes.map((quote) => quote.quote);
+  assert.deepEqual(lines, [
+    'We backed Crusoe as they turned stranded energy into AI infrastructure.',
+    'We invest in the ambitious founders reshaping the world through technology.',
+  ]);
+  const labeled = quotesFromHtml(
+    '<p>Investment We are looking to lead seed rounds with a first check.</p><p>How we invest Stages Seed, Series A, Series B.</p>',
+    'https://firstround.com/about',
+    investor,
+  );
+  assert.deepEqual(labeled.map((quote) => quote.quote), ['We are looking to lead seed rounds with a first check.']);
+});
+
 test('drops date listings and co-founder headlines', () => {
   assert.equal(classifySpokenLine('March 28, 2024 · Investment Announcements · Our investment in Stress-Free Auto Care.'), null);
   assert.equal(classifySpokenLine('DUOS Co-Founder & CEO Karl Ulfers: We Need to Reinvent Caregiving for families.'), null);
@@ -47,6 +81,12 @@ test('drops date listings and co-founder headlines', () => {
   const quotes = quotesFromHtml(html, 'https://firstround.com/perspectives', investor);
   assert.equal(quotes.length, 1);
   assert.equal(quotes[0].kind, 'investing_in');
+  const kept = quotesFromHtml(
+    '<p>If we invest in an entrepreneur, we don\'t just spend time with her when she is a winner.</p>',
+    'https://firstround.com/about',
+    investor,
+  );
+  assert.equal(kept[0].quote, "If we invest in an entrepreneur, we don't just spend time with her when she is a winner.");
 });
 
 test('a card shows one line each for funding, investments, and advice', () => {
