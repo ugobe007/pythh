@@ -12,6 +12,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { quotesForCard } = require('../../lib/investorQuotes');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -116,6 +117,46 @@ async function attachInvestorCardFacts(matches) {
     });
   } catch (err) {
     console.warn('[preview] card facts failed:', err?.message || err);
+    return list;
+  }
+}
+
+async function attachInvestorQuotes(matches) {
+  const list = Array.isArray(matches) ? matches : [];
+  const ids = [...new Set(list.map((match) => match.investor_id || match.investor?.id).filter(Boolean))];
+  const firms = [...new Set(list.map((match) => String(match.investor?.firm || '').trim()).filter(Boolean))];
+  if (!ids.length && !firms.length) return list;
+  try {
+    const quoteColumns = ['investor_id, firm, speaker, kind, quote, source, source_url', 'investor_id, firm, speaker, kind, quote, source'];
+    let byId = { data: [], error: null };
+    let byFirm = { data: [], error: null };
+    for (const columns of quoteColumns) {
+      [byId, byFirm] = await Promise.all([
+        ids.length
+          ? supabase.from('investor_quotes').select(columns).eq('active', true).in('investor_id', ids).limit(80)
+          : Promise.resolve({ data: [], error: null }),
+        firms.length
+          ? supabase.from('investor_quotes').select(columns).eq('active', true).in('firm', firms).limit(80)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      const message = byId.error?.message || byFirm.error?.message || '';
+      if (!/source_url/i.test(message)) break;
+    }
+    if (byId.error || byFirm.error) {
+      console.warn('[preview] quotes:', byId.error?.message || byFirm.error?.message);
+      return list;
+    }
+    const rows = [...(byId.data || []), ...(byFirm.data || [])];
+    return list.map((match) => {
+      const id = String(match.investor_id || match.investor?.id || '');
+      const firm = String(match.investor?.firm || '').trim().toLowerCase();
+      const mine = rows.filter((row) => String(row.investor_id || '') === id || String(row.firm || '').trim().toLowerCase() === firm);
+      const quotes = quotesForCard(mine);
+      if (!quotes.length) return match;
+      return { ...match, investor: { ...(match.investor || {}), quotes } };
+    });
+  } catch (err) {
+    console.warn('[preview] quotes failed:', err?.message || err);
     return list;
   }
 }
@@ -938,6 +979,7 @@ router.get('/:startupId', async (req, res) => {
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
     matches = await attachInvestorCardFacts(matches);
+    matches = await attachInvestorQuotes(matches);
 
     const descriptionForUi = effectiveStartupDescription(startup);
 

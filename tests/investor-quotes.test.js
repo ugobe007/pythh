@@ -5,17 +5,17 @@ const assert = require('node:assert/strict');
 const { quotesFromInvestor } = require('../lib/investorQuotes');
 
 describe('quotesFromInvestor', () => {
-  it('keeps investing, portfolio, and looking-for lines', () => {
+  it('keeps spoken funding and looking-for lines, not a generated portfolio list', () => {
     const quotes = quotesFromInvestor({
       id: '11111111-1111-1111-1111-111111111111',
       name: 'Sequoia Capital',
       firm: 'Sequoia Capital',
-      investment_thesis: 'We invest in seed-stage software companies with a working product. We are looking for founders who already sell to developers.',
+      investment_thesis: 'We invest in seed-stage software companies with a working product. We are looking for founders who already sell to developers. Founders should talk to customers before they raise.',
       notable_investments: ['Stripe', 'Airbnb', 'DoorDash'],
     });
     const kinds = quotes.map((quote) => quote.kind).sort();
-    assert.deepEqual(kinds, ['invested_in', 'investing_in', 'looking_for']);
-    assert.match(quotes.find((quote) => quote.kind === 'invested_in').quote, /Stripe/);
+    assert.deepEqual(kinds, ['founder_advice', 'investing_in', 'looking_for']);
+    assert.equal(quotes.some((quote) => quote.source === 'notable_investments'), false);
   });
 
   it('drops category portfolio labels and generic firms', () => {
@@ -35,16 +35,24 @@ describe('quotesFromInvestor', () => {
     assert.equal(angel.length, 0);
   });
 
-  it('keeps a focus line and drops inferred blurbs', () => {
+  it('drops generated thesis templates', () => {
+    const quotes = quotesFromInvestor({
+      id: 'e',
+      name: 'Voyage Bio',
+      firm: 'Voyage Bio',
+      investment_thesis: 'We focus on early-stage technology companies that leverage AI and SaaS to drive innovation and efficiency.',
+    });
+    assert.equal(quotes.length, 0);
+  });
+
+  it('drops third-person blurbs and inferred lines', () => {
     const quotes = quotesFromInvestor({
       id: 'd',
       name: 'Bull City Venture Partners',
       firm: 'Bull City Venture Partners',
       investment_thesis: 'Focus on early-stage technology companies that leverage AI and SaaS to disrupt traditional industries. [Inferred from news] Recfindr secures a pre-seed round.',
     });
-    assert.equal(quotes.length, 1);
-    assert.equal(quotes[0].kind, 'investing_in');
-    assert.match(quotes[0].quote, /^Focus on early-stage/);
+    assert.equal(quotes.length, 0);
   });
 
   it('drops personal firm labels and short blurbs', () => {

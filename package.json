@@ -110,6 +110,7 @@
     "peter:outreach:cron": "node scripts/run-node.mjs scripts/cron/outreach-scheduler.js --mode startup",
     "peter:outreach:cron:daemon": "node scripts/run-node.mjs scripts/cron/outreach-scheduler.js --daemon",
     "quotes:collect": "node scripts/run-node.mjs scripts/collect-investor-quotes.mjs --apply --limit=400",
+    "quotes:capture": "node scripts/run-node.mjs scripts/capture-vc-quotes.mjs",
     "portfolio:quarantine": "node scripts/run-node.mjs scripts/quarantine-portfolio-entities.mjs --apply",
     "portfolio:audit-identity": "node scripts/run-node.mjs scripts/audit-portfolio-identity.mjs",
     "portfolio:audit-identity:apply": "node scripts/run-node.mjs scripts/audit-portfolio-identity.mjs --apply",
