@@ -15,7 +15,7 @@ on:
     - cron: '30 8 * * *'   # followon-fund (double down on winners' later-stage rounds, forward-only)
     - cron: '45 8 * * *'   # portfolio-exits (book verified M&A/IPO exits, target-only, honest entries)
     - cron: '15 7 * * *'   # newsletter-prebuild (after sage-review; Daily Signal page reads this)
-    - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
+    - cron: '0 13 * * *'   # daily-brief + promo-pack (6am PT / 9am ET)
     - cron: '30 12 * * *'  # funding-match-loop (attention → research → match model; no GOD rewrite)
   workflow_dispatch:
     inputs:
@@ -38,6 +38,7 @@ on:
           - portfolio-score-validate
           - newsletter-prebuild
           - daily-brief
+          - promo-pack
           - funding-match-loop
 
 concurrency:
@@ -200,4 +201,13 @@ jobs:
     with:
       run: node scripts/send-daily-brief.js
       timeout_minutes: 20
+      node_version: '22'
+
+  promo-pack:
+    if: github.event.schedule == '0 13 * * *' || github.event.inputs.job == 'promo-pack'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/send-promo-pack.mjs
+      timeout_minutes: 15
       node_version: '22'
