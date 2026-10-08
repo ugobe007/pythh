@@ -37,6 +37,7 @@ const gate = require('../lib/startupInsertGate');
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const InferenceExtractor = require('../lib/inference-extractor');
 const { startupNameFromFundingEvent, classifyFundingEvidence } = require('../server/lib/fundingEvidenceLedger');
+const { headlineGuards } = require('../lib/scrapeAwareness');
 
 let inferDomainFromName = null;
 try {
@@ -382,9 +383,21 @@ async function runKnownCompanyEnrichment(kind) {
   for (const ev of candidates) {
     stats.processed += 1;
     const title = (ev.source_title || '').slice(0, 78);
+    const guards = headlineGuards(`${ev.source_title || ''} ${ev.semantic_context?.evidence || ''}`);
+    if (guards.includes('market_move')) {
+      stats.not_startup += 1;
+      console.log(`  ⏭️  [market_move] ${title}`);
+      await markResolved(ev, { action: 'skip_not_startup', reason: 'market_move' });
+      continue;
+    }
     let result;
     try {
       const inferredFunding = InferenceExtractor.extractFunding(`${ev.source_title || ''} ${ev.semantic_context?.evidence || ''}`);
+      if (guards.includes('rumor_fundraise') || guards.includes('non_equity')) {
+        inferredFunding.funding_amount = null;
+        inferredFunding.funding_stage = null;
+        inferredFunding.funding_round = null;
+      }
       const classification = classifyFundingEvidence(ev);
       const inferredStartup = classification.eligible ? startupNameFromFundingEvent(ev) : null;
       const hasResolvedRelationship = Boolean(

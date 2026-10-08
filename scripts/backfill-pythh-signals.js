@@ -2,7 +2,7 @@
 /**
  * BACKFILL PYTHH SIGNALS
  * ──────────────────────────────────────────────────────────────────────────
- * Runs parseSignal() against all discovered_startups records that have an
+ * Runs the shared scrape parser against discovered_startups records that have an
  * article_title but no signal data stored in metadata.signals.
  *
  * Writes the compact signal block back to metadata.signals (JSONB merge-patch).
@@ -16,7 +16,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const { parseSignal }  = require('../lib/signalParser');
+const { awareParse }   = require('../lib/scrapeAwareness');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const key of REQUIRED_ENV) {
@@ -53,7 +53,7 @@ async function main() {
   // Uses the Postgres JSONB operator to check for absence of metadata->signals
   const { data: rows, error } = await supabase
     .from('discovered_startups')
-    .select('id, name, article_title, description, metadata')
+    .select('id, name, article_title, description, metadata, article_url, rss_source')
     .not('article_title', 'is', null)
     .or('metadata.is.null,metadata->signals.is.null')
     .order('article_date', { ascending: false, nullsFirst: false })
@@ -77,21 +77,16 @@ async function main() {
 
     for (const row of batch) {
       try {
-        const text = `${row.article_title || ''} ${row.description || ''}`.slice(0, 2000);
-        const sig  = parseSignal(text);
-
-        if (!sig) { stats.skipped++; continue; }
-
-        const signalBlock = {
-          primary:    sig.primary_signal,
-          classes:    sig.signal_classes,
-          confidence: sig.confidence,
-          evidence:   sig.evidence_quality,
-          strength:   sig.signal_strength,
-          ambiguity:  sig.ambiguity_flags,
-          who_cares:  sig.who_cares,
-          inference:  sig.inference,
-        };
+        const awareness = awareParse({
+          title: row.article_title,
+          snippet: row.description,
+          feedName: row.rss_source,
+          itemUrl: row.article_url,
+          actor: row.name,
+        });
+        const sig = awareness.signal;
+        if (!sig || !awareness.block) { stats.skipped++; continue; }
+        const signalBlock = awareness.block;
 
         stats.parsed++;
         stats.by_evidence[sig.evidence_quality] = (stats.by_evidence[sig.evidence_quality] || 0) + 1;

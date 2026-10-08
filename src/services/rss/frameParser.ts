@@ -2,6 +2,7 @@
 
 // Import inference engine for fast zero-cost classification
 import eventClassifier from '../../../lib/event-classifier';
+import { headlineGuards } from '../../../lib/scrapeAwareness';
 
 /** RSS parsers sometimes emit objects (Atom `link`, `content:encoded`) — never pass those to String() or templates blindly. */
 function safeRssText(v: unknown): string {
@@ -1766,6 +1767,12 @@ export function toCapitalEvent(
     // Keep entities even for FILTERED (for event storage), but graph_safe will be false
   }
   
+  // A stock move, rumor raise, or debt/bond headline is not a closed equity round.
+  const scrapeGuards = headlineGuards(safeTitle);
+  const fundingClaimBlocked = scrapeGuards.includes("market_move")
+    || (finalEventType === "FUNDING" && scrapeGuards.length > 0);
+  const dropRoundAmounts = scrapeGuards.includes("market_move") || scrapeGuards.includes("non_equity");
+
   // Build final event
   const event: CapitalEvent = {
     schema_version: "1.0.0",
@@ -1787,9 +1794,12 @@ export function toCapitalEvent(
     tertiary: frame.slots.tertiary || null,
     entities,
     semantic_context: frame.semantic_context,
-    amounts,
-    round,
-    notes: frame.meta.notes,
+    amounts: dropRoundAmounts ? undefined : amounts,
+    round: dropRoundAmounts ? null : round,
+    notes: [
+      ...(frame.meta.notes || []),
+      ...(scrapeGuards.length ? [`scrape_guard:${scrapeGuards.join(",")}`] : []),
+    ],
     extraction: {
       pattern_id: frame.meta.patternId,
       filtered_reason: filteredReason,
@@ -1804,6 +1814,7 @@ export function toCapitalEvent(
       // TIERED confidence: funding/acquisition/launch events get lower threshold
       // because they're inherently startup-relevant even at moderate confidence
       graph_safe: (
+        !fundingClaimBlocked &&
         finalEventType !== "FILTERED" &&
         entities.length > 0 &&
         (

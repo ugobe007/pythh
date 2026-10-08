@@ -28,6 +28,7 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const RSSParser        = require('rss-parser');
 const { shouldProcessEvent } = require('../lib/source-quality-filter');
+const { awareParse } = require('../lib/scrapeAwareness');
 const { isVcNewsDailyHomepageUrl, fetchVcNewsDailyHomepageItems } = require('../lib/vcNewsDailyHomepage');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
@@ -134,7 +135,7 @@ function disambiguateNameForUniqueIndex(baseName, articleUrl, usedKeys) {
  * Rely on Postgres (nullable, no bad DEFAULT) after migration; PostgREST can bind the
  * wrong type if its schema cache is stale — run NOTIFY reload migration if inserts fail.
  */
-function buildDiscoveredRssRow({ nameHint, item, url, articleDate, body, source }) {
+function buildDiscoveredRssRow({ nameHint, item, url, articleDate, body, source, awareness }) {
   return {
     name: nameHint,
     article_title: item.title?.slice(0, 500) || null,
@@ -142,11 +143,12 @@ function buildDiscoveredRssRow({ nameHint, item, url, articleDate, body, source 
     article_date: articleDate,
     description: body,
     rss_source: source.name,
-    sectors: [],
+    sectors: awareness?.sector_matched ? awareness.sectors : [],
     metadata: {
       feed_category: source.category,
       feed_id: source.id,
       article_source: 'rss',
+      ...(awareness?.block ? { signals: awareness.block } : {}),
     },
     imported_to_startups: false,
   };
@@ -268,6 +270,7 @@ async function main() {
     articles_found: 0, articles_saved: 0,
     articles_skipped_dup: 0, articles_skipped_short: 0,
     articles_skipped_quality: 0,
+    articles_skipped_market_move: 0,
     errors: 0,
   };
   const rowErrorSamples = new Set();
@@ -372,6 +375,23 @@ async function main() {
       const rawHint = titleToName(item.title) || item.title?.slice(0, 80) || 'Unknown';
       const nameHint = disambiguateNameForUniqueIndex(rawHint, url, usedNameWebsiteKeys);
 
+      let awareness = null;
+      try {
+        awareness = awareParse({
+          title: item.title,
+          snippet: body,
+          feedUrl: source.url,
+          feedName: source.name,
+          itemUrl: url,
+        });
+      } catch {
+        awareness = null;
+      }
+      if (awareness?.guards?.includes('market_move')) {
+        stats.articles_skipped_market_move++;
+        continue;
+      }
+
       const record = buildDiscoveredRssRow({
         nameHint,
         item,
@@ -379,6 +399,7 @@ async function main() {
         articleDate,
         body,
         source,
+        awareness,
       });
 
       if (DRY_RUN) {
@@ -416,6 +437,7 @@ async function main() {
   console.log(`Skipped (duplicate):  ${stats.articles_skipped_dup}`);
   console.log(`Skipped (too short):  ${stats.articles_skipped_short}`);
   console.log(`Skipped (source Q):   ${stats.articles_skipped_quality}`);
+  console.log(`Skipped (market):     ${stats.articles_skipped_market_move}`);
   console.log(`Errors:               ${stats.errors}`);
 
   if (DRY_RUN) {

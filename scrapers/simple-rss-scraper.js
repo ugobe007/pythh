@@ -7,6 +7,7 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
 const { shouldProcessEvent } = require('../lib/source-quality-filter');
+const { awareParse } = require('../lib/scrapeAwareness');
 
 const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const parser = new Parser({
@@ -39,19 +40,20 @@ const STAGE_PATTERNS = {
   'Series D+': /series\s*[d-z]\b/i,
 };
 
-// Sector keywords
-const SECTOR_KEYWORDS = {
-  'AI/ML': ['ai', 'artificial intelligence', 'machine learning', 'ml', 'llm', 'gpt', 'neural'],
-  'FinTech': ['fintech', 'banking', 'payments', 'finance', 'lending', 'crypto', 'blockchain'],
-  'HealthTech': ['health', 'medical', 'biotech', 'pharma', 'healthcare', 'clinical'],
-  'SaaS': ['saas', 'software', 'cloud', 'enterprise', 'b2b'],
-  'E-commerce': ['ecommerce', 'e-commerce', 'retail', 'marketplace', 'shopping'],
-  'CleanTech': ['clean', 'climate', 'energy', 'solar', 'ev', 'sustainability', 'green'],
-  'EdTech': ['education', 'edtech', 'learning', 'school', 'student'],
-  'Cybersecurity': ['security', 'cyber', 'privacy', 'encryption'],
-};
+function extractStartupInfo(title, description = '', source = {}) {
+  let awareness = null;
+  try {
+    awareness = awareParse({
+      title,
+      snippet: description,
+      feedUrl: source.url,
+      feedName: source.name,
+    });
+  } catch {
+    awareness = null;
+  }
+  if (awareness?.guards?.includes('market_move')) return null;
 
-function extractStartupInfo(title, description = '') {
   const combined = `${title} ${description}`.toLowerCase();
   
   // Try to extract startup name and funding amount
@@ -100,19 +102,13 @@ function extractStartupInfo(title, description = '') {
     }
   }
   
-  // Extract sectors
-  const sectors = [];
-  for (const [sector, keywords] of Object.entries(SECTOR_KEYWORDS)) {
-    if (keywords.some(kw => combined.includes(kw))) {
-      sectors.push(sector);
-    }
-  }
-  if (sectors.length === 0) sectors.push('Technology');
-  
+  const closedRound = !awareness || awareness.actionable_fundraising;
+  const sectors = awareness?.sector_matched ? awareness.sectors : ['Technology'];
+
   return {
     name: startupName,
-    funding_amount: fundingAmount,
-    stage,
+    funding_amount: closedRound ? fundingAmount : null,
+    stage: closedRound ? stage : 'Unknown',
     sectors: sectors.slice(0, 3),
     description: description?.slice(0, 500) || title,
   };
@@ -151,7 +147,7 @@ async function scrapeRSS() {
           continue;
         }
 
-        const info = extractStartupInfo(item.title, item.contentSnippet || item.content);
+        const info = extractStartupInfo(item.title, item.contentSnippet || item.content, source);
         
         if (info) {
           sourceFound++;

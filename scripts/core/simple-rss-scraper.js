@@ -18,21 +18,18 @@ const { insertDiscovered, setSupabase } = require('../../lib/startupInsertGate')
 const { extractCompanyName } = require('../../lib/headlineExtractor');
 // Sentence-mode multi-name extractor (handles full sentences, multi-name patterns)
 const { extractNames: extractNamesFromSentence } = require('../../lib/sentenceExtractor');
-// Pythh Signal Intelligence — extracts structured business signals from article text
-const { parseSignal } = require('../../lib/signalParser');
+// Site-aware parse: source class, sectors, and rumor / market-move guards
+const { awareParse } = require('../../lib/scrapeAwareness');
 const { shouldProcessEvent } = require('../../lib/source-quality-filter');
 const { isArticleFresh } = require('../../lib/rssArticleFreshness');
 
-// Import v2 Inference Extractor for better sector detection (18 categories vs 5)
-let v2ExtractSectors, extractInferenceData;
+// Inference extractor for funding / team fields. Sectors come from scrapeAwareness.
+let extractInferenceData;
 try {
-  const inferenceExtractor = require('../../lib/inference-extractor');
-  v2ExtractSectors = inferenceExtractor.extractSectors;
-  extractInferenceData = inferenceExtractor.extractInferenceData;
-  console.log('✅ Inference extractor v2 loaded (18-category sectors)');
+  extractInferenceData = require('../../lib/inference-extractor').extractInferenceData;
+  console.log('✅ Inference extractor v2 loaded');
 } catch (e) {
-  console.log('⚠️  Inference extractor not available, using basic 10-category sectors');
-  v2ExtractSectors = null;
+  console.log('⚠️  Inference extractor not available');
   extractInferenceData = null;
 }
 
@@ -136,40 +133,6 @@ const STARTUP_KEYWORDS = [
   'founded', 'valuation', 'investment', 'investor', 'accelerator', 'incubator',
   'ai startup', 'fintech', 'healthtech', 'saas', 'million', 'billion'
 ];
-
-// Detect sectors from text
-function detectSectors(text) {
-  // Prefer v2 inference extractor (18 categories) over inline (10 categories)
-  if (v2ExtractSectors) {
-    const v2Sectors = v2ExtractSectors(text);
-    if (v2Sectors && v2Sectors.length > 0) return v2Sectors;
-  }
-
-  // Fallback: inline detection (10 categories)
-  const sectors = [];
-  const lowerText = text.toLowerCase();
-  
-  const sectorKeywords = {
-    'AI/ML': ['artificial intelligence', ' ai ', 'machine learning', 'deep learning', 'llm', 'gpt'],
-    'FinTech': ['fintech', 'financial', 'banking', 'payments', 'neobank', 'crypto'],
-    'HealthTech': ['healthtech', 'healthcare', 'medical', 'biotech', 'health tech'],
-    'SaaS': ['saas', 'software as a service', 'b2b software', 'enterprise software'],
-    'Climate': ['climate', 'cleantech', 'sustainability', 'carbon', 'renewable'],
-    'EdTech': ['edtech', 'education', 'e-learning', 'online learning'],
-    'E-Commerce': ['ecommerce', 'e-commerce', 'retail tech', 'marketplace'],
-    'Cybersecurity': ['cybersecurity', 'security', 'infosec', 'cyber'],
-    'Developer Tools': ['developer', 'devtools', 'api', 'infrastructure'],
-    'Consumer': ['consumer', 'b2c', 'direct to consumer', 'd2c'],
-  };
-  
-  for (const [sector, keywords] of Object.entries(sectorKeywords)) {
-    if (keywords.some(kw => lowerText.includes(kw))) {
-      sectors.push(sector);
-    }
-  }
-  
-  return sectors.length > 0 ? sectors : ['SaaS', 'Technology'];
-}
 
 // Check if title is about startup/funding (more lenient)
 function isStartupNews(title, description) {
@@ -287,27 +250,32 @@ async function scrapeRssFeeds() {
           continue;
         }
 
-        // ── Detect sectors + inference once per article ───────────────────────
-        const sectors = detectSectors(articleText);
+        // ── Site-aware sectors + signal (source class, rumor, market move) ──
+        let awareness = null;
+        try {
+          awareness = awareParse({
+            title: item.title || '',
+            snippet: item.contentSnippet || '',
+            feedUrl: source.url,
+            feedName: source.name,
+            itemUrl: item.link,
+          });
+        } catch (e) { /* silent */ }
+        if (awareness?.guards?.includes('market_move')) {
+          skipped++;
+          continue;
+        }
+        const sectors = awareness?.sector_matched ? awareness.sectors : ['Technology'];
         let inferenceData = {};
         if (extractInferenceData) {
           try { inferenceData = extractInferenceData(articleText, item.link); } catch (e) { /* silent */ }
         }
-
-        // ── Pythh Signal Parse — structured business signal from article text ──
-        // Extracts: actor / action / modality / posture / intent / signal_class
-        // Non-blocking — stored in metadata.signals for downstream scoring.
-        let pythh_signal = null;
-        try { pythh_signal = parseSignal(articleText); } catch (e) { /* silent */ }
-
-        // Map inferred meanings → existing boolean flags
-        const signalMeanings = pythh_signal?.inferred_meanings || [];
-        const signalIsLaunched   = signalMeanings.includes('product_live')
-                                || pythh_signal?.primary_signal === 'product_signal';
-        const signalIsFundraised = pythh_signal?.primary_signal === 'fundraising_signal';
-
-        // Merge signal_classes into execution_signals (existing text[] column)
-        const signalTags = pythh_signal?.signal_classes || [];
+        const pythh_signal = awareness?.signal || null;
+        const signalIsLaunched = Boolean(awareness?.product_live);
+        const signalIsFundraised = Boolean(awareness?.actionable_fundraising);
+        const signalTags = signalIsFundraised
+          ? (pythh_signal?.signal_classes || [])
+          : (pythh_signal?.signal_classes || []).filter((c) => c !== 'fundraising_signal');
 
         // ── Insert each name as a separate discovered entry ───────────────────
         setSupabase(supabase);
@@ -332,8 +300,8 @@ async function scrapeRssFeeds() {
               article_date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
               sectors,
               discovered_at: new Date().toISOString(),
-              funding_amount: inferenceData.funding_amount || null,
-              funding_stage: inferenceData.funding_stage || null,
+              funding_amount: signalIsFundraised ? (inferenceData.funding_amount || null) : null,
+              funding_stage: signalIsFundraised ? (inferenceData.funding_stage || null) : null,
               value_proposition: inferenceData.value_proposition || null,
               team_signals: inferenceData.team_signals || null,
               execution_signals: [
@@ -344,18 +312,7 @@ async function scrapeRssFeeds() {
               has_revenue:  signalIsFundraised || inferenceData.has_revenue  || false,
               metadata: {
                 ...(Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : {}),
-                ...(pythh_signal ? {
-                  signals: {
-                    primary:    pythh_signal.primary_signal,
-                    classes:    pythh_signal.signal_classes,
-                    confidence: pythh_signal.confidence,
-                    certainty:  pythh_signal.certainty,
-                    posture:    pythh_signal.posture,
-                    actor:      pythh_signal.actor,
-                    intent:     pythh_signal.intent,
-                    meanings:   pythh_signal.inferred_meanings,
-                  }
-                } : {}),
+                ...(awareness?.block ? { signals: awareness.block } : {}),
               } || null,
             });
 
