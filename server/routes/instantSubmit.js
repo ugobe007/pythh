@@ -36,6 +36,7 @@ const {
 } = require('../lib/frequentLedgerFunders');
 const { selectTopMatchesByFirm } = require('../../lib/matchTopSelection');
 const { distinctiveFitScore, sectorsForMatching } = require('../../lib/distinctiveInvestorFit');
+const { refreshBrainPack } = require('../../lib/dataBrain');
 const { campaignColumns, retainCampaignExtracted, stageNumber } = require('../../lib/campaignBrief');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { validateStartupUrl } = require('../utils/startupUrlValidation');
@@ -763,7 +764,14 @@ function scoreFaithAlignment(startupSectors, investorSignals) {
  * Full 6-component match scoring (same as match-regenerator.js)
  */
 function calculateMatchScore(startup, investor, signalScore, investorSignals) {
-  const sNorm = normalizeStartupForScoring(startup);
+  const fitSectorLabels = sectorsForMatching(startup);
+  const storedSectors = new Set(normTokenList(startup?.sectors));
+  const brainSectors = (fitSectorLabels || [])
+    .filter((sector) => !storedSectors.has(normToken(sector)));
+  const sNorm = normalizeStartupForScoring({
+    ...startup,
+    sectors: fitSectorLabels?.length ? fitSectorLabels : startup?.sectors,
+  });
   const iNorm = normalizeInvestorForScoring(investor);
 
   const sector = scoreSectorMatch(sNorm.sectors, iNorm.sectors);
@@ -780,6 +788,7 @@ function calculateMatchScore(startup, investor, signalScore, investorSignals) {
       sector, stage, investor_quality: invQ, startup_quality: startQ,
       signal, faith: faith.score, is_super_match: faith.isSuperMatch,
       faith_themes: faith.matchingThemes,
+      brain_sectors: brainSectors,
     },
     confidence: baseTotal >= 75 ? 'high' : baseTotal >= 55 ? 'medium' : 'low',
   };
@@ -860,6 +869,9 @@ function generateReasoning(startup, investor, fitAnalysis) {
     reasons.push(`Strong conviction alignment: investor thesis aligns`);
   } else if (fitAnalysis.faith >= 3) {
     reasons.push(`Conviction signal detected`);
+  }
+  if (fitAnalysis.brain_sectors?.length && fitAnalysis.sector >= 10) {
+    reasons.push(`Profile language matches ${fitAnalysis.brain_sectors.slice(0, 2).join(', ')}`);
   }
   if (fitAnalysis.tech_vc_fit === 'weak') {
     reasons.push(`Tech VC mismatch: no proprietary technology or verified patents detected`);
@@ -1282,6 +1294,7 @@ async function runSyncTopMatches(
   supabase,
   { startupId, placeholderStartup, signalTotal, maxMs, topN }
 ) {
+  await refreshBrainPack(supabase);
   const responseTopN = Number(topN) > 0 ? Number(topN) : SYNC_RESPONSE_TOP_N;
   const wall = Date.now() + (maxMs || 4500);
   const out = { matches: [], match_count: 0, error: null };
@@ -1456,6 +1469,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
   
   try {
     console.log(`  🔄 [BG] Starting background pipeline for ${startupId} (${domain}) [timeout: ${PIPELINE_TIMEOUT}ms]`);
+    await refreshBrainPack(supabase);
     
     // =========================================================================
     // PHASE 1: FAST MATCHES (~1-2s) — Generate matches with placeholder data
@@ -1475,7 +1489,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     const { data: suPh } = await supabase
       .from('startup_uploads')
       .select(
-        'name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, mrr, arr, customer_count, growth_rate_monthly',
+        'name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, mrr, arr, customer_count, growth_rate_monthly, description, tagline',
       )
       .eq('id', startupId)
       .single();
@@ -1499,6 +1513,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       arr: suPh?.arr ?? null,
       customer_count: suPh?.customer_count ?? null,
       growth_rate_monthly: suPh?.growth_rate_monthly ?? null,
+      description: suPh?.description || null,
+      tagline: suPh?.tagline || null,
     };
     
     // Tier A: use real startup sectors (sync path updates these before BG runs) — not generic Technology
@@ -2055,6 +2071,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         sectors: enrichedRow.sectors,
         stage: enrichedRow.stage,
         total_god_score: scores.total_god_score,
+        description: enrichedRow.description || null,
+        tagline: enrichedRow.tagline || null,
       };
 
       const startupSnapshotPhase3 = {

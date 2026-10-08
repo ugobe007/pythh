@@ -53,7 +53,7 @@ function toScoringProfileFromStartupUpload(startup) {
 
   const base = { ...startup, ...extracted };
 
-  return {
+  const profile = {
     ...base,
 
     tagline: startup.tagline || extracted.tagline,
@@ -150,6 +150,18 @@ function toScoringProfileFromStartupUpload(startup) {
       startup.urgency_signal_strength ??
       0,
   };
+
+  // Headline and boilerplate copy was matching traction patterns ("raised $",
+  // "series", "innovative"). Drop those sentences from the text fields only.
+  // Component weights stay on GOD_SCORE_CONFIG. Structured ARR and customers stay.
+  const { scoringTextFromCopy } = require('../../lib/dataBrain');
+  const copy = scoringTextFromCopy(profile);
+  profile.tagline = copy.tagline;
+  profile.pitch = copy.pitch;
+  profile.description = copy.description;
+  profile.value_proposition = copy.value_proposition;
+  profile.brain_copy = copy.quality;
+  return profile;
 }
 
 function breakdownFromHotResult(result) {

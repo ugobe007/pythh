@@ -576,6 +576,12 @@ async function persistSectorSuggestions(startupId, rows) {
  * return top sector investors via get_lookup_top_investors so /submit and share links are not empty.
  */
 async function buildSuggestedInvestorMatches(startup, { maxSectors = 6 } = {}) {
+  try {
+    const { refreshBrainPack } = require('../../lib/dataBrain');
+    await refreshBrainPack(supabase);
+  } catch {
+    /* suggestions still use stored sectors */
+  }
   const sectors = sectorsForMatching(startup);
   if (!sectors.length) return [];
   const expanded = expandRelatedSectors(normalizeSectors(sectors));

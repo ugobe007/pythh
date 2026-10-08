@@ -8,6 +8,7 @@ on:
     - cron: '0 5 * * *'    # rss-enrich (M&A + funding sync)
     - cron: '30 5 * * *'   # event-resolver (closed corpus: enrich existing uploads only)
     - cron: '50 5 * * *'   # signal-bridge (resolver investors → fundraising signals → signal scores)
+    - cron: '15 6 * * *'   # data-brain (trends, keywords, match terms; no GOD weight rewrite)
     - cron: '0 7 * * *'    # sage-review (independent second-pass QA on scraped rows)
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
@@ -29,6 +30,7 @@ on:
           - rss-enrich
           - event-resolver
           - signal-bridge
+          - data-brain
           - sage-review
           - portfolio-monitor
           - portfolio-digest
@@ -105,6 +107,17 @@ jobs:
       # Score aggregation stays daily. Append-only score history is captured weekly instead.
       run: node scripts/emit-resolver-signal-events.js --apply --require-website ; node scripts/sync-signal-scores.js --apply
       timeout_minutes: 45
+
+  # Reads the day's signal scores plus approved startups and spoken quotes.
+  # Stores data_brain_insights. Does not retune GOD weights.
+  data-brain:
+    if: github.event.schedule == '15 6 * * *' || github.event.inputs.job == 'data-brain'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/run-data-brain.mjs --apply --limit=1500
+      timeout_minutes: 20
+      node_version: '22'
 
   # Independent second-pass QA: reviews scraped startup_uploads for missing data,
   # reconstructs fields PYTHIA can support from evidence, and stamps extracted_data.
