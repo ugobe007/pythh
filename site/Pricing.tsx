@@ -75,11 +75,37 @@ function PlanCTA({
   if (plan.stripePlanId && onCheckout) {
     const label =
       plan.id === "oracle" && oracleCtaLabel ? oracleCtaLabel : plan.cta;
-    const loginHref = `/login?redirect=${encodeURIComponent("/pricing")}`;
+    // Preserve plan/source/query so post-login landings keep Oracle highlight + attribution.
+    const returnPath =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search || ""}`
+        : "/pricing";
+    const safeReturn =
+      returnPath.startsWith("/") && !returnPath.startsWith("//") ? returnPath : "/pricing";
+    const loginHref = `/login?redirect=${encodeURIComponent(safeReturn)}`;
 
     if (!isAuthenticated) {
       return (
-        <StrokeButton href={loginHref} color={plan.color} borderColor={plan.borderColor} fullWidth showArrow>
+        <StrokeButton
+          type="button"
+          onClick={() => {
+            const source =
+              typeof window !== "undefined"
+                ? new URLSearchParams(window.location.search).get("source")
+                : null;
+            void trackFunnelEvent("pricing_signin_cta_clicked", {
+              plan: plan.stripePlanId || plan.id,
+              billing,
+              path: safeReturn,
+              source,
+            });
+            window.location.href = loginHref;
+          }}
+          color={plan.color}
+          borderColor={plan.borderColor}
+          fullWidth
+          showArrow
+        >
           Sign in to start trial
         </StrokeButton>
       );

@@ -1,7 +1,39 @@
 {
   "version": 1,
-  "updated_at": "2026-09-14T00:00:00Z",
+  "updated_at": "2026-10-08T00:00:00Z",
   "findings": [
+    {
+      "id": "F-2026-1008-01",
+      "type": "funnel",
+      "friction_category": "pricing_terms",
+      "audience": "founder",
+      "title": "TRUE Use→paid leak is pricing→checkout = 0% — path IS instrumented; anon Sign-in CTA dropped plan/source",
+      "founder_problem": "Founders who open a match card and click 'Draft this intro on Oracle' land on /pricing with plan=oracle&source=match_lead_use_to_paid, then hit 'Sign in to start trial'. That login redirect stripped query params back to bare /pricing, so post-login they lose the Oracle highlight and attribution. checkout_started never fires because unauthenticated PlanCTA is a Sign-in link, not Stripe. Result: 15 pricing_viewed / 0 checkout_started / 0 paid — looks like 'uninstrumented' when it is an auth-return break.",
+      "investor_problem": "Zero paid founders means zero Oracle outreach volume to feed investor reply loops.",
+      "evidence": {
+        "internal": "conversion-funnel-snapshot 2026-10-08: pricing_viewed=15, checkout_started=0, checkout_completed=0, pricing_strip_viewed=5, pricing_bridge_clicked=2 (40% strip→bridge CTR), match_viewed=25, signup_per_preview=9.5 (was 0 on 2026-09-14), founder_started_to_completed=100. login_completed=0 in research-snapshot. Code: site/Pricing.tsx PlanCTA used encodeURIComponent('/pricing') only — dropped ?plan=&source=.",
+        "strength": "validated (internal funnel + located code defect)"
+      },
+      "pythh_opportunity": "Loop pricing_auth_return: (1) preserve full pathname+search through Sign-in redirect; (2) fire pricing_signin_cta_clicked so the auth gate is measurable; (3) Growth watches checkout_started / pricing_viewed and signin_cta→login→checkout within 7d. Do NOT invent new pricing copy until checkout_started > 0.",
+      "suggested_product_shape": "Research shipped pricing_auth_return instrumentation + redirect fix this run. Growth: promote founder_match_lead_pricing_bridge to running once pricing_signin_cta_clicked appears; Product: if authed users still show 0 checkout_started, audit Stripe createCheckoutSession toast failures next.",
+      "signup_lever": "conversion (paid) — binding constraint after preview→signup healed",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "visitor_to_paid_funnel",
+      "code_changes": {
+        "files": [
+          "site/Pricing.tsx",
+          "scripts/conversion-funnel-snapshot.mjs",
+          "scripts/orchestrator-brief.mjs"
+        ]
+      },
+      "handoff": {
+        "suggested_opportunity_id": "visitor_to_paid_funnel",
+        "title": "Close Use→paid: pricing_auth_return (preserve plan/source + measure Sign-in CTA) then lift checkout_started",
+        "priority": "P0",
+        "domain": "growth"
+      }
+    },
     {
       "id": "F-2026-0914-21",
       "type": "funnel",
@@ -44,7 +76,8 @@
       "suggested_product_shape": "Growth: preview_cliffhanger + founder_gate_cta variant with singular outcome CTA post-reveal; instrument founder_signup_started→completed per-field. Product: live-repro the started→completed=0/4 break (regression audit) before any copy A/B.",
       "signup_lever": "conversion (the binding constraint)",
       "confidence": "high",
-      "status": "open",
+      "status": "addressed",
+      "status_update": "2026-10-08: Preview→signup healed on live funnel — signup_per_preview=9.5, founder_started_to_completed=100 (6 started → 6 completed). Binding constraint moved to Use→paid (F-2026-1008-01).",
       "product_opportunity_id": "preview_to_signup_conversion",
       "handoff": {
         "suggested_opportunity_id": "preview_to_signup_conversion",
