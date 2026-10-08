@@ -46,7 +46,7 @@ BEGIN
 
   -- Climate Tech. Short tokens are whole words so "revenue" / "developer" / "window" do not match.
   -- sector:Climate Tech
-  IF v_text_lower ~ '(\mclimate\M|\mcleantech\M|\mclean tech\M|\mrenewable\M|\msolar\M|\mcarbon\M|\msustainability\M|\mbattery\M|\menergy storage\M|\m(ev|evs|green|wind)\M|\melectric vehicles?\M)' THEN
+  IF v_text_lower ~ '(\mclimate\M|\mcleantech\M|\mclean tech\M|\mrenewables?\M|\msolar\M|\mcarbon\M|\msustainability\M|\mbatteries?\M|\menergy storage\M|\m(ev|evs|green|wind)\M|\melectric vehicles?\M)' THEN
     v_sectors := array_append(v_sectors, 'Climate Tech');
   END IF;
 
@@ -67,7 +67,7 @@ BEGIN
 
   -- PropTech. "building" was the verb in "building an AI agent", not construction.
   -- sector:PropTech
-  IF v_text_lower ~ '(\mproptech\M|\mreal estate\M|\mpropert(y|ies)\M|\mhousing\M|\mmortgage\M|\mrental\M|\mconstruction\M)' THEN
+  IF v_text_lower ~ '(\mproptech\M|\mreal estate\M|\mpropert(y|ies)\M|\mhousing\M|\mmortgages?\M|\mrentals?\M|\mconstruction\M)' THEN
     v_sectors := array_append(v_sectors, 'PropTech');
   END IF;
 
