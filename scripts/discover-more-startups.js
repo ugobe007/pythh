@@ -18,6 +18,7 @@ const Parser = require('rss-parser');
 const { extractCompanyName } = require('../lib/headlineExtractor');
 const { extractCompanyNameFromHeadline, extractInferenceData, extractSectors } = require('../lib/inference-extractor');
 const { insertDiscovered, setSupabase } = require('../lib/startupInsertGate');
+const { awareParse } = require('../lib/scrapeAwareness');
 
 // Get Supabase credentials with validation
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -131,6 +132,19 @@ function extractStartupInfo(article) {
   const title = article.title || '';
   const content = article.contentSnippet || article.content || '';
   const combined = `${title} ${content}`.substring(0, 2000);
+  let awareness = null;
+  try {
+    awareness = awareParse({
+      title,
+      snippet: content,
+      feedUrl: article.feedUrl,
+      feedName: article.feedName,
+      itemUrl: article.link,
+    });
+  } catch {
+    awareness = null;
+  }
+  if (awareness?.guards?.includes('market_move')) return null;
   
   // Skip if series-a-b only and doesn't mention Series A/B
   if (seriesABOnly) {
@@ -203,13 +217,15 @@ function extractStartupInfo(article) {
   }
   description = description.substring(0, 500);
 
+  const closedRound = !awareness || awareness.actionable_fundraising;
+  const awareSectors = awareness?.sector_matched ? awareness.sectors : null;
   return {
     name: companyName,
     description: description,
-    funding_amount: fundingAmount,
-    funding_stage: fundingStage,
+    funding_amount: closedRound ? fundingAmount : null,
+    funding_stage: closedRound ? fundingStage : null,
     investors_mentioned: investors.length > 0 ? investors.slice(0, 10) : null,
-    sectors,
+    sectors: awareSectors || sectors,
     article_url: article.link,
     article_title: title
   };
@@ -288,6 +304,8 @@ async function discoverStartups() {
       let extracted = 0;
       
       for (const article of recentArticles) {
+        article.feedUrl = source.url;
+        article.feedName = source.name;
         const startupInfo = extractStartupInfo(article);
         if (startupInfo) {
           // Check for duplicate using name + website (matching unique constraint)

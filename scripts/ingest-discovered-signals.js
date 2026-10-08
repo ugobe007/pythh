@@ -27,7 +27,7 @@
 require('dotenv').config();
 
 const { createClient }         = require('@supabase/supabase-js');
-const { parseSignal }          = require('../lib/signalParser');
+const { awareParse }           = require('../lib/scrapeAwareness');
 const { buildSignalEvent,
         buildTimelineEvent }   = require('../lib/signalEventBuilder');
 const { insertInBatches }      = require('../lib/supabaseUtils');
@@ -82,6 +82,16 @@ function splitSentences(text) {
     .split('\n')
     .map(s => s.trim())
     .filter(s => s.length >= 15 && s.length <= 600);
+}
+
+function parseDiscoveredSentence(sentence, row, blockSourceType) {
+  return awareParse({
+    title: sentence,
+    feedName: row.rss_source,
+    itemUrl: blockSourceType === 'website' ? null : row.article_url,
+    sourceType: blockSourceType === 'website' ? 'website' : undefined,
+    actor: row.name,
+  });
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -172,6 +182,7 @@ async function main() {
     startups: 0, entities_inserted: 0,
     sentences_parsed: 0, signals_written: 0,
     skipped_low_conf: 0, skipped_unclassified: 0, skipped_source_quality: skippedSourceQuality,
+    skipped_market_move: 0,
     errors: 0,
     by_class: {}, by_evidence: {},
   };
@@ -265,9 +276,11 @@ async function main() {
         for (const { text, source_type } of blocks) {
           for (const sentence of splitSentences(text)) {
             try {
-              const sig = parseSignal(sentence, { source_type, actor_context: row.name });
+              const awareness = parseDiscoveredSentence(sentence, row, source_type);
+              const sig = awareness.signal;
               if (!sig) continue;
               stats.sentences_parsed++;
+              if (awareness.guards.includes('market_move')) { stats.skipped_market_move++; continue; }
 
               const cls  = sig.primary_signal || 'unclassified_signal';
               const conf = sig.confidence ?? 0;
@@ -277,12 +290,19 @@ async function main() {
               stats.by_class[cls]               = (stats.by_class[cls]               || 0) + 1;
               stats.by_evidence[sig.evidence_quality] = (stats.by_evidence[sig.evidence_quality] || 0) + 1;
 
-              // ── Canonical field mapping via signalEventBuilder ──────────────
-              const meta = { entityId, rawSentence: sentence, sourceType: source_type,
-                             source: source_type, sourceUrl, detectedAt };
+              const profiledType = awareness.source.source_type;
+              const meta = {
+                entityId,
+                rawSentence: sentence,
+                sourceType: profiledType,
+                source: row.rss_source || profiledType,
+                sourceUrl,
+                detectedAt,
+                sourceReliability: awareness.source.reliability,
+              };
               signalBuf.push(buildSignalEvent(sig, meta));
-              timelineBuf.push(buildTimelineEvent(sig, { entityId, sourceType: source_type,
-                                                         source: source_type, sourceUrl,
+              timelineBuf.push(buildTimelineEvent(sig, { entityId, sourceType: profiledType,
+                                                         source: row.rss_source || profiledType, sourceUrl,
                                                          eventDate: signalDate }));
             } catch { /* skip bad sentences */ }
           }
@@ -303,9 +323,11 @@ async function main() {
       for (const { text, source_type } of blocks) {
         for (const sentence of splitSentences(text)) {
           try {
-            const sig = parseSignal(sentence, { source_type, actor_context: row.name });
+            const awareness = parseDiscoveredSentence(sentence, row, source_type);
+            const sig = awareness.signal;
             if (!sig) continue;
             stats.sentences_parsed++;
+            if (awareness.guards.includes('market_move')) { stats.skipped_market_move++; continue; }
             const cls = sig.primary_signal || 'unclassified_signal';
             if (cls === 'unclassified_signal') { stats.skipped_unclassified++; continue; }
             stats.by_class[cls] = (stats.by_class[cls] || 0) + 1;
@@ -324,6 +346,7 @@ async function main() {
   console.log(`Sentences parsed:     ${stats.sentences_parsed}`);
   console.log(`Signals written:      ${DRY_RUN ? '(dry-run)' : stats.signals_written}`);
   console.log(`Skipped (unclassif.): ${stats.skipped_unclassified}`);
+  console.log(`Skipped (market):     ${stats.skipped_market_move}`);
   console.log(`Skipped (source Q):   ${stats.skipped_source_quality}`);
   console.log(`Errors:               ${stats.errors}`);
   console.log('');

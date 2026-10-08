@@ -29,6 +29,7 @@ const { classifyEvent } = require('../lib/event-classifier');
 
 const { insertDiscovered, setSupabase } = require('../lib/startupInsertGate');
 const { isValidStartupName } = require('../lib/startupNameValidator');
+const { awareParse } = require('../lib/scrapeAwareness');
 
 // Supabase client
 const supabase = createClient(
@@ -175,7 +176,25 @@ const INVESTOR_SOURCES = [
 // LOCAL INFERENCE ENTITY EXTRACTION (NO AI - Pattern-based, zero-cost!)
 // ============================================================================
 function extractEntitiesWithInference(title, content, source) {
+  const sourceName = typeof source === 'string' ? source : source?.name;
+  const sourceUrl = typeof source === 'string' ? '' : (source?.url || '');
   const fullText = `${title} ${content || ''}`;
+
+  let awareness = null;
+  try {
+    awareness = awareParse({
+      title,
+      snippet: content,
+      feedUrl: sourceUrl,
+      feedName: sourceName,
+    });
+  } catch {
+    awareness = null;
+  }
+  // A share-price move is not a startup discovery.
+  if (awareness?.guards?.includes('market_move')) {
+    return { startups: [], investors: [] };
+  }
   
   // 1. Classify the event type
   const eventType = classifyEvent(title);
@@ -188,8 +207,8 @@ function extractEntitiesWithInference(title, content, source) {
   // 2. Extract funding data (stage, amount, investors)
   const funding = extractFunding(fullText);
   
-  // 3. Extract sectors
-  const sectors = extractSectors(fullText);
+  // 3. Sectors from the shared scraper parse (phrase match, not a loose includes map)
+  const sectors = awareness?.sector_matched ? awareness.sectors : extractSectors(fullText);
   
   // 4. Extract startup names - COMPREHENSIVE PATTERN MATCHING
   const startups = [];
@@ -702,12 +721,14 @@ function extractEntitiesWithInference(title, content, source) {
   for (const name of foundNames) {
     // Capitalize properly
     const properName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const closedRound = Boolean(awareness?.actionable_fundraising);
     startups.push({
       name: properName,
       description: title,
-      sector: sectors[0] || 'Other',
-      stage: funding.funding_stage || null,
-      amount_raised: funding.funding_amount || null
+      sector: (awareness?.sector_matched ? awareness.sectors[0] : sectors[0]) || 'Other',
+      stage: closedRound ? (funding.funding_stage || null) : null,
+      amount_raised: closedRound ? (funding.funding_amount || null) : null,
+      awareness,
     });
   }
   
@@ -784,6 +805,7 @@ async function saveStartup(startup, sourceUrl, articleTitle, sourceName) {
         metadata: {
           discovered_via: 'high_volume_discovery',
           discovered_at: new Date().toISOString(),
+          ...(startup.awareness?.block ? { signals: startup.awareness.block } : {}),
         },
       },
       { checkDuplicates: true },
@@ -867,7 +889,7 @@ async function scrapeFeed(source) {
       const link = item.link || '';
       
       // Use LOCAL INFERENCE to extract entities (NO AI - pattern-based, zero-cost!)
-      const entities = extractEntitiesWithInference(title, content, source.name);
+      const entities = extractEntitiesWithInference(title, content, source);
       
       // Save startups
       for (const startup of entities.startups) {

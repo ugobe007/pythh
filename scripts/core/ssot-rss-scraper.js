@@ -27,9 +27,9 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { parseFrameFromTitle, toCapitalEvent, setOntologyEntities } = require('../../src/services/rss/frameParser.ts');
 
 // Import v2 Inference Extractor + REAL GOD Scoring
-const { extractInferenceData, extractSectors: v2ExtractSectors, assessConfidence } = require('../../lib/inference-extractor');
-// Pythh Signal Intelligence — extracts structured business signals from article text
-const { parseSignal } = require('../../lib/signalParser');
+const { extractInferenceData, assessConfidence } = require('../../lib/inference-extractor');
+// Site-aware parse: source class, sectors, and rumor / market-move guards
+const { awareParse } = require('../../lib/scrapeAwareness');
 const { calculateHotScore } = require('../../server/services/startupScoringService.ts');
 // Shared URL validation — import as PUBLISHER_DOMAINS to keep existing usages unchanged
 const { JUNK_DOMAINS: PUBLISHER_DOMAINS, isJunkUrl } = require('../../lib/junk-url-config');
@@ -474,20 +474,17 @@ async function scrapeRssFeeds() {
         // startup extracted_data for the Signal Feed and scoring engine.
         const bodySnippet = coerceRssText(item.contentSnippet || item.content);
         const articleText = `${titleForFrame} ${bodySnippet}`.slice(0, 2000);
-        let pythhSignal = null;
-        try { pythhSignal = parseSignal(articleText); } catch (_e) { /* silent */ }
-
-        // Build compact signal block for storage (avoid bloating JSONB with full output)
-        const signalBlock = pythhSignal ? {
-          primary:    pythhSignal.primary_signal,
-          classes:    pythhSignal.signal_classes,
-          confidence: pythhSignal.confidence,
-          evidence:   pythhSignal.evidence_quality,
-          strength:   pythhSignal.signal_strength,
-          ambiguity:  pythhSignal.ambiguity_flags,
-          who_cares:  pythhSignal.who_cares,
-          inference:  pythhSignal.inference,
-        } : null;
+        let awareness = null;
+        try {
+          awareness = awareParse({
+            title: titleForFrame,
+            snippet: bodySnippet,
+            feedUrl: source.url,
+            feedName: source.name,
+            itemUrl: linkStr,
+          });
+        } catch (_e) { /* silent */ }
+        const signalBlock = awareness?.block || null;
         
         // Store in startup_events table with UPSERT on event_id (100% coverage)
         let insertedEvent = null;
@@ -610,8 +607,9 @@ async function scrapeRssFeeds() {
               // === V2 INFERENCE + REAL GOD SCORING ===
               const articleText = `${primaryEntity.name} ${event.source.title} ${bodySnippet}`; // eslint-disable-line no-shadow
               let extractedData = {};
-              let inferredSectors = detectSectors(event.source.title);
+              let inferredSectors = awareness?.sector_matched ? awareness.sectors : ['Technology'];
               let godScores = {};
+              const trustRound = !awareness || awareness.actionable_fundraising;
 
               try {
                 extractedData = extractInferenceData(articleText, website);
@@ -619,11 +617,11 @@ async function scrapeRssFeeds() {
                 if (extractedData.sectors && extractedData.sectors.length > 0) {
                   inferredSectors = extractedData.sectors;
                 }
-                // Merge funding info from Phase-Change parser
-                if (event.amounts && event.amounts.length > 0 && !extractedData.funding_amount) {
+                // A rumor, stock move, or debt headline is not a closed equity round.
+                if (trustRound && event.amounts && event.amounts.length > 0 && !extractedData.funding_amount) {
                   extractedData.funding_amount = event.amounts[0];
                 }
-                if (event.round && !extractedData.funding_stage) {
+                if (trustRound && event.round && !extractedData.funding_stage) {
                   extractedData.funding_stage = event.round;
                 }
                 const confidence = assessConfidence(extractedData);
@@ -983,38 +981,6 @@ function extractWebsite(link, content) {
   } catch {
     return '';
   }
-}
-
-// Helper: Detect sectors (expanded from 5 to 15 categories)
-function detectSectors(text) {
-  const sectors = [];
-  const lowerText = text.toLowerCase();
-  
-  const sectorKeywords = {
-    'AI/ML': ['artificial intelligence', ' ai ', 'machine learning', 'llm', 'deep learning', 'neural network', 'generative ai', 'genai', 'gpt', 'language model'],
-    'FinTech': ['fintech', 'financial', 'banking', 'payments', 'neobank', 'lending', 'insurtech', 'defi'],
-    'HealthTech': ['healthtech', 'healthcare', 'medical', 'biotech', 'telemedicine', 'digital health', 'pharma'],
-    'SaaS': ['saas', 'software as a service', 'b2b software', 'enterprise software'],
-    'Climate': ['climate', 'cleantech', 'sustainability', 'carbon', 'renewable', 'solar', 'green energy', 'ev '],
-    'Developer Tools': ['developer tool', 'devtool', 'dev tool', 'sdk', 'api platform', 'code editor', 'ide ', 'ci/cd', 'version control', 'git '],
-    'Infrastructure': ['infrastructure', 'cloud computing', 'serverless', 'kubernetes', 'container', 'microservice', 'data pipeline', 'orchestration'],
-    'DevOps': ['devops', 'sre ', 'site reliability', 'monitoring', 'observability', 'incident management', 'deployment'],
-    'Cybersecurity': ['cybersecurity', 'security', 'threat detection', 'zero trust', 'encryption', 'vulnerability', 'pentest', 'siem'],
-    'Data/Analytics': ['data analytics', 'data warehouse', 'data lake', 'business intelligence', ' bi ', 'etl', 'data integration', 'database'],
-    'Web3/Crypto': ['web3', 'blockchain', 'crypto', 'nft', 'dao', 'defi', 'ethereum', 'solana', 'token'],
-    'EdTech': ['edtech', 'education', 'e-learning', 'online learning', 'tutoring', 'courseware'],
-    'PropTech': ['proptech', 'real estate', 'property tech', 'mortgage', 'housing'],
-    'E-Commerce': ['e-commerce', 'ecommerce', 'marketplace', 'shopify', 'retail tech', 'd2c', 'dtc'],
-    'Logistics': ['logistics', 'supply chain', 'freight', 'shipping', 'warehouse', 'last mile', 'delivery'],
-  };
-  
-  for (const [sector, keywords] of Object.entries(sectorKeywords)) {
-    if (keywords.some(kw => lowerText.includes(kw))) {
-      sectors.push(sector);
-    }
-  }
-  
-  return sectors.length > 0 ? sectors : ['Technology'];
 }
 
 // Run scraper
