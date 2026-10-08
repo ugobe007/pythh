@@ -87,7 +87,7 @@ function PlanCTA({
     if (!isAuthenticated) {
       return (
         <StrokeButton
-          type="button"
+          href={loginHref}
           onClick={() => {
             const source =
               typeof window !== "undefined"
@@ -99,7 +99,6 @@ function PlanCTA({
               path: safeReturn,
               source,
             });
-            window.location.href = loginHref;
           }}
           color={plan.color}
           borderColor={plan.borderColor}
