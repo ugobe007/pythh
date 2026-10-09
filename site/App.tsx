@@ -50,6 +50,7 @@ import GodWeights from "./pages/admin/GodWeights";
 import SignalScores from "./pages/admin/SignalScores";
 import SignalWeights from "./pages/admin/SignalWeights";
 import MatchingAdmin from "./pages/admin/Matching";
+import TargetedMatches from "./pages/admin/TargetedMatches";
 import Scrapers from "./pages/admin/Scrapers";
 import ToolsHub from "./pages/admin/ToolsHub";
 import MlAgent from "./pages/admin/MlAgent";
@@ -136,6 +137,7 @@ function Router() {
       <Route path={"/admin/signals"}   component={SignalScores} />
       <Route path={"/admin/signal-weights"} component={SignalWeights} />
       <Route path={"/admin/matching"}  component={MatchingAdmin} />
+      <Route path={"/admin/targeted-matches"} component={TargetedMatches} />
       <Route path={"/admin/scrapers"}  component={Scrapers} />
       <Route path={"/admin/ml"}        component={MlAgent} />
       <Route path={"/admin/rss"}       component={RssManager} />

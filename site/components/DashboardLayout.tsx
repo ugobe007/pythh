@@ -25,6 +25,7 @@ const NAV = [
     group: "MATCHING",
     links: [
       { label: "Matching Engine",   href: "/admin/matching" },
+      { label: "Targeted Matches",  href: "/admin/targeted-matches", highlight: true },
       { label: "Live Matches",      href: "/matches" },
     ],
   },
