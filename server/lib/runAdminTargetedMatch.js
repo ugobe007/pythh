@@ -103,6 +103,7 @@ async function resolveStartupViaInstantSubmit(url, { force = true, timeoutMs = 2
   return {
     startup_id: startupId,
     queued: body.queued === true || body.status === 'queued',
+    gen_in_progress: body.gen_in_progress === true,
     total_god_score: body.total_god_score ?? null,
     name: body.name || body.startup_name || null,
     website: body.website || url,
@@ -124,6 +125,13 @@ async function runAdminTargetedMatch(opts = {}) {
   const maxMs = Number(opts.maxMs) > 0 ? Number(opts.maxMs) : 12000;
 
   const resolved = await resolveStartupViaInstantSubmit(url, { force });
+  
+  if (resolved.queued || resolved.gen_in_progress) {
+    const err = new Error('Startup enrichment still in progress. Please wait and try again.');
+    err.status = 202;
+    throw err;
+  }
+  
   const supabase = getSupabaseClient();
 
   const { data: startup, error: sErr } = await supabase
@@ -193,6 +201,7 @@ async function runAdminTargetedMatch(opts = {}) {
     match_count: matches.length,
     engine_error: scored?.error || null,
     queued_on_submit: resolved.queued === true,
+    gen_in_progress: resolved.gen_in_progress === true,
     matches,
   };
 }
