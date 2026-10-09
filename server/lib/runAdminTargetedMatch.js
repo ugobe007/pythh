@@ -190,15 +190,15 @@ async function enrichMatchesWithHunter(matches, {
         url: match.contact?.website || base.url || null,
         website: base.url || match.contact?.website || null,
         partners: Array.isArray(base.partners) ? base.partners : [],
-        email: match.contact?.email || base.email || null,
+        email: base.email || null,
         email_best_guess: base.email_best_guess || null,
-        email_status: base.email_status || match.contact?.email_status || null,
+        email_status: base.email_status || null,
       };
 
       // Still call Hunter when on-file email is only inferred/guess — upgrade path.
       const hasVerifiedOnFile =
         !!investorPayload.email
-        && (base.email_status === 'verified' || match.contact?.email_type === 'verified');
+        && base.email_status === 'verified';
 
       if (hasVerifiedOnFile) {
         stats.skipped_on_file += 1;
