@@ -166,7 +166,17 @@ function weakestStage(funnel, northStar) {
     },
     { id: 'use', label: 'Signup → first use', rate: rates.first_match_per_signup, problem: 'Accounts created but no match engagement — activation failure.' },
     { id: 'return', label: 'Return visit', rate: rates.return_7d, problem: 'No addiction loop — one-and-done visits.' },
-    { id: 'pay', label: 'Use → paid', rate: rates.checkout_per_pricing_view, problem: 'Pricing/checkout path unproven or uninstrumented.' },
+    {
+      id: 'pay',
+      label: 'Use → paid',
+      rate: rates.checkout_per_pricing_view,
+      problem:
+        (s.pricing_viewed || 0) > 0 && (s.checkout_started || 0) === 0
+          ? 'Humans reach /pricing but never start Stripe checkout — auth gate or CTA bounce (instrumented).'
+          : (s.pricing_viewed || 0) === 0
+            ? 'Pricing/checkout path unproven — 0 pricing_viewed in window.'
+            : 'Pricing→checkout conversion is the binding paid leak.',
+    },
   ];
 
   const scored = stages
@@ -187,7 +197,7 @@ function pickLoopsForStage(stageId) {
     signup: ['preview_cliffhanger', 'oracle_gap_gate', 'founder_gate_cta'],
     use: ['match_explain', 'wizard_progression', 'intro_funnel'],
     return: ['signal_delta', 'investor_movement_digest', 'founder_match_nudges'],
-    pay: ['pricing_oracle_bridge', 'trial_first_cta', 'checkout_recovery'],
+    pay: ['pricing_auth_return', 'pricing_oracle_bridge', 'trial_first_cta', 'checkout_recovery'],
   };
   return byStage[stageId] || [
     'preview_cliffhanger',

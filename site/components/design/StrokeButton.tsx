@@ -58,7 +58,9 @@ export default function StrokeButton({
     </>
   );
 
-  if (type === "button" || onClick) {
+  // Prefer a real <a> when href is set so navigation works even if JS is slow;
+  // allow onClick on the anchor for analytics (e.g. pricing Sign-in CTA).
+  if (type === "button" || (onClick && !href)) {
     return (
       <button
         type="button"
@@ -77,6 +79,7 @@ export default function StrokeButton({
   return (
     <a
       href={href}
+      onClick={onClick}
       className={cls}
       style={style}
       onMouseEnter={(e) => applyHover(e.currentTarget, true)}

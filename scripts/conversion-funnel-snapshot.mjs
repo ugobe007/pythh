@@ -190,6 +190,7 @@ async function main() {
       match_explain_viewed: f.match_explain_viewed || 0,
       pricing_strip_viewed: f.pricing_strip_viewed || 0,
       pricing_bridge_clicked: f.pricing_bridge_clicked || 0,
+      pricing_signin_cta_clicked: f.pricing_signin_cta_clicked || 0,
       return_visit_7d: f.return_visit_7d || 0,
     },
     founder_demand: {
@@ -378,6 +379,14 @@ async function main() {
   if ((f.pricing_viewed || 0) === 0 && (f.pricing_strip_viewed || 0) > 0) {
     report.agent_focus.push('Pay bridge: pricing strip seen but no pricing page view — tighten trial CTA copy/link');
     report.agent_priorities.push('pay: pricing strip impressions without click — A/B trial CTA');
+  }
+  if ((f.pricing_viewed || 0) >= 5 && (f.checkout_started || 0) === 0) {
+    report.agent_focus.push(
+      'Use → paid: pricing_viewed with 0 checkout_started — close auth-return + trial CTA (pricing_signin_cta_clicked)',
+    );
+    report.agent_priorities.push(
+      'pay: pricing→checkout 0% — preserve plan/source through Sign in; measure pricing_signin_cta_clicked',
+    );
   }
   if ((f.match_viewed || 0) > 5 && (f.match_explain_viewed || 0) === 0) {
     report.agent_priorities.push('use: match explain blocks not expanding — test default-open top match');

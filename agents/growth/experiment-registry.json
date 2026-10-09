@@ -548,7 +548,7 @@
         "primary": "pricing_bridge_clicked",
         "secondary": ["pricing_viewed", "checkout_started", "checkout_completed"]
       },
-      "promotion_note": "Shipped 2026-10-06 on the open investor card (isPaid=false). Loop preview_oracle_strip: opening a card fires pricing_strip_viewed; the button fires pricing_bridge_clicked and routes to /pricing?plan=oracle&source=match_lead_use_to_paid, which fires pricing_viewed. Success (7d): pricing_strip_viewed > 0 and pricing_bridge_clicked > 0, then checkout_started / those clicks. Status stays draft until that click shows up. Owner review required before status=running."
+      "promotion_note": "Shipped 2026-10-06 on the open investor card (isPaid=false). 2026-10-08: strip→bridge works (5 strip / 2 clicks) and pricing_viewed=15, but checkout_started still 0 — root cause is pricing_auth_return: Sign-in CTA dropped ?plan=&source=. Research shipped redirect preserve + pricing_signin_cta_clicked. Success (7d): pricing_signin_cta_clicked > 0 AND checkout_started > 0 from source=match_lead_use_to_paid. Promote to running once first checkout_started lands."
     }
   ]
 }

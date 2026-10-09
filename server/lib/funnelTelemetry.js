@@ -26,6 +26,7 @@ const FUNNEL_OPERATIONS = [
   'match_explain_viewed',
   'pricing_strip_viewed',
   'pricing_bridge_clicked',
+  'pricing_signin_cta_clicked',
   'founder_activation_email_sent',
   'wizard_outreach_preview_viewed',
   /** Oracle-centric raise funnel (see docs/PYTHH_VISION.md) */
