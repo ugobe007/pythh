@@ -222,7 +222,7 @@ async function enrichMatchesWithHunter(matches, {
         url: match.contact?.website || base.url || null,
         website: base.url || match.contact?.website || null,
         partners,
-        email: onFileIsPersonal ? onFileEmail : null,
+        email: hasPersonalVerified ? onFileEmail : null,
         email_best_guess: onFileIsPersonal
           ? (base.email_best_guess || null)
           : (base.email_best_guess && classifyContactEmail(base.email_best_guess) === 'personal'
