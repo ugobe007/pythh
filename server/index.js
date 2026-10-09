@@ -6927,6 +6927,8 @@ const adminJunkStartups = require('./routes/adminJunkStartups');
 app.use('/api/admin', adminJunkStartups);
 const adminMatchOutcomes = require('./routes/adminMatchOutcomes');
 app.use('/api/admin', adminMatchOutcomes);
+const adminTargetedMatch = require('./routes/adminTargetedMatch');
+app.use('/api/admin', adminTargetedMatch);
 
 const { loadSignalWeightConfig } = require('../lib/signalWeightConfig');
 loadSignalWeightConfig(getSupabaseClient()).catch((e) => {

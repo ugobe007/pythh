@@ -1428,6 +1428,46 @@ export const appRouter = router({
 
     getMatchSummary: adminProcedure.query(async () => getAdminMatchSummary()),
 
+    /** Targeted matches for a URL — up to 25, with strategy + contact (admin only). */
+    runTargetedMatch: adminProcedure
+      .input(
+        z.object({
+          url: z.string().min(2).max(500),
+          limit: z.number().int().min(1).max(25).optional(),
+          force: z.boolean().optional(),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const { runAdminTargetedMatch } = requireCjs("../server/lib/runAdminTargetedMatch.js") as {
+          runAdminTargetedMatch: (opts: {
+            url: string;
+            limit?: number;
+            force?: boolean;
+          }) => Promise<Record<string, unknown>>;
+        };
+        try {
+          return await runAdminTargetedMatch({
+            url: input.url,
+            limit: input.limit ?? 25,
+            force: input.force !== false,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const status = Number((err as { status?: number })?.status) || 500;
+          throw new TRPCError({
+            code:
+              status === 400
+                ? "BAD_REQUEST"
+                : status === 404
+                  ? "NOT_FOUND"
+                  : status === 503
+                    ? "TIMEOUT"
+                    : "INTERNAL_SERVER_ERROR",
+            message,
+          });
+        }
+      }),
+
     // ── ML Agent ──────────────────────────────────────────────────────────
     getMlRecommendations: adminProcedure.query(async () => getAdminMlRecommendations()),
 
