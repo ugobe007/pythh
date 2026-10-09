@@ -126,12 +126,6 @@ async function runAdminTargetedMatch(opts = {}) {
 
   const resolved = await resolveStartupViaInstantSubmit(url, { force });
   
-  if (resolved.queued || resolved.gen_in_progress) {
-    const err = new Error('Startup enrichment still in progress. Please wait and try again.');
-    err.status = 202;
-    throw err;
-  }
-  
   const supabase = getSupabaseClient();
 
   const { data: startup, error: sErr } = await supabase
