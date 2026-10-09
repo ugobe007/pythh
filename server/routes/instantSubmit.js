@@ -20,6 +20,10 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+// Declared near top for smoke-boot (first 2500 chars) + boot guard at file bottom.
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
@@ -54,11 +58,6 @@ const {
   toScoringProfileFromStartupUpload: toScoringProfile,
   calculateGodScoreColumnsFromStartup: calculateGODScore,
 } = require('../scoring/hotGodFromStartupRow');
-
-// Declared immediately after requires — boot guard at file bottom references these.
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY =
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // =============================================================================
 // URL scraping (separate from GOD mapping — see server/scoring/hotGodFromStartupRow.js)
