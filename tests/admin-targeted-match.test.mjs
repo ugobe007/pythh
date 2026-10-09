@@ -44,10 +44,44 @@ describe('admin targeted match helpers', () => {
     assert.equal(shaped.rank, 1);
     assert.equal(shaped.contact.email, 'ada@example.com');
     assert.equal(shaped.contact.email_type, 'verified');
+    assert.equal(shaped.contact.email_source, 'on_file');
     assert.equal(shaped.contact.linkedin_url, 'https://linkedin.com/in/ada');
     assert.deepEqual(shaped.strategy.why_you_match, ['Sector fit', 'Stage fit']);
     assert.match(shaped.strategy.why_you_match_text, /Sector fit/);
     assert.equal(shaped.strategy.investment_thesis, 'B2B infra');
     assert.equal(shaped.investor.firm, 'Example Cap');
+  });
+
+  it('prefers Hunter contact when provided', () => {
+    const shaped = shapeAdminMatch(
+      {
+        investor_id: 'inv-2',
+        match_score: 80,
+        why_you_match: 'Fit',
+        investors: {
+          id: 'inv-2',
+          name: 'Bea',
+          firm: 'Beta',
+          email_best_guess: 'old@beta.com',
+          url: 'https://beta.com',
+        },
+      },
+      2,
+      {
+        hunter: {
+          email: 'bea@beta.com',
+          emailType: 'personal',
+          source: 'hunter_email_finder',
+          hunterConfidence: 92,
+          position: 'Partner',
+          personName: 'Bea Beta',
+          email_status: 'verified',
+        },
+      },
+    );
+    assert.equal(shaped.contact.email, 'bea@beta.com');
+    assert.equal(shaped.contact.email_source, 'hunter_email_finder');
+    assert.equal(shaped.contact.hunter_confidence, 92);
+    assert.equal(shaped.contact.hunter_position, 'Partner');
   });
 });

@@ -3,6 +3,7 @@
 /**
  * Admin-only: run targeted investor matches for a startup URL.
  * Returns up to 25 firm-deduped matches with strategy + contact (email included).
+ * Optionally enriches contacts via Hunter.io (resolveInvestorContact).
  */
 
 const { getSupabaseClient } = require('./supabaseClient');
@@ -11,6 +12,12 @@ const { normalizeWhyYouMatch } = require('../../lib/normalizeWhyYouMatch');
 
 const MAX_LIMIT = 25;
 const DEFAULT_LIMIT = 25;
+const HUNTER_CONCURRENCY = 3;
+const HUNTER_GAP_MS = 250;
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function clampLimit(raw) {
   const n = Number(raw);
@@ -33,10 +40,14 @@ function joinInvestor(row) {
   return inv && typeof inv === 'object' ? inv : null;
 }
 
-function shapeAdminMatch(row, rank) {
-  const inv = joinInvestor(row) || {};
+function shapeAdminMatch(row, rank, extras = {}) {
+  const inv = { ...(joinInvestor(row) || {}), ...(extras.investorPatch || {}) };
   const email = resolveInvestorEmail(inv);
   const bullets = whyBullets(row.why_you_match);
+  const hunter = extras.hunter || null;
+  const contactEmail = hunter?.email || email?.address || null;
+  const contactType = hunter?.emailType || email?.type || null;
+  const contactSource = hunter?.source || (email?.address ? 'on_file' : null);
   return {
     rank,
     investor_id: row.investor_id || inv.id || null,
@@ -52,13 +63,18 @@ function shapeAdminMatch(row, rank) {
       fit_analysis: row.fit_analysis && typeof row.fit_analysis === 'object' ? row.fit_analysis : null,
     },
     contact: {
-      email: email?.address || null,
-      email_type: email?.type || null,
-      email_status: inv.email_status || null,
+      email: contactEmail,
+      email_type: contactType,
+      email_status: hunter?.email_status || inv.email_status || null,
+      email_source: contactSource,
+      hunter_confidence: hunter?.hunterConfidence ?? null,
+      hunter_position: hunter?.position || null,
+      person_name: hunter?.personName || null,
+      zero_bounce_status: hunter?.zeroBounceStatus || null,
       linkedin_url: inv.linkedin_url || null,
       twitter_url: inv.twitter_url || null,
       website: inv.url || null,
-      contactable: investorHasContact(inv),
+      contactable: !!(contactEmail || investorHasContact(inv)),
     },
     investor: {
       id: inv.id || null,
@@ -73,8 +89,220 @@ function shapeAdminMatch(row, rank) {
       total_investments: inv.total_investments ?? null,
       last_investment_date: inv.last_investment_date || null,
       photo_url: inv.photo_url || null,
+      partners: Array.isArray(inv.partners) ? inv.partners : [],
     },
   };
+}
+
+async function loadInvestorContactFields(supabase, investorIds) {
+  const ids = [...new Set((investorIds || []).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const { data, error } = await supabase
+    .from('investors')
+    .select('id, name, firm, url, partners, email, email_best_guess, email_status, email_has_mx')
+    .in('id', ids);
+  if (error) {
+    console.warn('[admin/targeted-match] partner load failed:', error.message);
+    return new Map();
+  }
+  return new Map((data || []).map((row) => [String(row.id), row]));
+}
+
+async function persistHunterContact(supabase, investorId, contact) {
+  if (!investorId || !contact?.email) return;
+  const isVerified =
+    contact.source === 'verified_on_file'
+    || (contact.hunterConfidence || 0) >= 85
+    || contact.zeroBounceStatus === 'valid';
+  const candidates = [{
+    address: contact.email,
+    type: contact.emailType === 'personal' ? 'personal' : 'intake',
+    confidence: Math.min((contact.hunterConfidence || 80) / 100, 0.99),
+    source: contact.source,
+    position: contact.position || null,
+  }];
+  const update = {
+    email_best_guess: contact.email,
+    email_candidates: candidates,
+    email_status: isVerified ? 'verified' : 'inferred',
+    email_enriched_at: new Date().toISOString(),
+    ...(isVerified
+      ? { email: contact.email, email_verified_at: new Date().toISOString() }
+      : {}),
+  };
+  const { error } = await supabase.from('investors').update(update).eq('id', investorId);
+  if (error) console.warn('[admin/targeted-match] hunter persist failed:', error.message);
+}
+
+/**
+ * Run Hunter.io lookups for shaped matches (up to 25).
+ * @returns {{ matches: object[], hunter: object }}
+ */
+async function enrichMatchesWithHunter(matches, {
+  supabase,
+  useHunter = true,
+  validate = false,
+  persist = true,
+} = {}) {
+  const stats = {
+    enabled: false,
+    available: false,
+    looked_up: 0,
+    found: 0,
+    rejected: 0,
+    skipped_on_file: 0,
+    errors: 0,
+    persisted: 0,
+  };
+
+  let resolveInvestorContact;
+  let hasHunterIo;
+  try {
+    ({ resolveInvestorContact } = await import('../../lib/resolveInvestorContact.mjs'));
+    ({ hasHunterIo } = await import('../../lib/hunterIo.mjs'));
+  } catch (err) {
+    console.warn('[admin/targeted-match] hunter modules unavailable:', err?.message || err);
+    return { matches, hunter: stats };
+  }
+
+  stats.available = hasHunterIo();
+  if (!useHunter || !stats.available) {
+    return { matches, hunter: stats };
+  }
+  stats.enabled = true;
+
+  const investorIds = matches.map((m) => m.investor_id).filter(Boolean);
+  const contactRows = await loadInvestorContactFields(supabase, investorIds);
+
+  const enriched = matches.map((m) => ({ ...m }));
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < enriched.length) {
+      const i = cursor;
+      cursor += 1;
+      const match = enriched[i];
+      const base = contactRows.get(String(match.investor_id)) || {};
+      const investorPayload = {
+        id: match.investor_id,
+        name: match.investor?.name || base.name,
+        firm: match.investor?.firm || base.firm,
+        url: match.contact?.website || base.url || null,
+        website: base.url || match.contact?.website || null,
+        partners: Array.isArray(base.partners) ? base.partners : [],
+        email: match.contact?.email || base.email || null,
+        email_best_guess: base.email_best_guess || null,
+        email_status: base.email_status || match.contact?.email_status || null,
+      };
+
+      // Still call Hunter when on-file email is only inferred/guess — upgrade path.
+      const hasVerifiedOnFile =
+        !!investorPayload.email
+        && (base.email_status === 'verified' || match.contact?.email_type === 'verified');
+
+      if (hasVerifiedOnFile) {
+        stats.skipped_on_file += 1;
+        enriched[i] = {
+          ...match,
+          contact: {
+            ...match.contact,
+            email_source: match.contact.email_source || 'verified_on_file',
+          },
+          investor: {
+            ...match.investor,
+            partners: investorPayload.partners,
+          },
+        };
+        continue;
+      }
+
+      stats.looked_up += 1;
+      try {
+        const contact = await resolveInvestorContact(investorPayload, {
+          useHunter: true,
+          validate,
+          allowCatchAll: true,
+        });
+        if (!contact || contact.rejected) {
+          stats.rejected += 1;
+          enriched[i] = {
+            ...match,
+            contact: {
+              ...match.contact,
+              email_source: match.contact.email_source || (contact?.reason ? `hunter_${contact.reason}` : 'hunter_miss'),
+            },
+            investor: { ...match.investor, partners: investorPayload.partners },
+          };
+        } else if (
+          contact.source === 'inferred_best_guess'
+          || contact.source === 'verified_on_file'
+        ) {
+          if (contact.source === 'verified_on_file') stats.skipped_on_file += 1;
+          else stats.rejected += 1;
+          enriched[i] = {
+            ...match,
+            contact: {
+              ...match.contact,
+              email: contact.email || match.contact.email,
+              email_type: contact.emailType || match.contact.email_type,
+              email_source: contact.source,
+              person_name: contact.personName || null,
+            },
+            investor: { ...match.investor, partners: investorPayload.partners },
+          };
+        } else {
+          stats.found += 1;
+          const hunterMeta = {
+            email: contact.email,
+            emailType: contact.emailType,
+            source: contact.source,
+            hunterConfidence: contact.hunterConfidence ?? null,
+            position: contact.position || null,
+            personName: contact.personName || null,
+            zeroBounceStatus: contact.zeroBounceStatus || null,
+            email_status:
+              (contact.hunterConfidence || 0) >= 85 || contact.zeroBounceStatus === 'valid'
+                ? 'verified'
+                : 'inferred',
+          };
+          if (persist && String(contact.source || '').startsWith('hunter')) {
+            await persistHunterContact(supabase, match.investor_id, contact);
+            stats.persisted += 1;
+          }
+          enriched[i] = {
+            ...match,
+            contact: {
+              ...match.contact,
+              email: hunterMeta.email,
+              email_type: hunterMeta.emailType,
+              email_status: hunterMeta.email_status,
+              email_source: hunterMeta.source,
+              hunter_confidence: hunterMeta.hunterConfidence,
+              hunter_position: hunterMeta.position,
+              person_name: hunterMeta.personName,
+              zero_bounce_status: hunterMeta.zeroBounceStatus,
+              contactable: true,
+            },
+            investor: { ...match.investor, partners: investorPayload.partners },
+          };
+        }
+      } catch (err) {
+        stats.errors += 1;
+        console.warn(
+          `[admin/targeted-match] hunter lookup failed for ${match.investor?.firm || match.investor_id}:`,
+          err?.message || err,
+        );
+      }
+      await sleep(HUNTER_GAP_MS);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(HUNTER_CONCURRENCY, enriched.length || 1) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return { matches: enriched, hunter: stats };
 }
 
 async function resolveStartupViaInstantSubmit(url, { force = true, timeoutMs = 20000 } = {}) {
@@ -111,7 +339,15 @@ async function resolveStartupViaInstantSubmit(url, { force = true, timeoutMs = 2
 }
 
 /**
- * @param {{ url: string, limit?: number, force?: boolean, maxMs?: number }} opts
+ * @param {{
+ *   url: string,
+ *   limit?: number,
+ *   force?: boolean,
+ *   maxMs?: number,
+ *   useHunter?: boolean,
+ *   validateHunter?: boolean,
+ *   persistContacts?: boolean,
+ * }} opts
  */
 async function runAdminTargetedMatch(opts = {}) {
   const url = String(opts.url || '').trim();
@@ -123,9 +359,12 @@ async function runAdminTargetedMatch(opts = {}) {
   const limit = clampLimit(opts.limit);
   const force = opts.force !== false;
   const maxMs = Number(opts.maxMs) > 0 ? Number(opts.maxMs) : 12000;
+  const useHunter = opts.useHunter !== false;
+  const validateHunter = opts.validateHunter === true;
+  const persistContacts = opts.persistContacts !== false;
 
   const resolved = await resolveStartupViaInstantSubmit(url, { force });
-  
+
   const supabase = getSupabaseClient();
 
   const { data: startup, error: sErr } = await supabase
@@ -175,14 +414,22 @@ async function runAdminTargetedMatch(opts = {}) {
     throw err;
   }
 
-  const matches = (scored?.matches || [])
+  const baseMatches = (scored?.matches || [])
     .slice(0, limit)
     .map((row, i) => shapeAdminMatch(row, i + 1));
+
+  const { matches, hunter } = await enrichMatchesWithHunter(baseMatches, {
+    supabase,
+    useHunter,
+    validate: validateHunter,
+    persist: persistContacts,
+  });
 
   return {
     ok: true,
     limit,
     force,
+    use_hunter: useHunter,
     startup: {
       id: startup.id,
       name: startup.name || resolved.name || null,
@@ -196,6 +443,7 @@ async function runAdminTargetedMatch(opts = {}) {
     engine_error: scored?.error || null,
     queued_on_submit: resolved.queued === true,
     gen_in_progress: resolved.gen_in_progress === true,
+    hunter,
     matches,
   };
 }
@@ -203,6 +451,7 @@ async function runAdminTargetedMatch(opts = {}) {
 module.exports = {
   runAdminTargetedMatch,
   shapeAdminMatch,
+  enrichMatchesWithHunter,
   clampLimit,
   MAX_LIMIT,
   DEFAULT_LIMIT,
