@@ -1428,13 +1428,16 @@ export const appRouter = router({
 
     getMatchSummary: adminProcedure.query(async () => getAdminMatchSummary()),
 
-    /** Targeted matches for a URL — up to 25, with strategy + contact (admin only). */
+    /** Targeted matches for a URL — up to 25, with strategy + Hunter contact (admin only). */
     runTargetedMatch: adminProcedure
       .input(
         z.object({
           url: z.string().min(2).max(500),
           limit: z.number().int().min(1).max(25).optional(),
           force: z.boolean().optional(),
+          useHunter: z.boolean().optional(),
+          validateHunter: z.boolean().optional(),
+          persistContacts: z.boolean().optional(),
         }),
       )
       .mutation(async ({ input }) => {
@@ -1443,6 +1446,9 @@ export const appRouter = router({
             url: string;
             limit?: number;
             force?: boolean;
+            useHunter?: boolean;
+            validateHunter?: boolean;
+            persistContacts?: boolean;
           }) => Promise<Record<string, unknown>>;
         };
         try {
@@ -1450,6 +1456,9 @@ export const appRouter = router({
             url: input.url,
             limit: input.limit ?? 25,
             force: input.force !== false,
+            useHunter: input.useHunter !== false,
+            validateHunter: input.validateHunter === true,
+            persistContacts: input.persistContacts !== false,
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);

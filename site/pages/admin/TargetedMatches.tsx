@@ -41,6 +41,11 @@ type TargetedMatch = {
     email: string | null;
     email_type: string | null;
     email_status: string | null;
+    email_source: string | null;
+    hunter_confidence: number | null;
+    hunter_position: string | null;
+    person_name: string | null;
+    zero_bounce_status: string | null;
     linkedin_url: string | null;
     twitter_url: string | null;
     website: string | null;
@@ -96,6 +101,9 @@ function matchesToCsv(matches: TargetedMatch[]) {
     "confidence",
     "email",
     "email_type",
+    "email_source",
+    "hunter_confidence",
+    "hunter_position",
     "linkedin",
     "twitter",
     "website",
@@ -118,6 +126,9 @@ function matchesToCsv(matches: TargetedMatch[]) {
         m.confidence_level || "",
         m.contact.email || "",
         m.contact.email_type || "",
+        m.contact.email_source || "",
+        m.contact.hunter_confidence ?? "",
+        m.contact.hunter_position || "",
         m.contact.linkedin_url || "",
         m.contact.twitter_url || "",
         m.contact.website || "",
@@ -217,9 +228,11 @@ function MatchRow({ match }: { match: TargetedMatch }) {
           ) : (
             <span style={{ color: DANGER }}>no email</span>
           )}
-          {match.contact.email_type ? (
-            <div style={{ fontSize: 10, marginTop: 2 }}>{match.contact.email_type}</div>
-          ) : null}
+          <div style={{ fontSize: 10, marginTop: 2 }}>
+            {[match.contact.email_source, match.contact.email_type, match.contact.hunter_confidence != null ? `conf ${match.contact.hunter_confidence}` : null]
+              .filter(Boolean)
+              .join(" · ") || "—"}
+          </div>
         </div>
         <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, color: G }}>
           {Math.round(match.match_score)}
@@ -294,6 +307,20 @@ function MatchRow({ match }: { match: TargetedMatch }) {
                     </button>
                   ) : null}
                 </div>
+                {(match.contact.email_source || match.contact.hunter_position || match.contact.person_name) && (
+                  <div style={{ color: MUTED, fontSize: 11 }}>
+                    {[
+                      match.contact.email_source,
+                      match.contact.person_name,
+                      match.contact.hunter_position,
+                      match.contact.hunter_confidence != null
+                        ? `Hunter ${match.contact.hunter_confidence}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                )}
                 {match.contact.linkedin_url ? (
                   <a href={match.contact.linkedin_url} target="_blank" rel="noreferrer" style={{ color: G }}>
                     LinkedIn ↗
@@ -349,6 +376,8 @@ export default function TargetedMatchesPage() {
   const [url, setUrl] = useState("neon.tech");
   const [limit, setLimit] = useState(25);
   const [force, setForce] = useState(true);
+  const [useHunter, setUseHunter] = useState(true);
+  const [persistContacts, setPersistContacts] = useState(true);
   const [result, setResult] = useState<{
     startup: {
       id: string;
@@ -360,6 +389,16 @@ export default function TargetedMatchesPage() {
     };
     match_count: number;
     engine_error: string | null;
+    hunter?: {
+      enabled: boolean;
+      available: boolean;
+      looked_up: number;
+      found: number;
+      rejected: number;
+      skipped_on_file: number;
+      errors: number;
+      persisted: number;
+    } | null;
     matches: TargetedMatch[];
   } | null>(null);
 
@@ -415,8 +454,8 @@ export default function TargetedMatchesPage() {
         <h1 style={{ fontSize: 28, fontWeight: 700, margin: "0 0 8px" }}>Targeted matches</h1>
         <p style={{ fontSize: 13, color: MUTED, marginTop: 0, maxWidth: 720 }}>
           Run the live matching engine for a specific startup URL. Returns up to 25 firm-deduped investors with
-          full strategy (why / reasoning / thesis / fit) and contact fields including email. Admin-only — emails
-          are never exposed on public APIs.
+          full strategy (why / reasoning / thesis / fit). Contact lookup uses Hunter.io for each match (name +
+          domain search), then falls back to on-file emails. Admin-only — emails are never exposed on public APIs.
         </p>
 
         {authLoading && (
@@ -434,11 +473,17 @@ export default function TargetedMatchesPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                run.mutate({ url: url.trim(), limit, force });
+                run.mutate({
+                  url: url.trim(),
+                  limit,
+                  force,
+                  useHunter,
+                  persistContacts,
+                });
               }}
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 120px auto auto",
+                gridTemplateColumns: "1fr 120px",
                 gap: 10,
                 alignItems: "end",
                 padding: 16,
@@ -469,42 +514,58 @@ export default function TargetedMatchesPage() {
                   style={{ ...fieldStyle, marginTop: 4 }}
                 />
               </label>
-              <label
+              <div
                 style={{
-                  fontSize: 12,
-                  color: MUTED,
+                  gridColumn: "1 / -1",
                   display: "flex",
+                  flexWrap: "wrap",
+                  gap: 16,
                   alignItems: "center",
-                  gap: 8,
-                  minHeight: 40,
-                  marginBottom: 2,
+                  justifyContent: "space-between",
                 }}
               >
-                <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
-                Force rematch
-              </label>
-              <button
-                type="submit"
-                disabled={run.isPending || !url.trim()}
-                style={{
-                  minHeight: 40,
-                  padding: "0 16px",
-                  borderRadius: 8,
-                  border: `1px solid ${G}`,
-                  background: G,
-                  color: "oklch(0.12 0.02 162)",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: run.isPending ? "wait" : "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  opacity: run.isPending ? 0.7 : 1,
-                }}
-              >
-                {run.isPending ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-                {run.isPending ? "Matching…" : "Run matches"}
-              </button>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+                  <label style={{ fontSize: 12, color: MUTED, display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+                    Force rematch
+                  </label>
+                  <label style={{ fontSize: 12, color: MUTED, display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={useHunter} onChange={(e) => setUseHunter(e.target.checked)} />
+                    Hunter.io contact lookup
+                  </label>
+                  <label style={{ fontSize: 12, color: MUTED, display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={persistContacts}
+                      onChange={(e) => setPersistContacts(e.target.checked)}
+                      disabled={!useHunter}
+                    />
+                    Persist Hunter emails to investors
+                  </label>
+                </div>
+                <button
+                  type="submit"
+                  disabled={run.isPending || !url.trim()}
+                  style={{
+                    minHeight: 40,
+                    padding: "0 16px",
+                    borderRadius: 8,
+                    border: `1px solid ${G}`,
+                    background: G,
+                    color: "oklch(0.12 0.02 162)",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: run.isPending ? "wait" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    opacity: run.isPending ? 0.7 : 1,
+                  }}
+                >
+                  {run.isPending ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                  {run.isPending ? (useHunter ? "Matching + Hunter…" : "Matching…") : "Run matches"}
+                </button>
+              </div>
             </form>
 
             {result && (
@@ -527,6 +588,12 @@ export default function TargetedMatchesPage() {
                       {result.match_count} matches · {contactableCount} with email
                       {result.startup.total_god_score != null
                         ? ` · GOD ${Math.round(Number(result.startup.total_god_score))}`
+                        : ""}
+                      {result.hunter
+                        ? result.hunter.available
+                          ? ` · Hunter ${result.hunter.found}/${result.hunter.looked_up} found` +
+                            (result.hunter.persisted ? ` · saved ${result.hunter.persisted}` : "")
+                          : " · Hunter unavailable (set HUNTER_API_KEY)"
                         : ""}
                       {result.engine_error ? ` · engine note: ${result.engine_error}` : ""}
                     </div>
