@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link } from "wouter";
 import {
   ChevronDown,
   ChevronRight,
@@ -64,8 +63,77 @@ type TargetedMatch = {
     total_investments: number | null;
     last_investment_date: string | null;
     photo_url: string | null;
+    partners?: unknown[];
   };
 };
+
+type TargetedMatchResult = {
+  startup: {
+    id: string;
+    name: string | null;
+    website: string | null;
+    total_god_score: number | null;
+    sectors: string[];
+    stage: string | string[] | null;
+  };
+  match_count: number;
+  engine_error: string | null;
+  hunter?: {
+    enabled: boolean;
+    available: boolean;
+    looked_up: number;
+    found: number;
+    rejected: number;
+    skipped_on_file: number;
+    errors: number;
+    persisted: number;
+  } | null;
+  matches: TargetedMatch[];
+};
+
+type StoredTargetedRun = {
+  version: 1;
+  savedAt: string;
+  url: string;
+  limit: number;
+  force: boolean;
+  useHunter: boolean;
+  persistContacts: boolean;
+  result: TargetedMatchResult;
+};
+
+const STORAGE_KEY = "pythh_admin_targeted_matches_v1";
+
+function loadStoredRun(): StoredTargetedRun | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredTargetedRun;
+    if (parsed?.version !== 1 || !parsed?.result?.matches?.length) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredRun(payload: StoredTargetedRun) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function clearStoredRun() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 const fieldStyle = {
   backgroundColor: "oklch(0.1 0.01 264)",
@@ -373,34 +441,15 @@ function MatchRow({ match }: { match: TargetedMatch }) {
 export default function TargetedMatchesPage() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const isAdmin = user?.role === "admin";
-  const [url, setUrl] = useState("neon.tech");
-  const [limit, setLimit] = useState(25);
-  const [force, setForce] = useState(true);
-  const [useHunter, setUseHunter] = useState(true);
-  const [persistContacts, setPersistContacts] = useState(true);
-  const [result, setResult] = useState<{
-    startup: {
-      id: string;
-      name: string | null;
-      website: string | null;
-      total_god_score: number | null;
-      sectors: string[];
-      stage: string | string[] | null;
-    };
-    match_count: number;
-    engine_error: string | null;
-    hunter?: {
-      enabled: boolean;
-      available: boolean;
-      looked_up: number;
-      found: number;
-      rejected: number;
-      skipped_on_file: number;
-      errors: number;
-      persisted: number;
-    } | null;
-    matches: TargetedMatch[];
-  } | null>(null);
+  const restored = useMemo(() => loadStoredRun(), []);
+  const [url, setUrl] = useState(restored?.url || "neon.tech");
+  const [limit, setLimit] = useState(restored?.limit ?? 25);
+  const [force, setForce] = useState(restored?.force ?? true);
+  const [useHunter, setUseHunter] = useState(restored?.useHunter ?? true);
+  const [persistContacts, setPersistContacts] = useState(restored?.persistContacts ?? true);
+  const [result, setResult] = useState<TargetedMatchResult | null>(restored?.result ?? null);
+  const [restoredBanner, setRestoredBanner] = useState(!!restored?.result);
+  const [cleared, setCleared] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -408,10 +457,38 @@ export default function TargetedMatchesPage() {
     }
   }, [authLoading, isAuthenticated]);
 
+  // Keep results when returning via browser back / remount.
+  useEffect(() => {
+    if (result || cleared) return;
+    const again = loadStoredRun();
+    if (again?.result) {
+      setResult(again.result);
+      setUrl(again.url);
+      setLimit(again.limit);
+      setForce(again.force);
+      setUseHunter(again.useHunter);
+      setPersistContacts(again.persistContacts);
+      setRestoredBanner(true);
+    }
+  }, [result, cleared]);
+
   const run = trpc.admin.runTargetedMatch.useMutation({
     onSuccess: (data) => {
-      setResult(data as typeof result);
-      toast.success(`${(data as { match_count?: number }).match_count ?? 0} targeted matches ready`);
+      const next = data as TargetedMatchResult;
+      setResult(next);
+      setCleared(false);
+      setRestoredBanner(false);
+      saveStoredRun({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        url: url.trim(),
+        limit,
+        force,
+        useHunter,
+        persistContacts,
+        result: next,
+      });
+      toast.success(`${next.match_count ?? 0} targeted matches ready — list kept for this session`);
     },
     onError: (err) => toast.error(err.message || "Targeted match failed"),
   });
@@ -599,8 +676,10 @@ export default function TargetedMatchesPage() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Link
+                    <a
                       href={`/matches/preview/${result.startup.id}`}
+                      target="_blank"
+                      rel="noreferrer"
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -614,7 +693,7 @@ export default function TargetedMatchesPage() {
                       }}
                     >
                       <ExternalLink size={12} /> Preview
-                    </Link>
+                    </a>
                     <button
                       type="button"
                       onClick={() => void copyEmails()}
@@ -651,8 +730,49 @@ export default function TargetedMatchesPage() {
                     >
                       <Download size={12} /> CSV
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearStoredRun();
+                        setCleared(true);
+                        setResult(null);
+                        setRestoredBanner(false);
+                        toast.message("Cleared saved match list");
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        color: MUTED,
+                        border: `1px solid ${BORDER}`,
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        background: "transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Clear list
+                    </button>
                   </div>
                 </div>
+
+                {restoredBanner && (
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: G,
+                      margin: "0 0 12px",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${BORDER}`,
+                      background: "oklch(0.55 0.15 162 / 0.08)",
+                    }}
+                  >
+                    Restored your last top-{result.matches.length} list for this browser session. Expand a row for
+                    strategy/contact — Preview opens in a new tab so this list stays here.
+                  </p>
+                )}
 
                 <div style={{ display: "grid", gap: 10 }}>
                   {result.matches.map((m) => (

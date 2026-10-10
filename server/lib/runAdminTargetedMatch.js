@@ -9,6 +9,7 @@
 const { getSupabaseClient } = require('./supabaseClient');
 const { resolveInvestorEmail, investorHasContact } = require('../../lib/recentInvestorDeals');
 const { normalizeWhyYouMatch } = require('../../lib/normalizeWhyYouMatch');
+const { classifyContactEmail } = require('../../lib/investorEmailInfer.js');
 
 const MAX_LIMIT = 25;
 const DEFAULT_LIMIT = 25;
@@ -183,42 +184,56 @@ async function enrichMatchesWithHunter(matches, {
       cursor += 1;
       const match = enriched[i];
       const base = contactRows.get(String(match.investor_id)) || {};
-      const investorPayload = {
-        id: match.investor_id,
-        name: match.investor?.name || base.name,
-        firm: match.investor?.firm || base.firm,
-        url: match.contact?.website || base.url || null,
-        website: base.url || match.contact?.website || null,
-        partners: Array.isArray(base.partners) ? base.partners : [],
-        email: base.email || null,
-        email_best_guess: base.email_best_guess || null,
-        email_status: base.email_status || null,
-      };
+      const onFileEmail = match.contact?.email || base.email || null;
+      const onFileType = classifyContactEmail(onFileEmail);
+      const onFileIsPersonal = onFileType === 'personal';
+      const partners = Array.isArray(base.partners) ? base.partners : [];
 
-      // Still call Hunter when on-file email is only inferred/guess — upgrade path.
-      const hasVerifiedOnFile =
-        !!investorPayload.email
-        && base.email_status === 'verified';
+      // Skip Hunter only when we already have a personal verified partner email.
+      // Intake addresses (pitch@, deals@, info@) always go through Hunter for a person.
+      const hasPersonalVerified =
+        !!onFileEmail
+        && onFileIsPersonal
+        && (base.email_status === 'verified' || match.contact?.email_type === 'verified');
 
-      if (hasVerifiedOnFile) {
+      if (hasPersonalVerified) {
         stats.skipped_on_file += 1;
         enriched[i] = {
           ...match,
           contact: {
             ...match.contact,
             email_source: match.contact.email_source || 'verified_on_file',
+            email_type: onFileType,
           },
           investor: {
             ...match.investor,
-            partners: investorPayload.partners,
+            partners,
           },
         };
         continue;
       }
 
+      // Clear intake/generic email so resolveInvestorContact does not short-circuit
+      // before Hunter; keep it as fallback if Hunter misses.
+      const hunterPayload = {
+        id: match.investor_id,
+        name: match.investor?.name || base.name,
+        firm: match.investor?.firm || base.firm,
+        url: match.contact?.website || base.url || null,
+        website: base.url || match.contact?.website || null,
+        partners,
+        email: onFileIsPersonal ? onFileEmail : null,
+        email_best_guess: onFileIsPersonal
+          ? (base.email_best_guess || null)
+          : (base.email_best_guess && classifyContactEmail(base.email_best_guess) === 'personal'
+            ? base.email_best_guess
+            : null),
+        email_status: base.email_status || match.contact?.email_status || null,
+      };
+
       stats.looked_up += 1;
       try {
-        const contact = await resolveInvestorContact(investorPayload, {
+        const contact = await resolveInvestorContact(hunterPayload, {
           useHunter: true,
           validate,
           allowCatchAll: true,
@@ -229,9 +244,14 @@ async function enrichMatchesWithHunter(matches, {
             ...match,
             contact: {
               ...match.contact,
-              email_source: match.contact.email_source || (contact?.reason ? `hunter_${contact.reason}` : 'hunter_miss'),
+              // Keep intake on-file email when Hunter misses
+              email: match.contact.email || onFileEmail,
+              email_type: onFileEmail ? onFileType : 'missing',
+              email_source: contact?.reason
+                ? `hunter_${contact.reason}`
+                : (onFileEmail ? 'on_file_after_hunter_miss' : 'hunter_miss'),
             },
-            investor: { ...match.investor, partners: investorPayload.partners },
+            investor: { ...match.investor, partners },
           };
         } else if (
           contact.source === 'inferred_best_guess'
@@ -243,12 +263,12 @@ async function enrichMatchesWithHunter(matches, {
             ...match,
             contact: {
               ...match.contact,
-              email: contact.email || match.contact.email,
-              email_type: contact.emailType || match.contact.email_type,
+              email: contact.email || match.contact.email || onFileEmail,
+              email_type: contact.emailType || match.contact.email_type || onFileType,
               email_source: contact.source,
               person_name: contact.personName || null,
             },
-            investor: { ...match.investor, partners: investorPayload.partners },
+            investor: { ...match.investor, partners },
           };
         } else {
           stats.found += 1;
@@ -283,7 +303,7 @@ async function enrichMatchesWithHunter(matches, {
               zero_bounce_status: hunterMeta.zeroBounceStatus,
               contactable: true,
             },
-            investor: { ...match.investor, partners: investorPayload.partners },
+            investor: { ...match.investor, partners },
           };
         }
       } catch (err) {
