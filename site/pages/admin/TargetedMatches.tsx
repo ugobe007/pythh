@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { downloadTargetedMatchesCsv } from "@/lib/targetedMatchesCsv";
 import { trpc } from "@/lib/trpc";
 
 const G = "oklch(0.696 0.17 162.48)";
@@ -153,65 +154,6 @@ function checkSizeLabel(min: number | null, max: number | null) {
   if (min != null && max != null) return `${fmt(min)}–${fmt(max)}`;
   if (min != null) return `${fmt(min)}+`;
   return `up to ${fmt(max!)}`;
-}
-
-function csvEscape(value: string) {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
-
-function matchesToCsv(matches: TargetedMatch[]) {
-  const headers = [
-    "rank",
-    "firm",
-    "name",
-    "match_score",
-    "confidence",
-    "email",
-    "email_type",
-    "email_source",
-    "hunter_confidence",
-    "hunter_position",
-    "linkedin",
-    "twitter",
-    "website",
-    "stage",
-    "sectors",
-    "check_size",
-    "why_you_match",
-    "reasoning",
-    "investment_thesis",
-  ];
-  const lines = [headers.join(",")];
-  for (const m of matches) {
-    const check = checkSizeLabel(m.investor.check_size_min, m.investor.check_size_max) || "";
-    lines.push(
-      [
-        m.rank,
-        m.investor.firm || "",
-        m.investor.name || "",
-        m.match_score,
-        m.confidence_level || "",
-        m.contact.email || "",
-        m.contact.email_type || "",
-        m.contact.email_source || "",
-        m.contact.hunter_confidence ?? "",
-        m.contact.hunter_position || "",
-        m.contact.linkedin_url || "",
-        m.contact.twitter_url || "",
-        m.contact.website || "",
-        Array.isArray(m.investor.stage) ? m.investor.stage.join("; ") : m.investor.stage || "",
-        (m.investor.sectors || []).join("; "),
-        check,
-        m.strategy.why_you_match_text || "",
-        m.strategy.reasoning || "",
-        m.strategy.investment_thesis || "",
-      ]
-        .map((v) => csvEscape(String(v ?? "")))
-        .join(","),
-    );
-  }
-  return lines.join("\n");
 }
 
 function FitChips({ fit }: { fit: Record<string, unknown> | null }) {
@@ -499,13 +441,12 @@ export default function TargetedMatchesPage() {
   );
 
   const downloadCsv = () => {
-    if (!result?.matches.length) return;
-    const blob = new Blob([matchesToCsv(result.matches)], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `targeted-matches-${result.startup.name || result.startup.id}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    if (!result?.matches.length) {
+      toast.error("Run matches first — nothing to export");
+      return;
+    }
+    downloadTargetedMatchesCsv(result.matches, result.startup);
+    toast.success(`Downloaded CSV · ${result.matches.length} rows`);
   };
 
   const copyEmails = async () => {
@@ -532,7 +473,8 @@ export default function TargetedMatchesPage() {
         <p style={{ fontSize: 13, color: MUTED, marginTop: 0, maxWidth: 720 }}>
           Run the live matching engine for a specific startup URL. Returns up to 25 firm-deduped investors with
           full strategy (why / reasoning / thesis / fit). Contact lookup uses Hunter.io for each match (name +
-          domain search), then falls back to on-file emails. Admin-only — emails are never exposed on public APIs.
+          domain search), then falls back to on-file emails. Use <strong style={{ color: TEXT }}>Download CSV</strong>{" "}
+          to review the top list in Sheets/Excel. Admin-only — emails are never exposed on public APIs.
         </p>
 
         {authLoading && (
@@ -620,28 +562,52 @@ export default function TargetedMatchesPage() {
                     Persist Hunter emails to investors
                   </label>
                 </div>
-                <button
-                  type="submit"
-                  disabled={run.isPending || !url.trim()}
-                  style={{
-                    minHeight: 40,
-                    padding: "0 16px",
-                    borderRadius: 8,
-                    border: `1px solid ${G}`,
-                    background: G,
-                    color: "oklch(0.12 0.02 162)",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: run.isPending ? "wait" : "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    opacity: run.isPending ? 0.7 : 1,
-                  }}
-                >
-                  {run.isPending ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-                  {run.isPending ? (useHunter ? "Matching + Hunter…" : "Matching…") : "Run matches"}
-                </button>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button
+                    type="submit"
+                    disabled={run.isPending || !url.trim()}
+                    style={{
+                      minHeight: 40,
+                      padding: "0 16px",
+                      borderRadius: 8,
+                      border: `1px solid ${G}`,
+                      background: G,
+                      color: "oklch(0.12 0.02 162)",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: run.isPending ? "wait" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      opacity: run.isPending ? 0.7 : 1,
+                    }}
+                  >
+                    {run.isPending ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                    {run.isPending ? (useHunter ? "Matching + Hunter…" : "Matching…") : "Run matches"}
+                  </button>
+                  {result?.matches?.length ? (
+                    <button
+                      type="button"
+                      onClick={downloadCsv}
+                      style={{
+                        minHeight: 40,
+                        padding: "0 14px",
+                        borderRadius: 8,
+                        border: `1px solid ${BORDER}`,
+                        background: "transparent",
+                        color: TEXT,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Download size={14} /> Download CSV ({result.matches.length})
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </form>
 
@@ -720,15 +686,16 @@ export default function TargetedMatchesPage() {
                         alignItems: "center",
                         gap: 6,
                         fontSize: 12,
-                        color: TEXT,
-                        border: `1px solid ${BORDER}`,
+                        fontWeight: 700,
+                        color: "#0a0a0a",
+                        border: `1px solid ${G}`,
                         borderRadius: 8,
-                        padding: "8px 10px",
-                        background: "transparent",
+                        padding: "8px 12px",
+                        background: G,
                         cursor: "pointer",
                       }}
                     >
-                      <Download size={12} /> CSV
+                      <Download size={12} /> Download CSV
                     </button>
                     <button
                       type="button"
