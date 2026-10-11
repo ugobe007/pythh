@@ -228,14 +228,20 @@ export async function fetchInstantResults(startupId: string): Promise<InstantRes
     const res = await fetch(apiUrl(`/api/instant/results?startup_id=${encodeURIComponent(startupId)}`));
     const data = (await res.json().catch(() => ({}))) as InstantResultsPayload & { error?: string };
     if (res.ok && data.startup_id) {
-      cacheFounderShortlist({
-        startupId,
-        companyUrl: typeof data.startup?.website === 'string' ? data.startup.website : null,
-        companyName: typeof data.startup?.name === 'string' ? data.startup.name : null,
-        startup: data.startup,
-        matches: data.matches ?? [],
-        total_matches: data.match_count ?? data.matches?.length ?? 0,
-      });
+      const hasMatches = Array.isArray(data.matches) && data.matches.length > 0;
+      const cached = readCachedFounderShortlist(startupId);
+      
+      // Only overwrite cache if new response has matches, or no cached matches exist.
+      if (hasMatches || !cached?.matches?.length) {
+        cacheFounderShortlist({
+          startupId,
+          companyUrl: typeof data.startup?.website === 'string' ? data.startup.website : null,
+          companyName: typeof data.startup?.name === 'string' ? data.startup.name : null,
+          startup: data.startup,
+          matches: data.matches ?? [],
+          total_matches: data.match_count ?? data.matches?.length ?? 0,
+        });
+      }
       return data;
     }
 
@@ -253,14 +259,20 @@ export async function fetchInstantResults(startupId: string): Promise<InstantRes
       matches: preview.matches ?? [],
       match_count: preview.total_matches ?? preview.matches?.length ?? 0,
     };
-    cacheFounderShortlist({
-      startupId,
-      companyUrl: typeof preview.startup?.website === 'string' ? preview.startup.website : null,
-      companyName: typeof preview.startup?.name === 'string' ? preview.startup.name : null,
-      startup: preview.startup,
-      matches: payload.matches,
-      total_matches: payload.match_count,
-    });
+    const hasMatches = Array.isArray(payload.matches) && payload.matches.length > 0;
+    const cached = readCachedFounderShortlist(startupId);
+    
+    // Only overwrite cache if new response has matches, or no cached matches exist.
+    if (hasMatches || !cached?.matches?.length) {
+      cacheFounderShortlist({
+        startupId,
+        companyUrl: typeof preview.startup?.website === 'string' ? preview.startup.website : null,
+        companyName: typeof preview.startup?.name === 'string' ? preview.startup.name : null,
+        startup: preview.startup,
+        matches: payload.matches,
+        total_matches: payload.match_count,
+      });
+    }
     return payload;
   } catch {
     return null;
