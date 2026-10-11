@@ -216,7 +216,7 @@
       "metric": "checkout_started / pricing_viewed",
       "baseline": "15 pricing_viewed; 0 checkout_started; 2 pricing_bridge_clicked (2026-10-08)",
       "target": "checkout_started > 0 within 7d; checkout_per_pricing_view > 10%",
-      "next_step": "Monitor pricing_signin_cta_clicked + checkout_started after pricing_auth_return ship; if still 0 among authenticated pricing views, audit Stripe createCheckoutSession errors.",
+      "next_step": "Shipped pricing_auto_checkout (post-signin Stripe start + plan/source on unlock CTAs). Monitor checkout_started + auto:true for 7d; if still 0 among authenticated pricing views, audit Stripe createCheckoutSession errors.",
       "related_experiments": ["founder_hero_entry", "pricing_oracle_cta", "founder_match_lead_pricing_bridge"]
     }
   ]

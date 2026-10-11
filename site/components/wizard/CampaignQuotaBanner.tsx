@@ -85,7 +85,7 @@ export default function CampaignQuotaBanner({ quota, onUpgradeClick }: Props) {
       </p>
 
       {quota.at_limit && quota.upgrade_plan === "oracle" && (
-        <Link href="/pricing" className="block mt-3" onClick={onUpgradeClick}>
+        <Link href="/pricing?plan=oracle&source=campaign_quota" className="block mt-3" onClick={onUpgradeClick}>
           <span
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold"
             style={{ background: "oklch(0.769 0.188 70.08)", color: "#0a0a0a" }}

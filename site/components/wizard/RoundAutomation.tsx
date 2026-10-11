@@ -710,7 +710,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             {activating ? "Activating…" : "Activate PYTHIA round"}
           </button>
         ) : gate.pipeline_ready && quota?.at_limit ? (
-          <Link href="/pricing">
+          <Link href="/pricing?plan=oracle&source=round_automation_quota">
             <span
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
               style={{ background: "oklch(0.769 0.188 70.08)", color: "#0a0a0a" }}
@@ -721,7 +721,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             </span>
           </Link>
         ) : gate.pipeline_ready && quota?.plan === "none" ? (
-          <Link href="/pricing">
+          <Link href="/pricing?plan=scout&source=round_automation_subscribe">
             <span
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
               style={{ background: "#22c55e", color: "#0a0a0a" }}
@@ -733,7 +733,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
           </Link>
         ) : (
           <div className="space-y-2">
-            <Link href="/pricing">
+            <Link href="/pricing?plan=scout&source=round_automation_trial">
               <span
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
                 style={{ background: "oklch(0.696 0.17 162.48)", color: "#0a0a0a" }}
@@ -745,7 +745,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             </Link>
             <p className="text-[10px] text-center" style={{ color: "oklch(0.42 0.01 264)" }}>
               14-day trial ·{" "}
-              <Link href="/pricing" className="underline" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+              <Link href="/pricing?plan=oracle&source=round_automation_trial" className="underline" style={{ color: "oklch(0.696 0.17 162.48)" }}>
                 Oracle $49/mo · {ORACLE_PLAN.outreachCampaigns} campaigns
               </Link>
               {" "}· manual copy above stays free
