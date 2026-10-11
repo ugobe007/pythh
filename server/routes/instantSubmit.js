@@ -87,6 +87,11 @@ const {
   mergeSignalDimsIntoStartup,
   upsertSignalScoresFromPreGod,
 } = require('../../lib/signalInformedGod');
+const {
+  materialMatchChange,
+  persistMatchFingerprint,
+  loadStoredSuggestedMatches,
+} = require('../lib/matchPersistence');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -2562,7 +2567,7 @@ router.post('/submit', async (req, res) => {
         .eq('startup_id', startupId)
         .eq('status', 'suggested');
 
-      if (!sectorRegenRequired && (existingMatchCount || 0) >= 20) {
+      if (!sectorRegenRequired && (existingMatchCount || 0) >= 5) {
         if (await matchesLookSectorStale(supabase, startup)) {
           sectorRegenRequired = true;
           console.log(`  🔄 Stale sector-aligned matches for ${startup.name} — queuing regen`);
@@ -2576,10 +2581,48 @@ router.post('/submit', async (req, res) => {
           matchCacheInvalidate(startupId);
         }
       }
-      
+
+      const change = materialMatchChange(startup, {
+        forceGenerate,
+        sectorRegenRequired,
+      });
+
+      // Resubmit / post-question hops: reuse the remembered shortlist when the
+      // material profile (sectors, stage, campaign brief) is unchanged.
+      if ((existingMatchCount || 0) >= 5 && !change.material) {
+        const stored = await loadStoredSuggestedMatches(supabase, startupId, {
+          select: MATCH_API_SELECT,
+          limit: 80,
+        });
+        if (stored.matches?.length) {
+          await persistMatchFingerprint(supabase, startupId, startup);
+          const processingTime = Date.now() - startTime;
+          console.log(
+            `  💾 Reused ${stored.matches.length} stored matches for ${startup?.name} in ${processingTime}ms (${change.reason})`,
+          );
+          _intelMatches = stored.matches.length;
+          trackInstantSubmitFunnel(req, {
+            startupId,
+            url: inputRaw,
+            matchCount: stored.matches.length,
+            startup,
+          });
+          return res.json({
+            startup_id: startupId,
+            startup,
+            matches: stored.matches,
+            match_count: stored.matches.length,
+            is_new: false,
+            cached: true,
+            cache_source: 'stored',
+            reuse_reason: change.reason,
+            processing_time_ms: processingTime,
+          });
+        }
+      }
+
       if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate && !sectorRegenRequired) {
-        // Score the current investor table. Stored startup_investor_matches rows
-        // are the last write, not the answer for this request.
+        // Profile changed (or no fingerprint yet) — re-score and remember.
         const ph = uploadRowToPlaceholderStartup(startupId, startup);
         const sm = await generateSyncTopMatchesForHttpResponse(supabase, {
           startupId,
@@ -2589,8 +2632,11 @@ router.post('/submit', async (req, res) => {
           topN: 80,
         });
         if (sm.matches?.length) {
+          await persistMatchFingerprint(supabase, startupId, startup);
           const processingTime = Date.now() - startTime;
-          console.log(`  ⚡ Engine scored ${sm.matches.length} matches for ${startup?.name} in ${processingTime}ms`);
+          console.log(
+            `  ⚡ Engine scored ${sm.matches.length} matches for ${startup?.name} in ${processingTime}ms (${change.reason})`,
+          );
           _intelMatches = sm.matches.length;
           trackInstantSubmitFunnel(req, {
             startupId,
@@ -2606,6 +2652,7 @@ router.post('/submit', async (req, res) => {
             is_new: false,
             cached: false,
             cache_source: 'matching_engine',
+            rematch_reason: change.reason,
             processing_time_ms: processingTime,
           });
         }
@@ -3119,6 +3166,10 @@ router.post('/rescore', async (req, res) => {
       signalTotal,
       maxMs: 6000,
     });
+
+    if (result.match_count > 0) {
+      await persistMatchFingerprint(supabase, startupId, updatedStartup);
+    }
 
     return res.json({
       ok: true,
