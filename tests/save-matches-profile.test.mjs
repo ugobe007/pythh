@@ -73,8 +73,8 @@ test('save signup lands on the account profile, not the newsletter', () => {
   assert.match(hub, /Your saved matches — \{companyLabel\}/);
   assert.match(hub, /MatchInvestorLead/);
   assert.match(hub, /defaultOpen=\{false\}/);
-  assert.match(hub, /source=account_saved/);
-  assert.match(hub, /fetchInstantResults/);
+  assert.match(hub, /fetchAccountSavedShortlist/);
+  assert.match(hub, /account_saved/);
   assert.match(hub, /readCachedFounderShortlist/);
   assert.match(hub, /Email my 5 matches/);
   assert.match(hub, /sendSavedMatchesEmail/);

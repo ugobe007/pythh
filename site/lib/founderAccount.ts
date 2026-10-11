@@ -222,17 +222,66 @@ export type InstantResultsPayload = {
   match_count?: number;
 };
 
-/** Load existing preview/scan results without re-running the pipeline. */
+/**
+ * Load the founder shortlist the product already showed (stored preview rows).
+ * Prefer this over /api/instant/results — that endpoint ranks a different top slice.
+ */
+export async function fetchAccountSavedShortlist(
+  startupId: string,
+  source: 'account_saved' | 'post_signup' = 'account_saved',
+): Promise<InstantResultsPayload | null> {
+  if (!startupId) return null;
+  try {
+    const previewRes = await fetch(
+      apiUrl(`/api/preview/${encodeURIComponent(startupId)}?source=${encodeURIComponent(source)}`),
+    );
+    if (!previewRes.ok) return null;
+    const preview = (await previewRes.json()) as {
+      startup?: Record<string, unknown>;
+      matches?: unknown[];
+      total_matches?: number;
+      match_source?: string;
+    };
+    if (!preview.startup) return null;
+    const payload: InstantResultsPayload = {
+      startup_id: startupId,
+      startup: preview.startup,
+      matches: preview.matches ?? [],
+      match_count: preview.total_matches ?? preview.matches?.length ?? 0,
+    };
+    const hasMatches = Array.isArray(payload.matches) && payload.matches.length > 0;
+    const cached = readCachedFounderShortlist(startupId);
+    if (hasMatches || !cached?.matches?.length) {
+      cacheFounderShortlist({
+        startupId,
+        companyUrl: typeof preview.startup?.website === 'string' ? preview.startup.website : null,
+        companyName: typeof preview.startup?.name === 'string' ? preview.startup.name : null,
+        startup: preview.startup,
+        matches: payload.matches,
+        total_matches: payload.match_count,
+      });
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+/** Load existing scan results. Prefer account-saved shortlist; instant/results is a fallback only. */
 export async function fetchInstantResults(startupId: string): Promise<InstantResultsPayload | null> {
   try {
+    const saved = await fetchAccountSavedShortlist(startupId, 'account_saved');
+    if (saved?.matches?.length) return saved;
+
+    const postSignup = await fetchAccountSavedShortlist(startupId, 'post_signup');
+    if (postSignup?.matches?.length) return postSignup;
+
     const res = await fetch(apiUrl(`/api/instant/results?startup_id=${encodeURIComponent(startupId)}`));
     const data = (await res.json().catch(() => ({}))) as InstantResultsPayload & { error?: string };
     if (res.ok && data.startup_id) {
-      const hasMatches = Array.isArray(data.matches) && data.matches.length > 0;
+      // Do not overwrite a preview shortlist cache with the instant/results ranking.
       const cached = readCachedFounderShortlist(startupId);
-      
-      // Only overwrite cache if new response has matches, or no cached matches exist.
-      if (hasMatches || !cached?.matches?.length) {
+      if (!cached?.matches?.length) {
         cacheFounderShortlist({
           startupId,
           companyUrl: typeof data.startup?.website === 'string' ? data.startup.website : null,
@@ -245,35 +294,7 @@ export async function fetchInstantResults(startupId: string): Promise<InstantRes
       return data;
     }
 
-    const previewRes = await fetch(apiUrl(`/api/preview/${encodeURIComponent(startupId)}?source=post_signup`));
-    if (!previewRes.ok) return null;
-    const preview = (await previewRes.json()) as {
-      startup?: Record<string, unknown>;
-      matches?: unknown[];
-      total_matches?: number;
-    };
-    if (!preview.startup) return null;
-    const payload = {
-      startup_id: startupId,
-      startup: preview.startup,
-      matches: preview.matches ?? [],
-      match_count: preview.total_matches ?? preview.matches?.length ?? 0,
-    };
-    const hasMatches = Array.isArray(payload.matches) && payload.matches.length > 0;
-    const cached = readCachedFounderShortlist(startupId);
-    
-    // Only overwrite cache if new response has matches, or no cached matches exist.
-    if (hasMatches || !cached?.matches?.length) {
-      cacheFounderShortlist({
-        startupId,
-        companyUrl: typeof preview.startup?.website === 'string' ? preview.startup.website : null,
-        companyName: typeof preview.startup?.name === 'string' ? preview.startup.name : null,
-        startup: preview.startup,
-        matches: payload.matches,
-        total_matches: payload.match_count,
-      });
-    }
-    return payload;
+    return null;
   } catch {
     return null;
   }

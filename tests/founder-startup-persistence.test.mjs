@@ -27,12 +27,14 @@ test('founder account restores startup context from the protected profile', asyn
   assert.match(hub, /profile\?\.startupId/);
   assert.match(hub, /pinActiveStartup\(profile\.startupId/);
   assert.match(hub, /Your saved matches/);
-  assert.match(hub, /fetchInstantResults/);
+  assert.match(hub, /fetchAccountSavedShortlist/);
   assert.match(hub, /readCachedFounderShortlist/);
   assert.match(hub, /resolveStartupIdForUrl/);
-  assert.match(hub, /source=account_saved/);
+  assert.match(account, /fetchAccountSavedShortlist/);
   assert.match(account, /cacheFounderShortlist/);
   assert.match(account, /pinActiveStartup\(opts\.startupId/);
+  // Account must prefer stored preview shortlist over instant/results ranking.
+  assert.match(account, /Do not overwrite a preview shortlist cache/);
 });
 
 test('founder profile schema and migration include startup ownership', async () => {
