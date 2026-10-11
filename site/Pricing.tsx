@@ -33,15 +33,19 @@ import {
 
 type BillingCycle = "monthly" | "annual";
 
-/** Session flag so post-login return can start Stripe without a second click. */
+/** Session keys so post-login return can start Stripe without a second click. */
 const AUTO_CHECKOUT_KEY = "pythh_pricing_auto_checkout";
+const AUTO_CHECKOUT_BILLING_KEY = "pythh_pricing_auto_checkout_billing";
 
-function pricingReturnPath(planId?: string | null): string {
+function pricingReturnPath(planId?: string | null, billingCycle?: BillingCycle): string {
   if (typeof window === "undefined") return "/pricing";
   const params = new URLSearchParams(window.location.search);
   if (planId === "scout" || planId === "oracle") {
     params.set("plan", planId);
     params.set("checkout", "1");
+    if (billingCycle) {
+      params.set("billing", billingCycle);
+    }
   }
   const qs = params.toString();
   const path = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
@@ -90,8 +94,8 @@ function PlanCTA({
   if (plan.stripePlanId && onCheckout) {
     const label =
       plan.id === "oracle" && oracleCtaLabel ? oracleCtaLabel : plan.cta;
-    // Preserve plan/source + checkout=1 so post-login can start Stripe without a second click.
-    const safeReturn = pricingReturnPath(plan.stripePlanId);
+    // Preserve plan/billing/source + checkout=1 so post-login can start Stripe without a second click.
+    const safeReturn = pricingReturnPath(plan.stripePlanId, billing);
     const loginHref = `/login?redirect=${encodeURIComponent(safeReturn)}`;
 
     if (!isAuthenticated) {
@@ -105,6 +109,7 @@ function PlanCTA({
                 : null;
             try {
               sessionStorage.setItem(AUTO_CHECKOUT_KEY, plan.stripePlanId || plan.id);
+              sessionStorage.setItem(AUTO_CHECKOUT_BILLING_KEY, billing);
             } catch {
               /* private mode */
             }
@@ -270,7 +275,11 @@ function PricingCard({
 }
 
 export default function Pricing() {
-  const [billing, setBilling] = useState<BillingCycle>("monthly");
+  const [billing, setBilling] = useState<BillingCycle>(() => {
+    if (typeof window === "undefined") return "monthly";
+    const urlBilling = new URLSearchParams(window.location.search).get("billing");
+    return urlBilling === "annual" ? "annual" : "monthly";
+  });
   const requestedPlan = (() => {
     if (typeof window === "undefined") return null;
     const plan = new URLSearchParams(window.location.search).get("plan");
@@ -355,28 +364,22 @@ export default function Pricing() {
     });
   };
 
-  // Close the post-signin second-click hole: return from Sign-in with ?plan=&checkout=1
-  // (or the session flag) and start Stripe once.
+  // Close the post-signin second-click hole: return from Sign-in with ?plan=&checkout=1 and start Stripe once.
+  // Only auto-start when checkout=1 is explicitly in the URL to avoid stale session flag leakage.
   useEffect(() => {
     if (authLoading || !isAuthenticated || !requestedPlan || isActiveSubscriber) return;
     if (subscriptionLoading) return;
     if (autoCheckoutStarted.current || checkingOutPlan) return;
 
-    let pendingPlan: string | null = null;
-    try {
-      pendingPlan = sessionStorage.getItem(AUTO_CHECKOUT_KEY);
-    } catch {
-      pendingPlan = null;
-    }
-    const wantsCheckout =
-      (typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).get("checkout") === "1") ||
-      pendingPlan === requestedPlan;
-    if (!wantsCheckout) return;
+    const hasCheckoutParam =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("checkout") === "1";
+    if (!hasCheckoutParam) return;
 
     autoCheckoutStarted.current = true;
     try {
       sessionStorage.removeItem(AUTO_CHECKOUT_KEY);
+      sessionStorage.removeItem(AUTO_CHECKOUT_BILLING_KEY);
     } catch {
       /* ignore */
     }
