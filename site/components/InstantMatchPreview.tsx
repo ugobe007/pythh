@@ -26,6 +26,7 @@ import {
 } from '@/lib/founderSignupGate';
 import {
   accountShortlistSentKey,
+  cacheFounderShortlist,
   persistFounderStartup,
   readAccountEmail,
   readJoinEmail,
@@ -212,6 +213,16 @@ export default function InstantMatchPreview({ url }: Props) {
 
   const persistShortlist = async (id: string, name?: string | null) => {
     const pendingAction = peekFounderGatePending().action;
+    cacheFounderShortlist({
+      startupId: id,
+      companyUrl: url,
+      companyName: name,
+      startup: preview?.startup
+        ? (preview.startup as unknown as Record<string, unknown>)
+        : { id, name, website: url },
+      matches: preview?.matches || [],
+      total_matches: preview?.total_matches ?? preview?.matches?.length ?? 0,
+    });
     const ok = await persistFounderStartup({ startupId: id, companyUrl: url, companyName: name });
     if (peekFounderGatePending().pending) {
       await completePreviewGateIfPending({
@@ -436,6 +447,7 @@ export default function InstantMatchPreview({ url }: Props) {
         setPreview(data);
         if (!cancelled) setLoading(false);
 
+        let finalData = data;
         if (!isMixRefetch && !cancelled && matchPass === 0) {
           const waitingForStored = Boolean(
             data.suggested_investor_fallback || !(data.total_matches && data.total_matches > 0),
@@ -461,6 +473,7 @@ export default function InstantMatchPreview({ url }: Props) {
               && !next.suggested_investor_fallback;
             if (storedArrived || (nextKey && nextKey !== seen)) {
               setPreview(next);
+              finalData = next;
               seen = nextKey;
               if (storedArrived || !waitingForStored) break;
             }
@@ -471,7 +484,7 @@ export default function InstantMatchPreview({ url }: Props) {
           void trackFunnelEventOnce(`instant_matches_viewed:${startupId}`, 'instant_matches_viewed', {
             startup_id: startupId,
             url,
-            match_count: data.matches?.length ?? 0,
+            match_count: finalData.matches?.length ?? 0,
             source: 'matches_preview',
             investor_mix: investorMix,
           });
@@ -479,12 +492,20 @@ export default function InstantMatchPreview({ url }: Props) {
           if (!authLoading && !isAuthenticated) {
             recordAnonymousPreview(url);
           }
-          if (data.startup?.id) {
-            pinActiveStartup(data.startup.id, url, data.startup.name ?? null);
+          if (finalData.startup?.id) {
+            pinActiveStartup(finalData.startup.id, url, finalData.startup.name ?? null);
+            cacheFounderShortlist({
+              startupId: finalData.startup.id,
+              companyUrl: url,
+              companyName: finalData.startup.name ?? null,
+              startup: finalData.startup as unknown as Record<string, unknown>,
+              matches: finalData.matches || [],
+              total_matches: finalData.total_matches ?? finalData.matches?.length ?? 0,
+            });
           }
         }
 
-        for (const m of (data.matches || []).slice(0, PREVIEW_LIMIT)) {
+        for (const m of (finalData.matches || []).slice(0, PREVIEW_LIMIT)) {
           const invId = m.investor_id || m.investor?.id;
           if (invId) recordMatchViewOnce(startupId, invId, 'instant_match_preview');
         }

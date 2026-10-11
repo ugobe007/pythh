@@ -663,7 +663,16 @@ async function buildPriorityInvestorMatches(startup, priorities) {
 /**
  * Load current investors and score them with calculateMatchScore.
  * Stored startup_investor_matches rows are only a fallback if the engine returns nothing.
+ *
+ * Account / post-signup loads must NOT rematch — founders already saw a shortlist and
+ * expect the same persisted rows without waiting on the engine again.
  */
+const PREFER_STORED_PREVIEW_SOURCES = new Set(['account_saved', 'post_signup']);
+
+function shouldPreferStoredMatches(source, storedCount) {
+  return PREFER_STORED_PREVIEW_SOURCES.has(String(source || '')) && Number(storedCount) > 0;
+}
+
 async function scorePreviewWithEngine(startup) {
   if (typeof scoreStartupMatches !== 'function' || typeof uploadRowToPlaceholderStartup !== 'function') {
     return [];
@@ -932,11 +941,13 @@ router.get('/:startupId', async (req, res) => {
       ? Math.round(100 - ((higherCount / approvedTotal) * 100))
       : 50;
 
-    const engineRows = await scorePreviewWithEngine(rankedStartup);
     const eligibleRows = (matchRows || []).filter((row) => {
       const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
       return inv && (inv.id || row.investor_id);
     });
+    const previewSource = String(req.query.source || 'preview_api');
+    const preferStored = shouldPreferStoredMatches(previewSource, eligibleRows.length);
+    const engineRows = preferStored ? [] : await scorePreviewWithEngine(rankedStartup);
     const fitSectors = sectorsForMatching(rankedStartup);
     const startupForFit = { ...rankedStartup, sectors: fitSectors.length ? fitSectors : rankedStartup.sectors };
     if (!engineRows.length) {
@@ -953,7 +964,13 @@ router.get('/:startupId', async (req, res) => {
     const hasCampaign = campaignIsActionable(campaignBrief);
     // Stored rows are the fallback. A saved campaign still needs sector investors
     // only when the matching engine did not score this request.
-    if (!engineRows.length && eligibleRows.length > 0 && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))) {
+    // Never blend/rematch on account_saved / post_signup when rows already exist.
+    if (
+      !preferStored
+      && !engineRows.length
+      && eligibleRows.length > 0
+      && (hasCampaign || (hasSpecificSector(fitSectors) && strongStored < 3))
+    ) {
       const suggested = await buildSuggestedInvestorMatches(rankedStartup, { maxSectors: 3 });
       const blended = blendStoredWithSectorSuggestions(eligibleRows, suggested);
       pool = blended.rows;
@@ -964,7 +981,7 @@ router.get('/:startupId', async (req, res) => {
         void persistSectorSuggestions(rankedStartup.id, fresh);
       }
     }
-    if (campaignBrief.priorities.length) {
+    if (!preferStored && campaignBrief.priorities.length) {
       const priorityRows = await buildPriorityInvestorMatches(rankedStartup, campaignBrief.priorities);
       const seen = new Set(pool.map((row) => String(row.investor_id)));
       for (const row of priorityRows) {
@@ -979,7 +996,7 @@ router.get('/:startupId', async (req, res) => {
 
     let matches = buildPreviewMatchList(pool, mixOptions);
     let suggestedInvestorFallback = false;
-    if (matches.length === 0) {
+    if (matches.length === 0 && !preferStored) {
       const suggested = await buildSuggestedInvestorMatches(rankedStartup);
       matches = buildPreviewMatchList(suggested, { ...mixOptions, total: 5 });
       if (matches.length > 0) suggestedInvestorFallback = true;
@@ -1046,7 +1063,7 @@ router.get('/:startupId', async (req, res) => {
       oracle_gap: oracleGap,
       suggested_investor_fallback: suggestedInvestorFallback,
       shortlist_blended: shortlistBlended,
-      match_source: engineRows.length ? 'matching_engine' : 'stored',
+      match_source: preferStored ? 'stored' : (engineRows.length ? 'matching_engine' : 'stored'),
       deck_focus: buildFreeDeckFocus({
         ...rankedStartup,
         score_components: {

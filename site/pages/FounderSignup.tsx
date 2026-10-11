@@ -100,9 +100,13 @@ export default function FounderSignup() {
     const pendingGate = peekFounderGatePending();
     if (!isOAuthHandoffActive() && !pendingGate.pending) {
       oauthHandledRef.current = true;
-      void applyStoredCoupon().finally(() => {
-        navigate(url ? savedMatchesPath() : '/account');
-      });
+      void (async () => {
+        if (startupId) {
+          await persistFounderStartup({ startupId, companyUrl: url });
+        }
+        await applyStoredCoupon();
+        navigate(url || startupId ? savedMatchesPath() : '/account');
+      })();
       return;
     }
 

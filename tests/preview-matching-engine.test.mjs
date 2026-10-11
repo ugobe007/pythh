@@ -10,7 +10,11 @@ test('preview scores investors with the matching engine instead of serving store
 
   assert.match(preview, /async function scorePreviewWithEngine/);
   assert.match(preview, /scoreStartupMatches/);
-  assert.match(preview, /match_source: engineRows\.length \? 'matching_engine' : 'stored'/);
+  assert.match(preview, /shouldPreferStoredMatches/);
+  assert.match(preview, /account_saved/);
+  assert.match(preview, /post_signup/);
+  assert.match(preview, /preferStored \? \[\] : await scorePreviewWithEngine/);
+  assert.match(preview, /match_source: preferStored \? 'stored' : \(engineRows\.length \? 'matching_engine' : 'stored'\)/);
   assert.match(preview, /let pool = engineRows\.length \? engineRows : eligibleRows/);
   assert.match(submit, /function calculateMatchScore/);
   assert.match(submit, /module\.exports\.scoreStartupMatches = generateSyncTopMatchesForHttpResponse/);

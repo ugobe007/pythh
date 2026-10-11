@@ -142,6 +142,47 @@ export async function createFounderAccount(
   }
 }
 
+const SHORTLIST_CACHE_KEY = 'pythh_founder_shortlist_cache';
+const SHORTLIST_CACHE_MAX_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type CachedFounderShortlist = {
+  startupId: string;
+  companyUrl?: string | null;
+  companyName?: string | null;
+  startup?: Record<string, unknown> | null;
+  matches?: unknown[];
+  total_matches?: number;
+  cachedAt?: number;
+};
+
+/** Keep the last shortlist in sessionStorage so /account can render before profile loads. */
+export function cacheFounderShortlist(payload: CachedFounderShortlist): void {
+  if (typeof sessionStorage === 'undefined' || !payload.startupId) return;
+  try {
+    sessionStorage.setItem(
+      SHORTLIST_CACHE_KEY,
+      JSON.stringify({ ...payload, cachedAt: Date.now() }),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function readCachedFounderShortlist(startupId?: string | null): CachedFounderShortlist | null {
+  if (typeof sessionStorage === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(SHORTLIST_CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as CachedFounderShortlist;
+    if (!data?.startupId) return null;
+    if (startupId && data.startupId !== startupId) return null;
+    if (data.cachedAt && Date.now() - data.cachedAt > SHORTLIST_CACHE_MAX_MS) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 /** Persist the startup selected during signup so the account survives a new browser/device. */
 export async function persistFounderStartup(opts: {
   startupId: string;
@@ -156,8 +197,20 @@ export async function persistFounderStartup(opts: {
       companyName: opts.companyName?.trim() || undefined,
     });
     pinActiveStartup(opts.startupId, opts.companyUrl, opts.companyName);
+    const cached = readCachedFounderShortlist(opts.startupId);
+    cacheFounderShortlist({
+      startupId: opts.startupId,
+      companyUrl: opts.companyUrl ?? cached?.companyUrl,
+      companyName: opts.companyName ?? cached?.companyName,
+      startup: cached?.startup,
+      matches: cached?.matches,
+      total_matches: cached?.total_matches,
+    });
     return true;
-  } catch {
+  } catch (err) {
+    console.warn('[founderAccount] persistFounderStartup failed:', err instanceof Error ? err.message : err);
+    // Still pin locally so /account?saved=1 can load matches in this session.
+    pinActiveStartup(opts.startupId, opts.companyUrl, opts.companyName);
     return false;
   }
 }
@@ -174,7 +227,23 @@ export async function fetchInstantResults(startupId: string): Promise<InstantRes
   try {
     const res = await fetch(apiUrl(`/api/instant/results?startup_id=${encodeURIComponent(startupId)}`));
     const data = (await res.json().catch(() => ({}))) as InstantResultsPayload & { error?: string };
-    if (res.ok && data.startup_id) return data;
+    if (res.ok && data.startup_id) {
+      const hasMatches = Array.isArray(data.matches) && data.matches.length > 0;
+      const cached = readCachedFounderShortlist(startupId);
+      
+      // Only overwrite cache if new response has matches, or no cached matches exist.
+      if (hasMatches || !cached?.matches?.length) {
+        cacheFounderShortlist({
+          startupId,
+          companyUrl: typeof data.startup?.website === 'string' ? data.startup.website : null,
+          companyName: typeof data.startup?.name === 'string' ? data.startup.name : null,
+          startup: data.startup,
+          matches: data.matches ?? [],
+          total_matches: data.match_count ?? data.matches?.length ?? 0,
+        });
+      }
+      return data;
+    }
 
     const previewRes = await fetch(apiUrl(`/api/preview/${encodeURIComponent(startupId)}?source=post_signup`));
     if (!previewRes.ok) return null;
@@ -184,12 +253,27 @@ export async function fetchInstantResults(startupId: string): Promise<InstantRes
       total_matches?: number;
     };
     if (!preview.startup) return null;
-    return {
+    const payload = {
       startup_id: startupId,
       startup: preview.startup,
       matches: preview.matches ?? [],
       match_count: preview.total_matches ?? preview.matches?.length ?? 0,
     };
+    const hasMatches = Array.isArray(payload.matches) && payload.matches.length > 0;
+    const cached = readCachedFounderShortlist(startupId);
+    
+    // Only overwrite cache if new response has matches, or no cached matches exist.
+    if (hasMatches || !cached?.matches?.length) {
+      cacheFounderShortlist({
+        startupId,
+        companyUrl: typeof preview.startup?.website === 'string' ? preview.startup.website : null,
+        companyName: typeof preview.startup?.name === 'string' ? preview.startup.name : null,
+        startup: preview.startup,
+        matches: payload.matches,
+        total_matches: payload.match_count,
+      });
+    }
+    return payload;
   } catch {
     return null;
   }
