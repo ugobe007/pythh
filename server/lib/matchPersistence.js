@@ -82,25 +82,52 @@ async function persistMatchFingerprint(supabase, startupId, startup) {
       ? { ...startup.extracted_data }
       : {};
   if (extracted.match_fingerprint === fingerprint) return fingerprint;
-  extracted.match_fingerprint = fingerprint;
-  extracted.match_fingerprint_at = new Date().toISOString();
+
+  // Re-read extracted_data to avoid clobbering concurrent enrichment/campaign updates
+  const { data: current } = await supabase
+    .from('startup_uploads')
+    .select('extracted_data')
+    .eq('id', startupId)
+    .maybeSingle();
+  const merged =
+    current?.extracted_data && typeof current.extracted_data === 'object'
+      ? { ...current.extracted_data }
+      : {};
+  merged.match_fingerprint = fingerprint;
+  merged.match_fingerprint_at = new Date().toISOString();
+
   const { error } = await supabase
     .from('startup_uploads')
-    .update({ extracted_data: extracted })
+    .update({ extracted_data: merged })
     .eq('id', startupId);
   if (error) {
     console.warn('[matchPersistence] fingerprint persist failed:', error.message);
     return null;
   }
-  startup.extracted_data = extracted;
+  startup.extracted_data = merged;
   return fingerprint;
 }
 
 /**
  * Load persisted suggested matches in the same join shape the sync engine returns.
+ * Only returns matches created after the current fingerprint was set, avoiding
+ * leftover matches from previous profiles.
  */
 async function loadStoredSuggestedMatches(supabase, startupId, opts = {}) {
   const limit = Number(opts.limit) > 0 ? Number(opts.limit) : 80;
+
+  // Get the fingerprint timestamp to filter matches
+  const { data: startup } = await supabase
+    .from('startup_uploads')
+    .select('extracted_data')
+    .eq('id', startupId)
+    .maybeSingle();
+  
+  const fingerprintAt =
+    startup?.extracted_data?.match_fingerprint_at
+      ? new Date(startup.extracted_data.match_fingerprint_at).toISOString()
+      : null;
+
   const select =
     opts.select ||
     `
@@ -114,13 +141,21 @@ async function loadStoredSuggestedMatches(supabase, startupId, opts = {}) {
       email_status, contactable
     )
   `;
-  const { data, error } = await supabase
+
+  let query = supabase
     .from('startup_investor_matches')
     .select(select)
     .eq('startup_id', startupId)
     .eq('status', 'suggested')
     .order('match_score', { ascending: false })
     .limit(limit);
+
+  // Only load matches from the current fingerprint period
+  if (fingerprintAt) {
+    query = query.gte('updated_at', fingerprintAt);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return { matches: [], match_count: 0, error: error.message };
