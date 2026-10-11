@@ -260,9 +260,9 @@ export default function FounderSignup() {
       }
 
       // Match gate: consume and check for export action like OAuth handler does
-      if (fromMatchGate && url && startupId) {
+      if (fromMatchGate && url) {
         const pendingGate = peekFounderGatePending();
-        if (pendingGate.pending) {
+        if (pendingGate.pending && startupId) {
           const { action: consumedAction } = consumeFounderGatePending();
           const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
           if (resolvedAction === 'export') {
@@ -287,8 +287,21 @@ export default function FounderSignup() {
               source: 'founder_signup_gate',
             }).catch(() => {});
           }
-        } else {
+        } else if (pendingGate.pending) {
           consumeFounderGatePending();
+        } else if (startupId) {
+          // No pending gate but fromMatchGate path: send welcome and shortlist emails
+          sendFounderWelcomeEmail({
+            email: trimmed,
+            startupId,
+            source: 'founder_signup_gate',
+          });
+          void sendSavedMatchesEmail({
+            email: trimmed,
+            startupId,
+            startupUrl: url,
+            source: 'founder_signup_gate',
+          }).catch(() => {});
         }
         consumePostSignupPath();
         navigate(savedMatchesPath());
