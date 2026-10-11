@@ -13,6 +13,7 @@ const FUNNEL_OPERATIONS = [
   'match_viewed',
   'match_intro_requested',
   'intro_concierge_requested',
+  'match_list_csv_downloaded',
   'match_contacted',
   'login_completed',
   'lookup_signup_completed',

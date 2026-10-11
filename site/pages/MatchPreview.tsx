@@ -264,7 +264,7 @@ export default function MatchPreview() {
                 onClick={() => void handleGate('export')}
                 className="px-5 py-2 rounded-lg border border-zinc-600 text-zinc-300 text-sm"
               >
-                Export list
+                Sign in to download CSV
               </button>
             </div>
           </div>

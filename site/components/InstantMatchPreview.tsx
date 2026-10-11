@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Loader2, ArrowRight } from 'lucide-react';
+import { ArrowRight, Download, Loader2 } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { trpc } from '@/lib/trpc';
 import { hasPaidRaiseAccess } from '@/lib/pricingPlans';
@@ -13,6 +13,7 @@ import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
 import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
 import { recordMatchViewOnce, trackFunnelEventOnce } from '@/lib/matchEngagement';
+import { downloadFounderMatchesCsv } from '@/lib/founderMatchesCsv';
 import {
   postSignupPathForAction,
   savedMatchesPath,
@@ -50,7 +51,7 @@ import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import { CampaignPlan, CampaignPriorities } from '@/components/CampaignQuestions';
 import { campaignSubmitBody, readCampaignBrief } from '@/lib/campaignBrief';
 import { fetchLeadUnlocks } from '@/lib/matchLeadRelay';
-import { G, G_BORDER, G_HOVER, AMBER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
+import { G, G_BORDER, G_HOVER, AMBER, BORDER, DIM, MUTED, PURPLE_ACCENT, PURPLE_HOVER, TEXT } from '@/lib/designTokens';
 import { shortlistExpiryNote } from '@/lib/matchFreshness';
 
 const PREVIEW_LIMIT = 5;
@@ -210,6 +211,7 @@ export default function InstantMatchPreview({ url }: Props) {
   }, []);
 
   const persistShortlist = async (id: string, name?: string | null) => {
+    const pendingAction = peekFounderGatePending().action;
     const ok = await persistFounderStartup({ startupId: id, companyUrl: url, companyName: name });
     if (peekFounderGatePending().pending) {
       await completePreviewGateIfPending({
@@ -221,6 +223,19 @@ export default function InstantMatchPreview({ url }: Props) {
     if (!ok) throw new Error('Could not save matches to your account. Try again.');
     pinActiveStartup(id, url, name);
     setShortlistSaved(true);
+    if (pendingAction === 'export') {
+      const rows = (preview?.matches || []).slice(0, PREVIEW_LIMIT);
+      if (rows.length) {
+        downloadFounderMatchesCsv(rows, {
+          id,
+          name: name || preview?.startup?.name,
+          website: url,
+          god_score: preview?.startup?.god_score,
+          sectors: preview?.startup?.sectors,
+          stage: preview?.startup?.stage,
+        });
+      }
+    }
   };
 
   const emailReadyShortlist = async (id: string, name?: string | null, explicitEmail?: string) => {
@@ -541,6 +556,10 @@ export default function InstantMatchPreview({ url }: Props) {
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     const startupIdForGate = preview?.startup?.id;
     if (isAuthenticated) {
+      if (action === 'export') {
+        handleDownloadCsv();
+        return;
+      }
       if (action === 'save' || !startupIdForGate) {
         openAccount();
         return;
@@ -561,6 +580,33 @@ export default function InstantMatchPreview({ url }: Props) {
       sessionStorage.setItem('pythia_url', url);
     }
     navigate(founderSignupPath({ startupId: startupIdForGate, url, intent: 'matches' }));
+  };
+
+  const handleDownloadCsv = () => {
+    if (!isAuthenticated) {
+      handleSignup('export');
+      return;
+    }
+    const rows = (preview?.matches || []).slice(0, PREVIEW_LIMIT);
+    if (!rows.length) return;
+    downloadFounderMatchesCsv(rows, {
+      id: preview?.startup?.id,
+      name: preview?.startup?.name,
+      website: url,
+      god_score: preview?.startup?.god_score,
+      sectors: preview?.startup?.sectors,
+      stage: preview?.startup?.stage,
+    });
+    void trackFunnelEventOnce(
+      `pythh_csv_dl:${preview?.startup?.id || url}`,
+      'match_list_csv_downloaded',
+      {
+        startup_id: preview?.startup?.id,
+        url,
+        match_count: rows.length,
+        source: 'instant_preview',
+      },
+    );
   };
 
   if (loading) {
@@ -682,9 +728,29 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <SimilarRaiseStrip url={url} />
 
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
-        The five
-      </p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: G }}>
+          The five
+        </p>
+        <button
+          type="button"
+          onClick={handleDownloadCsv}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+          style={{
+            color: isAuthenticated ? 'oklch(0.1 0.02 162.48)' : TEXT,
+            background: isAuthenticated ? G : 'transparent',
+            border: `1px solid ${isAuthenticated ? G : BORDER}`,
+          }}
+          title={
+            isAuthenticated
+              ? 'Download this shortlist as a spreadsheet CSV'
+              : 'Sign up or sign in to download this shortlist as CSV'
+          }
+        >
+          <Download size={12} />
+          {isAuthenticated ? 'Download CSV' : 'Sign in to download CSV'}
+        </button>
+      </div>
       <ul className="mb-8 space-y-3">
         {visible.map((m, i) => {
           const investorId = m.investor_id || m.investor?.id || '';
