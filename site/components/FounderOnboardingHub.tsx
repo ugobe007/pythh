@@ -15,9 +15,17 @@ import {
   getPinnedStartupName,
   getPinnedStartupUrl,
   pinActiveStartup,
+  resolveStartupIdForUrl,
 } from '@/lib/activeStartupContext';
 import { matchesPathForUrl } from '@/lib/founderSignupGate';
-import { accountShortlistSentKey, readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
+import {
+  accountShortlistSentKey,
+  fetchInstantResults,
+  readCachedFounderShortlist,
+  readAccountEmail,
+  readJoinEmail,
+  sendSavedMatchesEmail,
+} from '@/lib/founderAccount';
 import {
   listSectors,
   readStartupDescription,
@@ -121,13 +129,14 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
   const emailedRef = useRef(false);
   const emailPromiseRef = useRef<Promise<void> | null>(null);
-  const [localPinned] = useState(() => ({
+  const [localPinned, setLocalPinned] = useState(() => ({
     id: getPinnedStartupId(),
     url: getPinnedStartupUrl(),
     name: getPinnedStartupName(),
   }));
+  const [resolvedStartupId, setResolvedStartupId] = useState<string | null>(null);
   const pinned = {
-    id: localPinned.id || profile?.startupId || preview?.startup?.id || null,
+    id: resolvedStartupId || localPinned.id || profile?.startupId || preview?.startup?.id || null,
     url: localPinned.url || profile?.companyUrl || preview?.startup?.website || null,
     name: localPinned.name || profile?.companyName || preview?.startup?.name || null,
   };
@@ -136,27 +145,97 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
   useEffect(() => {
     if (!localPinned.id && profile?.startupId) {
       pinActiveStartup(profile.startupId, profile.companyUrl || undefined, profile.companyName || undefined);
+      setLocalPinned({
+        id: profile.startupId,
+        url: profile.companyUrl || getPinnedStartupUrl(),
+        name: profile.companyName || getPinnedStartupName(),
+      });
     }
   }, [localPinned.id, profile?.startupId, profile?.companyUrl, profile?.companyName]);
 
   useEffect(() => {
-    const id = localPinned.id || profile?.startupId;
-    if (!id) return;
     let cancelled = false;
     setPreviewLoaded(false);
-    void fetch(apiUrl(`/api/preview/${id}?source=account_saved`))
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: PreviewPayload | null) => {
-        if (!cancelled && data) setPreview(data);
-      })
-      .catch(() => {})
-      .finally(() => {
+
+    async function loadSavedShortlist() {
+      let id = localPinned.id || profile?.startupId || null;
+      const urlHint = localPinned.url || profile?.companyUrl || null;
+
+      // Profile/pin missing after OAuth — recover startup_id from the company URL.
+      if (!id && urlHint) {
+        id = await resolveStartupIdForUrl(urlHint);
+        if (id && !cancelled) {
+          pinActiveStartup(id, urlHint, profile?.companyName || localPinned.name);
+          setLocalPinned((prev) => ({ ...prev, id, url: urlHint }));
+        }
+      }
+
+      if (!id) {
+        const cached = readCachedFounderShortlist();
+        if (!cancelled && cached?.startupId) {
+          setResolvedStartupId(cached.startupId);
+          setPreview({
+            startup: (cached.startup as PreviewStartup) || {
+              id: cached.startupId,
+              name: cached.companyName,
+              website: cached.companyUrl,
+            },
+            matches: (cached.matches as LeadMatch[]) || [],
+            total_matches: cached.total_matches ?? cached.matches?.length ?? 0,
+          });
+          pinActiveStartup(cached.startupId, cached.companyUrl, cached.companyName);
+          setLocalPinned({
+            id: cached.startupId,
+            url: cached.companyUrl || null,
+            name: cached.companyName || null,
+          });
+        }
         if (!cancelled) setPreviewLoaded(true);
-      });
+        return;
+      }
+
+      if (!cancelled) setResolvedStartupId(id);
+
+      // Paint cached shortlist immediately so auth hops do not flash empty.
+      const cached = readCachedFounderShortlist(id);
+      if (!cancelled && cached?.matches?.length) {
+        setPreview({
+          startup: (cached.startup as PreviewStartup) || {
+            id: cached.startupId,
+            name: cached.companyName,
+            website: cached.companyUrl,
+          },
+          matches: (cached.matches as LeadMatch[]) || [],
+          total_matches: cached.total_matches ?? cached.matches?.length ?? 0,
+        });
+      }
+
+      const results = await fetchInstantResults(id);
+      if (cancelled) return;
+      if (results?.startup) {
+        setPreview({
+          startup: results.startup as PreviewStartup,
+          matches: (results.matches as LeadMatch[]) || [],
+          total_matches: results.match_count ?? results.matches?.length ?? 0,
+        });
+      } else {
+        // Fall back to persisted preview (prefers stored rows for account_saved).
+        try {
+          const response = await fetch(apiUrl(`/api/preview/${id}?source=account_saved`));
+          const data = response.ok ? ((await response.json()) as PreviewPayload) : null;
+          if (!cancelled && data) setPreview(data);
+        } catch {
+          /* keep cache */
+        }
+      }
+      if (!cancelled) setPreviewLoaded(true);
+    }
+
+    void loadSavedShortlist();
     return () => {
       cancelled = true;
     };
-  }, [localPinned.id, profile?.startupId]);
+  }, [localPinned.id, localPinned.url, localPinned.name, profile?.startupId, profile?.companyUrl, profile?.companyName]);
 
   useEffect(() => {
     const id = pinned.id;

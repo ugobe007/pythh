@@ -8,7 +8,8 @@ test('founder signup persists startup context for email and OAuth paths', async 
   const signup = await read('site/pages/FounderSignup.tsx');
   const account = await read('site/lib/founderAccount.ts');
   assert.match(account, /trpcVanilla\.profile\.upsert\.mutate/);
-  assert.equal((signup.match(/persistFounderStartup\(\{/g) || []).length, 2);
+  // Email, OAuth, and already-authenticated handoff all persist startup ownership.
+  assert.ok(((signup.match(/persistFounderStartup\(\{/g) || []).length) >= 3);
   assert.match(signup, /startupId, companyUrl: url/);
 });
 
@@ -21,11 +22,17 @@ test('startup-only persistence does not erase the rest of the founder profile', 
 
 test('founder account restores startup context from the protected profile', async () => {
   const hub = await read('site/components/FounderOnboardingHub.tsx');
+  const account = await read('site/lib/founderAccount.ts');
   assert.match(hub, /trpc\.profile\.get\.useQuery/);
   assert.match(hub, /profile\?\.startupId/);
   assert.match(hub, /pinActiveStartup\(profile\.startupId/);
   assert.match(hub, /Your saved matches/);
-  assert.match(hub, /apiUrl\(`\/api\/preview\/\$\{id\}\?source=account_saved`\)/);
+  assert.match(hub, /fetchInstantResults/);
+  assert.match(hub, /readCachedFounderShortlist/);
+  assert.match(hub, /resolveStartupIdForUrl/);
+  assert.match(hub, /source=account_saved/);
+  assert.match(account, /cacheFounderShortlist/);
+  assert.match(account, /pinActiveStartup\(opts\.startupId/);
 });
 
 test('founder profile schema and migration include startup ownership', async () => {

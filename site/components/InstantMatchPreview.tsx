@@ -26,6 +26,7 @@ import {
 } from '@/lib/founderSignupGate';
 import {
   accountShortlistSentKey,
+  cacheFounderShortlist,
   persistFounderStartup,
   readAccountEmail,
   readJoinEmail,
@@ -212,6 +213,16 @@ export default function InstantMatchPreview({ url }: Props) {
 
   const persistShortlist = async (id: string, name?: string | null) => {
     const pendingAction = peekFounderGatePending().action;
+    cacheFounderShortlist({
+      startupId: id,
+      companyUrl: url,
+      companyName: name,
+      startup: preview?.startup
+        ? (preview.startup as unknown as Record<string, unknown>)
+        : { id, name, website: url },
+      matches: preview?.matches || [],
+      total_matches: preview?.total_matches ?? preview?.matches?.length ?? 0,
+    });
     const ok = await persistFounderStartup({ startupId: id, companyUrl: url, companyName: name });
     if (peekFounderGatePending().pending) {
       await completePreviewGateIfPending({
@@ -481,6 +492,14 @@ export default function InstantMatchPreview({ url }: Props) {
           }
           if (data.startup?.id) {
             pinActiveStartup(data.startup.id, url, data.startup.name ?? null);
+            cacheFounderShortlist({
+              startupId: data.startup.id,
+              companyUrl: url,
+              companyName: data.startup.name ?? null,
+              startup: data.startup as unknown as Record<string, unknown>,
+              matches: data.matches || [],
+              total_matches: data.total_matches ?? data.matches?.length ?? 0,
+            });
           }
         }
 
