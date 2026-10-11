@@ -22,6 +22,7 @@ import {
   consumeFounderGatePending,
   consumePostSignupPath,
   peekFounderGatePending,
+  setPendingCsvExport,
   trackFounderGateCompleted,
   allowWizardUnlockFlow,
   FOUNDER_GATE_ACTION_LABELS,
@@ -2644,6 +2645,9 @@ export default function Activate() {
     if (gatedAction && existingStartupId && gateEmail) {
       const account = await createFounderAccount(gateEmail);
       if (account.ok) {
+        if (gatedAction === 'export') {
+          setPendingCsvExport();
+        }
         await trackFounderGateCompleted({
           url: submittedUrl,
           email: gateEmail,

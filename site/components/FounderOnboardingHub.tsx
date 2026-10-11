@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, ArrowRight, Bell, Loader2, Target, Users } from 'lucide-react';
+import { Activity, ArrowRight, Bell, Download, Loader2, Target, Users } from 'lucide-react';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/_core/hooks/useAuth';
@@ -16,13 +16,14 @@ import {
   getPinnedStartupUrl,
   pinActiveStartup,
 } from '@/lib/activeStartupContext';
-import { matchesPathForUrl } from '@/lib/founderSignupGate';
+import { consumePendingCsvExport, matchesPathForUrl } from '@/lib/founderSignupGate';
 import { accountShortlistSentKey, readAccountEmail, readJoinEmail, sendSavedMatchesEmail } from '@/lib/founderAccount';
 import {
   listSectors,
   readStartupDescription,
   readStartupTeam,
 } from '@/lib/founderAccountProfile';
+import { downloadFounderMatchesCsv } from '@/lib/founderMatchesCsv';
 import { SCOUT_PLAN, ORACLE_PLAN, hasPaidRaiseAccess } from '@/lib/pricingPlans';
 import RaiseCampaignBoard from '@/components/RaiseCampaignBoard';
 import FounderFreeTools from '@/components/FounderFreeTools';
@@ -285,6 +286,26 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
     void emailFiveMatches().catch(() => {});
   }, [saved, pinned.id, savedMatches.length, user?.email, user?.openId]);
 
+  useEffect(() => {
+    if (!saved || !pinned.id || !savedMatches.length) return;
+    if (consumePendingCsvExport()) {
+      downloadFounderMatchesCsv(savedMatches, {
+        id: pinned.id || undefined,
+        name: companyLabel,
+        website: pinned.url || preview?.startup?.website || undefined,
+        god_score: preview?.startup?.god_score,
+        sectors: listSectors(preview?.startup?.sectors),
+        stage: preview?.startup?.stage,
+      });
+      trackFunnelEvent('match_list_csv_downloaded', {
+        startup_id: pinned.id || undefined,
+        url: pinned.url || undefined,
+        match_count: savedMatches.length,
+        source: 'account_saved_post_signup',
+      });
+    }
+  }, [saved, pinned.id, pinned.url, savedMatches.length, companyLabel, preview?.startup?.god_score, preview?.startup?.sectors, preview?.startup?.stage, preview?.startup?.website]);
+
   return (
     <div className="w-full space-y-8">
       {hasPinnedStartup && (
@@ -435,14 +456,46 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
               <h3 className="font-display font-bold text-lg" style={{ color: TEXT }}>
                 Your saved matches — {companyLabel}
               </h3>
-              <Link
-                href={findMatchesHref}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold"
-                style={{ color: G }}
-              >
-                Find matches
-                <ArrowRight size={14} />
-              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                {savedMatches.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadFounderMatchesCsv(savedMatches, {
+                        id: pinned.id || undefined,
+                        name: companyLabel,
+                        website: pinned.url || preview?.startup?.website || undefined,
+                        god_score: preview?.startup?.god_score,
+                        sectors: listSectors(preview?.startup?.sectors),
+                        stage: preview?.startup?.stage,
+                      });
+                      trackFunnelEvent('match_list_csv_downloaded', {
+                        startup_id: pinned.id || undefined,
+                        url: pinned.url || undefined,
+                        match_count: savedMatches.length,
+                        source: 'account_saved',
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+                    style={{
+                      color: 'oklch(0.1 0.02 162.48)',
+                      background: G,
+                      border: `1px solid ${G}`,
+                    }}
+                  >
+                    <Download size={12} />
+                    Download CSV
+                  </button>
+                )}
+                <Link
+                  href={findMatchesHref}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold"
+                  style={{ color: G }}
+                >
+                  Find matches
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
             </div>
             <p className="text-sm mb-4" style={{ color: MUTED }}>
               {savedMatches.length
