@@ -145,7 +145,7 @@ export function postSignupPathForAction(
   startupId: string,
   options?: { url?: string | null },
 ): string {
-  if (action === 'save') return savedMatchesPath();
+  if (action === 'save' || action === 'export') return savedMatchesPath();
   if (!startupId && !options?.url) return '/account';
   return matchesPathForUrl(options?.url);
 }

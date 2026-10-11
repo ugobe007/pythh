@@ -259,9 +259,43 @@ export default function FounderSignup() {
         await persistFounderStartup({ startupId, companyUrl: url });
       }
 
-      const { action: consumedAction } = fromMatchGate
-        ? { action: null }
-        : consumeFounderGatePending();
+      // Match gate: consume and check for export action like OAuth handler does
+      if (fromMatchGate && url && startupId) {
+        const pendingGate = peekFounderGatePending();
+        if (pendingGate.pending) {
+          const { action: consumedAction } = consumeFounderGatePending();
+          const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+          if (resolvedAction === 'export') {
+            setPendingCsvExport();
+          }
+          await trackFounderGateCompleted({
+            url,
+            email: trimmed,
+            startupId,
+            gatedAction: resolvedAction,
+          });
+          if (startupId) {
+            sendFounderWelcomeEmail({
+              email: trimmed,
+              startupId,
+              source: 'founder_signup_gate',
+            });
+            void sendSavedMatchesEmail({
+              email: trimmed,
+              startupId,
+              startupUrl: url,
+              source: 'founder_signup_gate',
+            }).catch(() => {});
+          }
+        } else {
+          consumeFounderGatePending();
+        }
+        consumePostSignupPath();
+        navigate(savedMatchesPath());
+        return;
+      }
+
+      const { action: consumedAction } = consumeFounderGatePending();
       const resolvedAction = consumedAction ?? gateAction;
 
       if (!fromMatchGate && (fromGate || resolvedAction)) {
