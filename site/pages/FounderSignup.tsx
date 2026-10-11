@@ -18,6 +18,7 @@ import {
   peekFounderGatePending,
   postSignupPathForAction,
   savedMatchesPath,
+  setPendingCsvExport,
   trackFounderGateCompleted,
   FOUNDER_GATE_ACTION_LABELS,
   type FounderGatedAction,
@@ -132,6 +133,9 @@ export default function FounderSignup() {
         if (pendingGate.pending && startupId) {
           const { action: consumedAction } = consumeFounderGatePending();
           const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+          if (resolvedAction === 'export') {
+            setPendingCsvExport();
+          }
           await trackFounderGateCompleted({
             url,
             email: userEmail || undefined,
@@ -162,6 +166,9 @@ export default function FounderSignup() {
       if (pendingGate.pending && startupId) {
         const { action: consumedAction } = consumeFounderGatePending();
         const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+        if (resolvedAction === 'export') {
+          setPendingCsvExport();
+        }
         await trackFounderGateCompleted({
           url: url || '',
           email: userEmail || undefined,
@@ -256,12 +263,62 @@ export default function FounderSignup() {
         await persistFounderStartup({ startupId, companyUrl: url });
       }
 
-      const { action: consumedAction } = fromMatchGate
-        ? { action: null }
-        : consumeFounderGatePending();
+      // Match gate: consume and check for export action like OAuth handler does
+      if (fromMatchGate && url) {
+        const pendingGate = peekFounderGatePending();
+        if (pendingGate.pending && startupId) {
+          const { action: consumedAction } = consumeFounderGatePending();
+          const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+          if (resolvedAction === 'export') {
+            setPendingCsvExport();
+          }
+          await trackFounderGateCompleted({
+            url,
+            email: trimmed,
+            startupId,
+            gatedAction: resolvedAction,
+          });
+          if (startupId) {
+            sendFounderWelcomeEmail({
+              email: trimmed,
+              startupId,
+              source: 'founder_signup_gate',
+            });
+            void sendSavedMatchesEmail({
+              email: trimmed,
+              startupId,
+              startupUrl: url,
+              source: 'founder_signup_gate',
+            }).catch(() => {});
+          }
+        } else if (pendingGate.pending) {
+          consumeFounderGatePending();
+        } else if (startupId) {
+          // No pending gate but fromMatchGate path: send welcome and shortlist emails
+          sendFounderWelcomeEmail({
+            email: trimmed,
+            startupId,
+            source: 'founder_signup_gate',
+          });
+          void sendSavedMatchesEmail({
+            email: trimmed,
+            startupId,
+            startupUrl: url,
+            source: 'founder_signup_gate',
+          }).catch(() => {});
+        }
+        consumePostSignupPath();
+        navigate(savedMatchesPath());
+        return;
+      }
+
+      const { action: consumedAction } = consumeFounderGatePending();
       const resolvedAction = consumedAction ?? gateAction;
 
       if (!fromMatchGate && (fromGate || resolvedAction)) {
+        if (resolvedAction === 'export') {
+          setPendingCsvExport();
+        }
         await trackFounderGateCompleted({
           url: url || '',
           email: trimmed,

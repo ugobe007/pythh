@@ -17,7 +17,7 @@ import {
   pinActiveStartup,
   resolveStartupIdForUrl,
 } from '@/lib/activeStartupContext';
-import { matchesPathForUrl } from '@/lib/founderSignupGate';
+import { consumePendingCsvExport, matchesPathForUrl } from '@/lib/founderSignupGate';
 import {
   accountShortlistSentKey,
   fetchInstantResults,
@@ -364,6 +364,26 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
     if (!known.includes('@')) return;
     void emailFiveMatches().catch(() => {});
   }, [saved, pinned.id, savedMatches.length, user?.email, user?.openId]);
+
+  useEffect(() => {
+    if (!saved || !pinned.id || !savedMatches.length) return;
+    if (consumePendingCsvExport()) {
+      downloadFounderMatchesCsv(savedMatches, {
+        id: pinned.id || undefined,
+        name: companyLabel,
+        website: pinned.url || preview?.startup?.website || undefined,
+        god_score: preview?.startup?.god_score,
+        sectors: listSectors(preview?.startup?.sectors),
+        stage: preview?.startup?.stage,
+      });
+      trackFunnelEvent('match_list_csv_downloaded', {
+        startup_id: pinned.id || undefined,
+        url: pinned.url || undefined,
+        match_count: savedMatches.length,
+        source: 'account_saved_post_signup',
+      });
+    }
+  }, [saved, pinned.id, pinned.url, savedMatches.length, companyLabel, preview?.startup?.god_score, preview?.startup?.sectors, preview?.startup?.stage, preview?.startup?.website]);
 
   return (
     <div className="w-full space-y-8">
