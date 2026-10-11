@@ -16,6 +16,7 @@ const SKIP_WIZARD_UNLOCKS_KEY = 'pythia_skip_wizard_unlocks';
 const GATED_ACTION_KEY = 'pythia_gated_action';
 const GATED_INVESTOR_KEY = 'pythia_gated_investor';
 const STORAGE_KEY = 'pyth_growth_assignment';
+const PENDING_CSV_EXPORT_KEY = 'pythia_pending_csv_export';
 
 export type GatedInvestorContext = {
   id: string;
@@ -326,6 +327,18 @@ export function consumePostSignupPath(): string | null {
   const path = sessionStorage.getItem(POST_SIGNUP_PATH_KEY);
   if (path) sessionStorage.removeItem(POST_SIGNUP_PATH_KEY);
   return path;
+}
+
+/** Set pending CSV export flag for account page to consume after signup. */
+export function setPendingCsvExport() {
+  sessionStorage.setItem(PENDING_CSV_EXPORT_KEY, '1');
+}
+
+/** Check and consume pending CSV export flag. */
+export function consumePendingCsvExport(): boolean {
+  const pending = sessionStorage.getItem(PENDING_CSV_EXPORT_KEY) === '1';
+  if (pending) sessionStorage.removeItem(PENDING_CSV_EXPORT_KEY);
+  return pending;
 }
 
 /** OAuth return for match preview — land on shortlist, not signup again. */

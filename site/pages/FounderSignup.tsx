@@ -18,6 +18,7 @@ import {
   peekFounderGatePending,
   postSignupPathForAction,
   savedMatchesPath,
+  setPendingCsvExport,
   trackFounderGateCompleted,
   FOUNDER_GATE_ACTION_LABELS,
   type FounderGatedAction,
@@ -128,6 +129,9 @@ export default function FounderSignup() {
         if (pendingGate.pending && startupId) {
           const { action: consumedAction } = consumeFounderGatePending();
           const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+          if (resolvedAction === 'export') {
+            setPendingCsvExport();
+          }
           await trackFounderGateCompleted({
             url,
             email: userEmail || undefined,
@@ -158,6 +162,9 @@ export default function FounderSignup() {
       if (pendingGate.pending && startupId) {
         const { action: consumedAction } = consumeFounderGatePending();
         const resolvedAction = consumedAction ?? pendingGate.action ?? gateAction ?? 'save';
+        if (resolvedAction === 'export') {
+          setPendingCsvExport();
+        }
         await trackFounderGateCompleted({
           url: url || '',
           email: userEmail || undefined,
@@ -258,6 +265,9 @@ export default function FounderSignup() {
       const resolvedAction = consumedAction ?? gateAction;
 
       if (!fromMatchGate && (fromGate || resolvedAction)) {
+        if (resolvedAction === 'export') {
+          setPendingCsvExport();
+        }
         await trackFounderGateCompleted({
           url: url || '',
           email: trimmed,
