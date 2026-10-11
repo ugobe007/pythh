@@ -20,7 +20,7 @@ import {
 import { consumePendingCsvExport, matchesPathForUrl } from '@/lib/founderSignupGate';
 import {
   accountShortlistSentKey,
-  fetchInstantResults,
+  fetchAccountSavedShortlist,
   readCachedFounderShortlist,
   readAccountEmail,
   readJoinEmail,
@@ -210,7 +210,8 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
         });
       }
 
-      const results = await fetchInstantResults(id);
+      // Prefer the stored preview shortlist (same list as /matches), not instant/results.
+      const results = await fetchAccountSavedShortlist(id, 'account_saved');
       if (cancelled) return;
       if (results?.startup) {
         setPreview({
@@ -218,15 +219,6 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
           matches: (results.matches as LeadMatch[]) || [],
           total_matches: results.match_count ?? results.matches?.length ?? 0,
         });
-      } else {
-        // Fall back to persisted preview (prefers stored rows for account_saved).
-        try {
-          const response = await fetch(apiUrl(`/api/preview/${id}?source=account_saved`));
-          const data = response.ok ? ((await response.json()) as PreviewPayload) : null;
-          if (!cancelled && data) setPreview(data);
-        } catch {
-          /* keep cache */
-        }
       }
       if (!cancelled) setPreviewLoaded(true);
     }
