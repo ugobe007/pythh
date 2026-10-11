@@ -668,9 +668,20 @@ async function buildPriorityInvestorMatches(startup, priorities) {
  * expect the same persisted rows without waiting on the engine again.
  */
 const PREFER_STORED_PREVIEW_SOURCES = new Set(['account_saved', 'post_signup']);
+const {
+  isMatchFingerprintStale,
+} = require('../lib/matchPersistence');
 
-function shouldPreferStoredMatches(source, storedCount) {
-  return PREFER_STORED_PREVIEW_SOURCES.has(String(source || '')) && Number(storedCount) > 0;
+function shouldPreferStoredMatches(source, storedCount, startup = null) {
+  if (Number(storedCount) <= 0) return false;
+  if (PREFER_STORED_PREVIEW_SOURCES.has(String(source || ''))) return true;
+  // /matches?url= resubmits often re-hit preview — reuse remembered shortlist
+  // unless sectors/stage/campaign brief drifted since the last match write.
+  const src = String(source || 'matches_preview');
+  if (src === 'matches_preview' || src === 'reuse') {
+    return Boolean(startup) && !isMatchFingerprintStale(startup);
+  }
+  return false;
 }
 
 async function scorePreviewWithEngine(startup) {
@@ -946,7 +957,7 @@ router.get('/:startupId', async (req, res) => {
       return inv && (inv.id || row.investor_id);
     });
     const previewSource = String(req.query.source || 'preview_api');
-    const preferStored = shouldPreferStoredMatches(previewSource, eligibleRows.length);
+    const preferStored = shouldPreferStoredMatches(previewSource, eligibleRows.length, rankedStartup);
     const engineRows = preferStored ? [] : await scorePreviewWithEngine(rankedStartup);
     const fitSectors = sectorsForMatching(rankedStartup);
     const startupForFit = { ...rankedStartup, sectors: fitSectors.length ? fitSectors : rankedStartup.sectors };
