@@ -789,7 +789,7 @@ export default function InstantMatchPreview({ url }: Props) {
               replyTo={user?.email}
               onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
               onNeedSignup={(id, name, firm) => handleSignup('save', { id, name, firm })}
-              onNeedPlan={() => navigate('/pricing')}
+              onNeedPlan={() => navigate('/pricing?plan=oracle&source=match_lead_use_to_paid')}
             />
           );
         })}

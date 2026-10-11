@@ -97,7 +97,7 @@ export default function PaidRaisePanel({
         ))}
       </ul>
       <Link
-        href="/pricing"
+        href="/pricing?plan=scout&source=paid_raise_panel"
         className="inline-flex items-center justify-center gap-2 w-full px-5 rounded-lg text-sm font-semibold"
         style={{
           backgroundColor: G,

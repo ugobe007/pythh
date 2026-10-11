@@ -675,7 +675,7 @@ export default function FounderOnboardingHub({ userName, welcome, saved, showUpg
                       replyTo={user?.email}
                       onUnlocked={(id) => setUnlockedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))}
                       onNeedSignup={() => navigate('/signup/founder')}
-                      onNeedPlan={() => navigate('/pricing')}
+                      onNeedPlan={() => navigate('/pricing?plan=oracle&source=match_lead_use_to_paid')}
                     />
                   );
                 })}

@@ -3,7 +3,7 @@
  * Outcome-led tiers: Scout ($19) · Oracle ($49) · Pantheon (custom)
  */
 import { Helmet } from "react-helmet-async";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Check, X, Building2, Loader2, CheckCircle2, Target, Zap, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -32,6 +32,25 @@ import {
 } from "@/lib/pricingPlans";
 
 type BillingCycle = "monthly" | "annual";
+
+/** Session keys so post-login return can start Stripe without a second click. */
+const AUTO_CHECKOUT_KEY = "pythh_pricing_auto_checkout";
+const AUTO_CHECKOUT_BILLING_KEY = "pythh_pricing_auto_checkout_billing";
+
+function pricingReturnPath(planId?: string | null, billingCycle?: BillingCycle): string {
+  if (typeof window === "undefined") return "/pricing";
+  const params = new URLSearchParams(window.location.search);
+  if (planId === "scout" || planId === "oracle") {
+    params.set("plan", planId);
+    params.set("checkout", "1");
+    if (billingCycle) {
+      params.set("billing", billingCycle);
+    }
+  }
+  const qs = params.toString();
+  const path = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+  return path.startsWith("/") && !path.startsWith("//") ? path : "/pricing";
+}
 
 function FeatureCell({ value, color }: { value: string | boolean; color: string }) {
   if (value === true) return <Check size={14} style={{ color }} className="mx-auto" />;
@@ -75,13 +94,8 @@ function PlanCTA({
   if (plan.stripePlanId && onCheckout) {
     const label =
       plan.id === "oracle" && oracleCtaLabel ? oracleCtaLabel : plan.cta;
-    // Preserve plan/source/query so post-login landings keep Oracle highlight + attribution.
-    const returnPath =
-      typeof window !== "undefined"
-        ? `${window.location.pathname}${window.location.search || ""}`
-        : "/pricing";
-    const safeReturn =
-      returnPath.startsWith("/") && !returnPath.startsWith("//") ? returnPath : "/pricing";
+    // Preserve plan/billing/source + checkout=1 so post-login can start Stripe without a second click.
+    const safeReturn = pricingReturnPath(plan.stripePlanId, billing);
     const loginHref = `/login?redirect=${encodeURIComponent(safeReturn)}`;
 
     if (!isAuthenticated) {
@@ -93,11 +107,18 @@ function PlanCTA({
               typeof window !== "undefined"
                 ? new URLSearchParams(window.location.search).get("source")
                 : null;
+            try {
+              sessionStorage.setItem(AUTO_CHECKOUT_KEY, plan.stripePlanId || plan.id);
+              sessionStorage.setItem(AUTO_CHECKOUT_BILLING_KEY, billing);
+            } catch {
+              /* private mode */
+            }
             void trackFunnelEvent("pricing_signin_cta_clicked", {
               plan: plan.stripePlanId || plan.id,
               billing,
               path: safeReturn,
               source,
+              auto_checkout: true,
             });
           }}
           color={plan.color}
@@ -254,7 +275,11 @@ function PricingCard({
 }
 
 export default function Pricing() {
-  const [billing, setBilling] = useState<BillingCycle>("monthly");
+  const [billing, setBilling] = useState<BillingCycle>(() => {
+    if (typeof window === "undefined") return "monthly";
+    const urlBilling = new URLSearchParams(window.location.search).get("billing");
+    return urlBilling === "annual" ? "annual" : "monthly";
+  });
   const requestedPlan = (() => {
     if (typeof window === "undefined") return null;
     const plan = new URLSearchParams(window.location.search).get("plan");
@@ -264,9 +289,10 @@ export default function Pricing() {
   const [pricingExp, setPricingExp] = useState<GrowthAssignment | null>(null);
   const [oracleCtaLabel, setOracleCtaLabel] = useState("Start 14-day free trial");
   const [checkingOutPlan, setCheckingOutPlan] = useState<PaidPlanId | null>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const autoCheckoutStarted = useRef(false);
 
-  const { data: subscription } = trpc.stripe.getSubscription.useQuery(undefined, {
+  const { data: subscription, isLoading: subscriptionLoading } = trpc.stripe.getSubscription.useQuery(undefined, {
     enabled: isAuthenticated,
     retry: false,
   });
@@ -310,7 +336,7 @@ export default function Pricing() {
     },
   });
 
-  const handleCheckout = async (planId: PaidPlanId) => {
+  const handleCheckout = async (planId: PaidPlanId, opts?: { auto?: boolean }) => {
     setCheckingOutPlan(planId);
     await trackFunnelEvent("checkout_started", {
       plan: planId,
@@ -318,11 +344,17 @@ export default function Pricing() {
       path: "/pricing",
       pricing_experiment: pricingExp?.experiment_id,
       pricing_variant: pricingExp?.variant_key,
+      auto: Boolean(opts?.auto),
+      source:
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("source")
+          : null,
     });
     if (pricingExp && planId === "oracle") {
       await trackGrowthEvent(pricingExp, "checkout_started", {
         billing,
         path: "/pricing",
+        auto: Boolean(opts?.auto),
       });
     }
     checkoutMutation.mutate({
@@ -331,6 +363,44 @@ export default function Pricing() {
       origin: window.location.origin,
     });
   };
+
+  // Close the post-signin second-click hole: return from Sign-in with ?plan=&checkout=1 and start Stripe once.
+  // Only auto-start when checkout=1 is explicitly in the URL to avoid stale session flag leakage.
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !requestedPlan || isActiveSubscriber) return;
+    if (subscriptionLoading) return;
+    if (autoCheckoutStarted.current || checkingOutPlan) return;
+
+    const hasCheckoutParam =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("checkout") === "1";
+    if (!hasCheckoutParam) return;
+
+    autoCheckoutStarted.current = true;
+    try {
+      sessionStorage.removeItem(AUTO_CHECKOUT_KEY);
+      sessionStorage.removeItem(AUTO_CHECKOUT_BILLING_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("checkout")) {
+        url.searchParams.delete("checkout");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+      }
+    }
+    void handleCheckout(requestedPlan, { auto: true });
+  }, [
+    authLoading,
+    isAuthenticated,
+    requestedPlan,
+    isActiveSubscriber,
+    subscriptionLoading,
+    checkingOutPlan,
+    billing,
+    pricingExp,
+  ]);
 
   const visibleFeatures = showFullTable ? PRICING_FEATURE_ROWS : PRICING_FEATURE_ROWS.slice(0, 8);
   const activePlanId = isActiveSubscriber ? subscription?.plan : null;
