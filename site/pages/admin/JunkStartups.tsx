@@ -63,7 +63,7 @@ export default function JunkStartupsPage() {
     }
   }, []);
 
-  const runScan = useCallback(async () => {
+  const runScan = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
@@ -72,8 +72,12 @@ export default function JunkStartupsPage() {
         gate: gateFilter,
         limit: "3000",
       });
+      const timeoutSignal = fetchTimeoutSignal(90_000);
+      const combinedSignal = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal;
       const res = await fetch(apiUrl(`/api/admin/junk-startups/scan?${params}`), {
-        signal: fetchTimeoutSignal(90_000),
+        signal: combinedSignal,
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -83,12 +87,13 @@ export default function JunkStartupsPage() {
       setScan(data);
       setSelected(new Set(data.rows.map((r) => r.id)));
     } catch (e: unknown) {
-      const msg =
-        e instanceof Error && e.name === "AbortError"
-          ? "Scan timed out after 90s — try a smaller scope or retry."
-          : e instanceof Error
-            ? e.message
-            : String(e);
+      if (e instanceof Error && e.name === "AbortError") {
+        if (!signal?.aborted) {
+          setError("Scan timed out after 90s — try a smaller scope or retry.");
+        }
+        return;
+      }
+      const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
     } finally {
       setLoading(false);
@@ -97,7 +102,9 @@ export default function JunkStartupsPage() {
 
   // Auto-scan on mount and whenever filters change — button is still available to re-run.
   useEffect(() => {
-    void runScan();
+    const controller = new AbortController();
+    void runScan(controller.signal);
+    return () => controller.abort();
   }, [runScan]);
 
   useEffect(() => {
@@ -125,6 +132,7 @@ export default function JunkStartupsPage() {
     setClassifyNote(null);
     let totalUpdated = 0;
     let last: ClassifyResult | null = null;
+    const totalCounts = { junk: 0, needs_url: 0, qualified: 0 };
     try {
       // Drain in chunks so each request stays under Fly/proxy timeouts.
       for (let i = 0; i < 40; i++) {
@@ -139,11 +147,14 @@ export default function JunkStartupsPage() {
         if (!res.ok) throw new Error(body.error || `Classify failed (${res.status})`);
         last = body;
         totalUpdated += Number(body.updated || 0);
+        totalCounts.junk += body.counts.junk;
+        totalCounts.needs_url += body.counts.needs_url;
+        totalCounts.qualified += body.counts.qualified;
         if (body.done || !body.updated) break;
       }
       setClassifyNote(
         last
-          ? `Classified ${totalUpdated.toLocaleString()} unset rows → junk ${last.counts.junk}, needs_url ${last.counts.needs_url}, qualified ${last.counts.qualified}. Remaining unset: ${(last.remaining_unset ?? 0).toLocaleString()}.`
+          ? `Classified ${totalUpdated.toLocaleString()} unset rows → junk ${totalCounts.junk}, needs_url ${totalCounts.needs_url}, qualified ${totalCounts.qualified}. Remaining unset: ${(last.remaining_unset ?? 0).toLocaleString()}.`
           : `Classified ${totalUpdated.toLocaleString()} rows.`,
       );
       await loadGateStats();

@@ -90,6 +90,7 @@ router.post('/entity-gate/classify-unset', async (req, res) => {
     const { count: remainingUnset, error: countErr } = await supabase
       .from('startup_uploads')
       .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
       .is('entity_gate', null);
     if (countErr) throw countErr;
 
@@ -134,7 +135,7 @@ router.get('/entity-gate/stats', async (req, res) => {
         if (gateRes[i].error) throw gateRes[i].error;
         return { gate: g, cnt: gateRes[i].count ?? 0 };
       }),
-    ].filter((r) => r.cnt > 0);
+    ];
     res.json({ stats });
   } catch (err) {
     console.error('[GET /api/admin/entity-gate/stats]', err);
