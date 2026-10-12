@@ -10104,23 +10104,32 @@ const {
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
     const { filterByFund, resolveFundKey, getFund, PYTHH_1 } = require('./lib/portfolioFunds');
+    const { fetchAllRows } = require('./lib/portfolioTrackRecord');
     const fundKey = resolveFundKey(req.query.fund);
     const supabase = getSupabaseClient();
-    const [metricsRes, trackRecord, totalEv, fundingEv, productEv, positionsRes, outcomeRowsRes] = await Promise.all([
+    const [metricsRes, trackRecord, totalEv, fundingEv, productEv, positionsRaw, outcomeRows] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
       computeTrackRecord(supabase, { fundKey }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
-      supabase.from('virtual_portfolio').select('id, status, entry_date, entity_quarantined, entered_late, virtual_check_usd, fund_key, moic'),
-      supabase.from('portfolio_events').select('portfolio_id, event_type, event_date, verified').in('event_type', ['funding_round', 'acquisition', 'ipo']),
+      // Paginate — same contract as /api/portfolio/funds (events exceed the 1000-row default page).
+      fetchAllRows(
+        supabase,
+        'virtual_portfolio',
+        'id, status, entry_date, entity_quarantined, entered_late, virtual_check_usd, fund_key, moic'
+      ),
+      fetchAllRows(
+        supabase,
+        'portfolio_events',
+        'portfolio_id, event_type, event_date, verified',
+        (q) => q.in('event_type', ['funding_round', 'acquisition', 'ipo'])
+      ),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
-    if (positionsRes.error) return res.status(500).json({ error: positionsRes.error.message });
-    if (outcomeRowsRes.error) return res.status(500).json({ error: outcomeRowsRes.error.message });
-    const positions = filterByFund(positionsRes.data || [], fundKey);
+    const positions = filterByFund(positionsRaw || [], fundKey);
     const positionIds = new Set(positions.map((p) => p.id));
-    const outcomes = (outcomeRowsRes.data || []).filter((e) => positionIds.has(e.portfolio_id));
+    const outcomes = (outcomeRows || []).filter((e) => positionIds.has(e.portfolio_id));
     const base = fundKey === PYTHH_1 ? enrichPortfolioMetrics(metricsRes.data || {}) : {};
     const metrics = applyCleanPortfolioMetrics(base, positions, outcomes);
     // Recompute avg_moic from fund-filtered positions for all vintages

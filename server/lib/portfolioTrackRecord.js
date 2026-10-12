@@ -263,19 +263,22 @@ async function computeTrackRecord(supabase, { fundKey } = {}) {
     .maybeSingle();
   if (metricsErr) throw new Error(metricsErr.message);
 
-  const { data: picksRaw, error: picksErr } = await supabase
-    .from('virtual_portfolio')
-    .select('id, entry_god_score, entry_date, moic, status, entity_quarantined, entered_late, virtual_check_usd, fund_key');
-  if (picksErr) throw new Error(picksErr.message);
+  // Paginate — portfolio_events already exceeds Supabase's default 1000-row page, and a
+  // truncated event set silently drops verified post-entry raises from Verified MOIC.
+  const [picksRaw, outcomeEvents] = await Promise.all([
+    fetchAllRows(
+      supabase,
+      'virtual_portfolio',
+      'id, entry_god_score, entry_date, moic, status, entity_quarantined, entered_late, virtual_check_usd, fund_key'
+    ),
+    fetchAllRows(
+      supabase,
+      'portfolio_events',
+      'portfolio_id, event_type, event_date, verified, amount_usd, source_url, headline, lead_investor',
+      (q) => q.in('event_type', ['funding_round', 'acquisition', 'ipo'])
+    ),
+  ]);
   const picks = filterByFund(picksRaw || [], wanted);
-
-  const { data: outcomeEvents, error: evErr } = await supabase
-    .from('portfolio_events')
-    .select(
-      'portfolio_id, event_type, event_date, verified, amount_usd, source_url, headline, lead_investor'
-    )
-    .in('event_type', ['funding_round', 'acquisition', 'ipo']);
-  if (evErr) throw new Error(evErr.message);
 
   const fundingEvents = (outcomeEvents || []).filter((e) => e.event_type === 'funding_round');
   const baseMetrics = wanted === PYTHH_1 ? enrichPortfolioMetrics(metricsRow || {}) : {};
@@ -401,6 +404,7 @@ module.exports = {
   verifiedMoicSubset,
   earlyAvgMoic,
   scoreboardForFund,
+  fetchAllRows,
   summarizePortfolioFunds,
   computeTrackRecord,
 };
