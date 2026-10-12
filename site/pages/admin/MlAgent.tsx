@@ -120,9 +120,14 @@ function RecommendationCard({ rec, onAction }: { rec: any; onAction: (id: string
 }
 
 const GATE_COLOR: Record<string, string> = {
+  qualified: "oklch(0.85 0.17 162)",
+  needs_url: "oklch(0.75 0.15 80)",
+  junk: "oklch(0.65 0.2 25)",
+  review: "oklch(0.7 0.15 80)",
+  url_blocked: "oklch(0.6 0.12 25)",
+  unset: "oklch(0.75 0.15 80)",
   pass: "oklch(0.85 0.17 162)",
   fail: "oklch(0.65 0.2 25)",
-  review: "oklch(0.7 0.15 80)",
 };
 
 export default function MlAgentPage() {
@@ -178,6 +183,14 @@ export default function MlAgentPage() {
                 Loaded via Supabase REST (Postgres raw SQL unavailable).
               </p>
             )}
+            <p style={{ fontSize: 11, color: "oklch(0.45 0.01 264)", marginTop: 10 }}>
+              Large <code style={{ color: "oklch(0.75 0.15 80)" }}>unset</code> counts mean the entity gate has not
+              classified those rows yet. Drain via{" "}
+              <a href="/admin/junk-startups" style={{ color: "oklch(0.85 0.17 162)" }}>
+                Junk Startup Cleanup → Classify unset
+              </a>
+              {" "}or <code style={{ color: "oklch(0.75 0.15 270)" }}>npm run entity-gate:execute:unset</code>.
+            </p>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

@@ -22,6 +22,7 @@
  *   node scripts/entity-resolution-gate.js --execute       # write entity_gate* columns
  *   node scripts/entity-resolution-gate.js --execute --startups-only
  *   node scripts/entity-resolution-gate.js --execute --investors-only
+ *   node scripts/entity-resolution-gate.js --execute --startups-only --unset-only
  *
  * RECOMMENDED PIPELINE ORDER (URL before junk):
  *   1. node scripts/entity-resolution-gate.js --execute
@@ -94,6 +95,8 @@ const argv = process.argv.slice(2);
 const EXECUTE = argv.includes('--execute');
 const STARTUPS_ONLY = argv.includes('--startups-only');
 const INVESTORS_ONLY = argv.includes('--investors-only');
+/** Only touch startup_uploads rows where entity_gate IS NULL (safe backlog drain). */
+const UNSET_ONLY = argv.includes('--unset-only');
 
 async function patchIds(table, ids, payload) {
   let n = 0;
@@ -127,14 +130,16 @@ async function gateStartups() {
   const now = new Date().toISOString();
 
   for (;;) {
-    const { data } = await supabaseResult(`startup_uploads page @${from}`, () =>
-      supabase
+    const { data } = await supabaseResult(`startup_uploads page @${from}`, () => {
+      let q = supabase
         .from('startup_uploads')
         .select('id, name, website, company_website, entity_gate, enrichment_attempts')
         .eq('status', 'approved')
         .order('id', { ascending: true })
-        .range(from, from + PAGE - 1),
-    );
+        .range(from, from + PAGE - 1);
+      if (UNSET_ONLY) q = q.is('entity_gate', null);
+      return q;
+    });
     if (!data || data.length === 0) break;
 
     for (const row of data) {
@@ -159,8 +164,15 @@ async function gateStartups() {
       }
     }
 
-    from += PAGE;
-    if (data.length < PAGE) break;
+    // Unset-only + execute: always re-read from offset 0 — updates remove rows from the
+    // IS NULL filter, so advancing `from` would skip the next unset page.
+    if (UNSET_ONLY && EXECUTE) {
+      if (data.length < PAGE) break;
+      // keep from = 0
+    } else {
+      from += PAGE;
+      if (data.length < PAGE) break;
+    }
   }
 
   if (EXECUTE && skipped > 0) {
@@ -212,11 +224,13 @@ async function main() {
   console.log('\n🧭 ENTITY RESOLUTION GATE');
   console.log('═'.repeat(56));
   console.log(`  Mode: ${EXECUTE ? 'EXECUTE (writes entity_gate*)' : 'DRY RUN (counts only)'}`);
-  console.log(`  Scope: ${INVESTORS_ONLY ? 'investors only' : STARTUPS_ONLY ? 'startups only' : 'startups + investors'}\n`);
+  console.log(`  Scope: ${INVESTORS_ONLY ? 'investors only' : STARTUPS_ONLY ? 'startups only' : 'startups + investors'}`);
+  if (UNSET_ONLY) console.log('  Filter: entity_gate IS NULL (unset only)');
+  console.log('');
 
   if (!INVESTORS_ONLY) {
     const su = await gateStartups();
-    console.log('  Startups (approved)');
+    console.log(`  Startups (approved${UNSET_ONLY ? ', unset only' : ''})`);
     console.log(`    junk: ${su.junk} | needs_url: ${su.needs_url} | qualified: ${su.qualified}`);
     if (EXECUTE) console.log(`    rows updated: ${su.updated}`);
   }

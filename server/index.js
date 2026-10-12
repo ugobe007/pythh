@@ -6925,6 +6925,8 @@ app.use('/api/admin', adminScoringConsole);
 
 const adminJunkStartups = require('./routes/adminJunkStartups');
 app.use('/api/admin', adminJunkStartups);
+const adminEntityGate = require('./routes/adminEntityGate');
+app.use('/api/admin', adminEntityGate);
 const adminMatchOutcomes = require('./routes/adminMatchOutcomes');
 app.use('/api/admin', adminMatchOutcomes);
 const adminTargetedMatch = require('./routes/adminTargetedMatch');
