@@ -1315,7 +1315,7 @@ export async function getAdminMlRecommendations() {
       .limit(20),
   ]);
 
-  const gateKeys = ["qualified", "needs_url", "junk", "review"] as const;
+  const gateKeys = ["qualified", "needs_url", "junk", "review", "url_blocked"] as const;
   const gateCounts = await Promise.all([
     sb.from("startup_uploads").select("id", { count: "exact", head: true }).is("entity_gate", null),
     ...gateKeys.map((g) =>

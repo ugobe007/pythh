@@ -145,6 +145,7 @@
     "enrich:stats": "node scripts/run-node.mjs scripts/core/enrichment-orchestrator.js --stats",
     "entity-gate": "node scripts/run-node.mjs scripts/entity-resolution-gate.js",
     "entity-gate:execute": "node scripts/run-node.mjs scripts/entity-resolution-gate.js --execute",
+    "entity-gate:execute:unset": "node scripts/run-node.mjs scripts/entity-resolution-gate.js --execute --startups-only --unset-only",
     "enrich:rss-news": "node scripts/run-node.mjs scripts/enrich-from-rss-news.js",
     "outcomes:correlate-funding": "node scripts/run-node.mjs scripts/correlate-funding-event-investors.mjs",
     "outcomes:search-funding": "node scripts/run-node.mjs scripts/search-startup-funding-evidence.mjs",

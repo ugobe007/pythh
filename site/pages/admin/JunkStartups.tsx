@@ -1,9 +1,9 @@
 import { Helmet } from "react-helmet-async";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
-import { AlertTriangle, Loader2, RefreshCw, Trash2, XCircle } from "lucide-react";
-import { apiUrl } from "@/lib/apiConfig";
+import { AlertTriangle, Loader2, RefreshCw, Trash2, XCircle, Shuffle } from "lucide-react";
+import { apiUrl, fetchTimeoutSignal } from "@/lib/apiConfig";
 
 type JunkRow = {
   id: string;
@@ -19,6 +19,18 @@ type ScanResult = {
   junk_count: number;
   by_reason: Record<string, number>;
   rows: JunkRow[];
+  filters?: { status: string; gate: string; limit: number };
+};
+
+type GateStat = { gate: string; cnt: number };
+
+type ClassifyResult = {
+  ok: boolean;
+  updated: number;
+  fetched: number;
+  counts: { junk: number; needs_url: number; qualified: number };
+  remaining_unset: number | null;
+  done: boolean;
 };
 
 const border = "oklch(0.22 0.01 264)";
@@ -27,19 +39,46 @@ const muted = "oklch(0.45 0.01 264)";
 
 export default function JunkStartupsPage() {
   const [statusFilter, setStatusFilter] = useState<"active" | "pending" | "approved" | "all">("active");
+  const [gateFilter, setGateFilter] = useState<"unset" | "any" | "junk">("unset");
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const [applyProgress, setApplyProgress] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [gateStats, setGateStats] = useState<GateStat[]>([]);
+  const [classifyNote, setClassifyNote] = useState<string | null>(null);
 
-  const runScan = useCallback(async () => {
+  const loadGateStats = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/admin/entity-gate/stats"), {
+        signal: fetchTimeoutSignal(30_000),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { stats?: GateStat[] };
+      setGateStats(data.stats ?? []);
+    } catch {
+      /* non-fatal */
+    }
+  }, []);
+
+  const runScan = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ status: statusFilter, limit: "3000" });
-      const res = await fetch(apiUrl(`/api/admin/junk-startups/scan?${params}`));
+      const params = new URLSearchParams({
+        status: statusFilter,
+        gate: gateFilter,
+        limit: "3000",
+      });
+      const timeoutSignal = fetchTimeoutSignal(90_000);
+      const combinedSignal = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal;
+      const res = await fetch(apiUrl(`/api/admin/junk-startups/scan?${params}`), {
+        signal: combinedSignal,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Scan failed (${res.status})`);
@@ -48,11 +87,29 @@ export default function JunkStartupsPage() {
       setScan(data);
       setSelected(new Set(data.rows.map((r) => r.id)));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof Error && e.name === "AbortError") {
+        if (!signal?.aborted) {
+          setError("Scan timed out after 90s — try a smaller scope or retry.");
+        }
+        return;
+      }
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, gateFilter]);
+
+  // Auto-scan on mount and whenever filters change — button is still available to re-run.
+  useEffect(() => {
+    const controller = new AbortController();
+    void runScan(controller.signal);
+    return () => controller.abort();
+  }, [runScan]);
+
+  useEffect(() => {
+    void loadGateStats();
+  }, [loadGateStats]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -67,6 +124,46 @@ export default function JunkStartupsPage() {
     if (!scan?.rows.length) return;
     if (selected.size === scan.rows.length) setSelected(new Set());
     else setSelected(new Set(scan.rows.map((r) => r.id)));
+  };
+
+  const classifyUnset = async () => {
+    setClassifying(true);
+    setError(null);
+    setClassifyNote(null);
+    let totalUpdated = 0;
+    let last: ClassifyResult | null = null;
+    const totalCounts = { junk: 0, needs_url: 0, qualified: 0 };
+    try {
+      // Drain in chunks so each request stays under Fly/proxy timeouts.
+      for (let i = 0; i < 40; i++) {
+        setClassifyNote(`Classifying unset backlog… batch ${i + 1}`);
+        const res = await fetch(apiUrl("/api/admin/entity-gate/classify-unset"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 2000 }),
+          signal: fetchTimeoutSignal(120_000),
+        });
+        const body = (await res.json().catch(() => ({}))) as ClassifyResult & { error?: string };
+        if (!res.ok) throw new Error(body.error || `Classify failed (${res.status})`);
+        last = body;
+        totalUpdated += Number(body.updated || 0);
+        totalCounts.junk += body.counts.junk;
+        totalCounts.needs_url += body.counts.needs_url;
+        totalCounts.qualified += body.counts.qualified;
+        if (body.done || !body.updated) break;
+      }
+      setClassifyNote(
+        last
+          ? `Classified ${totalUpdated.toLocaleString()} unset rows → junk ${totalCounts.junk}, needs_url ${totalCounts.needs_url}, qualified ${totalCounts.qualified}. Remaining unset: ${(last.remaining_unset ?? 0).toLocaleString()}.`
+          : `Classified ${totalUpdated.toLocaleString()} rows.`,
+      );
+      await loadGateStats();
+      await runScan();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClassifying(false);
+    }
   };
 
   const apply = async (action: "reject" | "delete") => {
@@ -84,7 +181,6 @@ export default function JunkStartupsPage() {
     setApplying(true);
     setError(null);
     setApplyProgress(null);
-    // Reject can go larger; delete stays small so match cascades don't statement-timeout
     const CHUNK = action === "delete" ? 25 : 200;
     let affected = 0;
     const failures: string[] = [];
@@ -98,6 +194,7 @@ export default function JunkStartupsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids: chunk, action }),
+          signal: fetchTimeoutSignal(180_000),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -118,6 +215,7 @@ export default function JunkStartupsPage() {
         `Done — ${affected} row(s) ${action === "delete" ? "deleted" : "rejected"}.` +
           (failures.length ? `\n\n${failures.length} batch warning(s): ${failures[0]}` : ""),
       );
+      await loadGateStats();
       await runScan();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -134,6 +232,8 @@ export default function JunkStartupsPage() {
       .slice(0, 8);
   }, [scan]);
 
+  const unsetCount = gateStats.find((g) => g.gate === "unset")?.cnt ?? null;
+
   return (
     <DashboardLayout>
       <Helmet>
@@ -147,8 +247,9 @@ export default function JunkStartupsPage() {
             Junk Startup Cleanup
           </h1>
           <p className="text-xs mt-1 max-w-xl" style={{ color: muted }}>
-            Scan headline fragments, test names, and entity_gate junk — reject or delete in bulk. Uses the same name
-            gate as the ingestion pipeline.
+            Scan headline fragments and test names in the entity-gate backlog, then reject or delete.
+            Use <strong style={{ color: "oklch(0.85 0.01 264)" }}>Classify unset</strong> to assign
+            needs_url / qualified / junk across the full approved unset pool.
           </p>
         </div>
         <Link
@@ -160,9 +261,51 @@ export default function JunkStartupsPage() {
         </Link>
       </div>
 
+      {gateStats.length > 0 && (
+        <div className="rounded-lg border p-4 mb-4" style={{ borderColor: border, background: panelBg }}>
+          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: muted }}>
+            Entity gate distribution
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {gateStats.map((g) => (
+              <div key={g.gate} className="text-center min-w-[72px]">
+                <div
+                  className="text-xl font-bold font-mono"
+                  style={{
+                    color: g.gate === "unset" ? "oklch(0.75 0.15 80)" : "oklch(0.85 0.01 264)",
+                  }}
+                >
+                  {Number(g.cnt).toLocaleString()}
+                </div>
+                <div className="text-[10px]" style={{ color: muted }}>
+                  {g.gate}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void classifyUnset()}
+              disabled={classifying || (unsetCount != null && unsetCount === 0)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+              style={{ background: "oklch(0.45 0.12 270)", color: "#fff", border: "none" }}
+            >
+              {classifying ? <Loader2 size={14} className="animate-spin" /> : <Shuffle size={14} />}
+              {classifying ? "Classifying…" : "Classify unset approved"}
+            </button>
+            {classifyNote && (
+              <span className="text-[11px]" style={{ color: muted }}>
+                {classifyNote}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <label className="text-xs" style={{ color: muted }}>
-          Scan scope
+          Status
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -173,6 +316,19 @@ export default function JunkStartupsPage() {
             <option value="pending">Pending only</option>
             <option value="approved">Approved only</option>
             <option value="all">All statuses</option>
+          </select>
+        </label>
+        <label className="text-xs" style={{ color: muted }}>
+          Entity gate
+          <select
+            value={gateFilter}
+            onChange={(e) => setGateFilter(e.target.value as typeof gateFilter)}
+            className="ml-2 rounded-lg px-2 py-1.5 text-sm cursor-pointer"
+            style={{ background: panelBg, border: `1px solid ${border}`, color: "oklch(0.92 0.005 264)" }}
+          >
+            <option value="unset">Unset only (backlog)</option>
+            <option value="any">Any gate</option>
+            <option value="junk">Already junk</option>
           </select>
         </label>
         <button
@@ -227,6 +383,11 @@ export default function JunkStartupsPage() {
                     {reason} ({count})
                   </span>
                 ))}
+                {!topReasons.length && (
+                  <span className="text-[11px]" style={{ color: muted }}>
+                    No name-gate junk in this slice. Run Classify unset to assign needs_url / qualified.
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -315,7 +476,9 @@ export default function JunkStartupsPage() {
                 {!scan.rows.length && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center" style={{ color: muted }}>
-                      No junk found in this scan scope.
+                      {gateFilter === "unset"
+                        ? "No name-gate junk in this unset slice. Click Classify unset approved to assign gates across the backlog."
+                        : "No junk found in this scan scope."}
                     </td>
                   </tr>
                 )}
@@ -325,9 +488,9 @@ export default function JunkStartupsPage() {
         </>
       )}
 
-      {!scan && !loading && (
-        <p className="text-xs" style={{ color: muted }}>
-          Run a scan to list junk startups, then reject or delete selected rows.
+      {!scan && loading && (
+        <p className="text-xs flex items-center gap-2" style={{ color: muted }}>
+          <Loader2 size={14} className="animate-spin" /> Scanning for junk…
         </p>
       )}
     </DashboardLayout>

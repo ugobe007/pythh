@@ -3,9 +3,10 @@
 /**
  * Admin junk startup scan + cleanup (uses shared name gate heuristics).
  *
- * GET  /api/admin/junk-startups/scan?status=pending|approved|all&limit=3000
+ * GET  /api/admin/junk-startups/scan?status=pending|approved|active|all&gate=unset|any|junk&limit=3000
  * POST /api/admin/junk-startups/apply  { ids, action: 'reject'|'delete' }
  *
+ * Default gate=unset targets the entity_gate IS NULL backlog (tens of thousands of rows).
  * Delete uses small batches + chunked dependent purge to avoid statement_timeout
  * when clearing startups that have hundreds of matches each.
  */
@@ -59,6 +60,8 @@ router.get('/junk-startups/scan', async (req, res) => {
   try {
     const supabase = getSupabase();
     const status = String(req.query.status || 'active').toLowerCase();
+    // unset = entity_gate IS NULL (default) — matches the ML Agent "unset" backlog
+    const gate = String(req.query.gate || 'unset').toLowerCase();
     const limit = Math.min(parseInt(req.query.limit, 10) || 3000, 10000);
     const PAGE = 500;
     const rows = [];
@@ -76,6 +79,10 @@ router.get('/junk-startups/scan', async (req, res) => {
       else if (status === 'active') query = query.in('status', ['pending', 'approved']);
       else if (status !== 'all') query = query.eq('status', status);
 
+      if (gate === 'unset') query = query.is('entity_gate', null);
+      else if (gate === 'junk') query = query.eq('entity_gate', 'junk');
+      // gate === 'any' → no entity_gate filter
+
       const { data, error } = await query;
       if (error) throw error;
       if (!data?.length) break;
@@ -85,7 +92,11 @@ router.get('/junk-startups/scan', async (req, res) => {
     }
 
     const scanned = rows.slice(0, limit);
-    const junk = scanned.map(classifyRow).filter(Boolean);
+    // When scanning already-gated junk, every row is junk; otherwise name-gate classify.
+    const junk =
+      gate === 'junk'
+        ? scanned.map((row) => classifyRow({ ...row, entity_gate: 'junk' })).filter(Boolean)
+        : scanned.map(classifyRow).filter(Boolean);
     junk.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     const byReason = {};
@@ -99,6 +110,7 @@ router.get('/junk-startups/scan', async (req, res) => {
       junk_count: junk.length,
       by_reason: byReason,
       rows: junk,
+      filters: { status, gate, limit },
     });
   } catch (err) {
     console.error('[GET /api/admin/junk-startups/scan]', err);
