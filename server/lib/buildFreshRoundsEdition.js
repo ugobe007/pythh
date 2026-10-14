@@ -38,31 +38,40 @@ function formatAmount(usd) {
   if (!Number.isFinite(n) || n <= 0) return '—';
   if (n >= 1_000_000_000) {
     const v = n / 1_000_000_000;
-    return `$${Number.isInteger(v) ? v : v.toFixed(1).replace(/\.0$/, '')}B`;
+    return `$${Number.isInteger(v) ? v : v.toFixed(2).replace(/\.?0+$/, '')}B`;
   }
   if (n >= 1_000_000) {
     const v = n / 1_000_000;
-    return `$${Number.isInteger(v) ? v : v.toFixed(1).replace(/\.0$/, '')}M`;
+    return `$${Number.isInteger(v) ? v : v.toFixed(2).replace(/\.?0+$/, '')}M`;
   }
   if (n >= 1_000) {
     const v = n / 1_000;
-    return `$${Number.isInteger(v) ? v : v.toFixed(0)}K`;
+    const rounded = Math.round(v);
+    if (rounded >= 1000) {
+      return `$${(rounded / 1000).toFixed(2).replace(/\.?0+$/, '')}M`;
+    }
+    return `$${rounded}K`;
   }
   return `$${Math.round(n)}`;
 }
 
 function isEarlyStageRound(event) {
   const t = `${event.round_type || ''} ${event.headline || ''}`.toLowerCase();
-  // Never late-stage / non-equity noise
-  if (/series\s*[b-z]\b|growth\b|\bipo\b|\bdebt\b|\bgrant\b|\bnsf\b/.test(t)) return false;
-  // Explicit Series A is out of the Pre-Seed sheet
-  if (/series\s*a\b/.test(t) && !/pre[-\s]?seed|preseed/.test(t)) return false;
-
+  
+  // Check for explicit early-stage markers first
   if (/pre[-\s]?seed|preseed/.test(t)) return true;
   if (/\bseed\b|\bangel\b/.test(t)) {
     const amt = Number(event.amount_usd);
     return !Number.isFinite(amt) || amt <= EARLY_AMOUNT_CAP;
   }
+  
+  // Now filter out late-stage / non-equity noise
+  const roundType = (event.round_type || '').toLowerCase();
+  if (/series\s*[b-z]\b|\bgrowth\b|\bipo\b|\bdebt\b|\bgrant\b|\bnsf\b/.test(roundType)) return false;
+  
+  // Explicit Series A is out of the Pre-Seed sheet
+  if (/series\s*a\b/.test(t) && !/pre[-\s]?seed|preseed/.test(t)) return false;
+
   const amt = Number(event.amount_usd);
   // Amount-only early heuristic when round_type missing
   if (!event.round_type && Number.isFinite(amt) && amt > 0 && amt <= 8_000_000) {
@@ -156,7 +165,6 @@ async function loadLiveRows(supabase, opts = {}) {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     picked.push(ev);
-    if (picked.length >= limit * 2) break; // fetch buffer before name filter
   }
 
   const startupIds = [...new Set(picked.map((e) => e.startup_id).filter(Boolean))];
