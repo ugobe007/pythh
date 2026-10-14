@@ -51,10 +51,14 @@ const {
 
 // ============================================================================
 // CONCURRENCY — 1 when hitting Google News (rate-limited), 4 when html-only
+// Override html-only with SPARSE_ENRICH_HTML_CONCURRENCY (network-bound domain probes + HTML).
 // ============================================================================
 const CONCURRENCY_NEWS = 1;
-/** Sequential: large-site HTML + regex extract can saturate CPU; avoids interleaved logs and false 60s timeouts */
-const CONCURRENCY_HTML_ONLY = 1;
+/** Parallel html-only batches; keep modest so large-site HTML extract does not thrash CPU */
+const CONCURRENCY_HTML_ONLY = Math.max(
+  1,
+  parseInt(process.env.SPARSE_ENRICH_HTML_CONCURRENCY || '4', 10) || 4,
+);
 
 // Per-startup timeout — full pipeline must fit inside outer withTimeout (inferDomain can probe many domains)
 const PER_STARTUP_TIMEOUT_MS_FULL = getInferenceConfig().SPARSE_ENRICH_PER_STARTUP_TIMEOUT_MS;
