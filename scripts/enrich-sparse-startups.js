@@ -283,10 +283,24 @@ async function enrichOneStartup(startup, dryRun = false, htmlOnly = false) {
     } catch { /* malformed - skip */ }
   }
 
-  const { error: updateError } = await supabase
+  let { error: updateError } = await supabase
     .from('startup_uploads')
     .update(updatePayload)
     .eq('id', startup.id);
+
+  // Concurrent jobs can claim the same website between the check above and this write
+  if (
+    updateError &&
+    updatePayload.website &&
+    updateError.code === '23505' &&
+    /website/i.test(`${updateError.message} ${updateError.details || ''}`)
+  ) {
+    delete updatePayload.website;
+    ({ error: updateError } = await supabase
+      .from('startup_uploads')
+      .update(updatePayload)
+      .eq('id', startup.id));
+  }
 
   if (updateError) throw new Error(updateError.message);
 
