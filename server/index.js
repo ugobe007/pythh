@@ -114,6 +114,25 @@ app.get('/api/public-config', (req, res) => {
   res.json({ supabaseUrl, supabaseAnonKey });
 });
 
+// Fresh Rounds PDF — public editorial download for /rounds
+app.get('/api/rounds/pdf', async (req, res) => {
+  try {
+    const { buildFreshRoundsPdf, freshRoundsPdfFilename } = require('./lib/freshRoundsPdf');
+    const pdf = await buildFreshRoundsPdf();
+    const filename = freshRoundsPdfFilename();
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(pdf.length),
+      'Cache-Control': 'public, max-age=300',
+    });
+    res.send(pdf);
+  } catch (err) {
+    console.error('[GET /api/rounds/pdf]', err);
+    res.status(500).json({ error: err.message || 'pdf failed' });
+  }
+});
+
 // Bind port early so Fly /ping health passes while the rest of the app loads.
 startHttpServer();
 
