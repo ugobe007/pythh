@@ -35,7 +35,7 @@ export default function FreshRounds() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(objectUrl);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 500);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

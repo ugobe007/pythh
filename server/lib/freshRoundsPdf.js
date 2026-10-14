@@ -103,7 +103,7 @@ function buildFreshRoundsPdf(edition = FRESH_ROUNDS_EDITION) {
     y += 10;
 
     const idxW = 26;
-    const amountColW = 70;
+    const amountColW = 110;
     const nameColX = left + idxW;
     const nameColW = contentW - idxW - amountColW - 10;
     const amountColX = right - amountColW;
