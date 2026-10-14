@@ -114,17 +114,45 @@ app.get('/api/public-config', (req, res) => {
   res.json({ supabaseUrl, supabaseAnonKey });
 });
 
-// Fresh Rounds PDF — public editorial download for /rounds
+// Fresh Rounds — daily live edition + PDF for /rounds
+app.get('/api/rounds', async (req, res) => {
+  try {
+    const { buildFreshRoundsEdition } = require('./lib/buildFreshRoundsEdition');
+    const { getSupabaseClient } = require('./lib/supabaseClient');
+    let supabase = null;
+    try {
+      supabase = getSupabaseClient();
+    } catch {
+      /* optional */
+    }
+    const edition = await buildFreshRoundsEdition(supabase);
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
+    res.json({ edition });
+  } catch (err) {
+    console.error('[GET /api/rounds]', err);
+    res.status(500).json({ error: err.message || 'rounds failed' });
+  }
+});
+
 app.get('/api/rounds/pdf', async (req, res) => {
   try {
     const { buildFreshRoundsPdf, freshRoundsPdfFilename } = require('./lib/freshRoundsPdf');
-    const pdf = await buildFreshRoundsPdf();
-    const filename = freshRoundsPdfFilename();
+    const { buildFreshRoundsEdition } = require('./lib/buildFreshRoundsEdition');
+    const { getSupabaseClient } = require('./lib/supabaseClient');
+    let supabase = null;
+    try {
+      supabase = getSupabaseClient();
+    } catch {
+      /* optional */
+    }
+    const edition = await buildFreshRoundsEdition(supabase);
+    const pdf = await buildFreshRoundsPdf(edition);
+    const filename = freshRoundsPdfFilename(edition);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': String(pdf.length),
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=120',
     });
     res.send(pdf);
   } catch (err) {

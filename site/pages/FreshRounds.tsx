@@ -1,19 +1,57 @@
 import { Helmet } from "react-helmet-async";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import { fetchTimeoutSignal } from "@/lib/apiConfig";
-import edition from "../../lib/freshRoundsEdition.json";
+import fallbackEdition from "../../lib/freshRoundsEdition.json";
 
 const RULE = "rgba(255,255,255,0.16)";
 const DIM = "rgba(255,255,255,0.55)";
 
-/** Same-origin path — Vite proxies `/api` in dev; Vercel→Fly in prod. */
+/** Same-origin paths — Vite proxies `/api` in dev; Vercel→Fly in prod. */
+const EDITION_PATH = "/api/rounds";
 const PDF_PATH = "/api/rounds/pdf";
 
+type RoundRow = { name: string; line: string; amount: string; investor: string };
+type Edition = {
+  slug: string;
+  masthead: string;
+  dateLabel: string;
+  title: string;
+  subtitle: string;
+  cadence: string;
+  footnote: string;
+  rows: RoundRow[];
+  source?: string;
+};
+
 export default function FreshRounds() {
+  const [edition, setEdition] = useState<Edition>(fallbackEdition as Edition);
+  const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(EDITION_PATH, { signal: fetchTimeoutSignal(30_000) });
+        if (!res.ok) throw new Error(`edition ${res.status}`);
+        const body = (await res.json()) as { edition?: Edition };
+        if (!cancelled && body.edition?.rows?.length) {
+          setEdition(body.edition);
+        }
+      } catch {
+        /* keep fallback */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const downloadPdf = async () => {
     setDownloading(true);
@@ -43,16 +81,28 @@ export default function FreshRounds() {
     }
   };
 
+  const topNames = edition.rows
+    .slice(0, 3)
+    .map((r) => r.name)
+    .join(", ");
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#000", color: "#fff" }}>
       <Helmet>
         <title>Fresh Rounds — Pre-Seed — Pythh.ai</title>
         <meta
           name="description"
-          content="Ten verified pre-seed raises. Aranya, DataAgent, Bluecore Energy, and seven more, with the amount and the lead."
+          content={
+            topNames
+              ? `Verified early-stage raises. ${topNames}, and more — amounts and leads from the press.`
+              : "Verified early-stage raises. Amounts and leads from the press."
+          }
         />
         <meta property="og:title" content="Fresh Rounds — Pre-Seed" />
-        <meta property="og:description" content="10 verified pre-seed raises. Amounts and leads from the press." />
+        <meta
+          property="og:description"
+          content="Daily verified early-stage raises. Amounts and leads from the press."
+        />
         <meta property="og:url" content="https://pythh.ai/rounds" />
         <link rel="canonical" href="https://pythh.ai/rounds" />
       </Helmet>
@@ -63,13 +113,13 @@ export default function FreshRounds() {
           <div>
             <p className="font-display font-semibold tracking-[0.18em] text-[13px]">{edition.masthead}</p>
             <p className="font-mono text-[11px] tracking-[0.16em] mt-2" style={{ color: DIM }}>
-              {edition.dateLabel}
+              {loading ? "LOADING…" : edition.dateLabel}
             </p>
           </div>
           <button
             type="button"
             onClick={() => void downloadPdf()}
-            disabled={downloading}
+            disabled={downloading || loading}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold cursor-pointer disabled:opacity-50"
             style={{
               background: "transparent",
@@ -101,7 +151,7 @@ export default function FreshRounds() {
         <div className="mt-8" style={{ borderTop: `1px solid ${RULE}` }}>
           {edition.rows.map((row, index) => (
             <div
-              key={row.name}
+              key={`${row.name}-${index}`}
               className="grid items-start gap-x-4 py-3.5"
               style={{
                 gridTemplateColumns: "2.2rem minmax(0,1fr) auto",
@@ -127,6 +177,11 @@ export default function FreshRounds() {
               </div>
             </div>
           ))}
+          {!edition.rows.length && !loading && (
+            <p className="py-8 text-[13px]" style={{ color: DIM }}>
+              No verified early-stage raises in this window yet.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mt-7">

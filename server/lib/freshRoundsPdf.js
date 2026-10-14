@@ -24,7 +24,7 @@ function paint(doc, str, x, y, opts = {}) {
   if (font) doc.font(font);
   if (size != null) doc.fontSize(size);
   if (color) doc.fillColor(color);
-  doc.text(str, x, y, {
+  doc.text(String(str ?? ''), x, y, {
     width,
     align,
     characterSpacing,
@@ -35,10 +35,13 @@ function paint(doc, str, x, y, opts = {}) {
 }
 
 /**
- * @param {typeof FRESH_ROUNDS_EDITION} [edition]
+ * @param {object} [edition]
  * @returns {Promise<Buffer>}
  */
 function buildFreshRoundsPdf(edition = FRESH_ROUNDS_EDITION) {
+  if (!edition?.rows?.length) {
+    edition = FRESH_ROUNDS_EDITION;
+  }
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'LETTER',
