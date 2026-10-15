@@ -371,7 +371,7 @@ async function parkRowsAsHolding(rows, reason) {
         holding_since: now,
       })
       .in('id', slice)
-      .or('enrichment_status.is.null,enrichment_status.eq.waiting');
+      .or('enrichment_status.is.null,enrichment_status.neq.holding');
     if (error) {
       console.warn(`  ⚠️  parkRowsAsHolding (${reason}) failed: ${error.message}`);
     } else {
@@ -386,11 +386,10 @@ async function runOneChunk(opts) {
 
   const excludeEntityJunk = process.env.SPARSE_ENRICH_EXCLUDE_ENTITY_JUNK === '1';
 
-  const statusFilter = includeHolding
-    ? 'enrichment_status.eq.waiting,enrichment_status.is.null,enrichment_status.eq.holding'
-    : gateNeedsUrlOnly
-      ? 'enrichment_status.is.null,enrichment_status.neq.holding'
-      : 'enrichment_status.eq.waiting,enrichment_status.is.null';
+  const baseStatusFilter = gateNeedsUrlOnly
+    ? 'enrichment_status.is.null,enrichment_status.neq.holding'
+    : 'enrichment_status.eq.waiting,enrichment_status.is.null';
+  const statusFilter = includeHolding ? `${baseStatusFilter},enrichment_status.eq.holding` : baseStatusFilter;
 
   const buildQuery = () => {
     let q = supabase
