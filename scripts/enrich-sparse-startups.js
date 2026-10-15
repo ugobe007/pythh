@@ -25,10 +25,14 @@
  *                     Also skip entity_gate=qualified rows (they already have a URL, no point in URL discovery).
  * --gate-needs-url-only  Stricter variant: only rows explicitly labeled entity_gate=needs_url by entity-resolution-gate.js.
  *                        Use after running `node scripts/entity-resolution-gate.js --execute` to target the exact needs_url set.
- * --include-holding  Also include startups in 'holding' (3+ failed attempts). Use to retry after fixing issues.
+ * --include-holding  Also include startups in 'holding' (3+ failed attempts / parked junk names).
+ *                    Applies to --gate-needs-url-only / --no-url-only as well (previously ignored there).
  * --run-all          Loop until no sparse startups remain. Uses --limit per chunk (default 200).
  * --html-only        Skip Google News RSS (use when blocked). Enriches from website HTML + infers URL from name when missing.
  * --god-score-below=N  Only rows with total_god_score < N (default 70). Raise N (e.g. 85) when the queue is empty but you still want to enrich.
+ *
+ * Continuous overnight drain: prefer `npm run enrich:sparse:continuous` (html chunk → news chunk loop)
+ * over a single --run-all html-only job that never reaches the news pass.
  */
 
 require('dotenv').config();
@@ -348,10 +352,44 @@ function scoreBelowCeiling(score, ceiling) {
   return score == null || score < ceiling;
 }
 
+/** Park junk / exhausted rows so continuous drains do not re-pull them forever. */
+async function parkRowsAsHolding(rows, reason) {
+  if (!rows?.length) return 0;
+  const now = new Date().toISOString();
+  const ids = rows.map((r) => r.id).filter(Boolean);
+  if (!ids.length) return 0;
+  // Batch in chunks — PostgREST .in() lists should stay modest
+  let parked = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    const slice = ids.slice(i, i + 100);
+    const { error } = await supabase
+      .from('startup_uploads')
+      .update({
+        enrichment_status: 'holding',
+        enrichment_attempts: 99,
+        last_enrichment_attempt: now,
+        holding_since: now,
+      })
+      .in('id', slice)
+      .or('enrichment_status.is.null,enrichment_status.neq.holding');
+    if (error) {
+      console.warn(`  ⚠️  parkRowsAsHolding (${reason}) failed: ${error.message}`);
+    } else {
+      parked += slice.length;
+    }
+  }
+  return parked;
+}
+
 async function runOneChunk(opts) {
   const { limit, dryRun, noUrlOnly, gateNeedsUrlOnly, includeHolding, htmlOnly, godScoreBelow, requireSignal } = opts;
 
   const excludeEntityJunk = process.env.SPARSE_ENRICH_EXCLUDE_ENTITY_JUNK === '1';
+
+  const baseStatusFilter = gateNeedsUrlOnly
+    ? 'enrichment_status.is.null,enrichment_status.neq.holding'
+    : 'enrichment_status.eq.waiting,enrichment_status.is.null';
+  const statusFilter = includeHolding ? `${baseStatusFilter},enrichment_status.eq.holding` : baseStatusFilter;
 
   const buildQuery = () => {
     let q = supabase
@@ -371,16 +409,15 @@ async function runOneChunk(opts) {
     }
 
     if (noUrlOnly || gateNeedsUrlOnly) {
+      // Exclude holding by default so parked junk / 3-strike failures leave the continuous pool.
       q = q
         .is('website', null)
         .is('company_website', null)
+        .or(statusFilter)
         .order('enrichment_attempts', { ascending: true })
         .order('updated_at', { ascending: true })
         .limit(limit * 2);
     } else {
-      const statusFilter = includeHolding
-        ? 'enrichment_status.eq.waiting,enrichment_status.is.null,enrichment_status.eq.holding'
-        : 'enrichment_status.eq.waiting,enrichment_status.is.null';
       q = q
         .or(statusFilter)
         .order('enrichment_attempts', { ascending: true })
@@ -405,16 +442,23 @@ async function runOneChunk(opts) {
       }).slice(0, limit);
 
   const preNameFilter = sparseStartups.length;
-  sparseStartups = sparseStartups.filter((s) => {
-    if (isGarbage(s.name)) return false;
-    if (ontologyJunkReason(s.name)) return false;
-    return true;
-  });
+  const kept = [];
+  const junkRows = [];
+  for (const s of sparseStartups) {
+    if (isGarbage(s.name) || ontologyJunkReason(s.name)) junkRows.push(s);
+    else kept.push(s);
+  }
+  sparseStartups = kept;
   const nameFiltered = preNameFilter - sparseStartups.length;
   if (nameFiltered > 0) {
     console.log(
       `Filtered out ${nameFiltered} row(s) with headline/person/junk names (same rules as startupNameValidator + ontology).\n`,
     );
+    // Park junk so the next continuous chunk does not keep re-fetching the same head of queue.
+    if (!dryRun) {
+      const parked = await parkRowsAsHolding(junkRows, 'name_filter_junk');
+      if (parked > 0) console.log(`  📌 Parked ${parked} junk-name row(s) as enrichment_status=holding\n`);
+    }
   }
 
   // Signal filter: sectors, stage, team_size are auto-assigned by the ingestion pipeline
@@ -500,6 +544,9 @@ async function runOneChunk(opts) {
 
       if (isGarbage(startup.name) || ontologyJunkReason(startup.name)) {
         console.log(`  ⏭️  Skipped (invalid or headline-style name)`);
+        if (!dryRun) {
+          await parkRowsAsHolding([startup], 'runtime_garbage_skip');
+        }
         return {
           status: 'skipped',
           mlPayload: mlLogEnabled()
@@ -692,4 +739,12 @@ async function enrichSparseStartups() {
   }
 }
 
-enrichSparseStartups().catch(console.error);
+enrichSparseStartups()
+  .then(() => {
+    // Explicit exit — open Supabase/axios handles otherwise keep Node alive and hang continuous chunk loops.
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
