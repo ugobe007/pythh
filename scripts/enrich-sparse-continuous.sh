@@ -26,6 +26,7 @@ LOG_DIR="${ENRICH_SPARSE_LOG_DIR:-/workspace/logs/enrich-sparse}"
 mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/continuous.log"
 PIDFILE="$LOG_DIR/continuous.pid"
+CHUNK_OUT="$LOG_DIR/chunk.out"
 echo $$ > "$PIDFILE"
 
 HTML_LIMIT="${ENRICH_HTML_LIMIT:-200}"
@@ -59,11 +60,12 @@ while true; do
       --no-require-signal \
       --limit="$HTML_LIMIT" \
       --god-score-below="$GOD_BELOW" \
-      >>"$LOG" 2>&1
+      >"$CHUNK_OUT" 2>&1
   html_ec=$?
-  # Parse the most recent CHUNK SUMMARY block (last occurrence in the log)
-  html_processed=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print lastp+0}' "$LOG")
-  html_enriched=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print laste+0}' "$LOG")
+  cat "$CHUNK_OUT" >>"$LOG"
+  # Parse this chunk's CHUNK SUMMARY only (empty pool prints none → 0)
+  html_processed=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print lastp+0}' "$CHUNK_OUT")
+  html_enriched=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print laste+0}' "$CHUNK_OUT")
   log "HTML chunk exit=$html_ec processed=${html_processed:-0} enriched=${html_enriched:-0}"
 
   log "── CYCLE $cycle · NEWS chunk (limit=$NEWS_LIMIT, QUICK_ENRICH_LITE=0) ──"
@@ -74,10 +76,11 @@ while true; do
       --no-require-signal \
       --limit="$NEWS_LIMIT" \
       --god-score-below="$GOD_BELOW" \
-      >>"$LOG" 2>&1
+      >"$CHUNK_OUT" 2>&1
   news_ec=$?
-  news_processed=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print lastp+0}' "$LOG")
-  news_enriched=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print laste+0}' "$LOG")
+  cat "$CHUNK_OUT" >>"$LOG"
+  news_processed=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print lastp+0}' "$CHUNK_OUT")
+  news_enriched=$(awk '/CHUNK SUMMARY/{p=1; proc=""; enr=""} p && /Processed:/{proc=$2} p && /Enriched:/{enr=$2} p && /^══/{if(proc!=""){lastp=proc; laste=enr; p=0}} END{print laste+0}' "$CHUNK_OUT")
   log "NEWS chunk exit=$news_ec processed=${news_processed:-0} enriched=${news_enriched:-0}"
 
   hp=${html_processed:-0}

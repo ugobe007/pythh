@@ -388,7 +388,9 @@ async function runOneChunk(opts) {
 
   const statusFilter = includeHolding
     ? 'enrichment_status.eq.waiting,enrichment_status.is.null,enrichment_status.eq.holding'
-    : 'enrichment_status.eq.waiting,enrichment_status.is.null';
+    : gateNeedsUrlOnly
+      ? 'enrichment_status.is.null,enrichment_status.neq.holding'
+      : 'enrichment_status.eq.waiting,enrichment_status.is.null';
 
   const buildQuery = () => {
     let q = supabase
