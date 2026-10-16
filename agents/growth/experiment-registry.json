@@ -549,6 +549,46 @@
         "secondary": ["pricing_viewed", "checkout_started", "checkout_completed"]
       },
       "promotion_note": "Shipped 2026-10-06 on the open investor card (isPaid=false). 2026-10-08: strip→bridge works (5 strip / 2 clicks) and pricing_viewed=15, but checkout_started still 0 — root cause is pricing_auth_return: Sign-in CTA dropped ?plan=&source=. Research shipped redirect preserve + pricing_signin_cta_clicked. Success (7d): pricing_signin_cta_clicked > 0 AND checkout_started > 0 from source=match_lead_use_to_paid. Promote to running once first checkout_started lands."
+    },
+    {
+      "id": "pricing_anon_cta_outcome",
+      "audience": "founder",
+      "name": "Pricing anon CTA: outcome-first trial label (not auth-gate-first)",
+      "status": "draft",
+      "benchmark": "startups_com",
+      "applies_when": "pricing_page AND isAuthenticated=false",
+      "hypothesis": "On /pricing — the Use → paid surface — the anonymous-visitor plan CTAs were hardcoded 'Sign in to start trial', an auth-gate-first mechanism label (cta_doctrine anti-pattern). The LEAST-committed visitor saw the HIGHEST-friction label ('Sign in' as the first word) while already-authenticated users got the outcome label 'Start 14-day free trial'. Over 7d: pricing_viewed=4, pricing_signin_cta_clicked=0, checkout_started=0 — humans reach /pricing and bounce at the auth gate before Stripe. Flipping the anon primary to the outcome-first trial label ('Start 14-day free trial →') with sign-in demoted to a reassurance subline ('Free sign-in · no card for 14 days · cancel anytime') should move pricing_signin_cta_clicked off 0 without removing the auth redirect (loginHref + sessionStorage + pricing_signin_cta_clicked preserved; cta_variant=anon_outcome_first tag added for attribution).",
+      "loops": ["trial_first_cta", "pricing_auth_return"],
+      "variants": [
+        {
+          "key": "anon_outcome_first",
+          "traffic_pct": 100,
+          "schema": {
+            "surface": "pricing_page",
+            "renders_when": "isAuthenticated=false",
+            "primary_action": "route_to_login_then_checkout",
+            "primary_framing": "outcome_trial_deliverable",
+            "routes_to": "/login?redirect=/pricing?plan=&checkout=1",
+            "fires": "pricing_signin_cta_clicked (cta_variant=anon_outcome_first)",
+            "previous_label": "Sign in to start trial",
+            "previous_framing": "auth_gate_first"
+          },
+          "copy": {
+            "primary": "Start 14-day free trial",
+            "subline": "Free sign-in · no card for 14 days · cancel anytime"
+          },
+          "guardrails": {
+            "single_primary_per_surface": true,
+            "auth_redirect_preserved": true,
+            "no_fabricated_counts": true
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "pricing_signin_cta_clicked",
+        "secondary": ["checkout_started", "checkout_completed", "pricing_viewed"]
+      },
+      "promotion_note": "DRAFT 2026-10-16 — shipped in site/Pricing.tsx PlanCTA anon branch (report-only). Baseline 7d (human_funnel): pricing_viewed=4, pricing_signin_cta_clicked=0, checkout_started=0. Promote to running once pricing_signin_cta_clicked > 0 AND checkout_started > 0 over 7d. Owner review required before status=running."
     }
   ]
 }

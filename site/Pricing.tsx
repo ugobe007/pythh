@@ -99,35 +99,45 @@ function PlanCTA({
     const loginHref = `/login?redirect=${encodeURIComponent(safeReturn)}`;
 
     if (!isAuthenticated) {
+      // Outcome-first primary (cta_doctrine): lead with the trial deliverable, not the
+      // auth gate. Sign-in is demoted to a reassurance subline so the least-committed
+      // visitor no longer sees friction ("Sign in") as the first word. Redirect +
+      // pricing_signin_cta_clicked instrumentation preserved.
       return (
-        <StrokeButton
-          href={loginHref}
-          onClick={() => {
-            const source =
-              typeof window !== "undefined"
-                ? new URLSearchParams(window.location.search).get("source")
-                : null;
-            try {
-              sessionStorage.setItem(AUTO_CHECKOUT_KEY, plan.stripePlanId || plan.id);
-              sessionStorage.setItem(AUTO_CHECKOUT_BILLING_KEY, billing);
-            } catch {
-              /* private mode */
-            }
-            void trackFunnelEvent("pricing_signin_cta_clicked", {
-              plan: plan.stripePlanId || plan.id,
-              billing,
-              path: safeReturn,
-              source,
-              auto_checkout: true,
-            });
-          }}
-          color={plan.color}
-          borderColor={plan.borderColor}
-          fullWidth
-          showArrow
-        >
-          Sign in to start trial
-        </StrokeButton>
+        <div className="w-full">
+          <StrokeButton
+            href={loginHref}
+            onClick={() => {
+              const source =
+                typeof window !== "undefined"
+                  ? new URLSearchParams(window.location.search).get("source")
+                  : null;
+              try {
+                sessionStorage.setItem(AUTO_CHECKOUT_KEY, plan.stripePlanId || plan.id);
+                sessionStorage.setItem(AUTO_CHECKOUT_BILLING_KEY, billing);
+              } catch {
+                /* private mode */
+              }
+              void trackFunnelEvent("pricing_signin_cta_clicked", {
+                plan: plan.stripePlanId || plan.id,
+                billing,
+                path: safeReturn,
+                source,
+                auto_checkout: true,
+                cta_variant: "anon_outcome_first",
+              });
+            }}
+            color={plan.color}
+            borderColor={plan.borderColor}
+            fullWidth
+            showArrow
+          >
+            {label}
+          </StrokeButton>
+          <p className="text-[10px] font-mono mt-1.5 text-center" style={{ color: DIM }}>
+            Free sign-in · no card for {plan.trialDays} days · cancel anytime
+          </p>
+        </div>
       );
     }
 
